@@ -49,6 +49,7 @@ export interface Service {
     created_at?: string;
     slug?: string;
     price?: string;
+    discount?: string;
     status?: boolean;
     feature?: boolean;
     type?: string;
@@ -117,6 +118,7 @@ type ServiceRow = {
     created_at?: string;
     slug?: string;
     price?: string;
+    discount?: string;
     status?: boolean;
     feature?: boolean;
     type?: string;
@@ -158,6 +160,7 @@ const normalizeService = (rows: ServiceRow[] | null | undefined): Service[] =>
             created_at: r.created_at,
             slug: r.slug,
             price: r.price,
+            discount: r.discount,
             status: r.status ?? undefined,
             feature: r.feature,
             type: r.type,
@@ -227,6 +230,92 @@ export const fetchServiceCountsByProvider = createAsyncThunk<
     }
 );
 
+export const updateProvider = createAsyncThunk<
+    Provider,
+    { id: string; updates: Partial<Provider> },
+    { rejectValue: string }
+>(
+    "provider/updateProvider",
+    async ({ id, updates }, { rejectWithValue }) => {
+    const { data, error } = await supabase
+            .from("provider")
+            .update(updates)
+            .eq("id", id)
+            .select("*")
+            .single();
+        if (error) return rejectWithValue(error.message);
+    type ProviderRow = Provider & { created_at?: string };
+    const row = data as ProviderRow;
+        const { created_at, ...rest } = row ?? {};
+        return { ...rest, createdAt: row?.createdAt ?? created_at } as Provider;
+    }
+);
+
+export const createService = createAsyncThunk<
+    Service,
+    { provider_id: string; values: Partial<Service> },
+    { rejectValue: string }
+>(
+    "provider/createService",
+    async ({ provider_id, values }, { rejectWithValue }) => {
+        const base = { provider_id, ...values } as Record<string, unknown>;
+        // Prefer 'images' array if provided as comma separated string in serviceImage
+        if (typeof values.serviceImage === 'string') {
+            base.images = [values.serviceImage];
+        }
+        try {
+            const { data, error } = await supabase
+                .from("service")
+                .insert(base)
+                .select("*")
+                .single();
+            if (error) throw error;
+            return normalizeService([data as ServiceRow])[0];
+    } catch {
+            const { data, error } = await supabase
+                .from("services")
+                .insert(base)
+                .select("*")
+                .single();
+            if (error) return rejectWithValue(error.message);
+            return normalizeService([data as ServiceRow])[0];
+        }
+    }
+);
+
+export const updateService = createAsyncThunk<
+    Service,
+    { id: string; values: Partial<Service> },
+    { rejectValue: string }
+>(
+    "provider/updateService",
+    async ({ id, values }, { rejectWithValue }) => {
+        const base = { ...values } as Record<string, unknown>;
+        if (typeof values.serviceImage === 'string') {
+            base.images = [values.serviceImage];
+        }
+        try {
+            const { data, error } = await supabase
+                .from("service")
+                .update(base)
+                .eq("id", id)
+                .select("*")
+                .single();
+            if (error) throw error;
+            return normalizeService([data as ServiceRow])[0];
+    } catch {
+            const { data, error } = await supabase
+                .from("services")
+                .update(base)
+                .eq("id", id)
+                .select("*")
+                .single();
+            if (error) return rejectWithValue(error.message);
+            return normalizeService([data as ServiceRow])[0];
+        }
+    }
+);
+
 const providerSlice = createSlice({
     name: "provider",
     initialState,
@@ -281,6 +370,20 @@ const providerSlice = createSlice({
             })
             .addCase(fetchServiceCountsByProvider.fulfilled, (state, action: PayloadAction<Record<string, number>>) => {
                 state.serviceCounts = action.payload;
+            })
+            .addCase(updateProvider.fulfilled, (state, action: PayloadAction<Provider>) => {
+                // update selected
+                state.selected = action.payload;
+                // update in list if present
+                const idx = state.providers.findIndex(p => p.id === action.payload.id);
+                if (idx !== -1) state.providers[idx] = action.payload;
+            })
+            .addCase(createService.fulfilled, (state, action: PayloadAction<Service>) => {
+                state.services.push(action.payload);
+            })
+            .addCase(updateService.fulfilled, (state, action: PayloadAction<Service>) => {
+                const i = state.services.findIndex(s => s.id === action.payload.id);
+                if (i !== -1) state.services[i] = action.payload;
             });
     },
 });

@@ -2,12 +2,18 @@ import { configureStore } from '@reduxjs/toolkit';
 import providerReducer from '../features/provider/providerSlice';
 import bookedServiceReducer from '../features/bookedService/bookedServiceSlice';
 import customerReducer from '../features/customer/customerSlice';
+import { addServiceModalSliceReducer } from '../features/service/addServiceSlice';
+import editServiceReducer from '../features/service/editServiceSlice';
+import deleteServiceReducer from '../features/service/deleteServiceSlice';
 
 const store = configureStore({
     reducer: {
         provider: providerReducer,
         bookedService: bookedServiceReducer,
         customer: customerReducer,
+        addServiceModal: addServiceModalSliceReducer,
+        editService: editServiceReducer,
+        deleteService: deleteServiceReducer,
     },
 });
 
