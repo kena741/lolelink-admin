@@ -2,6 +2,7 @@
 'use client';
 import React, { useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
+import AuthGuard from '@/components/AuthGuard';
 import { useParams } from 'next/navigation';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { fetchProviderById, fetchProviderServices, clearSelected, clearServices } from '@/features/provider/providerSlice';
@@ -33,6 +34,7 @@ export default function ProviderDetailPage() {
     })();
 
     return (
+        <AuthGuard>
         <div className="flex">
             <Sidebar />
             <main className="ml-64 w-full min-h-screen bg-gray-50">
@@ -117,5 +119,6 @@ export default function ProviderDetailPage() {
                 )}
             </main>
         </div>
+        </AuthGuard>
     );
 }

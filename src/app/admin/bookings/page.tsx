@@ -4,6 +4,9 @@ import Image from "next/image";
 import Sidebar from "../../../components/Sidebar";
 import { useAppDispatch, useAppSelector } from "../../../store/hooks";
 import { fetchAllBookings, fetchBookingById, clearSingle } from "../../../features/bookedService/bookedServiceSlice";
+import { CalendarCheck2, RefreshCw, Search } from "lucide-react";
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import AuthGuard from "@/components/AuthGuard";
 
 const StatusBadge = ({ status }: { status?: string }) => {
   const color = useMemo(() => {
@@ -92,6 +95,7 @@ const BookingsPage = () => {
   const dispatch = useAppDispatch();
   const { items, loading, error } = useAppSelector((s) => s.bookedService);
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     // Load all bookings across all providers
@@ -112,92 +116,149 @@ const BookingsPage = () => {
     dispatch(clearSingle());
   };
 
+  const filtered = useMemo(() => {
+    if (!query.trim()) return items;
+    const q = query.toLowerCase();
+    return items.filter((b) => {
+      const customer = [b.firstName, b.lastName].filter(Boolean).join(" ").toLowerCase();
+      const email = (b.email ?? "").toLowerCase();
+      const phone = (b.phoneNumber ?? "").toLowerCase();
+      const service = (b.serviceName ?? b.service_id ?? "").toString().toLowerCase();
+      const status = (b.status ?? "").toLowerCase();
+      const provider = (b.provider_id ?? "").toString().toLowerCase();
+      return (
+        customer.includes(q) ||
+        email.includes(q) ||
+        phone.includes(q) ||
+        service.includes(q) ||
+        status.includes(q) ||
+        provider.includes(q)
+      );
+    });
+  }, [items, query]);
+
   return (
-    <div className="flex">
-      <Sidebar />
-      <main className="ml-64 w-full p-10 bg-gray-50 min-h-screen">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold text-gray-800">Booked Services</h1>
-          <button
-            onClick={onRefresh}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            Refresh
-          </button>
+    <AuthGuard>
+      <div className="flex">
+        <Sidebar />
+        <main className="ml-64 w-full min-h-screen">
+        {/* Page header */}
+        <div className="relative isolate overflow-hidden bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600">
+          <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <div className="rounded-md bg-white/15 p-2 text-white ring-1 ring-white/20">
+                  <CalendarCheck2 className="h-4 w-4" />
+                </div>
+                <div>
+                  <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-white">Bookings</h1>
+                  <p className="mt-1 text-white/80 text-sm">All booked services from customers across providers.</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="text-sm text-white/80">{items.length} total</div>
+                <button
+                  onClick={onRefresh}
+                  className="inline-flex items-center gap-2 rounded-md bg-white/10 px-3 py-2 text-sm font-medium text-white ring-1 ring-white/20 hover:bg-white/15"
+                >
+                  <RefreshCw className="h-4 w-4" /> Refresh
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {loading && <div className="mb-4">Loading bookings...</div>}
-        {error && <div className="mb-4 text-red-600">{error}</div>}
+        <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8 bg-gray-50">
+          {/* Toolbar */}
+          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="w-full sm:w-96">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search customer, service, status, provider..."
+                  className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                />
+              </div>
+            </div>
+          </div>
 
-        <div className="bg-white rounded shadow overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
-            <thead className="bg-gray-100 text-gray-700">
-              <tr>
-                <th className="px-4 py-3">Provider</th>
-                <th className="px-4 py-3">Service</th>
-                <th className="px-4 py-3">Customer</th>
-                <th className="px-4 py-3">Amount</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Date</th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((b) => (
-                <tr key={b.id} className="border-t">
-                  <td className="px-4 py-3">
-                    <div className="text-sm font-medium">{b.provider_id}</div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      {b.serviceImage ? (
-                        <Image
-                          src={b.serviceImage}
-                          alt="service"
-                          width={40}
-                          height={40}
-                          className="h-10 w-10 rounded object-cover"
-                        />
-                      ) : (
-                        <div className="h-10 w-10 rounded bg-gray-200" />
-                      )}
-                      <div>
-                        <div className="font-medium">{b.serviceName || b.service_id || '—'}</div>
-                        <div className="text-xs text-gray-500">#{b.id.slice(0,6)}</div>
+          {loading && <div className="mb-4 text-sm text-gray-600">Loading bookings...</div>}
+          {error && <div className="mb-4 text-sm text-red-600">{error}</div>}
+
+          <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="text-xs text-gray-600">
+                  <TableHead>Provider</TableHead>
+                  <TableHead>Service</TableHead>
+                  <TableHead>Customer</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.map((b) => (
+                  <TableRow key={b.id} className="hover:bg-gray-50/60">
+                    <TableCell>
+                      <div className="text-sm font-medium">{b.provider_id}</div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        {b.serviceImage ? (
+                          <Image
+                            src={b.serviceImage}
+                            alt="service"
+                            width={40}
+                            height={40}
+                            className="h-10 w-10 rounded object-cover ring-1 ring-gray-200"
+                          />
+                        ) : (
+                          <div className="h-10 w-10 rounded bg-gray-200" />
+                        )}
+                        <div>
+                          <div className="font-medium">{b.serviceName || b.service_id || '—'}</div>
+                          <div className="text-xs text-gray-500">#{b.id.slice(0,6)}</div>
+                        </div>
                       </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    {[b.firstName, b.lastName].filter(Boolean).join(' ') || '—'}
-                    <div className="text-xs text-gray-500">{b.email || b.phoneNumber || '—'}</div>
-                  </td>
-                  <td className="px-4 py-3">{b.totalAmount ?? b.price ?? 0}</td>
-                  <td className="px-4 py-3"><StatusBadge status={b.status} /></td>
-                  <td className="px-4 py-3">{b.createdAt ? new Date(b.createdAt).toLocaleString() : '—'}</td>
-                  <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => onOpenDetail(b.id)}
-                      className="px-3 py-1.5 text-sm border rounded hover:bg-gray-50"
-                    >
-                      View
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {items.length === 0 && !loading && (
-                <tr>
-                  <td className="px-4 py-6 text-center text-gray-500" colSpan={6}>
-                    No bookings found.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                    </TableCell>
+                    <TableCell>
+                      {[b.firstName, b.lastName].filter(Boolean).join(' ') || '—'}
+                      <div className="text-xs text-gray-500">{b.email || b.phoneNumber || '—'}</div>
+                    </TableCell>
+                    <TableCell>{b.totalAmount ?? b.price ?? 0}</TableCell>
+                    <TableCell><StatusBadge status={b.status} /></TableCell>
+                    <TableCell>{b.createdAt ? new Date(b.createdAt).toLocaleString() : '—'}</TableCell>
+                    <TableCell className="text-right">
+                      <button
+                        onClick={() => onOpenDetail(b.id)}
+                        className="px-3 py-1.5 text-sm border rounded hover:bg-gray-50"
+                      >
+                        View
+                      </button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {filtered.length === 0 && !loading && (
+                  <TableRow>
+                    <TableCell className="px-4 py-6 text-center text-gray-500" colSpan={7}>
+                      No bookings found.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+              <TableCaption>All bookings</TableCaption>
+            </Table>
+          </div>
         </div>
-      </main>
+        </main>
 
-      <DetailModal open={open} onClose={onClose} />
-    </div>
+        <DetailModal open={open} onClose={onClose} />
+      </div>
+    </AuthGuard>
   );
 };
 
