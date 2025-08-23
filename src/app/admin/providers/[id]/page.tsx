@@ -10,6 +10,7 @@ import { addService, openAddServiceModal, closeAddServiceModal } from '@/feature
 import { openEditModal } from '@/features/service/editServiceSlice';
 import EditServiceModal from './EditServiceModal';
 import { deleteService as deleteServiceThunk } from '@/features/service/deleteServiceSlice';
+import { approveServicesByProvider } from '@/features/service/approveServicesSlice';
 import { Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { RootState } from '@/store/store';
@@ -270,7 +271,23 @@ export default function ProviderDetailPage() {
                                     <section className="mt-10">
                                         <div className="mb-4 flex items-center justify-between">
                                             <h2 className="text-2xl font-semibold">Services</h2>
-                                            <Button onClick={openAddService}>Add Service</Button>
+                                            <div className="flex gap-2">
+                                                <Button onClick={openAddService}>Add Service</Button>
+                                                <Button
+                                                    onClick={async () => {
+                                                        try {
+                                                            const updated = await dispatch(approveServicesByProvider(id)).unwrap();
+                                                            if (updated > 0) {
+                                                                await dispatch(fetchProviderServices(id));
+                                                            }
+                                                        } catch (e) {
+                                                            console.error('Approve services for provider failed', e);
+                                                        }
+                                                    }}
+                                                >
+                                                    Approve All Services
+                                                </Button>
+                                            </div>
                                         </div>
                                         {services.length === 0 ? (
                                             <div className="text-gray-500">No services found for this provider.</div>

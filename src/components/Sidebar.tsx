@@ -11,6 +11,7 @@ const navItems = [
     { href: '/admin/providers', label: 'Providers', icon: Briefcase },
     { href: '/admin/customers', label: 'Customers', icon: Users },
     { href: '/admin/bookings', label: 'Bookings', icon: CalendarCheck2 },
+    { href: '/admin/services/approve', label: 'Approve Services', icon: CalendarCheck2 },
 ];
 
 const Sidebar = () => {
@@ -46,8 +47,8 @@ const Sidebar = () => {
                                     <Link
                                         href={href}
                                         className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${active
-                                                ? 'bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-200'
-                                                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                                            ? 'bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-200'
+                                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                                             }`}
                                     >
                                         <Icon className={`h-4 w-4 ${active ? 'text-indigo-600' : 'text-gray-400 group-hover:text-gray-700'}`} />

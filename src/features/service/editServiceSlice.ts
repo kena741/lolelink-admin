@@ -24,6 +24,7 @@ export type ServiceModel = {
     feature?: boolean;
     serviceLocationMode?: string;
     video?: string | null;
+    approved?: boolean;
 };
 
 interface EditServiceState {
@@ -96,6 +97,7 @@ export const updateService = createAsyncThunk<ServiceModel, UpdateServiceArgs, {
                 'status',
                 'prePayment',
                 'feature',
+                'approved',
                 'serviceLocationMode',
                 'video',
             ];

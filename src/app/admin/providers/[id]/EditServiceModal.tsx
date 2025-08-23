@@ -34,6 +34,7 @@ export default function EditServiceModal() {
         duration: "",
         description: "",
         serviceLocationMode: "onsite",
+        approved: false,
     });
     const [mediaType, setMediaType] = useState<"images" | "video">("images");
     const [existingVideoUrl, setExistingVideoUrl] = useState<string | null>(null);
@@ -52,6 +53,7 @@ export default function EditServiceModal() {
             duration: toMinutesString(service.duration),
             description: service.description || "",
             serviceLocationMode: service.serviceLocationMode || "onsite",
+            approved: !!service.approved,
         });
         if (service.video) {
             setMediaType("video");
@@ -198,6 +200,7 @@ export default function EditServiceModal() {
             discount: form.discount,
             duration: normalizedDuration,
             description: form.description,
+            approved: !!form.approved,
             serviceLocationMode: form.serviceLocationMode,
             serviceImage: images,
             videoFile: mediaType === 'video' ? (videoFile ?? undefined) : undefined,
@@ -243,6 +246,12 @@ export default function EditServiceModal() {
                     <div>
                         <label className="text-sm font-medium" htmlFor="svc-desc">Description</label>
                         <textarea id="svc-desc" name="description" value={form.description} onChange={onChange} className="mt-1 w-full min-h-[90px] rounded-md border px-3 py-2 text-sm" />
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <label className="flex items-center gap-2 text-sm text-gray-700">
+                            <input type="checkbox" name="approved" checked={!!form.approved} onChange={(e) => setForm(f => ({ ...f, approved: (e.target as HTMLInputElement).checked }))} className="h-4 w-4" />
+                            Approve service
+                        </label>
                     </div>
                     <div>
                         <label className="text-sm font-medium">Service Location Mode</label>

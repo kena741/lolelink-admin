@@ -5,6 +5,7 @@ import customerReducer from '../features/customer/customerSlice';
 import { addServiceModalSliceReducer } from '../features/service/addServiceSlice';
 import editServiceReducer from '../features/service/editServiceSlice';
 import deleteServiceReducer from '../features/service/deleteServiceSlice';
+import approveServicesReducer from '../features/service/approveServicesSlice';
 
 const store = configureStore({
     reducer: {
@@ -14,6 +15,7 @@ const store = configureStore({
         addServiceModal: addServiceModalSliceReducer,
         editService: editServiceReducer,
         deleteService: deleteServiceReducer,
+        approveServices: approveServicesReducer,
     },
 });
 
