@@ -11,7 +11,10 @@ import { openEditModal } from '@/features/service/editServiceSlice';
 import EditServiceModal from './EditServiceModal';
 import { deleteService as deleteServiceThunk } from '@/features/service/deleteServiceSlice';
 import { approveServicesByProvider } from '@/features/service/approveServicesSlice';
-import { Pencil, Trash2 } from 'lucide-react';
+import { fetchVerifyDocuments } from '@/features/verifyDocuments/verifyDocumentsSlice';
+import { fetchPayoutRequests } from '@/features/payout/payoutSlice';
+import { fetchHandymen, updateHandyman, deleteHandyman } from '@/features/handyman/handymanSlice';
+import { Pencil, Trash2, FileText, DollarSign, Wrench, Clock, Briefcase, History } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { RootState } from '@/store/store';
 import { Input } from '@/components/ui/input';
@@ -26,15 +29,55 @@ export default function ProviderDetailPage() {
     const { selected: provider, selectedLoading, error, services, servicesLoading } = useAppSelector((s) => s.provider);
     const { loading: deleteLoading, error: deleteError } = useAppSelector((s: RootState) => s.deleteService ?? { loading: false, error: null, success: false });
 
+    const { documents } = useAppSelector((state) => state.verifyDocuments);
+    const { requests: payoutRequests } = useAppSelector((state) => state.payout);
+    const { handymen } = useAppSelector((state) => state.handyman);
+    
+    const [selectedDocument, setSelectedDocument] = useState<string | null>(null);
+    const [editingHandyman, setEditingHandyman] = useState<any>(null);
+    const [handymanForm, setHandymanForm] = useState({
+        firstName: '',
+        lastName: '',
+        email: '',
+        phoneNumber: '',
+        userName: '',
+        userType: '',
+        category: '',
+        subCategory: '',
+        address: '',
+        countryCode: '',
+        active: true,
+        isActive: true,
+    });
+    const [deletingHandymanId, setDeletingHandymanId] = useState<string | null>(null);
+    const [activeTab, setActiveTab] = useState<'services' | 'documents' | 'withdrawals' | 'handyman'>('services');
+
     useEffect(() => {
         if (!id) return;
         dispatch(fetchProviderById(id));
         dispatch(fetchProviderServices(id));
+        dispatch(fetchVerifyDocuments());
+        dispatch(fetchPayoutRequests());
+        dispatch(fetchHandymen());
         return () => {
             dispatch(clearSelected());
             dispatch(clearServices());
         };
     }, [dispatch, id]);
+
+    // Filter data for this provider
+    const providerDocuments = documents.filter(doc => doc.providerId === id);
+    const providerWithdrawals = payoutRequests.filter(req => req.providerId === id);
+    const providerHandymen = handymen.filter(h => h.providerId === id);
+    
+    // Calculate total earnings (sum of approved/completed withdrawals)
+    const totalEarnings = providerWithdrawals
+        .filter(req => req.paymentStatus === 'approved' || req.paymentStatus === 'completed')
+        .reduce((sum, req) => sum + (typeof req.amount === 'string' ? parseFloat(req.amount) || 0 : req.amount || 0), 0);
+    
+    const totalPending = providerWithdrawals
+        .filter(req => req.paymentStatus === 'pending')
+        .reduce((sum, req) => sum + (typeof req.amount === 'string' ? parseFloat(req.amount) || 0 : req.amount || 0), 0);
 
     const bannerSrc = provider?.banner || undefined;
     const profileSrc = provider?.profileImage || provider?.profile_image || provider?.avatar_url || undefined;
@@ -258,7 +301,7 @@ export default function ProviderDetailPage() {
 
                                 {/* Details */}
                                 <div className="p-10 pt-16">
-                                    <div className="flex items-center justify-between">
+                                    <div className="flex items-center justify-between mb-6">
                                         <div>
                                             <h1 className="text-3xl font-bold">{displayName}</h1>
                                             <p className="text-gray-600">{provider.email || '—'} · {provider.phoneNumber || provider.phone || '—'}</p>
@@ -267,8 +310,94 @@ export default function ProviderDetailPage() {
                                         <Button onClick={() => setOpen(true)} variant="outline">Edit</Button>
                                     </div>
 
-                                    {/* Services listed by this provider */}
-                                    <section className="mt-10">
+                                    {/* Earnings Summary */}
+                                    <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div className="bg-white rounded-lg shadow p-6">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-3 bg-emerald-100 rounded-lg">
+                                                    <DollarSign className="h-6 w-6 text-emerald-600" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm text-gray-600">Total Earnings</p>
+                                                    <p className="text-2xl font-bold text-gray-900">ETB {totalEarnings.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="bg-white rounded-lg shadow p-6">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-3 bg-amber-100 rounded-lg">
+                                                    <Clock className="h-6 w-6 text-amber-600" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm text-gray-600">Pending Withdrawals</p>
+                                                    <p className="text-2xl font-bold text-gray-900">ETB {totalPending.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="bg-white rounded-lg shadow p-6">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-3 bg-indigo-100 rounded-lg">
+                                                    <FileText className="h-6 w-6 text-indigo-600" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm text-gray-600">Total Withdrawals</p>
+                                                    <p className="text-2xl font-bold text-gray-900">{providerWithdrawals.length}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Tabs */}
+                                    <div className="mb-6 flex items-center gap-2 bg-white rounded-lg p-1 shadow border border-gray-200">
+                                        <button
+                                            onClick={() => setActiveTab('services')}
+                                            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                                                activeTab === 'services'
+                                                    ? 'bg-indigo-500 text-white shadow-md'
+                                                    : 'text-gray-700 hover:bg-gray-100'
+                                            }`}
+                                        >
+                                            <Briefcase className="h-4 w-4" />
+                                            Services
+                                        </button>
+                                        <button
+                                            onClick={() => setActiveTab('documents')}
+                                            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                                                activeTab === 'documents'
+                                                    ? 'bg-indigo-500 text-white shadow-md'
+                                                    : 'text-gray-700 hover:bg-gray-100'
+                                            }`}
+                                        >
+                                            <FileText className="h-4 w-4" />
+                                            Documents
+                                        </button>
+                                        <button
+                                            onClick={() => setActiveTab('withdrawals')}
+                                            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                                                activeTab === 'withdrawals'
+                                                    ? 'bg-indigo-500 text-white shadow-md'
+                                                    : 'text-gray-700 hover:bg-gray-100'
+                                            }`}
+                                        >
+                                            <History className="h-4 w-4" />
+                                            Withdrawals
+                                        </button>
+                                        <button
+                                            onClick={() => setActiveTab('handyman')}
+                                            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                                                activeTab === 'handyman'
+                                                    ? 'bg-indigo-500 text-white shadow-md'
+                                                    : 'text-gray-700 hover:bg-gray-100'
+                                            }`}
+                                        >
+                                            <Wrench className="h-4 w-4" />
+                                            Handyman
+                                        </button>
+                                    </div>
+
+                                    {/* Services Tab */}
+                                    {activeTab === 'services' && (
+                                    <section>
                                         <div className="mb-4 flex items-center justify-between">
                                             <h2 className="text-2xl font-semibold">Services</h2>
                                             <div className="flex gap-2">
@@ -350,6 +479,196 @@ export default function ProviderDetailPage() {
                                             </div>
                                         )}
                                     </section>
+                                    )}
+
+                                    {/* Documents Tab */}
+                                    {activeTab === 'documents' && (
+                                    <section>
+                                        <h2 className="text-2xl font-semibold mb-4">Uploaded Documents</h2>
+                                        {providerDocuments.length === 0 ? (
+                                            <div className="bg-white rounded-lg shadow p-6 text-gray-500">No documents uploaded.</div>
+                                        ) : (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                {providerDocuments.map((doc) => (
+                                                    <div key={doc.id} className="bg-white rounded-lg shadow p-4">
+                                                        <div className="flex items-center justify-between mb-2">
+                                                            <div className="flex items-center gap-2">
+                                                                <FileText className="h-5 w-5 text-indigo-600" />
+                                                                <span className="font-semibold">{doc.documentName || 'Document'}</span>
+                                                            </div>
+                                                            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                                                                doc.isVerify 
+                                                                    ? 'bg-emerald-100 text-emerald-700' 
+                                                                    : 'bg-amber-100 text-amber-700'
+                                                            }`}>
+                                                                {doc.isVerify ? 'Verified' : 'Pending'}
+                                                            </span>
+                                                        </div>
+                                                        {doc.documentImage && (
+                                                            <div className="mt-3 relative">
+                                                                <img 
+                                                                    src={doc.documentImage} 
+                                                                    alt={doc.documentName || 'Document'}
+                                                                    className="w-full h-32 object-cover rounded cursor-pointer hover:opacity-80"
+                                                                    onClick={() => setSelectedDocument(doc.documentImage || null)}
+                                                                />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </section>
+                                    )}
+
+                                    {/* Withdrawals Tab */}
+                                    {activeTab === 'withdrawals' && (
+                                    <section>
+                                        <h2 className="text-2xl font-semibold mb-4">Withdrawal History</h2>
+                                        {providerWithdrawals.length === 0 ? (
+                                            <div className="bg-white rounded-lg shadow p-6 text-gray-500">No withdrawal requests.</div>
+                                        ) : (
+                                            <div className="bg-white rounded-lg shadow overflow-hidden">
+                                                <table className="w-full">
+                                                    <thead className="bg-gray-50 border-b">
+                                                        <tr>
+                                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Date</th>
+                                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Amount</th>
+                                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Status</th>
+                                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Note</th>
+                                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Payment Date</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y">
+                                                        {providerWithdrawals.map((withdrawal) => (
+                                                            <tr key={withdrawal.id} className="hover:bg-gray-50">
+                                                                <td className="px-6 py-4 text-sm text-gray-900">
+                                                                    {withdrawal.createdDate ? new Date(withdrawal.createdDate).toLocaleDateString() : '—'}
+                                                                </td>
+                                                                <td className="px-6 py-4 text-sm font-semibold text-gray-900">
+                                                                    ETB {typeof withdrawal.amount === 'string' ? parseFloat(withdrawal.amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : withdrawal.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                                </td>
+                                                                <td className="px-6 py-4">
+                                                                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                                                                        withdrawal.paymentStatus === 'approved' || withdrawal.paymentStatus === 'completed'
+                                                                            ? 'bg-emerald-100 text-emerald-700'
+                                                                            : withdrawal.paymentStatus === 'rejected'
+                                                                            ? 'bg-red-100 text-red-700'
+                                                                            : 'bg-amber-100 text-amber-700'
+                                                                    }`}>
+                                                                        {withdrawal.paymentStatus}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-6 py-4 text-sm text-gray-600">{withdrawal.note || '—'}</td>
+                                                                <td className="px-6 py-4 text-sm text-gray-600">
+                                                                    {withdrawal.paymentDate ? new Date(withdrawal.paymentDate).toLocaleDateString() : '—'}
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        )}
+                                    </section>
+                                    )}
+
+                                    {/* Handyman Tab */}
+                                    {activeTab === 'handyman' && (
+                                    <section>
+                                        <div className="mb-4 flex items-center justify-between">
+                                            <h2 className="text-2xl font-semibold">Handyman</h2>
+                                        </div>
+                                        {providerHandymen.length === 0 ? (
+                                            <div className="bg-white rounded-lg shadow p-6 text-gray-500">No handymen assigned to this provider.</div>
+                                        ) : (
+                                            <div className="bg-white rounded-lg shadow overflow-hidden">
+                                                <table className="w-full">
+                                                    <thead className="bg-gray-50 border-b">
+                                                        <tr>
+                                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Name</th>
+                                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Email</th>
+                                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Phone</th>
+                                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Category</th>
+                                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Status</th>
+                                                            <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Actions</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y">
+                                                        {providerHandymen.map((handyman) => (
+                                                            <tr key={handyman.id} className="hover:bg-gray-50">
+                                                                <td className="px-6 py-4">
+                                                                    <div className="flex items-center gap-2">
+                                                                        {handyman.profileImage ? (
+                                                                            <img src={handyman.profileImage} alt={`${handyman.firstName} ${handyman.lastName}`} className="w-8 h-8 rounded-full object-cover" />
+                                                                        ) : (
+                                                                            <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center">
+                                                                                <Wrench className="h-4 w-4 text-indigo-600" />
+                                                                            </div>
+                                                                        )}
+                                                                        <span className="text-sm font-medium text-gray-900">
+                                                                            {[handyman.firstName, handyman.lastName].filter(Boolean).join(' ') || 'N/A'}
+                                                                        </span>
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-6 py-4 text-sm text-gray-600">{handyman.email || '—'}</td>
+                                                                <td className="px-6 py-4 text-sm text-gray-600">
+                                                                    {handyman.countryCode && handyman.phoneNumber 
+                                                                        ? `${handyman.countryCode} ${handyman.phoneNumber}`
+                                                                        : handyman.phoneNumber || '—'}
+                                                                </td>
+                                                                <td className="px-6 py-4 text-sm text-gray-600">{handyman.category || '—'}</td>
+                                                                <td className="px-6 py-4">
+                                                                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                                                                        handyman.active && handyman.isActive
+                                                                            ? 'bg-emerald-100 text-emerald-700'
+                                                                            : 'bg-gray-100 text-gray-700'
+                                                                    }`}>
+                                                                        {handyman.active && handyman.isActive ? 'Active' : 'Inactive'}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-6 py-4 text-right">
+                                                                    <div className="flex items-center justify-end gap-2">
+                                                                        <Button
+                                                                            size="sm"
+                                                                            variant="outline"
+                                                                            onClick={() => {
+                                                                                setEditingHandyman(handyman);
+                                                                                setHandymanForm({
+                                                                                    firstName: handyman.firstName || '',
+                                                                                    lastName: handyman.lastName || '',
+                                                                                    email: handyman.email || '',
+                                                                                    phoneNumber: handyman.phoneNumber || '',
+                                                                                    userName: handyman.userName || '',
+                                                                                    userType: handyman.userType || '',
+                                                                                    category: handyman.category || '',
+                                                                                    subCategory: handyman.subCategory || '',
+                                                                                    address: handyman.address || '',
+                                                                                    countryCode: handyman.countryCode || '',
+                                                                                    active: handyman.active ?? true,
+                                                                                    isActive: handyman.isActive ?? true,
+                                                                                });
+                                                                            }}
+                                                                        >
+                                                                            <Pencil className="h-4 w-4" />
+                                                                        </Button>
+                                                                        <Button
+                                                                            size="sm"
+                                                                            variant="outline"
+                                                                            className="text-red-600 border-red-300 hover:bg-red-50"
+                                                                            onClick={() => setDeletingHandymanId(handyman.id)}
+                                                                        >
+                                                                            <Trash2 className="h-4 w-4" />
+                                                                        </Button>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        )}
+                                    </section>
+                                    )}
                                 </div>
                             </div>
                             {/* Edit dialog */}
@@ -503,6 +822,174 @@ export default function ProviderDetailPage() {
                                         disabled={deleteLoading}
                                     >
                                         {deleteLoading ? 'Deleting…' : 'Delete'}
+                                    </Button>
+                                </DialogFooter>
+                            </Dialog>
+
+                            {/* Document Image Modal */}
+                            {selectedDocument && (
+                                <Dialog open={!!selectedDocument} onClose={() => setSelectedDocument(null)}>
+                                    <DialogHeader>
+                                        <DialogTitle>Document Image</DialogTitle>
+                                    </DialogHeader>
+                                    <div className="p-4">
+                                        <img src={selectedDocument} alt="Document" className="w-full h-auto rounded-lg" />
+                                    </div>
+                                    <DialogFooter>
+                                        <Button onClick={() => setSelectedDocument(null)}>Close</Button>
+                                    </DialogFooter>
+                                </Dialog>
+                            )}
+
+                            {/* Edit Handyman Modal */}
+                            {editingHandyman && (
+                                <Dialog open={!!editingHandyman} onClose={() => setEditingHandyman(null)}>
+                                    <DialogHeader>
+                                        <DialogTitle>Edit Handyman</DialogTitle>
+                                    </DialogHeader>
+                                    <div className="grid gap-4 p-4">
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <Label htmlFor="hm-firstName">First Name</Label>
+                                                <Input 
+                                                    id="hm-firstName" 
+                                                    value={handymanForm.firstName} 
+                                                    onChange={(e) => setHandymanForm({ ...handymanForm, firstName: e.target.value })} 
+                                                />
+                                            </div>
+                                            <div>
+                                                <Label htmlFor="hm-lastName">Last Name</Label>
+                                                <Input 
+                                                    id="hm-lastName" 
+                                                    value={handymanForm.lastName} 
+                                                    onChange={(e) => setHandymanForm({ ...handymanForm, lastName: e.target.value })} 
+                                                />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <Label htmlFor="hm-email">Email</Label>
+                                            <Input 
+                                                id="hm-email" 
+                                                type="email"
+                                                value={handymanForm.email} 
+                                                onChange={(e) => setHandymanForm({ ...handymanForm, email: e.target.value })} 
+                                            />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <Label htmlFor="hm-countryCode">Country Code</Label>
+                                                <Input 
+                                                    id="hm-countryCode" 
+                                                    value={handymanForm.countryCode} 
+                                                    onChange={(e) => setHandymanForm({ ...handymanForm, countryCode: e.target.value })} 
+                                                    placeholder="+251"
+                                                />
+                                            </div>
+                                            <div>
+                                                <Label htmlFor="hm-phoneNumber">Phone Number</Label>
+                                                <Input 
+                                                    id="hm-phoneNumber" 
+                                                    value={handymanForm.phoneNumber} 
+                                                    onChange={(e) => setHandymanForm({ ...handymanForm, phoneNumber: e.target.value })} 
+                                                />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <Label htmlFor="hm-userName">Username</Label>
+                                            <Input 
+                                                id="hm-userName" 
+                                                value={handymanForm.userName} 
+                                                onChange={(e) => setHandymanForm({ ...handymanForm, userName: e.target.value })} 
+                                            />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <Label htmlFor="hm-category">Category</Label>
+                                                <Input 
+                                                    id="hm-category" 
+                                                    value={handymanForm.category} 
+                                                    onChange={(e) => setHandymanForm({ ...handymanForm, category: e.target.value })} 
+                                                />
+                                            </div>
+                                            <div>
+                                                <Label htmlFor="hm-subCategory">Subcategory</Label>
+                                                <Input 
+                                                    id="hm-subCategory" 
+                                                    value={handymanForm.subCategory} 
+                                                    onChange={(e) => setHandymanForm({ ...handymanForm, subCategory: e.target.value })} 
+                                                />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <Label htmlFor="hm-address">Address</Label>
+                                            <Input 
+                                                id="hm-address" 
+                                                value={handymanForm.address} 
+                                                onChange={(e) => setHandymanForm({ ...handymanForm, address: e.target.value })} 
+                                            />
+                                        </div>
+                                        <div className="flex gap-4">
+                                            <label className="flex items-center gap-2">
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={handymanForm.active} 
+                                                    onChange={(e) => setHandymanForm({ ...handymanForm, active: e.target.checked })} 
+                                                />
+                                                <span className="text-sm">Active</span>
+                                            </label>
+                                            <label className="flex items-center gap-2">
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={handymanForm.isActive} 
+                                                    onChange={(e) => setHandymanForm({ ...handymanForm, isActive: e.target.checked })} 
+                                                />
+                                                <span className="text-sm">Is Active</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <DialogFooter>
+                                        <Button variant="ghost" onClick={() => setEditingHandyman(null)}>Cancel</Button>
+                                        <Button onClick={async () => {
+                                            try {
+                                                await dispatch(updateHandyman({
+                                                    id: editingHandyman.id,
+                                                    ...handymanForm,
+                                                })).unwrap();
+                                                await dispatch(fetchHandymen());
+                                                setEditingHandyman(null);
+                                            } catch (e) {
+                                                console.error('Update handyman failed', e);
+                                            }
+                                        }}>Save Changes</Button>
+                                    </DialogFooter>
+                                </Dialog>
+                            )}
+
+                            {/* Delete Handyman Confirmation */}
+                            <Dialog open={!!deletingHandymanId} onClose={() => setDeletingHandymanId(null)}>
+                                <DialogHeader>
+                                    <DialogTitle>Delete Handyman?</DialogTitle>
+                                    <DialogDescription>
+                                        This action cannot be undone. This will permanently delete the handyman.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <DialogFooter>
+                                    <Button variant="ghost" onClick={() => setDeletingHandymanId(null)}>Cancel</Button>
+                                    <Button
+                                        variant="outline"
+                                        className="text-red-600 border-red-300 hover:bg-red-50"
+                                        onClick={async () => {
+                                            if (!deletingHandymanId) return;
+                                            try {
+                                                await dispatch(deleteHandyman(deletingHandymanId)).unwrap();
+                                                await dispatch(fetchHandymen());
+                                                setDeletingHandymanId(null);
+                                            } catch (e) {
+                                                console.error('Delete handyman failed', e);
+                                            }
+                                        }}
+                                    >
+                                        Delete
                                     </Button>
                                 </DialogFooter>
                             </Dialog>

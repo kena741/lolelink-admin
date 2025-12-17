@@ -6,6 +6,13 @@ import { addServiceModalSliceReducer } from '../features/service/addServiceSlice
 import editServiceReducer from '../features/service/editServiceSlice';
 import deleteServiceReducer from '../features/service/deleteServiceSlice';
 import approveServicesReducer from '../features/service/approveServicesSlice';
+import payoutReducer from '../features/payout/payoutSlice';
+import verifyDocumentsReducer from '../features/verifyDocuments/verifyDocumentsSlice';
+import settingsReducer from '../features/settings/settingsSlice';
+import categoryReducer from '../features/category/categorySlice';
+import subcategoryReducer from '../features/subcategory/subcategorySlice';
+import handymanReducer from '../features/handyman/handymanSlice';
+import taxReducer from '../features/tax/taxSlice';
 
 const store = configureStore({
     reducer: {
@@ -16,6 +23,13 @@ const store = configureStore({
         editService: editServiceReducer,
         deleteService: deleteServiceReducer,
         approveServices: approveServicesReducer,
+        payout: payoutReducer,
+        verifyDocuments: verifyDocumentsReducer,
+        settings: settingsReducer,
+        category: categoryReducer,
+        subcategory: subcategoryReducer,
+        handyman: handymanReducer,
+        tax: taxReducer,
     },
 });
 

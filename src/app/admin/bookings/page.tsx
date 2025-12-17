@@ -139,70 +139,92 @@ const BookingsPage = () => {
 
     return (
         <AuthGuard>
-            <div className="flex">
+            <div className="flex min-h-screen bg-gradient-to-br from-gray-50 via-indigo-50/30 to-purple-50/30">
                 <Sidebar />
                 <main className="ml-64 w-full min-h-screen">
-                    {/* Page header */}
-                    <div className="relative isolate overflow-hidden bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600">
-                        <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
-                            <div className="flex items-center justify-between gap-4">
-                                <div className="flex items-center gap-2">
-                                    <div className="rounded-md bg-white/15 p-2 text-white ring-1 ring-white/20">
-                                        <CalendarCheck2 className="h-4 w-4" />
+                    {/* Futuristic Header */}
+                    <div className="relative isolate overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600 opacity-90" />
+                        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4xIj48Y2lyY2xlIGN4PSIzMCIgY3k9IjMwIiByPSIxLjUiLz48L2c+PC9nPjwvc3ZnPg==')] opacity-20" />
+                        <div className="absolute top-0 left-1/4 w-72 h-72 bg-purple-500/30 rounded-full blur-3xl animate-pulse" />
+                        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-fuchsia-500/30 rounded-full blur-3xl animate-pulse delay-1000" />
+                        
+                        <div className="relative mx-auto max-w-7xl px-6 py-12 sm:py-16 lg:px-8">
+                            <div className="flex items-center justify-between gap-6">
+                                <div>
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                                            <CalendarCheck2 className="h-6 w-6 text-white" />
+                                        </div>
+                                        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white drop-shadow-lg">
+                                            Bookings
+                                        </h1>
                                     </div>
-                                    <div>
-                                        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-white">Bookings</h1>
-                                        <p className="mt-1 text-white/80 text-sm">All booked services from customers across providers.</p>
-                                    </div>
+                                    <p className="text-white/90 text-base font-medium">
+                                        All booked services from customers across providers
+                                    </p>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <div className="text-sm text-white/80">{items.length} total</div>
+                                <div className="flex items-center gap-3">
+                                    <div className="px-4 py-2 bg-white/10 backdrop-blur-md rounded-xl border border-white/20">
+                                        <div className="text-sm text-white/80">Total Bookings</div>
+                                        <div className="text-2xl font-bold text-white">{items.length}</div>
+                                    </div>
                                     <button
                                         onClick={onRefresh}
-                                        className="inline-flex items-center gap-2 rounded-md bg-white/10 px-3 py-2 text-sm font-medium text-white ring-1 ring-white/20 hover:bg-white/15"
+                                        className="group inline-flex items-center gap-2 rounded-xl bg-white/10 backdrop-blur-md px-4 py-3 text-sm font-semibold text-white ring-2 ring-white/20 hover:bg-white/20 hover:ring-white/40 transition-all duration-300 hover:scale-105"
                                     >
-                                        <RefreshCw className="h-4 w-4" /> Refresh
+                                        <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : 'group-hover:rotate-180'} transition-transform duration-500`} />
+                                        Refresh
                                     </button>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8 bg-gray-50">
+                    <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
                         {/* Toolbar */}
                         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div className="w-full sm:w-96">
                                 <div className="relative">
-                                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                                    <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
                                     <input
                                         value={query}
                                         onChange={(e) => setQuery(e.target.value)}
                                         placeholder="Search customer, service, status, provider..."
-                                        className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                                        className="w-full rounded-xl border border-white/20 bg-white/80 backdrop-blur-xl py-3 pl-11 pr-4 text-sm text-gray-900 placeholder:text-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200/50 shadow-lg transition-all"
                                     />
                                 </div>
                             </div>
                         </div>
 
-                        {loading && <div className="mb-4 text-sm text-gray-600">Loading bookings...</div>}
-                        {error && <div className="mb-4 text-sm text-red-600">{error}</div>}
+                        {loading && (
+                            <div className="mb-4 text-sm text-gray-600 flex items-center gap-2">
+                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
+                                Loading bookings...
+                            </div>
+                        )}
+                        {error && (
+                            <div className="mb-4 rounded-xl bg-red-50 border border-red-200 p-4 text-sm text-red-600">
+                                {error}
+                            </div>
+                        )}
 
-                        <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-x-auto">
+                        <div className="rounded-2xl border border-white/20 bg-white/80 backdrop-blur-xl shadow-xl overflow-hidden">
                             <Table>
                                 <TableHeader>
-                                    <TableRow className="text-xs text-gray-600">
-                                        <TableHead>Provider</TableHead>
-                                        <TableHead>Service</TableHead>
-                                        <TableHead>Customer</TableHead>
-                                        <TableHead>Amount</TableHead>
-                                        <TableHead>Status</TableHead>
-                                        <TableHead>Date</TableHead>
-                                        <TableHead></TableHead>
+                                    <TableRow className="bg-gradient-to-r from-indigo-50/50 to-purple-50/50 border-b border-white/20">
+                                        <TableHead className="font-semibold text-gray-700">Provider</TableHead>
+                                        <TableHead className="font-semibold text-gray-700">Service</TableHead>
+                                        <TableHead className="font-semibold text-gray-700">Customer</TableHead>
+                                        <TableHead className="font-semibold text-gray-700">Amount</TableHead>
+                                        <TableHead className="font-semibold text-gray-700">Status</TableHead>
+                                        <TableHead className="font-semibold text-gray-700">Date</TableHead>
+                                        <TableHead className="font-semibold text-gray-700"></TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {filtered.map((b) => (
-                                        <TableRow key={b.id} className="hover:bg-gray-50/60">
+                                        <TableRow key={b.id} className="hover:bg-gradient-to-r hover:from-indigo-50/30 hover:to-purple-50/30 transition-all border-b border-white/20">
                                             <TableCell>
                                                 <div className="text-sm font-medium">{b.provider_id}</div>
                                             </TableCell>
