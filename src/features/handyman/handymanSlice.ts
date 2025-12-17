@@ -160,7 +160,7 @@ export const updateHandyman = createAsyncThunk<
     'handyman/updateHandyman',
     async ({ id, ...updates }, { rejectWithValue }) => {
         try {
-            const updateData: any = {};
+            const updateData: Partial<HandymanRow> = {};
             if (updates.firstName !== undefined) updateData.firstName = updates.firstName;
             if (updates.lastName !== undefined) updateData.lastName = updates.lastName;
             if (updates.email !== undefined) updateData.email = updates.email;

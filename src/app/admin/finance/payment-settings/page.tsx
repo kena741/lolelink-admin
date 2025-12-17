@@ -30,7 +30,7 @@ const PaymentSettingsPage = () => {
         }
     }, [settings]);
 
-    const updatePaymentSetting = (provider: 'chapa' | 'telebirr' | 'wallet', key: string, value: any) => {
+    const updatePaymentSetting = (provider: 'chapa' | 'telebirr' | 'wallet', key: string, value: string | boolean | number) => {
         setPaymentSettings(prev => ({
             ...prev,
             [provider]: {

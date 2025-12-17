@@ -5,7 +5,7 @@ import Sidebar from "../../../components/Sidebar";
 import { useAppDispatch, useAppSelector } from "../../../store/hooks";
 import { fetchProviders, fetchServiceCountsByProvider } from "../../../features/provider/providerSlice";
 import type { Provider } from "@/features/provider/providerSlice";
-import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
     ChevronsUpDown, 
     RefreshCw, 
@@ -19,8 +19,6 @@ import {
     MapPin, 
     Calendar,
     ArrowUpRight,
-    Sparkles,
-    Filter,
     TrendingUp,
     Zap
 } from "lucide-react";

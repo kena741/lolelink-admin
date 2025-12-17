@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useRef, useEffect } from 'react';
-import { Eye, Check, X, Code, Maximize2 } from 'lucide-react';
+import { Eye, Check, X, Code } from 'lucide-react';
 
 interface HTMLEditorProps {
     value: string;
@@ -29,12 +29,7 @@ const HTMLEditor: React.FC<HTMLEditorProps> = ({ value, onChange, placeholder, l
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [htmlCode, setHtmlCode] = useState(value || '');
     const [lineNumbers, setLineNumbers] = useState<string[]>([]);
-    const [editorHeight, setEditorHeight] = useState(600);
-    const [isResizing, setIsResizing] = useState(false);
-    const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const highlightRef = useRef<HTMLDivElement>(null);
     const editorContainerRef = useRef<HTMLDivElement>(null);
-    const resizeHandleRef = useRef<HTMLDivElement>(null);
     const fullscreenTextareaRef = useRef<HTMLTextAreaElement>(null);
     const fullscreenHighlightRef = useRef<HTMLDivElement>(null);
 
@@ -52,13 +47,6 @@ const HTMLEditor: React.FC<HTMLEditorProps> = ({ value, onChange, placeholder, l
         onChange(newHtml);
     };
 
-    const handleScroll = () => {
-        if (textareaRef.current && highlightRef.current) {
-            highlightRef.current.scrollTop = textareaRef.current.scrollTop;
-            highlightRef.current.scrollLeft = textareaRef.current.scrollLeft;
-        }
-    };
-
     const handleFullscreenScroll = () => {
         if (fullscreenTextareaRef.current && fullscreenHighlightRef.current) {
             fullscreenHighlightRef.current.scrollTop = fullscreenTextareaRef.current.scrollTop;
@@ -66,35 +54,6 @@ const HTMLEditor: React.FC<HTMLEditorProps> = ({ value, onChange, placeholder, l
         }
     };
 
-    useEffect(() => {
-        if (!isResizing) return;
-
-        const handleMouseMove = (e: MouseEvent) => {
-            if (!editorContainerRef.current) return;
-            const rect = editorContainerRef.current.getBoundingClientRect();
-            const newHeight = e.clientY - rect.top;
-            if (newHeight >= 300 && newHeight <= 1200) {
-                setEditorHeight(newHeight);
-            }
-        };
-
-        const handleMouseUp = () => {
-            setIsResizing(false);
-        };
-
-        document.addEventListener('mousemove', handleMouseMove);
-        document.addEventListener('mouseup', handleMouseUp);
-        
-        return () => {
-            document.removeEventListener('mousemove', handleMouseMove);
-            document.removeEventListener('mouseup', handleMouseUp);
-        };
-    }, [isResizing]);
-
-    const handleResizeStart = (e: React.MouseEvent) => {
-        e.preventDefault();
-        setIsResizing(true);
-    };
 
 
     return (

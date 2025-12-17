@@ -67,7 +67,7 @@ export const fetchPayoutRequests = createAsyncThunk<
             if (withdrawalError) throw withdrawalError;
 
             // Get unique provider IDs
-            const providerIds = [...new Set((withdrawalData || []).map((row: any) => row.providerId).filter(Boolean))];
+            const providerIds = [...new Set((withdrawalData || []).map((row: WithdrawalHistoryRow) => row.providerId).filter(Boolean))];
             
             // Fetch provider info using providerId == id from providers table
             const providerMap: Record<string, string> = {};
@@ -80,7 +80,7 @@ export const fetchPayoutRequests = createAsyncThunk<
                     console.log("providers",providers, providerError);
 
                 if (!providerError && providers) {
-                    providers.forEach((provider: any) => {
+                    providers.forEach((provider: { id: string; firstName?: string; lastName?: string }) => {
                         // Match provider.id == providerId from withdrawal_history
                         const first = provider.firstName;
                         const last = provider.lastName;
@@ -106,7 +106,7 @@ export const approvePayoutRequest = createAsyncThunk<
     'payout/approvePayoutRequest',
     async ({ id, adminNote }, { rejectWithValue }) => {
         try {
-            const updateData: any = { 
+            const updateData: { paymentStatus: string; paymentDate: string; adminNote?: string } = { 
                 paymentStatus: 'approved',
                 paymentDate: new Date().toISOString()
             };
@@ -157,7 +157,7 @@ export const rejectPayoutRequest = createAsyncThunk<
     'payout/rejectPayoutRequest',
     async ({ id, adminNote }, { rejectWithValue }) => {
         try {
-            const updateData: any = { 
+            const updateData: { paymentStatus: string; adminNote?: string } = { 
                 paymentStatus: 'rejected'
             };
             

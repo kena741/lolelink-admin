@@ -4,7 +4,7 @@ import Sidebar from '@/components/Sidebar';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { fetchAllCustomers } from '@/features/customer/customerSlice';
 import { Search, Users } from 'lucide-react';
-import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AuthGuard from '@/components/AuthGuard';
 
 export default function CustomersPage() {
@@ -86,7 +86,11 @@ export default function CustomersPage() {
                                         <TableHead className="font-semibold text-gray-700">Customer</TableHead>
                                         <TableHead className="font-semibold text-gray-700">Email</TableHead>
                                         <TableHead className="font-semibold text-gray-700">Phone</TableHead>
+                                        <TableHead className="font-semibold text-gray-700">Gender</TableHead>
+                                        <TableHead className="font-semibold text-gray-700">Wallet</TableHead>
+                                        <TableHead className="font-semibold text-gray-700">Status</TableHead>
                                         <TableHead className="font-semibold text-gray-700">Address</TableHead>
+                                        <TableHead className="font-semibold text-gray-700">Created</TableHead>
                                         <TableHead className="font-semibold text-gray-700">Last Request</TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -97,8 +101,45 @@ export default function CustomersPage() {
                                             if (!q) return true;
                                             const name = `${c.first_name ?? ''} ${c.last_name ?? ''}`.toLowerCase();
                                             const email = (c.email ?? '').toLowerCase();
-                                            const phone = (c.phone ?? '').toLowerCase();
-                                            const address = (c.address ?? '').toLowerCase();
+                                            const phone = ((c.mobile_number || c.phone) ?? '').toLowerCase();
+                                            const address = (() => {
+                                                // Handle default_address - could be object or JSON string
+                                                const defaultAddress = c.default_address;
+                                                
+                                                // If it's a string, try to parse it
+                                                if (typeof defaultAddress === 'string') {
+                                                    try {
+                                                        const parsed = JSON.parse(defaultAddress);
+                                                        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                                                            const parts = [
+                                                                parsed.city,
+                                                                parsed.state,
+                                                                parsed.country,
+                                                                parsed.postal_code
+                                                            ].filter(Boolean);
+                                                            return parts.join(' ').toLowerCase();
+                                                        }
+                                                        return (defaultAddress || c.address || '').toString().toLowerCase();
+                                                    } catch {
+                                                        // If parsing fails, treat as regular address string
+                                                        return (defaultAddress || c.address || '').toString().toLowerCase();
+                                                    }
+                                                }
+                                                
+                                                // If it's an object, format it
+                                                if (defaultAddress && typeof defaultAddress === 'object') {
+                                                    const parts = [
+                                                        defaultAddress.city,
+                                                        defaultAddress.state,
+                                                        defaultAddress.country,
+                                                        defaultAddress.postal_code
+                                                    ].filter(Boolean);
+                                                    return parts.join(' ').toLowerCase();
+                                                }
+                                                
+                                                // Fallback to regular address (ensure it's a string)
+                                                return (c.address || '').toString().toLowerCase();
+                                            })();
                                             return name.includes(q) || email.includes(q) || phone.includes(q) || address.includes(q);
                                         })
                                         .map((c) => (
@@ -116,13 +157,88 @@ export default function CustomersPage() {
                                                         </div>
                                                         <div>
                                                             <div className="text-gray-900 font-semibold">{c.first_name} {c.last_name}</div>
-                                                            {c.address && <div className="text-xs text-gray-500">{c.address}</div>}
+                                                            {c.address && typeof c.address === 'string' && (
+                                                                <div className="text-xs text-gray-500">{c.address}</div>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </TableCell>
                                                 <TableCell className="text-gray-700">{c.email || '—'}</TableCell>
-                                                <TableCell className="text-gray-700">{c.phone || '—'}</TableCell>
-                                                <TableCell className="text-gray-700">{c.address || '—'}</TableCell>
+                                                <TableCell className="text-gray-700">
+                                                    {c.mobile_number || c.phone || '—'}
+                                                </TableCell>
+                                                <TableCell className="text-gray-700">
+                                                    <span className="capitalize">{c.gender || '—'}</span>
+                                                </TableCell>
+                                                <TableCell className="text-gray-700">
+                                                    <span className="font-semibold text-indigo-600">
+                                                        {c.wallet_amount !== undefined ? `ETB ${c.wallet_amount.toFixed(2)}` : '—'}
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell className="text-gray-700">
+                                                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${
+                                                        c.status === 'active' || c.status === 'Active'
+                                                            ? 'bg-green-100 text-green-700'
+                                                            : c.status === 'inactive' || c.status === 'Inactive'
+                                                            ? 'bg-red-100 text-red-700'
+                                                            : 'bg-gray-100 text-gray-700'
+                                                    }`}>
+                                                        {c.status || '—'}
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell className="text-gray-700">
+                                                    {(() => {
+                                                        // Handle default_address - could be object or JSON string
+                                                        const defaultAddress = c.default_address;
+                                                        
+                                                        // If it's a string, try to parse it
+                                                        if (typeof defaultAddress === 'string') {
+                                                            try {
+                                                                const parsed = JSON.parse(defaultAddress);
+                                                                if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && parsed !== null) {
+                                                                    // Format the parsed object
+                                                                    const parts: string[] = [
+                                                                        parsed.city,
+                                                                        parsed.state,
+                                                                        parsed.country,
+                                                                        parsed.postal_code
+                                                                    ].filter((p): p is string => typeof p === 'string' && p.length > 0);
+                                                                    return parts.length > 0 ? parts.join(', ') : '—';
+                                                                } else {
+                                                                    // If parsing fails or returns non-object, treat as regular address string
+                                                                    return defaultAddress || (typeof c.address === 'string' ? c.address : '—');
+                                                                }
+                                                            } catch {
+                                                                // If parsing fails, treat as regular address string
+                                                                return defaultAddress || (typeof c.address === 'string' ? c.address : '—');
+                                                            }
+                                                        }
+                                                        
+                                                        // If it's an object, format it
+                                                        if (defaultAddress && typeof defaultAddress === 'object' && !Array.isArray(defaultAddress) && defaultAddress !== null) {
+                                                            const addrObj = defaultAddress as { city?: string; state?: string; country?: string; postal_code?: string };
+                                                            const parts: string[] = [
+                                                                addrObj.city,
+                                                                addrObj.state,
+                                                                addrObj.country,
+                                                                addrObj.postal_code
+                                                            ].filter((p): p is string => typeof p === 'string' && p.length > 0);
+                                                            return parts.length > 0 ? parts.join(', ') : '—';
+                                                        }
+                                                        
+                                                        // Fallback to regular address (ensure it's a string)
+                                                        if (c.address && typeof c.address === 'string') {
+                                                            return c.address;
+                                                        }
+                                                        
+                                                        return '—';
+                                                    })() as string}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <span className="text-sm text-gray-600">
+                                                        {c.created_at ? new Date(c.created_at).toLocaleDateString() : '—'}
+                                                    </span>
+                                                </TableCell>
                                                 <TableCell>
                                                     <span className="text-sm text-gray-600">{c.last_request_at ? new Date(c.last_request_at).toLocaleString() : '—'}</span>
                                                 </TableCell>
@@ -130,7 +246,7 @@ export default function CustomersPage() {
                                         ))}
                                     {customers.length === 0 && !loading && (
                                         <TableRow>
-                                            <TableCell className="px-4 py-12 text-center text-gray-500" colSpan={5}>
+                                            <TableCell className="px-4 py-12 text-center text-gray-500" colSpan={9}>
                                                 <div className="flex flex-col items-center gap-3">
                                                     <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
                                                         <Users className="h-8 w-8 text-gray-400" />

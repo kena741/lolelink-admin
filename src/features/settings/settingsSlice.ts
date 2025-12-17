@@ -27,9 +27,9 @@ export interface PolicySettings {
 }
 
 export interface PaymentSettings {
-    chapa?: { name: string; enable: boolean; isActive?: number; [key: string]: any };
-    telebirr?: { name: string; annld?: string; [key: string]: any };
-    wallet?: { name: string; enable?: boolean; [key: string]: any };
+    chapa?: { name: string; enable: boolean; isActive?: number; [key: string]: string | boolean | number | undefined };
+    telebirr?: { name: string; annld?: string; [key: string]: string | boolean | number | undefined };
+    wallet?: { name: string; enable?: boolean; [key: string]: string | boolean | number | undefined };
 }
 
 export interface LanguageSettings {
@@ -180,7 +180,7 @@ export const updateSettings = createAsyncThunk<
     'settings/updateSettings',
     async (updates, { rejectWithValue }) => {
         try {
-            const updateData: any = {};
+            const updateData: Record<string, string | number | boolean | null | undefined> = {};
 
             // Update app settings
             if (updates.appSettings) {

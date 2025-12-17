@@ -67,7 +67,7 @@ export const fetchVerifyDocuments = createAsyncThunk<
             if (error) throw error;
 
             // Fetch document names from documents table
-            const documentIds = [...new Set((data || []).map((row: any) => row.documentId).filter(Boolean))];
+            const documentIds = [...new Set((data || []).map((row: VerifyDocumentRow) => row.documentId).filter(Boolean))];
             const documentMap: Record<string, string> = {};
             
             if (documentIds.length > 0) {
@@ -77,7 +77,7 @@ export const fetchVerifyDocuments = createAsyncThunk<
                     .in('id', documentIds);
 
                 if (!docError && documents) {
-                    documents.forEach((doc: any) => {
+                    documents.forEach((doc: { id: string; name?: string }) => {
                         documentMap[doc.id] = doc.name || 'Unknown Document';
                     });
                 }

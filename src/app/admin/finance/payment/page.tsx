@@ -25,7 +25,7 @@ const PaymentPage = () => {
         }
     }, [settings]);
 
-    const updatePaymentSetting = (provider: 'chapa' | 'telebirr' | 'wallet', key: string, value: any) => {
+    const updatePaymentSetting = (provider: 'chapa' | 'telebirr' | 'wallet', key: string, value: string | boolean | number) => {
         setPaymentSettings(prev => ({
             ...prev,
             [provider]: {
@@ -34,6 +34,7 @@ const PaymentPage = () => {
             },
         }));
     };
+
 
     const handleSave = async () => {
         setSaving(true);
@@ -140,7 +141,7 @@ const PaymentPage = () => {
                                                 <Key className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                                                 <input
                                                     type="text"
-                                                    value={paymentSettings.chapa?.publicKey || ''}
+                                                    value={typeof paymentSettings.chapa?.publicKey === 'string' ? paymentSettings.chapa.publicKey : ''}
                                                     onChange={(e) => updatePaymentSetting('chapa', 'publicKey', e.target.value)}
                                                     className="w-full rounded-lg border border-gray-300 bg-white pl-10 pr-4 py-2 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                                                     placeholder="CHAPUBK_TEST-..."
@@ -153,7 +154,7 @@ const PaymentPage = () => {
                                                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                                                 <input
                                                     type="password"
-                                                    value={paymentSettings.chapa?.secretKey || ''}
+                                                    value={typeof paymentSettings.chapa?.secretKey === 'string' ? paymentSettings.chapa.secretKey : ''}
                                                     onChange={(e) => updatePaymentSetting('chapa', 'secretKey', e.target.value)}
                                                     className="w-full rounded-lg border border-gray-300 bg-white pl-10 pr-4 py-2 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                                                     placeholder="••••••••"
@@ -243,7 +244,7 @@ const PaymentPage = () => {
                                                 <Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                                                 <input
                                                     type="text"
-                                                    value={paymentSettings.telebirr?.appId || ''}
+                                                    value={typeof paymentSettings.telebirr?.appId === 'string' ? paymentSettings.telebirr.appId : ''}
                                                     onChange={(e) => updatePaymentSetting('telebirr', 'appId', e.target.value)}
                                                     className="w-full rounded-lg border border-gray-300 bg-white pl-10 pr-4 py-2 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                                                     placeholder="example"
@@ -256,7 +257,7 @@ const PaymentPage = () => {
                                                 <Key className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                                                 <input
                                                     type="text"
-                                                    value={paymentSettings.telebirr?.appKey || ''}
+                                                    value={typeof paymentSettings.telebirr?.appKey === 'string' ? paymentSettings.telebirr.appKey : ''}
                                                     onChange={(e) => updatePaymentSetting('telebirr', 'appKey', e.target.value)}
                                                     className="w-full rounded-lg border border-gray-300 bg-white pl-10 pr-4 py-2 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                                                     placeholder="example"
@@ -269,7 +270,7 @@ const PaymentPage = () => {
                                                 <Key className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                                                 <input
                                                     type="text"
-                                                    value={paymentSettings.telebirr?.publicKey || ''}
+                                                    value={typeof paymentSettings.telebirr?.publicKey === 'string' ? paymentSettings.telebirr.publicKey : ''}
                                                     onChange={(e) => updatePaymentSetting('telebirr', 'publicKey', e.target.value)}
                                                     className="w-full rounded-lg border border-gray-300 bg-white pl-10 pr-4 py-2 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                                                     placeholder="example"
@@ -282,7 +283,7 @@ const PaymentPage = () => {
                                                 <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                                                 <input
                                                     type="text"
-                                                    value={paymentSettings.telebirr?.shortCode || ''}
+                                                    value={typeof paymentSettings.telebirr?.shortCode === 'string' ? paymentSettings.telebirr.shortCode : ''}
                                                     onChange={(e) => updatePaymentSetting('telebirr', 'shortCode', e.target.value)}
                                                     className="w-full rounded-lg border border-gray-300 bg-white pl-10 pr-4 py-2 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                                                     placeholder="123456"

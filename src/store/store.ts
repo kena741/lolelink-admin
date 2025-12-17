@@ -13,6 +13,9 @@ import categoryReducer from '../features/category/categorySlice';
 import subcategoryReducer from '../features/subcategory/subcategorySlice';
 import handymanReducer from '../features/handyman/handymanSlice';
 import taxReducer from '../features/tax/taxSlice';
+import documentReducer from '../features/document/documentSlice';
+import bannerReducer from '../features/banner/bannerSlice';
+import couponReducer from '../features/coupon/couponSlice';
 
 const store = configureStore({
     reducer: {
@@ -30,6 +33,9 @@ const store = configureStore({
         subcategory: subcategoryReducer,
         handyman: handymanReducer,
         tax: taxReducer,
+        document: documentReducer,
+        banner: bannerReducer,
+        coupon: couponReducer,
     },
 });
 

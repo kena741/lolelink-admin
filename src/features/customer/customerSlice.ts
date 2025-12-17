@@ -3,15 +3,33 @@ import { supabase } from "@/lib/supabaseClient";
 
 export interface Customer {
     id?: string;
-    first_name: string;
-    last_name: string;
-    phone: string;
+    first_name?: string;
+    last_name?: string;
     email?: string;
-    address?: string;
+    gender?: string;
+    ip_address?: string;
     country_code?: string;
-    provider_id: string;
+    mobile_number?: string;
+    phone?: string; // Legacy field, use mobile_number
+    avatar?: string;
     created_at?: string;
-    last_request_at?: string | null;
+    updated_at?: string;
+    wallet_amount?: number;
+    status?: string;
+    flag?: string;
+    password?: string;
+    default_address?: {
+        city?: string;
+        state?: string;
+        country?: string;
+        postal_code?: string;
+    } | null | string;
+    customer_id?: string;
+    promo_code?: string;
+    updated_by_admin?: string;
+    provider_id?: string; // Optional, may not be present
+    address?: string; // Legacy field, use default_address
+    last_request_at?: string | null; // Computed field, not from DB
 }
 
 interface CustomerListState {
@@ -52,7 +70,7 @@ export const addCustomerWithFunction = createAsyncThunk(
             last_name: string;
             email?: string;
             phone: string;
-            provider_id: string;
+            provider_id?: string;
             address?: string;
         },
         { rejectWithValue }
@@ -123,10 +141,24 @@ export const fetchCustomersByProviderId = createAsyncThunk(
             }
         });
 
-        const enriched = (customers as Customer[]).map((c) => ({
-            ...c,
-            last_request_at: (c.id && lastRequestMap[c.id]) || null,
-        }));
+        const enriched = (customers as Customer[]).map((c) => {
+            // Parse default_address if it's a JSON string
+            let defaultAddress = c.default_address;
+            if (defaultAddress && typeof defaultAddress === 'string') {
+                try {
+                    defaultAddress = JSON.parse(defaultAddress);
+                } catch {
+                    // If parsing fails, keep as is
+                    defaultAddress = null;
+                }
+            }
+            
+            return {
+                ...c,
+                default_address: defaultAddress,
+                last_request_at: (c.id && lastRequestMap[c.id]) || null,
+            };
+        });
 
         return enriched;
     }
@@ -160,10 +192,24 @@ export const fetchAllCustomers = createAsyncThunk(
             }
         });
 
-        const enriched = (customers as Customer[]).map((c) => ({
-            ...c,
-            last_request_at: (c.id && lastRequestMap[c.id]) || null,
-        }));
+        const enriched = (customers as Customer[]).map((c) => {
+            // Parse default_address if it's a JSON string
+            let defaultAddress = c.default_address;
+            if (defaultAddress && typeof defaultAddress === 'string') {
+                try {
+                    defaultAddress = JSON.parse(defaultAddress);
+                } catch {
+                    // If parsing fails, keep as is
+                    defaultAddress = null;
+                }
+            }
+            
+            return {
+                ...c,
+                default_address: defaultAddress,
+                last_request_at: (c.id && lastRequestMap[c.id]) || null,
+            };
+        });
 
         return enriched;
     }

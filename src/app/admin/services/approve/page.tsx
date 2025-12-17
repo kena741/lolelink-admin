@@ -41,10 +41,6 @@ export default function ApproveServicesPage() {
     }, [dispatch]);
 
     // Note: approval is now provider-scoped. Use the provider detail page to approve a provider's services.
-    const onApproveAll = async () => {
-        // no-op: we keep the button disabled in the UI to prevent accidental global approval
-        return;
-    };
 
     return (
         <AuthGuard>

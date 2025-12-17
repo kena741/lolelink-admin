@@ -13,8 +13,7 @@ import {
     User,
     Mail,
     FileText,
-    Eye,
-    TrendingUp
+    Eye
 } from 'lucide-react';
 import Link from 'next/link';
 import { fetchVerifyDocuments, verifyDocument, rejectDocument, approveAllDocuments } from '@/features/verifyDocuments/verifyDocumentsSlice';

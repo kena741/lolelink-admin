@@ -13,7 +13,7 @@ import { deleteService as deleteServiceThunk } from '@/features/service/deleteSe
 import { approveServicesByProvider } from '@/features/service/approveServicesSlice';
 import { fetchVerifyDocuments } from '@/features/verifyDocuments/verifyDocumentsSlice';
 import { fetchPayoutRequests } from '@/features/payout/payoutSlice';
-import { fetchHandymen, updateHandyman, deleteHandyman } from '@/features/handyman/handymanSlice';
+import { fetchHandymen, updateHandyman, deleteHandyman, type Handyman } from '@/features/handyman/handymanSlice';
 import { Pencil, Trash2, FileText, DollarSign, Wrench, Clock, Briefcase, History } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { RootState } from '@/store/store';
@@ -34,7 +34,7 @@ export default function ProviderDetailPage() {
     const { handymen } = useAppSelector((state) => state.handyman);
     
     const [selectedDocument, setSelectedDocument] = useState<string | null>(null);
-    const [editingHandyman, setEditingHandyman] = useState<any>(null);
+    const [editingHandyman, setEditingHandyman] = useState<Handyman | null>(null);
     const [handymanForm, setHandymanForm] = useState({
         firstName: '',
         lastName: '',
