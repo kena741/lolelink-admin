@@ -4,12 +4,16 @@ import { createBrowserClient } from '@supabase/ssr';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseAnonKey) {
-    // Provide a clear error in development if envs are missing
-    // Avoid throwing in production build where env replacement may occur
-    if (process.env.NODE_ENV !== 'production') {
-        console.error('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY');
-    }
+const missing: string[] = [];
+if (!supabaseUrl) missing.push("NEXT_PUBLIC_SUPABASE_URL");
+if (!supabaseAnonKey) missing.push("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+if (missing.length > 0) {
+    throw new Error(
+        `Supabase client requires: ${missing.join(", ")}. Add them to .env.local (see .env.example). ` +
+        "Values: https://supabase.com/dashboard/project/_/settings/api"
+    );
 }
 
-export const supabase = createBrowserClient(supabaseUrl!, supabaseAnonKey!);
+const url = supabaseUrl as string;
+const key = supabaseAnonKey as string;
+export const supabase = createBrowserClient(url, key);
