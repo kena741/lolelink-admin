@@ -15,6 +15,7 @@ const DocumentsPage = () => {
     const [formData, setFormData] = useState({
         name: '',
         active: true,
+        description: '',
     });
     const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -28,12 +29,14 @@ const DocumentsPage = () => {
             setFormData({
                 name: doc.name || '',
                 active: doc.active ?? true,
+                description: doc.description || '',
             });
         } else {
             setEditingDocument(null);
             setFormData({
                 name: '',
                 active: true,
+                description: '',
             });
         }
         setIsModalOpen(true);
@@ -45,6 +48,7 @@ const DocumentsPage = () => {
         setFormData({
             name: '',
             active: true,
+            description: '',
         });
     };
 
@@ -58,11 +62,13 @@ const DocumentsPage = () => {
                     id: editingDocument.id,
                     name: formData.name,
                     active: formData.active,
+                    description: formData.description,
                 })).unwrap();
             } else {
                 await dispatch(createDocument({
                     name: formData.name,
                     active: formData.active,
+                    description: formData.description,
                 })).unwrap();
             }
             dispatch(fetchDocuments());
@@ -149,6 +155,9 @@ const DocumentsPage = () => {
                                                 Name
                                             </th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Description
+                                            </th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                 Active
                                             </th>
                                             <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -180,6 +189,9 @@ const DocumentsPage = () => {
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                                         {doc.name || '-'}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                                                        {doc.description || '-'}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${

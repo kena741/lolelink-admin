@@ -5,6 +5,7 @@ export interface Document {
     id: string;
     name?: string;
     active?: boolean;
+    description?: string;
 }
 
 interface DocumentState {
@@ -20,17 +21,19 @@ const initialState: DocumentState = {
 };
 
 // DB row shape
-type DocumentRow = {
+interface DocumentRow {
     id: string;
     name?: string;
     active?: boolean;
-};
+    description?: string;
+}
 
 const normalizeRows = (rows: DocumentRow[] | null | undefined): Document[] =>
     (rows ?? []).map((row) => ({
         id: row.id,
         name: row.name,
         active: row.active ?? false,
+        description: row.description,
     }));
 
 export const fetchDocuments = createAsyncThunk<
@@ -57,7 +60,7 @@ export const fetchDocuments = createAsyncThunk<
 
 export const createDocument = createAsyncThunk<
     Document,
-    { name: string; active?: boolean },
+    { name: string; active?: boolean; description?: string },
     { rejectValue: string }
 >(
     'document/createDocument',
@@ -68,6 +71,7 @@ export const createDocument = createAsyncThunk<
                 .insert({
                     name: documentData.name,
                     active: documentData.active ?? true,
+                    description: documentData.description,
                 })
                 .select()
                 .single();
@@ -83,7 +87,7 @@ export const createDocument = createAsyncThunk<
 
 export const updateDocument = createAsyncThunk<
     Document,
-    { id: string; name?: string; active?: boolean },
+    { id: string; name?: string; active?: boolean; description?: string },
     { rejectValue: string }
 >(
     'document/updateDocument',
