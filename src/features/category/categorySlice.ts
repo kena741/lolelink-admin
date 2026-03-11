@@ -6,6 +6,7 @@ export interface Category {
     categoryName: string;
     image?: string;
     active: boolean;
+    description?: string;
 }
 
 interface CategoryState {
@@ -21,12 +22,13 @@ const initialState: CategoryState = {
 };
 
 // DB row shape
-type CategoryRow = {
+interface CategoryRow {
     id: string;
     categoryName: string;
     image?: string;
     active: boolean;
-};
+    description?: string;
+}
 
 const normalizeRows = (rows: CategoryRow[] | null | undefined): Category[] =>
     (rows ?? []).map((row) => ({
@@ -34,6 +36,7 @@ const normalizeRows = (rows: CategoryRow[] | null | undefined): Category[] =>
         categoryName: row.categoryName,
         image: row.image,
         active: row.active ?? true,
+        description: row.description,
     }));
 
 export const fetchCategories = createAsyncThunk<
@@ -60,15 +63,15 @@ export const fetchCategories = createAsyncThunk<
 
 export const createCategory = createAsyncThunk<
     Category,
-    { categoryName: string; image?: string; active?: boolean },
+    { categoryName: string; image?: string; active?: boolean; description?: string },
     { rejectValue: string }
 >(
     'category/createCategory',
-    async ({ categoryName, image, active = true }, { rejectWithValue }) => {
+    async ({ categoryName, image, active = true, description }, { rejectWithValue }) => {
         try {
             const { data, error } = await supabase
                 .from('category')
-                .insert({ categoryName, image, active })
+                .insert({ categoryName, image, active, description })
                 .select()
                 .single();
 
@@ -83,7 +86,7 @@ export const createCategory = createAsyncThunk<
 
 export const updateCategory = createAsyncThunk<
     Category,
-    { id: string; categoryName?: string; image?: string; active?: boolean },
+    { id: string; categoryName?: string; image?: string; active?: boolean; description?: string },
     { rejectValue: string }
 >(
     'category/updateCategory',
