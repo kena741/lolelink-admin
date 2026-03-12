@@ -15,16 +15,19 @@ import {
     ArrowUpDown
 } from 'lucide-react';
 import Link from 'next/link';
-import { fetchSubCategories, createSubCategory, updateSubCategory, deleteSubCategory } from '@/features/subcategory/subcategorySlice';
+import { fetchSubCategories, createSubCategory, updateSubCategory, deleteSubCategory, fetchAllSubCategoryDocumentIds, fetchSubCategoryDocumentIds } from '@/features/subcategory/subcategorySlice';
 import { fetchCategories } from '@/features/category/categorySlice';
+import { fetchDocuments } from '@/features/document/documentSlice';
 
 const SubCategoriesPage = () => {
     const dispatch = useAppDispatch();
-    const { subCategories, loading, error } = useAppSelector((state) => state.subcategory);
+    const { subCategories, loading, error, documentIdsBySubCategoryId } = useAppSelector((state) => state.subcategory);
     const { categories } = useAppSelector((state) => state.category);
+    const { documents } = useAppSelector((state) => state.document);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingSubCategory, setEditingSubCategory] = useState<typeof subCategories[0] | null>(null);
     const [formData, setFormData] = useState({ subCategoryName: '', categoryId: '' });
+    const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([]);
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [filterCategory, setFilterCategory] = useState<string>('all');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -32,7 +35,15 @@ const SubCategoriesPage = () => {
     useEffect(() => {
         dispatch(fetchSubCategories());
         dispatch(fetchCategories());
+        dispatch(fetchDocuments());
+        dispatch(fetchAllSubCategoryDocumentIds());
     }, [dispatch]);
+
+    useEffect(() => {
+        if (editingSubCategory && documentIdsBySubCategoryId[editingSubCategory.id]) {
+            setSelectedDocumentIds(documentIdsBySubCategoryId[editingSubCategory.id]);
+        }
+    }, [editingSubCategory, documentIdsBySubCategoryId]);
 
     const handleOpenModal = (subCategory?: typeof subCategories[0]) => {
         if (subCategory) {
@@ -41,9 +52,12 @@ const SubCategoriesPage = () => {
                 subCategoryName: subCategory.subCategoryName,
                 categoryId: subCategory.categoryId,
             });
+            setSelectedDocumentIds(documentIdsBySubCategoryId[subCategory.id] ?? []);
+            dispatch(fetchSubCategoryDocumentIds(subCategory.id));
         } else {
             setEditingSubCategory(null);
             setFormData({ subCategoryName: '', categoryId: '' });
+            setSelectedDocumentIds([]);
         }
         setIsModalOpen(true);
     };
@@ -52,6 +66,13 @@ const SubCategoriesPage = () => {
         setIsModalOpen(false);
         setEditingSubCategory(null);
         setFormData({ subCategoryName: '', categoryId: '' });
+        setSelectedDocumentIds([]);
+    };
+
+    const toggleDocument = (documentId: string) => {
+        setSelectedDocumentIds((prev) =>
+            prev.includes(documentId) ? prev.filter((id) => id !== documentId) : [...prev, documentId]
+        );
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -63,11 +84,16 @@ const SubCategoriesPage = () => {
                 await dispatch(updateSubCategory({
                     id: editingSubCategory.id,
                     ...formData,
+                    documentIds: selectedDocumentIds,
                 })).unwrap();
             } else {
-                await dispatch(createSubCategory(formData)).unwrap();
+                await dispatch(createSubCategory({
+                    ...formData,
+                    documentIds: selectedDocumentIds,
+                })).unwrap();
             }
             dispatch(fetchSubCategories());
+            dispatch(fetchAllSubCategoryDocumentIds());
             handleCloseModal();
         } catch (err) {
             console.error('Failed to save subcategory:', err);
@@ -227,6 +253,7 @@ const SubCategoriesPage = () => {
                                                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">ID</th>
                                                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Subcategory Name</th>
                                                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Category</th>
+                                                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Documents</th>
                                                 <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
                                             </tr>
                                         </thead>
@@ -247,6 +274,11 @@ const SubCategoriesPage = () => {
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         <span className="text-sm text-gray-600">{subCategory.categoryName || 'Unknown'}</span>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                    <span className="text-sm text-gray-600">
+                        {documentIdsBySubCategoryId[subCategory.id]?.length ?? 0} required
+                    </span>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                         <div className="flex items-center justify-end gap-2">
@@ -334,6 +366,38 @@ const SubCategoriesPage = () => {
                                                 </option>
                                             ))}
                                         </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Documents required
+                                        </label>
+                                        <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-2">
+                                            {documents.filter((d) => d.active !== false).length === 0 ? (
+                                                <p className="text-sm text-gray-500">
+                                                    No active documents. Add documents in Admin → Documents.
+                                                </p>
+                                            ) : (
+                                                documents
+                                                    .filter((d) => d.active !== false)
+                                                    .map((doc) => (
+                                                        <label
+                                                            key={doc.id}
+                                                            className="flex items-center gap-2 cursor-pointer"
+                                                        >
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={selectedDocumentIds.includes(doc.id)}
+                                                                onChange={() => toggleDocument(doc.id)}
+                                                                className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                                            />
+                                                            <span className="text-sm text-gray-900">
+                                                                {doc.name || doc.id}
+                                                            </span>
+                                                        </label>
+                                                    ))
+                                            )}
+                                        </div>
                                     </div>
 
                                     <div className="flex items-center gap-3 pt-4 border-t border-gray-200">

@@ -12,12 +12,14 @@ interface SubCategoryState {
     subCategories: SubCategory[];
     loading: boolean;
     error: string | null;
+    documentIdsBySubCategoryId: Record<string, string[]>;
 }
 
 const initialState: SubCategoryState = {
     subCategories: [],
     loading: false,
     error: null,
+    documentIdsBySubCategoryId: {},
 };
 
 // DB row shape
@@ -65,13 +67,65 @@ export const fetchSubCategories = createAsyncThunk<
     }
 );
 
+const JUNCTION_TABLE = 'sub_category_documents';
+
+export const fetchSubCategoryDocumentIds = createAsyncThunk<
+    string[],
+    string,
+    { rejectValue: string }
+>(
+    'subcategory/fetchSubCategoryDocumentIds',
+    async (subCategoryId, { rejectWithValue }) => {
+        try {
+            const { data, error } = await supabase
+                .from(JUNCTION_TABLE)
+                .select('documentId')
+                .eq('subCategoryId', subCategoryId);
+
+            if (error) throw error;
+            return (data ?? []).map((row: { documentId: string }) => row.documentId);
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : 'Failed to fetch subcategory documents';
+            return rejectWithValue(msg);
+        }
+    }
+);
+
+export const fetchAllSubCategoryDocumentIds = createAsyncThunk<
+    Record<string, string[]>,
+    void,
+    { rejectValue: string }
+>(
+    'subcategory/fetchAllSubCategoryDocumentIds',
+    async (_, { rejectWithValue }) => {
+        try {
+            const { data, error } = await supabase
+                .from(JUNCTION_TABLE)
+                .select('id, subCategoryId, documentId');
+
+            if (error) throw error;
+            const bySub: Record<string, string[]> = {};
+            for (const row of data ?? []) {
+                const subId = (row as { subCategoryId: string }).subCategoryId;
+                const docId = (row as { documentId: string }).documentId;
+                if (!bySub[subId]) bySub[subId] = [];
+                bySub[subId].push(docId);
+            }
+            return bySub;
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : 'Failed to fetch subcategory documents';
+            return rejectWithValue(msg);
+        }
+    }
+);
+
 export const createSubCategory = createAsyncThunk<
     SubCategory,
-    { subCategoryName: string; categoryId: string },
+    { subCategoryName: string; categoryId: string; documentIds?: string[] },
     { rejectValue: string }
 >(
     'subcategory/createSubCategory',
-    async ({ subCategoryName, categoryId }, { rejectWithValue }) => {
+    async ({ subCategoryName, categoryId, documentIds }, { rejectWithValue }) => {
         try {
             const { data, error } = await supabase
                 .from('sub_category')
@@ -85,7 +139,14 @@ export const createSubCategory = createAsyncThunk<
                 .single();
 
             if (error) throw error;
-            return normalizeRows([data as SubCategoryRow])[0];
+            const subCategory = normalizeRows([data as SubCategoryRow])[0];
+            if (subCategory.id && documentIds?.length) {
+                const { error: junctionError } = await supabase
+                    .from(JUNCTION_TABLE)
+                    .insert(documentIds.map((documentId) => ({ subCategoryId: subCategory.id, documentId })));
+                if (junctionError) throw junctionError;
+            }
+            return subCategory;
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to create subcategory';
             return rejectWithValue(msg);
@@ -95,11 +156,11 @@ export const createSubCategory = createAsyncThunk<
 
 export const updateSubCategory = createAsyncThunk<
     SubCategory,
-    { id: string; subCategoryName?: string; categoryId?: string },
+    { id: string; subCategoryName?: string; categoryId?: string; documentIds?: string[] },
     { rejectValue: string }
 >(
     'subcategory/updateSubCategory',
-    async ({ id, ...updates }, { rejectWithValue }) => {
+    async ({ id, documentIds, ...updates }, { rejectWithValue }) => {
         try {
             const { data, error } = await supabase
                 .from('sub_category')
@@ -114,6 +175,15 @@ export const updateSubCategory = createAsyncThunk<
                 .single();
 
             if (error) throw error;
+            if (documentIds !== undefined) {
+                await supabase.from(JUNCTION_TABLE).delete().eq('subCategoryId', id);
+                if (documentIds.length) {
+                    const { error: junctionError } = await supabase
+                        .from(JUNCTION_TABLE)
+                        .insert(documentIds.map((documentId) => ({ subCategoryId: id, documentId })));
+                    if (junctionError) throw junctionError;
+                }
+            }
             return normalizeRows([data as SubCategoryRow])[0];
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to update subcategory';
@@ -130,6 +200,7 @@ export const deleteSubCategory = createAsyncThunk<
     'subcategory/deleteSubCategory',
     async (id, { rejectWithValue }) => {
         try {
+            await supabase.from(JUNCTION_TABLE).delete().eq('subCategoryId', id);
             const { error } = await supabase
                 .from('sub_category')
                 .delete()
@@ -200,6 +271,13 @@ const subcategorySlice = createSlice({
             .addCase(deleteSubCategory.rejected, (state, action) => {
                 state.loading = false;
                 state.error = (action.payload as string) || 'Failed to delete subcategory';
+            })
+            .addCase(fetchSubCategoryDocumentIds.fulfilled, (state, action) => {
+                const subCategoryId = action.meta.arg;
+                state.documentIdsBySubCategoryId[subCategoryId] = action.payload;
+            })
+            .addCase(fetchAllSubCategoryDocumentIds.fulfilled, (state, action) => {
+                state.documentIdsBySubCategoryId = { ...state.documentIdsBySubCategoryId, ...action.payload };
             });
     },
 });
