@@ -95,8 +95,9 @@ const VerifyDocumentsPage = () => {
         });
     };
 
-    const pendingDocuments = documents.filter(doc => !doc.isVerify);
-    const verifiedDocuments = documents.filter(doc => doc.isVerify);
+    const pendingDocuments = documents.filter(doc => doc.isVerify === null);
+    const verifiedDocuments = documents.filter(doc => doc.isVerify === true);
+    const rejectedDocuments = documents.filter(doc => doc.isVerify === false);
     const totalDocuments = documents.length;
 
     return (
@@ -152,15 +153,27 @@ const VerifyDocumentsPage = () => {
                         <section className="mb-6 flex items-center gap-6 text-sm">
                             <div className="flex items-center gap-2">
                                 <Clock className="h-4 w-4 text-amber-600" />
-                                <span className="text-gray-700"><span className="font-semibold">{pendingDocuments.length}</span> Pending</span>
+                                <span className="text-gray-700">
+                                    <span className="font-semibold">{pendingDocuments.length}</span> Pending
+                                </span>
                             </div>
                             <div className="flex items-center gap-2">
                                 <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                                <span className="text-gray-700"><span className="font-semibold">{verifiedDocuments.length}</span> Verified</span>
+                                <span className="text-gray-700">
+                                    <span className="font-semibold">{verifiedDocuments.length}</span> Approved
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <XCircle className="h-4 w-4 text-red-600" />
+                                <span className="text-gray-700">
+                                    <span className="font-semibold">{rejectedDocuments.length}</span> Rejected
+                                </span>
                             </div>
                             <div className="flex items-center gap-2">
                                 <FileText className="h-4 w-4 text-gray-600" />
-                                <span className="text-gray-700"><span className="font-semibold">{totalDocuments}</span> Total</span>
+                                <span className="text-gray-700">
+                                    <span className="font-semibold">{totalDocuments}</span> Total
+                                </span>
                             </div>
                         </section>
 
@@ -188,8 +201,9 @@ const VerifyDocumentsPage = () => {
                                     </div>
                                 ) : (
                                     providerGroups.map((group) => {
-                                        const pendingDocs = group.documents.filter(doc => !doc.isVerify);
-                                        const verifiedDocs = group.documents.filter(doc => doc.isVerify);
+                                        const pendingDocs = group.documents.filter(doc => doc.isVerify === null);
+                                        const verifiedDocs = group.documents.filter(doc => doc.isVerify === true);
+                                        const rejectedDocs = group.documents.filter(doc => doc.isVerify === false);
                                         const isProcessingAll = processingProviderId === group.providerId;
 
                                         return (
@@ -228,7 +242,10 @@ const VerifyDocumentsPage = () => {
                                                                     <span className="font-semibold">{pendingDocs.length}</span> Pending
                                                                 </span>
                                                                 <span className="text-emerald-600">
-                                                                    <span className="font-semibold">{verifiedDocs.length}</span> Verified
+                                                                    <span className="font-semibold">{verifiedDocs.length}</span> Approved
+                                                                </span>
+                                                                <span className="text-red-600">
+                                                                    <span className="font-semibold">{rejectedDocs.length}</span> Rejected
                                                                 </span>
                                                             </div>
                                                         </div>
@@ -248,7 +265,7 @@ const VerifyDocumentsPage = () => {
                                                 <div className="p-4">
                                                     <div className="space-y-2">
                                                         {group.documents.map((doc) => {
-                                                            const isVerified = doc.isVerify;
+                                                            const status = doc.isVerify;
                                                             return (
                                                                 <div
                                                                     key={doc.id}
@@ -256,13 +273,24 @@ const VerifyDocumentsPage = () => {
                                                                     className="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-all group"
                                                                 >
                                                                     <div className="flex items-center gap-3 flex-1 min-w-0">
-                                                                        <div className={`flex-shrink-0 w-2 h-2 rounded-full ${
-                                                                            isVerified ? 'bg-emerald-500' : 'bg-amber-500'
-                                                                        }`} />
+                                                                        <div
+                                                                            className={`flex-shrink-0 w-2 h-2 rounded-full ${
+                                                                                status === true
+                                                                                    ? 'bg-emerald-500'
+                                                                                    : status === false
+                                                                                        ? 'bg-red-500'
+                                                                                        : 'bg-amber-500'
+                                                                            }`}
+                                                                        />
                                                                         <div className="flex-1 min-w-0">
                                                                             <div className="font-medium text-gray-900 truncate">
                                                                                 {doc.documentName || 'Unknown Document'}
                                                                             </div>
+                                                                            {doc.subCategoryName && (
+                                                                                <div className="text-xs text-indigo-700 mt-0.5">
+                                                                                    {doc.subCategoryName}
+                                                                                </div>
+                                                                            )}
                                                                             {doc.createdAt && (
                                                                                 <div className="text-xs text-gray-500 mt-0.5">
                                                                                     {formatDate(doc.createdAt)}
@@ -271,12 +299,20 @@ const VerifyDocumentsPage = () => {
                                                                         </div>
                                                                     </div>
                                                                     <div className="flex items-center gap-2 flex-shrink-0">
-                                                                        <span className={`text-xs px-2 py-1 rounded ${
-                                                                            isVerified 
-                                                                                ? 'bg-emerald-100 text-emerald-700' 
-                                                                                : 'bg-amber-100 text-amber-700'
-                                                                        }`}>
-                                                                            {isVerified ? 'Verified' : 'Pending'}
+                                                                        <span
+                                                                            className={`text-xs px-2 py-1 rounded ${
+                                                                                status === true
+                                                                                    ? 'bg-emerald-100 text-emerald-700'
+                                                                                    : status === false
+                                                                                        ? 'bg-red-100 text-red-700'
+                                                                                        : 'bg-amber-100 text-amber-700'
+                                                                            }`}
+                                                                        >
+                                                                            {status === true
+                                                                                ? 'Approved'
+                                                                                : status === false
+                                                                                    ? 'Rejected'
+                                                                                    : 'Pending'}
                                                                         </span>
                                                                         <Eye className="h-4 w-4 text-gray-400 group-hover:text-indigo-600 transition-colors" />
                                                                     </div>
@@ -377,15 +413,24 @@ const VerifyDocumentsPage = () => {
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
                                             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1 block">Status</label>
-                                            <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold ${
-                                                selectedDocument.isVerify 
-                                                    ? 'bg-emerald-100 text-emerald-700' 
-                                                    : 'bg-amber-100 text-amber-700'
-                                            }`}>
-                                                {selectedDocument.isVerify ? (
+                                            <span
+                                                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold ${
+                                                    selectedDocument.isVerify === true
+                                                        ? 'bg-emerald-100 text-emerald-700'
+                                                        : selectedDocument.isVerify === false
+                                                            ? 'bg-red-100 text-red-700'
+                                                            : 'bg-amber-100 text-amber-700'
+                                                }`}
+                                            >
+                                                {selectedDocument.isVerify === true ? (
                                                     <>
                                                         <CheckCircle2 className="h-4 w-4" />
-                                                        Verified
+                                                        Approved
+                                                    </>
+                                                ) : selectedDocument.isVerify === false ? (
+                                                    <>
+                                                        <XCircle className="h-4 w-4" />
+                                                        Rejected
                                                     </>
                                                 ) : (
                                                     <>
@@ -427,7 +472,7 @@ const VerifyDocumentsPage = () => {
                                     )}
 
                                     {/* Actions */}
-                                    {!selectedDocument.isVerify && (
+                                    {selectedDocument.isVerify === null && (
                                         <div className="flex items-center gap-3 pt-4 border-t border-gray-200">
                                             <button
                                                 onClick={() => {

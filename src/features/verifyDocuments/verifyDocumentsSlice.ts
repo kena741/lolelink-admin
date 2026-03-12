@@ -9,8 +9,9 @@ export interface VerifyDocument {
     documentId?: string;
     documentName?: string;
     documentImage?: string;
-    isVerify: boolean;
+    isVerify: boolean | null;
     createdAt?: string;
+    subCategoryName?: string;
 }
 
 interface VerifyDocumentState {
@@ -34,7 +35,7 @@ type VerifyDocumentRow = {
     documentId?: string;
     documentName?: string;
     documentImage?: string;
-    isVerify: boolean;
+    isVerify?: boolean | null;
     createdAt?: string;
 };
 
@@ -47,7 +48,7 @@ const normalizeRows = (rows: VerifyDocumentRow[] | null | undefined): VerifyDocu
         documentId: row.documentId,
         documentName: row.documentName,
         documentImage: row.documentImage,
-        isVerify: row.isVerify ?? false,
+        isVerify: row.isVerify ?? null,
         createdAt: row.createdAt,
     }));
 
@@ -69,6 +70,7 @@ export const fetchVerifyDocuments = createAsyncThunk<
             // Fetch document names from documents table
             const documentIds = [...new Set((data || []).map((row: VerifyDocumentRow) => row.documentId).filter(Boolean))];
             const documentMap: Record<string, string> = {};
+            const documentToSubCategoryName: Record<string, string> = {};
             
             if (documentIds.length > 0) {
                 const { data: documents, error: docError } = await supabase
@@ -81,6 +83,45 @@ export const fetchVerifyDocuments = createAsyncThunk<
                         documentMap[doc.id] = doc.name || 'Unknown Document';
                     });
                 }
+
+                // Fetch subcategory names via junction table
+                const { data: links, error: linkError } = await supabase
+                    .from('sub_category_documents')
+                    .select('documentId, subCategoryId')
+                    .in('documentId', documentIds);
+
+                if (linkError) {
+                    throw linkError;
+                }
+
+                const subCategoryIds = [
+                    ...new Set(
+                        (links || [])
+                            .map((row: { subCategoryId: string | null }) => row.subCategoryId)
+                            .filter((id): id is string => Boolean(id))
+                    ),
+                ];
+
+                if (subCategoryIds.length > 0) {
+                    const { data: subCategories, error: subError } = await supabase
+                        .from('sub_category')
+                        .select('id, subCategoryName')
+                        .in('id', subCategoryIds);
+
+                    if (!subError && subCategories) {
+                        const subCategoryNameById: Record<string, string> = {};
+                        subCategories.forEach((sub: { id: string; subCategoryName: string }) => {
+                            subCategoryNameById[sub.id] = sub.subCategoryName;
+                        });
+
+                        (links || []).forEach((row: { documentId: string; subCategoryId: string | null }) => {
+                            if (row.documentId && row.subCategoryId && subCategoryNameById[row.subCategoryId]) {
+                                documentToSubCategoryName[row.documentId] =
+                                    subCategoryNameById[row.subCategoryId];
+                            }
+                        });
+                    }
+                }
             }
 
             // Add document names to the normalized rows
@@ -88,6 +129,7 @@ export const fetchVerifyDocuments = createAsyncThunk<
             return normalized.map(doc => ({
                 ...doc,
                 documentName: doc.documentId ? documentMap[doc.documentId] : undefined,
+                subCategoryName: doc.documentId ? documentToSubCategoryName[doc.documentId] : undefined,
             }));
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to fetch verify documents';
@@ -156,7 +198,7 @@ export const approveAllDocuments = createAsyncThunk<
                 .from('verify_documents')
                 .update({ isVerify: true })
                 .eq('providerId', providerId)
-                .eq('isVerify', false)
+                .is('isVerify', null)
                 .select();
 
             if (error) throw error;
