@@ -7,24 +7,30 @@ import { fetchAllBookings, fetchBookingById, clearSingle } from "../../../featur
 import { CalendarCheck2, RefreshCw, Search } from "lucide-react";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import AuthGuard from "@/components/AuthGuard";
+import { formatStatusLabel } from "@/lib/utils";
 
 const StatusBadge = ({ status }: { status?: string }) => {
     const color = useMemo(() => {
         switch (status) {
-            case "completed":
+            case "service_completion_approved_by_customer":
                 return "bg-green-100 text-green-700";
-            case "ongoing":
+            case "service_started":
                 return "bg-blue-100 text-blue-700";
-            case "accepted":
+            case "booked_accepted":
+            case "service_completion_approval":
                 return "bg-indigo-100 text-indigo-700";
-            case "rejected":
-            case "cancelled":
+            case "booked_rejected":
+            case "booked_cancelled":
                 return "bg-red-100 text-red-700";
+            case "pending_customer_payment":
+                return "bg-amber-100 text-amber-700";
+            case "paid_for_service_booked":
+                return "bg-emerald-100 text-emerald-700";
             default:
                 return "bg-gray-100 text-gray-700";
         }
     }, [status]);
-    return <span className={`px-2 py-1 rounded text-xs ${color}`}>{status ?? "pending"}</span>;
+    return <span className={`px-2 py-1 rounded text-xs ${color}`}>{formatStatusLabel(status ?? "booked")}</span>;
 };
 
 const DetailModal: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {

@@ -7,8 +7,17 @@ import Sidebar from '@/components/Sidebar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { fetchPayments, updatePayment } from '@/features/payments/paymentsSlice';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import { formatStatusLabel } from '@/lib/utils';
 
-const STATUS_OPTIONS = ['pending', 'paid', 'failed', 'refunded'];
+const STATUS_OPTIONS = [
+    'pending_payment',
+    'payment_approved_by_admin',
+    'payment_rejected_by_admin',
+    'payment_completed',
+    'payment_cancelled',
+] as const;
+
+type PaymentStatusOption = (typeof STATUS_OPTIONS)[number];
 
 const PaymentPage = () => {
     const dispatch = useAppDispatch();
@@ -20,9 +29,9 @@ const PaymentPage = () => {
     }, [dispatch]);
 
     const stats = useMemo(() => {
-        const pending = payments.filter((payment) => payment.paymentStatus === 'pending').length;
-        const successful = payments.filter((payment) => payment.paymentStatus === 'paid').length;
-        const failed = payments.filter((payment) => payment.paymentStatus === 'failed').length;
+        const pending = payments.filter((payment) => payment.paymentStatus === 'pending_payment').length;
+        const successful = payments.filter((payment) => payment.paymentStatus === 'payment_completed').length;
+        const failed = payments.filter((payment) => payment.paymentStatus === 'payment_rejected_by_admin').length;
         const totalAmount = payments.reduce((sum, payment) => sum + (Number(payment.totalAmount) || 0), 0);
 
         return { pending, successful, failed, totalAmount };
@@ -43,14 +52,14 @@ const PaymentPage = () => {
         })}`;
     }
 
-    const handleStatusChange = async (id: string, nextStatus: string, paymentId: string) => {
+    const handleStatusChange = async (id: string, nextStatus: PaymentStatusOption, paymentId: string) => {
         setProcessingId(id);
         try {
             await dispatch(
                 updatePayment({
                     id,
                     paymentStatus: nextStatus,
-                    paidAt: nextStatus === 'paid' ? new Date().toISOString() : '',
+                    paidAt: nextStatus === 'payment_completed' ? new Date().toISOString() : '',
                     paymentId: paymentId || crypto.randomUUID(),
                 })
             ).unwrap();
@@ -62,10 +71,11 @@ const PaymentPage = () => {
     };
 
     const statusClassMap: Record<string, string> = {
-        pending: 'bg-amber-500/10 text-amber-700 border-amber-300/50',
-        paid: 'bg-emerald-500/10 text-emerald-700 border-emerald-300/50',
-        failed: 'bg-red-500/10 text-red-700 border-red-300/50',
-        refunded: 'bg-slate-500/10 text-slate-700 border-slate-300/50',
+        pending_payment: 'bg-amber-500/10 text-amber-700 border-amber-300/50',
+        payment_approved_by_admin: 'bg-indigo-500/10 text-indigo-700 border-indigo-300/50',
+        payment_rejected_by_admin: 'bg-red-500/10 text-red-700 border-red-300/50',
+        payment_completed: 'bg-emerald-500/10 text-emerald-700 border-emerald-300/50',
+        payment_cancelled: 'bg-slate-500/10 text-slate-700 border-slate-300/50',
     };
 
     return (
@@ -177,8 +187,8 @@ const PaymentPage = () => {
                                             ) : (
                                                 payments.map((payment) => {
                                                     const isProcessing = processingId === payment.id;
-                                                    const currentStatus = payment.paymentStatus || 'pending';
-                                                    const badgeClass = statusClassMap[currentStatus] || statusClassMap.pending;
+                                                    const currentStatus = payment.paymentStatus || 'pending_payment';
+                                                    const badgeClass = statusClassMap[currentStatus] || statusClassMap.pending_payment;
 
                                                     return (
                                                         <TableRow
@@ -194,11 +204,11 @@ const PaymentPage = () => {
                                                             </TableCell>
                                                             <TableCell>
                                                                 <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${badgeClass}`}>
-                                                                    {currentStatus === 'paid' && <CheckCircle2 className="h-3.5 w-3.5" />}
-                                                                    {currentStatus === 'pending' && <Clock className="h-3.5 w-3.5" />}
-                                                                    {currentStatus === 'failed' && <XCircle className="h-3.5 w-3.5" />}
-                                                                    {currentStatus === 'refunded' && <RefreshCw className="h-3.5 w-3.5" />}
-                                                                    {currentStatus}
+                                                                    {currentStatus === 'payment_completed' && <CheckCircle2 className="h-3.5 w-3.5" />}
+                                                                    {currentStatus === 'pending_payment' && <Clock className="h-3.5 w-3.5" />}
+                                                                    {currentStatus === 'payment_rejected_by_admin' && <XCircle className="h-3.5 w-3.5" />}
+                                                                    {currentStatus === 'payment_cancelled' && <RefreshCw className="h-3.5 w-3.5" />}
+                                                                    {formatStatusLabel(currentStatus)}
                                                                 </span>
                                                             </TableCell>
                                                             <TableCell className="text-gray-600">
@@ -207,13 +217,13 @@ const PaymentPage = () => {
                                                             <TableCell className="text-right">
                                                                 <select
                                                                     value={currentStatus}
-                                                                    onChange={(event) => handleStatusChange(payment.id, event.target.value, payment.paymentId)}
+                                                                    onChange={(event) => handleStatusChange(payment.id, event.target.value as PaymentStatusOption, payment.paymentId)}
                                                                     disabled={isProcessing}
                                                                     className="h-10 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:cursor-not-allowed disabled:opacity-60"
                                                                 >
                                                                     {STATUS_OPTIONS.map((status) => (
                                                                         <option key={status} value={status}>
-                                                                            {status}
+                                                                            {formatStatusLabel(status)}
                                                                         </option>
                                                                     ))}
                                                                 </select>
