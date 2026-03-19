@@ -261,65 +261,84 @@ const VerifyDocumentsPage = () => {
                                                     </div>
                                                 </div>
 
-                                                {/* Minimal Documents List */}
+                                                {/* Documents grouped by subcategory */}
                                                 <div className="p-4">
-                                                    <div className="space-y-2">
-                                                        {group.documents.map((doc) => {
-                                                            const status = doc.isVerify;
-                                                            return (
-                                                                <div
-                                                                    key={doc.id}
-                                                                    onClick={() => setSelectedDocument(doc)}
-                                                                    className="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-all group"
-                                                                >
-                                                                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                                                    {Object.entries(
+                                                        group.documents.reduce(
+                                                            (acc, doc) => {
+                                                                const key = doc.subCategoryName || 'Uncategorized';
+                                                                if (!acc[key]) {
+                                                                    acc[key] = [] as typeof group.documents;
+                                                                }
+                                                                acc[key].push(doc);
+                                                                return acc;
+                                                            },
+                                                            {} as Record<string, typeof group.documents>
+                                                        )
+                                                    ).map(([subName, docsInSub]) => (
+                                                        <div key={subName} className="mb-4 last:mb-0">
+                                                            <div className="mb-2 flex items-center justify-between">
+                                                                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                                                    {subName}
+                                                                </span>
+                                                                <span className="text-xs text-gray-400">
+                                                                    {docsInSub.length} document{docsInSub.length === 1 ? '' : 's'}
+                                                                </span>
+                                                            </div>
+                                                            <div className="space-y-2">
+                                                                {docsInSub.map((doc) => {
+                                                                    const status = doc.isVerify;
+                                                                    return (
                                                                         <div
-                                                                            className={`flex-shrink-0 w-2 h-2 rounded-full ${
-                                                                                status === true
-                                                                                    ? 'bg-emerald-500'
-                                                                                    : status === false
-                                                                                        ? 'bg-red-500'
-                                                                                        : 'bg-amber-500'
-                                                                            }`}
-                                                                        />
-                                                                        <div className="flex-1 min-w-0">
-                                                                            <div className="font-medium text-gray-900 truncate">
-                                                                                {doc.documentName || 'Unknown Document'}
-                                                                            </div>
-                                                                            {doc.subCategoryName && (
-                                                                                <div className="text-xs text-indigo-700 mt-0.5">
-                                                                                    {doc.subCategoryName}
-                                                                                </div>
-                                                                            )}
-                                                                            {doc.createdAt && (
-                                                                                <div className="text-xs text-gray-500 mt-0.5">
-                                                                                    {formatDate(doc.createdAt)}
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-                                                                    </div>
-                                                                    <div className="flex items-center gap-2 flex-shrink-0">
-                                                                        <span
-                                                                            className={`text-xs px-2 py-1 rounded ${
-                                                                                status === true
-                                                                                    ? 'bg-emerald-100 text-emerald-700'
-                                                                                    : status === false
-                                                                                        ? 'bg-red-100 text-red-700'
-                                                                                        : 'bg-amber-100 text-amber-700'
-                                                                            }`}
+                                                                            key={doc.id}
+                                                                            onClick={() => setSelectedDocument(doc)}
+                                                                            className="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-all group"
                                                                         >
-                                                                            {status === true
-                                                                                ? 'Approved'
-                                                                                : status === false
-                                                                                    ? 'Rejected'
-                                                                                    : 'Pending'}
-                                                                        </span>
-                                                                        <Eye className="h-4 w-4 text-gray-400 group-hover:text-indigo-600 transition-colors" />
-                                                                    </div>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
+                                                                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                                                                                <div
+                                                                                    className={`flex-shrink-0 w-2 h-2 rounded-full ${
+                                                                                        status === true
+                                                                                            ? 'bg-emerald-500'
+                                                                                            : status === false
+                                                                                                ? 'bg-red-500'
+                                                                                                : 'bg-amber-500'
+                                                                                    }`}
+                                                                                />
+                                                                                <div className="flex-1 min-w-0">
+                                                                                    <div className="font-medium text-gray-900 truncate">
+                                                                                        {doc.documentName || 'Unknown Document'}
+                                                                                    </div>
+                                                                                    {doc.createdAt && (
+                                                                                        <div className="text-xs text-gray-500 mt-0.5">
+                                                                                            {formatDate(doc.createdAt)}
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="flex items-center gap-2 flex-shrink-0">
+                                                                                <span
+                                                                                    className={`text-xs px-2 py-1 rounded ${
+                                                                                        status === true
+                                                                                            ? 'bg-emerald-100 text-emerald-700'
+                                                                                            : status === false
+                                                                                                ? 'bg-red-100 text-red-700'
+                                                                                                : 'bg-amber-100 text-amber-700'
+                                                                                    }`}
+                                                                                >
+                                                                                    {status === true
+                                                                                        ? 'Approved'
+                                                                                        : status === false
+                                                                                            ? 'Rejected'
+                                                                                            : 'Pending'}
+                                                                                </span>
+                                                                                <Eye className="h-4 w-4 text-gray-400 group-hover:text-indigo-600 transition-colors" />
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    ))}
                                                 </div>
                                             </div>
                                         );
