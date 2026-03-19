@@ -19,7 +19,16 @@ export interface BookedService {
     quantity?: string;
     bookingDate?: string;
     createdAt?: string;
-    status?: 'pending' | 'accepted' | 'ongoing' | 'completed' | 'rejected' | 'cancelled';
+    status?:
+        | 'booked'
+        | 'booked_accepted'
+        | 'booked_rejected'
+        | 'pending_customer_payment'
+        | 'paid_for_service_booked'
+        | 'booked_cancelled'
+        | 'service_started'
+        | 'service_completion_approval'
+        | 'service_completion_approved_by_customer';
     description?: string;
     paymentCompleted?: boolean;
 }

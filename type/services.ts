@@ -1,0 +1,45 @@
+export interface ServicesSchema {
+  id: string;
+  provider_id?: string;
+  name?: string;
+  serviceName?: string;
+  image?: string | null;
+  image_url?: string | null;
+  serviceImage?: string | string[] | null;
+  images?: string[];
+  image_urls?: string[];
+  serviceImages?: string[];
+  gallery?: string[];
+  description?: string | null;
+  createdAt?: string;
+  created_at?: string;
+  slug?: string;
+  price?: string | number;
+  discount?: string;
+  status?: boolean;
+  feature?: boolean;
+  approved?: boolean;
+  type?: string;
+  prePayment?: boolean;
+  duration?: string;
+  categoryId?: string;
+  subCategoryId?: string;
+  address?: string;
+  video?: string | null;
+  active?: boolean | null;
+  serviceLocationMode?: string;
+  location?: {
+    latitude: number;
+    longitude: number;
+  };
+  position?: {
+    geohash: string;
+    geopoint: {
+      latitude: number;
+      longitude: number;
+    };
+  };
+  likedUser?: string[] | null;
+  reviewCount?: number | null;
+  reviewSum?: number | null;
+}

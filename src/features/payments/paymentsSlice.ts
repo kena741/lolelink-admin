@@ -15,9 +15,23 @@ export interface Payment {
     subTotal: number;
     totalAmount: number;
     bookingDate: string;
-    status: string;
+    status:
+        | 'booked'
+        | 'booked_accepted'
+        | 'booked_rejected'
+        | 'pending_customer_payment'
+        | 'paid_for_service_booked'
+        | 'booked_cancelled'
+        | 'service_started'
+        | 'service_completion_approval'
+        | 'service_completion_approved_by_customer';
     paymentCompleted: boolean;
-    paymentStatus: string;
+    paymentStatus:
+        | 'pending_payment'
+        | 'payment_approved_by_admin'
+        | 'payment_rejected_by_admin'
+        | 'payment_completed'
+        | 'payment_cancelled';
     paymentId: string;
     paidAt: string;
     escrowReleasedAt: string;
@@ -27,7 +41,12 @@ export interface Payment {
 
 export interface UpdatePaymentPayload {
     id: string;
-    paymentStatus?: string;
+    paymentStatus?:
+        | 'pending_payment'
+        | 'payment_approved_by_admin'
+        | 'payment_rejected_by_admin'
+        | 'payment_completed'
+        | 'payment_cancelled';
     paymentId?: string;
     paidAt?: string;
     escrowReleasedAt?: string;
@@ -47,9 +66,23 @@ interface PaymentRow {
     subTotal?: number;
     totalAmount?: number;
     bookingDate?: string;
-    status: string;
+    status:
+        | 'booked'
+        | 'booked_accepted'
+        | 'booked_rejected'
+        | 'pending_customer_payment'
+        | 'paid_for_service_booked'
+        | 'booked_cancelled'
+        | 'service_started'
+        | 'service_completion_approval'
+        | 'service_completion_approved_by_customer';
     paymentCompleted?: boolean;
-    payment_status?: string;
+    payment_status?:
+        | 'pending_payment'
+        | 'payment_approved_by_admin'
+        | 'payment_rejected_by_admin'
+        | 'payment_completed'
+        | 'payment_cancelled';
     payment_id?: string;
     paid_at?: string;
     escrow_released_at?: string;
@@ -86,7 +119,7 @@ function normalizeRows(rows: PaymentRow[] | null | undefined): Payment[] {
         bookingDate: row.bookingDate ?? '',
         status: row.status,
         paymentCompleted: row.paymentCompleted ?? false,
-        paymentStatus: row.payment_status ?? 'pending',
+        paymentStatus: row.payment_status ?? 'pending_payment',
         paymentId: row.payment_id ?? '',
         paidAt: row.paid_at ?? '',
         escrowReleasedAt: row.escrow_released_at ?? '',
@@ -121,7 +154,12 @@ export const updatePayment = createAsyncThunk<
 >('payments/updatePayment', async ({ id, ...payload }, { rejectWithValue }) => {
     try {
         const updateData: {
-            payment_status?: string;
+            payment_status?:
+                | 'pending_payment'
+                | 'payment_approved_by_admin'
+                | 'payment_rejected_by_admin'
+                | 'payment_completed'
+                | 'payment_cancelled';
             payment_id?: string;
             paid_at?: string;
             escrow_released_at?: string;
@@ -130,8 +168,8 @@ export const updatePayment = createAsyncThunk<
 
         if (payload.paymentStatus !== undefined) {
             updateData.payment_status = payload.paymentStatus;
-            if (payload.paymentStatus === 'paid') updateData.paymentCompleted = true;
-            if (payload.paymentStatus !== 'paid') updateData.paymentCompleted = false;
+            if (payload.paymentStatus === 'payment_completed') updateData.paymentCompleted = true;
+            if (payload.paymentStatus !== 'payment_completed') updateData.paymentCompleted = false;
         }
         if (payload.paymentId !== undefined) updateData.payment_id = payload.paymentId;
         if (payload.paidAt !== undefined) updateData.paid_at = payload.paidAt;
