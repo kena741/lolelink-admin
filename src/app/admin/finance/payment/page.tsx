@@ -20,10 +20,10 @@ const PaymentPage = () => {
     }, [dispatch]);
 
     const stats = useMemo(() => {
-        const pending = payments.filter((payment) => payment.status === 'pending').length;
-        const successful = payments.filter((payment) => payment.status === 'paid').length;
-        const failed = payments.filter((payment) => payment.status === 'failed').length;
-        const totalAmount = payments.reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0);
+        const pending = payments.filter((payment) => payment.paymentStatus === 'pending').length;
+        const successful = payments.filter((payment) => payment.paymentStatus === 'paid').length;
+        const failed = payments.filter((payment) => payment.paymentStatus === 'failed').length;
+        const totalAmount = payments.reduce((sum, payment) => sum + (Number(payment.totalAmount) || 0), 0);
 
         return { pending, successful, failed, totalAmount };
     }, [payments]);
@@ -36,17 +36,24 @@ const PaymentPage = () => {
         });
     }
 
-    function formatAmount(value: number, currency: string) {
-        return `${currency} ${value.toLocaleString('en-US', {
+    function formatAmount(value: number) {
+        return `ETB ${value.toLocaleString('en-US', {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
         })}`;
     }
 
-    const handleStatusChange = async (id: string, nextStatus: string) => {
+    const handleStatusChange = async (id: string, nextStatus: string, paymentId: string) => {
         setProcessingId(id);
         try {
-            await dispatch(updatePayment({ id, status: nextStatus })).unwrap();
+            await dispatch(
+                updatePayment({
+                    id,
+                    paymentStatus: nextStatus,
+                    paidAt: nextStatus === 'paid' ? new Date().toISOString() : '',
+                    paymentId: paymentId || crypto.randomUUID(),
+                })
+            ).unwrap();
         } catch (updateError) {
             console.error('Failed to update payment status:', updateError);
         } finally {
@@ -170,36 +177,37 @@ const PaymentPage = () => {
                                             ) : (
                                                 payments.map((payment) => {
                                                     const isProcessing = processingId === payment.id;
-                                                    const badgeClass = statusClassMap[payment.status] || statusClassMap.pending;
+                                                    const currentStatus = payment.paymentStatus || 'pending';
+                                                    const badgeClass = statusClassMap[currentStatus] || statusClassMap.pending;
 
                                                     return (
                                                         <TableRow
                                                             key={payment.id}
                                                             className="border-b border-white/20 transition-all hover:bg-gradient-to-r hover:from-indigo-50/30 hover:to-purple-50/30"
                                                         >
-                                                            <TableCell className="max-w-[180px] truncate font-medium text-gray-900">{payment.bookingId}</TableCell>
+                                                            <TableCell className="max-w-[180px] truncate font-medium text-gray-900">{payment.id}</TableCell>
                                                             <TableCell className="max-w-[180px] truncate text-gray-700">{payment.customerId}</TableCell>
-                                                            <TableCell className="text-gray-700">{payment.paymentMethod || '—'}</TableCell>
-                                                            <TableCell className="max-w-[180px] truncate text-gray-700">{payment.providerRef || '—'}</TableCell>
+                                                            <TableCell className="text-gray-700">{payment.paymentType || '—'}</TableCell>
+                                                            <TableCell className="max-w-[180px] truncate text-gray-700">{payment.paymentId || '—'}</TableCell>
                                                             <TableCell className="font-semibold text-gray-900">
-                                                                {formatAmount(payment.amount, payment.currency || 'ETB')}
+                                                                {formatAmount(payment.totalAmount)}
                                                             </TableCell>
                                                             <TableCell>
                                                                 <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${badgeClass}`}>
-                                                                    {payment.status === 'paid' && <CheckCircle2 className="h-3.5 w-3.5" />}
-                                                                    {payment.status === 'pending' && <Clock className="h-3.5 w-3.5" />}
-                                                                    {payment.status === 'failed' && <XCircle className="h-3.5 w-3.5" />}
-                                                                    {payment.status === 'refunded' && <RefreshCw className="h-3.5 w-3.5" />}
-                                                                    {payment.status}
+                                                                    {currentStatus === 'paid' && <CheckCircle2 className="h-3.5 w-3.5" />}
+                                                                    {currentStatus === 'pending' && <Clock className="h-3.5 w-3.5" />}
+                                                                    {currentStatus === 'failed' && <XCircle className="h-3.5 w-3.5" />}
+                                                                    {currentStatus === 'refunded' && <RefreshCw className="h-3.5 w-3.5" />}
+                                                                    {currentStatus}
                                                                 </span>
                                                             </TableCell>
                                                             <TableCell className="text-gray-600">
-                                                                {payment.createdAt ? formatDate(payment.createdAt) : '—'}
+                                                                {payment.bookingDate ? formatDate(payment.bookingDate) : '—'}
                                                             </TableCell>
                                                             <TableCell className="text-right">
                                                                 <select
-                                                                    value={payment.status}
-                                                                    onChange={(event) => handleStatusChange(payment.id, event.target.value)}
+                                                                    value={currentStatus}
+                                                                    onChange={(event) => handleStatusChange(payment.id, event.target.value, payment.paymentId)}
                                                                     disabled={isProcessing}
                                                                     className="h-10 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:cursor-not-allowed disabled:opacity-60"
                                                                 >
