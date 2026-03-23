@@ -18,6 +18,7 @@ import bannerReducer from '../features/banner/bannerSlice';
 import couponReducer from '../features/coupon/couponSlice';
 import paymentsReducer from '../features/payments/paymentsSlice';
 import walletTransactionReducer from '../features/walletTransaction/walletTransactionSlice';
+import notificationReducer from '../features/notification/notificationSlice';
 
 const store = configureStore({
     reducer: {
@@ -40,6 +41,7 @@ const store = configureStore({
         coupon: couponReducer,
         payments: paymentsReducer,
         walletTransaction: walletTransactionReducer,
+        notification: notificationReducer,
     },
 });
 

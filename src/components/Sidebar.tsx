@@ -97,13 +97,13 @@ const Sidebar = () => {
                 <div className="flex items-center gap-2 px-6 py-5">
                     <Image
                         src="/img/logoicon.png"
-                        alt="Lolelink logo"
+                        alt="Zemen Service logo"
                         width={32}
                         height={32}
                         className="h-8 w-8 rounded-lg object-contain"
                         priority
                     />
-                    <span className="text-base font-semibold text-gray-900">Lolelink Admin</span>
+                    <span className="text-base font-semibold text-gray-900">Zemen Service Admin</span>
                 </div>
                 <div className="px-6">
                     <div className="h-px w-full bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
@@ -364,7 +364,7 @@ const Sidebar = () => {
                     <LogOut className="h-4 w-4" />
                     Sign out
                 </button>
-                <p className="mt-3 text-center text-xs text-gray-500">© {new Date().getFullYear()} Lolelink</p>
+                <p className="mt-3 text-center text-xs text-gray-500">© {new Date().getFullYear()} Zemen Service</p>
             </div>
         </aside>
     );
