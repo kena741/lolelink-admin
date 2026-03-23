@@ -31,18 +31,42 @@ function getNotificationTypeLabel(value?: string | null): string {
         .join(" ");
 }
 
-function getNotificationTypeColorClasses(value?: string | null, title?: string | null): string {
+function getNotificationTypeColorClasses(value?: string | null): string {
     const normalizedValue = (value ?? "").toLowerCase();
-    const normalizedTitle = (title ?? "").toLowerCase();
-    const combined = `${normalizedValue} ${normalizedTitle}`;
+    if (normalizedValue.includes("booking_request"))
+        return "border border-primary/30 bg-primary/10 text-foreground";
+    if (normalizedValue.includes("order"))
+        return "border border-border bg-secondary text-foreground";
+    if (normalizedValue.includes("booking_status"))
+        return "border border-ring/30 bg-accent text-foreground";
+    return "border border-border bg-accent text-foreground";
+}
+
+function getNotificationCardColorClasses(notification: NotificationItem): string {
+    const type = (notification.type ?? "").toLowerCase();
+    const title = (notification.title ?? "").toLowerCase();
+    const description = (notification.description ?? "").toLowerCase();
+    const combined = `${type} ${title} ${description}`;
 
     if (/(reject|cancel|fail|error|decline)/.test(combined))
-        return "border border-border bg-destructive/10 text-destructive";
+        return notification.is_read
+            ? "border-destructive/35 bg-card"
+            : "border-destructive/45 bg-destructive/5";
     if (/(accept|approved|complete|success|done)/.test(combined))
-        return "border border-border bg-primary/15 text-foreground";
-    if (/(pending|review|wait)/.test(combined))
-        return "border border-border bg-secondary text-foreground";
-    return "border border-border bg-accent text-foreground";
+        return notification.is_read
+            ? "border-primary/30 bg-card"
+            : "border-primary/40 bg-primary/5";
+    if (/(assign|request|new job|job started|ongoing)/.test(combined))
+        return notification.is_read
+            ? "border-ring/30 bg-card"
+            : "border-ring/40 bg-accent/70";
+    if (/(pending|review|hold|wait)/.test(combined))
+        return notification.is_read
+            ? "border-border bg-card"
+            : "border-border bg-secondary/60";
+    return notification.is_read
+        ? "border-border bg-card"
+        : "border-primary/30 bg-accent/60";
 }
 
 function getNotificationMessage(notification: NotificationItem): string {
@@ -262,19 +286,14 @@ export default function NotificationsPage() {
                                 return (
                                     <div
                                         key={item.id}
-                                        className={`rounded-md border bg-card p-[24px] shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-all duration-150 ${
-                                            item.is_read
-                                                ? "border-border"
-                                                : "border-primary/30 bg-accent/60"
-                                        }`}
+                                        className={`rounded-md border p-[24px] shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-all duration-150 ${getNotificationCardColorClasses(item)}`}
                                     >
                                         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                                             <div className="min-w-0">
                                                 <div className="mb-2 flex items-center gap-2">
                                                     <span
                                                         className={`inline-flex items-center rounded-full px-2.5 py-1 text-[13px] font-semibold leading-[1.2] ${getNotificationTypeColorClasses(
-                                                            item.type,
-                                                            item.title
+                                                            item.type
                                                         )}`}
                                                     >
                                                         {getNotificationTypeLabel(item.type)}
