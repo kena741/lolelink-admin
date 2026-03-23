@@ -9,6 +9,7 @@ import {
     CalendarCheck2, 
     LogOut, 
     DollarSign, 
+    Wallet,
     CreditCard, 
     Receipt, 
     ChevronDown, 
@@ -61,6 +62,7 @@ const customersSubItems = [
 const financeSubItems = [
     { href: '/admin/finance/payout-request', label: 'Payout Request', icon: DollarSign },
     { href: '/admin/finance/payment', label: 'Payment', icon: CreditCard },
+    { href: '/admin/finance/wallet-transactions', label: 'Wallet Transactions', icon: Wallet },
     { href: '/admin/finance/taxes', label: 'Taxes', icon: Receipt },
 ];
 

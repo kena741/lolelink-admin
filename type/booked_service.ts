@@ -26,7 +26,8 @@ export interface BookedServiceSchema {
     | "booked_cancelled"
     | "service_started"
     | "service_completion_approval"
-    | "service_completion_approved_by_customer";
+    | "service_completion_approved_by_customer"
+    | "completed";
   description?: string;
   paymentCompleted?: boolean;
 }

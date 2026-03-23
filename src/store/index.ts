@@ -17,6 +17,7 @@ import documentReducer from '../features/document/documentSlice';
 import bannerReducer from '../features/banner/bannerSlice';
 import couponReducer from '../features/coupon/couponSlice';
 import paymentsReducer from '../features/payments/paymentsSlice';
+import walletTransactionReducer from '../features/walletTransaction/walletTransactionSlice';
 
 const store = configureStore({
     reducer: {
@@ -38,6 +39,7 @@ const store = configureStore({
         banner: bannerReducer,
         coupon: couponReducer,
         payments: paymentsReducer,
+        walletTransaction: walletTransactionReducer,
     },
 });
 
