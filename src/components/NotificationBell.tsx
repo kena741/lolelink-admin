@@ -12,13 +12,15 @@ export function NotificationBell() {
     const dispatch = useAppDispatch();
     const items = useAppSelector((state) => state.notification.items);
     const unreadCount = useMemo(() => items.filter((item) => !item.is_read).length, [items]);
+    const isNotificationsPage = pathname?.startsWith('/admin/notifications');
 
     useEffect(() => {
         if (!pathname?.startsWith('/admin')) return;
+        if (isNotificationsPage) return;
         dispatch(fetchNotifications());
-    }, [dispatch, pathname]);
+    }, [dispatch, pathname, isNotificationsPage]);
 
-    if (!pathname?.startsWith('/admin')) return null;
+    if (!pathname?.startsWith('/admin') || isNotificationsPage) return null;
 
     return (
         <Link

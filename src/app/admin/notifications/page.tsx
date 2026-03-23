@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Sidebar from "@/components/Sidebar";
 import AuthGuard from "@/components/AuthGuard";
@@ -16,6 +16,12 @@ import {
     NotificationItem,
 } from "@/features/notification/notificationSlice";
 
+interface ReadFilterOption {
+    id: "all" | "unread" | "read";
+    label: string;
+    count: number;
+}
+
 function getNotificationTypeLabel(value?: string | null): string {
     if (!value) return "Update";
     return value
@@ -23,6 +29,20 @@ function getNotificationTypeLabel(value?: string | null): string {
         .filter(Boolean)
         .map((part) => part[0]?.toUpperCase() + part.slice(1))
         .join(" ");
+}
+
+function getNotificationTypeColorClasses(value?: string | null, title?: string | null): string {
+    const normalizedValue = (value ?? "").toLowerCase();
+    const normalizedTitle = (title ?? "").toLowerCase();
+    const combined = `${normalizedValue} ${normalizedTitle}`;
+
+    if (/(reject|cancel|fail|error|decline)/.test(combined))
+        return "border border-border bg-destructive/10 text-destructive";
+    if (/(accept|approved|complete|success|done)/.test(combined))
+        return "border border-border bg-primary/15 text-foreground";
+    if (/(pending|review|wait)/.test(combined))
+        return "border border-border bg-secondary text-foreground";
+    return "border border-border bg-accent text-foreground";
 }
 
 function getNotificationMessage(notification: NotificationItem): string {
@@ -66,6 +86,8 @@ export default function NotificationsPage() {
     const bookings = useAppSelector((state) => state.bookedService.items);
     const providers = useAppSelector((state) => state.provider.providers);
     const customers = useAppSelector((state) => state.customer.customers);
+    const [searchValue, setSearchValue] = useState("");
+    const [readFilter, setReadFilter] = useState<ReadFilterOption["id"]>("all");
 
     useEffect(() => {
         dispatch(fetchNotifications());
@@ -76,6 +98,10 @@ export default function NotificationsPage() {
 
     const unreadCount = useMemo(
         () => items.filter((item) => !item.is_read).length,
+        [items]
+    );
+    const readCount = useMemo(
+        () => items.filter((item) => item.is_read).length,
         [items]
     );
     const bookingMap = useMemo(() => {
@@ -108,62 +134,117 @@ export default function NotificationsPage() {
         await dispatch(markAllNotificationsRead());
     };
 
+    const normalizedSearch = useMemo(
+        () => searchValue.trim().toLowerCase(),
+        [searchValue]
+    );
+
+    const filteredItems = useMemo(() => {
+        return items.filter((item) => {
+            if (readFilter === "unread" && item.is_read) return false;
+            if (readFilter === "read" && !item.is_read) return false;
+
+            if (!normalizedSearch) return true;
+
+            const haystack = [
+                item.title ?? "",
+                item.description ?? "",
+                item.type ?? "",
+            ]
+                .join(" ")
+                .toLowerCase();
+
+            return haystack.includes(normalizedSearch);
+        });
+    }, [items, normalizedSearch, readFilter]);
+
+    const filterOptions = useMemo<ReadFilterOption[]>(
+        () => [
+            { id: "all", label: "All", count: items.length },
+            { id: "unread", label: "Unread", count: unreadCount },
+            { id: "read", label: "Read", count: readCount },
+        ],
+        [items.length, unreadCount, readCount]
+    );
+
     return (
         <AuthGuard>
-            <div className="flex min-h-screen bg-gradient-to-br from-gray-50 via-indigo-50/30 to-purple-50/30">
+            <div className="flex min-h-screen bg-background">
                 <Sidebar />
                 <main className="ml-64 w-full min-h-screen">
-                    <div className="relative isolate overflow-hidden">
-                        <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600 opacity-90" />
-                        <div className="relative mx-auto max-w-7xl px-6 py-12 sm:py-16 lg:px-8">
-                            <div className="flex items-center justify-between gap-6">
+                    <div className="mx-auto max-w-[1100px] px-6 py-10">
+                        <div className="rounded-md border border-border bg-card p-[24px] shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+                            <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
                                 <div>
-                                    <div className="flex items-center gap-3 mb-2">
-                                        <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                                            <Bell className="h-6 w-6 text-white" />
+                                    <div className="mb-2 flex items-center gap-3">
+                                        <div className="inline-flex h-[40px] w-[40px] items-center justify-center rounded-md bg-accent text-foreground">
+                                            <Bell className="h-[24px] w-[24px]" />
                                         </div>
-                                        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white drop-shadow-lg">
+                                        <h1 className="text-[24px] font-bold leading-[1.2] text-foreground sm:text-[32px]">
                                             Notifications
                                         </h1>
                                     </div>
-                                    <p className="text-white/90 text-base font-medium">
-                                        Live updates from app activity and operational events
+                                    <p className="text-[16px] font-medium leading-[1.3] text-muted-foreground">
+                                        Track operational updates and respond quickly to new activity.
                                     </p>
                                 </div>
-                                <div className="flex items-center gap-3">
-                                    <div className="px-4 py-2 bg-white/10 backdrop-blur-md rounded-xl border border-white/20">
-                                        <div className="text-sm text-white/80">Unread</div>
-                                        <div className="text-2xl font-bold text-white">{unreadCount}</div>
+                                <div className="flex items-center gap-2">
+                                    <div className="rounded-md border border-border bg-secondary px-4 py-2">
+                                        <div className="text-[13px] font-semibold leading-[1.2] text-muted-foreground">Unread</div>
+                                        <div className="text-[20px] font-bold leading-[1.2] text-foreground">{unreadCount}</div>
                                     </div>
                                     <button
                                         onClick={onMarkAllRead}
                                         disabled={unreadCount === 0}
-                                        className="inline-flex items-center gap-2 rounded-xl bg-white/10 backdrop-blur-md px-4 py-3 text-sm font-semibold text-white ring-2 ring-white/20 hover:bg-white/20 hover:ring-white/40 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        className="inline-flex h-[40px] items-center gap-2 rounded-md bg-primary px-4 text-[14px] font-semibold leading-[1.2] text-primary-foreground transition-all duration-150 hover:bg-primary/90 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
                                     >
-                                        <CheckCheck className="h-4 w-4" />
+                                        <CheckCheck className="h-[16px] w-[16px]" />
                                         Mark all read
                                     </button>
                                 </div>
                             </div>
                         </div>
-                    </div>
+                        <div className="sticky top-0 z-20 mt-6 rounded-md border border-border bg-card p-[16px] shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+                            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                <input
+                                    value={searchValue}
+                                    onChange={(event) => setSearchValue(event.target.value)}
+                                    placeholder="Search notifications..."
+                                    className="h-[40px] w-full rounded-md border border-border bg-background px-4 text-[16px] font-medium leading-[1.3] text-foreground outline-none transition-all duration-150 placeholder:text-muted-foreground focus:ring-2 focus:ring-ring md:max-w-[420px]"
+                                />
+                                <div className="flex flex-wrap items-center gap-2">
+                                    {filterOptions.map((option) => (
+                                        <button
+                                            key={option.id}
+                                            onClick={() => setReadFilter(option.id)}
+                                            className={`h-[40px] rounded-full px-4 text-[14px] font-semibold leading-[1.2] transition-all duration-150 ${
+                                                readFilter === option.id
+                                                    ? "border border-border bg-secondary text-foreground shadow-[0_1px_3px_rgba(0,0,0,0.06)]"
+                                                    : "border border-border bg-background text-muted-foreground hover:bg-secondary hover:text-foreground"
+                                            }`}
+                                        >
+                                            {option.label} ({option.count})
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
 
-                    <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
                         {loading && (
-                            <div className="mb-4 text-sm text-gray-600 flex items-center gap-2">
-                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
+                            <div className="mb-4 mt-6 flex items-center gap-2 text-[14px] font-medium leading-[1.2] text-muted-foreground">
+                                <div className="h-[16px] w-[16px] animate-spin rounded-full border-2 border-ring border-t-transparent" />
                                 Loading notifications...
                             </div>
                         )}
 
                         {error && (
-                            <div className="mb-4 rounded-xl bg-red-50 border border-red-200 p-4 text-sm text-red-600">
+                            <div className="mb-4 mt-6 rounded-md border border-border bg-card p-[16px] text-[14px] font-medium leading-[1.2] text-destructive">
                                 {error}
                             </div>
                         )}
 
-                        <div className="space-y-3">
-                            {items.map((item) => {
+                        <div className="mt-6 space-y-4 pb-10">
+                            {filteredItems.map((item) => {
                                 const booking = item.booking_id ? bookingMap.get(item.booking_id) : undefined;
                                 const providerId = booking?.provider_id || item.provider_id || undefined;
                                 const customerId = booking?.customer_id || item.customer_id || undefined;
@@ -181,47 +262,52 @@ export default function NotificationsPage() {
                                 return (
                                     <div
                                         key={item.id}
-                                        className={`rounded-2xl border bg-white/90 backdrop-blur-xl p-4 sm:p-5 shadow-sm transition-all ${
+                                        className={`rounded-md border bg-card p-[24px] shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-all duration-150 ${
                                             item.is_read
-                                                ? "border-gray-200"
-                                                : "border-indigo-200 ring-1 ring-indigo-100"
+                                                ? "border-border"
+                                                : "border-primary/30 bg-accent/60"
                                         }`}
                                     >
-                                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                                             <div className="min-w-0">
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <span className="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700">
+                                                <div className="mb-2 flex items-center gap-2">
+                                                    <span
+                                                        className={`inline-flex items-center rounded-full px-2.5 py-1 text-[13px] font-semibold leading-[1.2] ${getNotificationTypeColorClasses(
+                                                            item.type,
+                                                            item.title
+                                                        )}`}
+                                                    >
                                                         {getNotificationTypeLabel(item.type)}
                                                     </span>
                                                     {!item.is_read && (
-                                                        <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                                                        <span className="inline-flex items-center rounded-full bg-primary/15 px-2.5 py-1 text-[13px] font-semibold leading-[1.2] text-foreground">
                                                             New
                                                         </span>
                                                     )}
                                                 </div>
-                                                <h3 className="text-base font-semibold text-gray-900 truncate">
+                                                <h3 className="truncate text-[18px] font-semibold leading-[1.2] text-foreground">
                                                     {item.title || "System update"}
                                                 </h3>
-                                                <p className="mt-1 text-sm text-gray-600">
+                                                <p className="mt-2 text-[16px] font-medium leading-[1.3] text-muted-foreground">
                                                     {adminMessage}
                                                 </p>
-                                                <div className="mt-2 inline-flex items-center gap-1 text-xs text-gray-500">
-                                                    <Clock3 className="h-3.5 w-3.5" />
+                                                <div className="mt-3 inline-flex items-center gap-1 text-[13px] font-semibold leading-[1.2] text-muted-foreground">
+                                                    <Clock3 className="h-[16px] w-[16px]" />
                                                     {item.created_at ? new Date(item.created_at).toLocaleString() : "Unknown time"}
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-2 sm:pl-3">
+                                            <div className="flex items-center gap-2 md:pl-3">
                                                 {!item.is_read && (
                                                     <button
                                                         onClick={() => onMarkRead(item.id)}
-                                                        className="inline-flex items-center rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                                        className="inline-flex h-[40px] items-center rounded-md border border-border bg-background px-3 text-[14px] font-semibold leading-[1.2] text-foreground transition-all duration-150 hover:bg-secondary"
                                                     >
                                                         Mark read
                                                     </button>
                                                 )}
                                                 <Link
                                                     href={item.action_url || "/admin/dashboard"}
-                                                    className="inline-flex items-center rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+                                                    className="inline-flex h-[40px] items-center rounded-md bg-primary px-4 text-[14px] font-semibold leading-[1.2] text-primary-foreground transition-all duration-150 hover:bg-primary/90"
                                                 >
                                                     Open
                                                 </Link>
@@ -232,14 +318,18 @@ export default function NotificationsPage() {
                             })}
                         </div>
 
-                        {!loading && items.length === 0 && (
-                            <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center">
-                                <div className="mx-auto mb-3 h-12 w-12 rounded-full bg-gray-100 grid place-items-center">
-                                    <Bell className="h-6 w-6 text-gray-400" />
+                        {!loading && filteredItems.length === 0 && (
+                            <div className="rounded-md border border-border bg-card p-[32px] text-center shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+                                <div className="mx-auto mb-3 grid h-[48px] w-[48px] place-items-center rounded-full bg-secondary">
+                                    <Bell className="h-[24px] w-[24px] text-foreground" />
                                 </div>
-                                <h3 className="text-lg font-semibold text-gray-900">No notifications yet</h3>
-                                <p className="mt-1 text-sm text-gray-600">
-                                    New app activities will appear here automatically.
+                                <h3 className="text-[20px] font-bold leading-[1.2] text-foreground">
+                                    {items.length === 0 ? "No notifications yet" : "No matching notifications"}
+                                </h3>
+                                <p className="mt-2 text-[16px] font-medium leading-[1.3] text-muted-foreground">
+                                    {items.length === 0
+                                        ? "New app activities will appear here automatically."
+                                        : "Try a different search term or filter."}
                                 </p>
                             </div>
                         )}
