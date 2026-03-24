@@ -13,12 +13,12 @@ import {
     TrendingUp
 } from 'lucide-react';
 import Link from 'next/link';
-import { fetchPayoutRequests, approvePayoutRequest, rejectPayoutRequest } from '@/features/payout/payoutSlice';
+import { fetchPayoutRequests, approvePayoutRequest, rejectPayoutRequest, completePayoutRequest, sendPayoutViaChapa } from '@/features/payout/payoutSlice';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const PayoutRequestPage = () => {
     const dispatch = useAppDispatch();
-    const { requests, loading, error } = useAppSelector((state) => state.payout);
+    const { requests, loading, error, chapaCheckoutUrlById } = useAppSelector((state) => state.payout);
     const [processingId, setProcessingId] = useState<string | null>(null);
 
     useEffect(() => {
@@ -44,6 +44,33 @@ const PayoutRequestPage = () => {
             dispatch(fetchPayoutRequests());
         } catch (err) {
             console.error('Failed to reject payout:', err);
+        } finally {
+            setProcessingId(null);
+        }
+    };
+
+    const handleMarkPaid = async (id: string) => {
+        setProcessingId(id);
+        try {
+            await dispatch(completePayoutRequest({ id })).unwrap();
+            dispatch(fetchPayoutRequests());
+        } catch (err) {
+            console.error('Failed to mark payout as paid:', err);
+        } finally {
+            setProcessingId(null);
+        }
+    };
+
+    const handleSendWithChapa = async (id: string) => {
+        setProcessingId(id);
+        try {
+            const result = await dispatch(sendPayoutViaChapa({ id })).unwrap();
+            if (result.checkoutUrl) {
+                window.open(result.checkoutUrl, '_blank', 'noopener,noreferrer');
+            }
+            dispatch(fetchPayoutRequests());
+        } catch (err) {
+            console.error('Failed to send payout via Chapa:', err);
         } finally {
             setProcessingId(null);
         }
@@ -196,7 +223,7 @@ const PayoutRequestPage = () => {
 
                             {error && (
                                 <div className="p-4 m-6 rounded-xl bg-red-50 border border-red-200 text-red-600">
-                                    {error}
+                                    {typeof error === 'string' ? error : 'Something went wrong'}
                                 </div>
                             )}
 
@@ -208,6 +235,7 @@ const PayoutRequestPage = () => {
                                                 <TableHead className="font-semibold text-gray-700">Provider Name</TableHead>
                                                 <TableHead className="font-semibold text-gray-700">Note</TableHead>
                                                 <TableHead className="font-semibold text-gray-700">Payment Status</TableHead>
+                                                <TableHead className="font-semibold text-gray-700">Bank Details</TableHead>
                                                 <TableHead className="font-semibold text-gray-700">Amount</TableHead>
                                                 <TableHead className="font-semibold text-gray-700">Create Date</TableHead>
                                                 <TableHead className="font-semibold text-gray-700 text-right">Action</TableHead>
@@ -216,7 +244,7 @@ const PayoutRequestPage = () => {
                                         <TableBody>
                                             {requests.length === 0 ? (
                                                 <TableRow>
-                                                    <TableCell colSpan={6} className="px-4 py-12 text-center text-gray-500">
+                                                    <TableCell colSpan={7} className="px-4 py-12 text-center text-gray-500">
                                                         <div className="flex flex-col items-center gap-3">
                                                             <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
                                                                 <DollarSign className="h-8 w-8 text-gray-400" />
@@ -229,13 +257,14 @@ const PayoutRequestPage = () => {
                                             ) : (
                                                 requests.map((request) => {
                                                     const isProcessing = processingId === request.id;
+                                                    const normalizedPaymentStatus = request.paymentStatus.toLowerCase();
                                                     const statusConfig: Record<string, { color: string; bg: string; icon: React.ElementType }> = {
                                                         pending: { color: 'text-amber-600', bg: 'bg-amber-500/10', icon: Clock },
                                                         approved: { color: 'text-emerald-600', bg: 'bg-emerald-500/10', icon: CheckCircle2 },
                                                         completed: { color: 'text-emerald-600', bg: 'bg-emerald-500/10', icon: CheckCircle2 },
                                                         rejected: { color: 'text-red-600', bg: 'bg-red-500/10', icon: XCircle },
                                                     };
-                                                    const statusInfo = statusConfig[request.paymentStatus] || statusConfig.pending;
+                                                    const statusInfo = statusConfig[normalizedPaymentStatus] || statusConfig.pending;
                                                     const StatusIcon = statusInfo.icon;
 
                                                     return (
@@ -261,8 +290,23 @@ const PayoutRequestPage = () => {
                                                             <TableCell>
                                                                 <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold ${statusInfo.bg} ${statusInfo.color} border border-current/20`}>
                                                                     <StatusIcon className="h-3.5 w-3.5" />
-                                                                    {request.paymentStatus.charAt(0).toUpperCase() + request.paymentStatus.slice(1)}
+                                                                    {normalizedPaymentStatus.charAt(0).toUpperCase() + normalizedPaymentStatus.slice(1)}
                                                                 </span>
+                                                            </TableCell>
+                                                            <TableCell className="text-gray-700">
+                                                                {request.bankDetails ? (
+                                                                    <div className="space-y-0.5 text-xs">
+                                                                        <p className="font-semibold text-gray-900">{request.bankDetails.bankName || 'Bank not set'}</p>
+                                                                        <p>Acct: {request.bankDetails.accountNumber || '—'}</p>
+                                                                        <p>Holder: {request.bankDetails.holderName || '—'}</p>
+                                                                        <p>
+                                                                            {request.bankDetails.branchCity || '—'}
+                                                                            {request.bankDetails.branchCountry ? `, ${request.bankDetails.branchCountry}` : ''}
+                                                                        </p>
+                                                                    </div>
+                                                                ) : (
+                                                                    <span className="text-xs text-gray-500">No bank details</span>
+                                                                )}
                                                             </TableCell>
                                                             <TableCell className="font-semibold text-gray-900">
                                                                 {formatCurrency(request.amount)}
@@ -271,7 +315,7 @@ const PayoutRequestPage = () => {
                                                                 {formatDate(request.createdDate)}
                                                             </TableCell>
                                                             <TableCell className="text-right">
-                                                                {request.paymentStatus === 'pending' ? (
+                                                                {normalizedPaymentStatus === 'pending' ? (
                                                                     <div className="flex items-center justify-end gap-2">
                                                                         <button
                                                                             onClick={() => handleApprove(request.id)}
@@ -287,6 +331,33 @@ const PayoutRequestPage = () => {
                                                                         >
                                                                             Reject
                                                                         </button>
+                                                                    </div>
+                                                                ) : normalizedPaymentStatus === 'approved' ? (
+                                                                    <div className="flex items-center justify-end gap-2">
+                                                                        <button
+                                                                            onClick={() => handleSendWithChapa(request.id)}
+                                                                            disabled={isProcessing}
+                                                                            className="px-4 py-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-sm font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                                                                        >
+                                                                            {isProcessing ? 'Processing...' : 'Send with Chapa'}
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => handleMarkPaid(request.id)}
+                                                                            disabled={isProcessing}
+                                                                            className="px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600 text-white text-sm font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                                                                        >
+                                                                            {isProcessing ? 'Processing...' : 'Mark Paid'}
+                                                                        </button>
+                                                                        {chapaCheckoutUrlById[request.id] && (
+                                                                            <a
+                                                                                href={chapaCheckoutUrlById[request.id]}
+                                                                                target="_blank"
+                                                                                rel="noopener noreferrer"
+                                                                                className="text-xs font-semibold text-indigo-700 hover:text-indigo-900 hover:underline"
+                                                                            >
+                                                                                Open Chapa
+                                                                            </a>
+                                                                        )}
                                                                     </div>
                                                                 ) : (
                                                                     <span className="text-sm text-gray-500 italic">Processed</span>

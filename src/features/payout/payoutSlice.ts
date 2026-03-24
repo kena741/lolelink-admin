@@ -11,6 +11,14 @@ export interface PayoutRequest {
     paymentStatus: 'pending' | 'approved' | 'rejected' | 'completed';
     createdDate?: string;
     paymentDate?: string;
+    bankDetails?: {
+        bankName?: string;
+        accountNumber?: string;
+        holderName?: string;
+        swiftCode?: string;
+        branchCity?: string;
+        branchCountry?: string;
+    } | null;
 }
 
 interface PayoutRequestState {
@@ -19,6 +27,7 @@ interface PayoutRequestState {
     error: string | null;
     bookingPayoutStatus: Record<string, boolean>;
     bookingPayoutLoading: boolean;
+    chapaCheckoutUrlById: Record<string, string>;
 }
 
 const initialState: PayoutRequestState = {
@@ -27,6 +36,7 @@ const initialState: PayoutRequestState = {
     error: null,
     bookingPayoutStatus: {},
     bookingPayoutLoading: false,
+    chapaCheckoutUrlById: {},
 };
 
 interface BookingPaymentRow {
@@ -65,7 +75,42 @@ type WithdrawalHistoryRow = {
     paymentDate?: string;
 };
 
-const normalizeRows = (rows: WithdrawalHistoryRow[] | null | undefined, providerMap: Record<string, string>): PayoutRequest[] =>
+function normalizePaymentStatus(value?: string): 'pending' | 'approved' | 'rejected' | 'completed' {
+    const normalized = (value ?? '').toString().trim().toLowerCase();
+    if (normalized === 'approved') return 'approved';
+    if (normalized === 'rejected') return 'rejected';
+    if (normalized === 'completed') return 'completed';
+    return 'pending';
+}
+
+type BankDetailsRow = {
+    providerID: string;
+    bankName?: string;
+    accountNumber?: string;
+    holderName?: string;
+    swiftCode?: string;
+    branchCity?: string;
+    branchCountry?: string;
+};
+
+function toErrorMessage(value: unknown, fallback: string): string {
+    if (typeof value === 'string' && value.trim())
+        return value;
+    if (value && typeof value === 'object') {
+        try {
+            return JSON.stringify(value);
+        } catch {
+            return fallback;
+        }
+    }
+    return fallback;
+}
+
+const normalizeRows = (
+    rows: WithdrawalHistoryRow[] | null | undefined,
+    providerMap: Record<string, string>,
+    bankMap: Record<string, PayoutRequest['bankDetails']>
+): PayoutRequest[] =>
     (rows ?? []).map((row) => ({
         id: row.id,
         providerId: row.providerId,
@@ -73,9 +118,10 @@ const normalizeRows = (rows: WithdrawalHistoryRow[] | null | undefined, provider
         note: row.note,
         adminNote: row.adminNote,
         amount: row.amount,
-        paymentStatus: (row.paymentStatus || 'pending') as 'pending' | 'approved' | 'rejected' | 'completed',
+        paymentStatus: normalizePaymentStatus(row.paymentStatus),
         createdDate: row.createdDate,
         paymentDate: row.paymentDate,
+        bankDetails: bankMap[row.providerId] || null,
     }));
 
 export const fetchPayoutRequests = createAsyncThunk<
@@ -99,26 +145,42 @@ export const fetchPayoutRequests = createAsyncThunk<
             
             // Fetch provider info using providerId == id from providers table
             const providerMap: Record<string, string> = {};
+            const bankMap: Record<string, PayoutRequest['bankDetails']> = {};
             if (providerIds.length > 0) {
-                // Query providers where id matches providerId from withdrawal_history
                 const { data: providers, error: providerError } = await supabase
                     .from('provider')
                     .select('id, firstName, lastName')
                     .in('id', providerIds);
-                    console.log("providers",providers, providerError);
 
                 if (!providerError && providers) {
                     providers.forEach((provider: { id: string; firstName?: string; lastName?: string }) => {
-                        // Match provider.id == providerId from withdrawal_history
                         const first = provider.firstName;
                         const last = provider.lastName;
                         const full = [first, last].filter(Boolean).join(' ');
                         providerMap[provider.id] = full || 'Unknown Provider';
                     });
                 }
+
+                const { data: banks, error: bankError } = await supabase
+                    .from('bank_details')
+                    .select('providerID, bankName, accountNumber, holderName, swiftCode, branchCity, branchCountry')
+                    .in('providerID', providerIds);
+
+                if (!bankError && banks) {
+                    (banks as BankDetailsRow[]).forEach((bank) => {
+                        bankMap[bank.providerID] = {
+                            bankName: bank.bankName,
+                            accountNumber: bank.accountNumber,
+                            holderName: bank.holderName,
+                            swiftCode: bank.swiftCode,
+                            branchCity: bank.branchCity,
+                            branchCountry: bank.branchCountry,
+                        };
+                    });
+                }
             }
 
-            return normalizeRows(withdrawalData as WithdrawalHistoryRow[], providerMap);
+            return normalizeRows(withdrawalData as WithdrawalHistoryRow[], providerMap, bankMap);
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to fetch payout requests';
             return rejectWithValue(msg);
@@ -152,8 +214,8 @@ export const approvePayoutRequest = createAsyncThunk<
 
             if (error) throw error;
 
-            // Fetch provider name using providerId == id from providers table
             const providerMap: Record<string, string> = {};
+            const bankMap: Record<string, PayoutRequest['bankDetails']> = {};
             if (data.providerId) {
                 const { data: provider, error: providerError } = await supabase
                     .from('provider')
@@ -167,9 +229,27 @@ export const approvePayoutRequest = createAsyncThunk<
                     const full = [first, last].filter(Boolean).join(' ');
                     providerMap[provider.id] = full || 'Unknown Provider';
                 }
+
+                const { data: bank, error: bankError } = await supabase
+                    .from('bank_details')
+                    .select('providerID, bankName, accountNumber, holderName, swiftCode, branchCity, branchCountry')
+                    .eq('providerID', data.providerId)
+                    .maybeSingle();
+
+                if (!bankError && bank) {
+                    const bankRow = bank as BankDetailsRow;
+                    bankMap[bankRow.providerID] = {
+                        bankName: bankRow.bankName,
+                        accountNumber: bankRow.accountNumber,
+                        holderName: bankRow.holderName,
+                        swiftCode: bankRow.swiftCode,
+                        branchCity: bankRow.branchCity,
+                        branchCountry: bankRow.branchCountry,
+                    };
+                }
             }
 
-            return normalizeRows([data as WithdrawalHistoryRow], providerMap)[0];
+            return normalizeRows([data as WithdrawalHistoryRow], providerMap, bankMap)[0];
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to approve payout request';
             return rejectWithValue(msg);
@@ -202,8 +282,8 @@ export const rejectPayoutRequest = createAsyncThunk<
 
             if (error) throw error;
 
-            // Fetch provider name using providerId == id from providers table
             const providerMap: Record<string, string> = {};
+            const bankMap: Record<string, PayoutRequest['bankDetails']> = {};
             if (data.providerId) {
                 const { data: provider, error: providerError } = await supabase
                     .from('provider')
@@ -217,11 +297,132 @@ export const rejectPayoutRequest = createAsyncThunk<
                     const full = [first, last].filter(Boolean).join(' ');
                     providerMap[provider.id] = full || 'Unknown Provider';
                 }
+
+                const { data: bank, error: bankError } = await supabase
+                    .from('bank_details')
+                    .select('providerID, bankName, accountNumber, holderName, swiftCode, branchCity, branchCountry')
+                    .eq('providerID', data.providerId)
+                    .maybeSingle();
+
+                if (!bankError && bank) {
+                    const bankRow = bank as BankDetailsRow;
+                    bankMap[bankRow.providerID] = {
+                        bankName: bankRow.bankName,
+                        accountNumber: bankRow.accountNumber,
+                        holderName: bankRow.holderName,
+                        swiftCode: bankRow.swiftCode,
+                        branchCity: bankRow.branchCity,
+                        branchCountry: bankRow.branchCountry,
+                    };
+                }
             }
 
-            return normalizeRows([data as WithdrawalHistoryRow], providerMap)[0];
+            return normalizeRows([data as WithdrawalHistoryRow], providerMap, bankMap)[0];
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to reject payout request';
+            return rejectWithValue(msg);
+        }
+    }
+);
+
+export const completePayoutRequest = createAsyncThunk<
+    PayoutRequest,
+    { id: string; adminNote?: string },
+    { rejectValue: string }
+>(
+    'payout/completePayoutRequest',
+    async ({ id, adminNote }, { rejectWithValue }) => {
+        try {
+            const updateData: { paymentStatus: string; paymentDate: string; adminNote?: string } = {
+                paymentStatus: 'completed',
+                paymentDate: new Date().toISOString(),
+            };
+
+            if (adminNote)
+                updateData.adminNote = adminNote;
+
+            const { data, error } = await supabase
+                .from('withdrawal_history')
+                .update(updateData)
+                .eq('id', id)
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            const providerMap: Record<string, string> = {};
+            const bankMap: Record<string, PayoutRequest['bankDetails']> = {};
+            if (data.providerId) {
+                const { data: provider, error: providerError } = await supabase
+                    .from('provider')
+                    .select('id, firstName, lastName')
+                    .eq('id', data.providerId)
+                    .single();
+
+                if (!providerError && provider) {
+                    const first = provider.firstName;
+                    const last = provider.lastName;
+                    const full = [first, last].filter(Boolean).join(' ');
+                    providerMap[provider.id] = full || 'Unknown Provider';
+                }
+
+                const { data: bank, error: bankError } = await supabase
+                    .from('bank_details')
+                    .select('providerID, bankName, accountNumber, holderName, swiftCode, branchCity, branchCountry')
+                    .eq('providerID', data.providerId)
+                    .maybeSingle();
+
+                if (!bankError && bank) {
+                    const bankRow = bank as BankDetailsRow;
+                    bankMap[bankRow.providerID] = {
+                        bankName: bankRow.bankName,
+                        accountNumber: bankRow.accountNumber,
+                        holderName: bankRow.holderName,
+                        swiftCode: bankRow.swiftCode,
+                        branchCity: bankRow.branchCity,
+                        branchCountry: bankRow.branchCountry,
+                    };
+                }
+            }
+
+            return normalizeRows([data as WithdrawalHistoryRow], providerMap, bankMap)[0];
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : 'Failed to complete payout request';
+            return rejectWithValue(msg);
+        }
+    }
+);
+
+export const sendPayoutViaChapa = createAsyncThunk<
+    { id: string; txRef: string; checkoutUrl: string | null },
+    { id: string },
+    { rejectValue: string }
+>(
+    'payout/sendPayoutViaChapa',
+    async ({ id }, { rejectWithValue }) => {
+        try {
+            const response = await fetch('/api/payout/chapa-transfer', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ withdrawalId: id }),
+            });
+
+            const payload = (await response.json()) as {
+                error?: unknown;
+                tx_ref?: string;
+                checkout_url?: string | null;
+            };
+
+            if (!response.ok)
+                return rejectWithValue(toErrorMessage(payload.error, 'Failed to send payout via Chapa'));
+
+            return {
+                id,
+                txRef: payload.tx_ref || '',
+                checkoutUrl: payload.checkout_url || null,
+            };
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : 'Failed to send payout via Chapa';
             return rejectWithValue(msg);
         }
     }
@@ -375,6 +576,35 @@ const payoutSlice = createSlice({
             .addCase(rejectPayoutRequest.rejected, (state, action) => {
                 state.loading = false;
                 state.error = (action.payload as string) || 'Failed to reject payout request';
+            })
+            .addCase(completePayoutRequest.pending, (state) => {
+                state.loading = true;
+                state.error = null;
+            })
+            .addCase(completePayoutRequest.fulfilled, (state, action: PayloadAction<PayoutRequest>) => {
+                state.loading = false;
+                const index = state.requests.findIndex(req => req.id === action.payload.id);
+                if (index !== -1) {
+                    state.requests[index] = action.payload;
+                }
+            })
+            .addCase(completePayoutRequest.rejected, (state, action) => {
+                state.loading = false;
+                state.error = (action.payload as string) || 'Failed to complete payout request';
+            })
+            .addCase(sendPayoutViaChapa.pending, (state) => {
+                state.loading = true;
+                state.error = null;
+            })
+            .addCase(sendPayoutViaChapa.fulfilled, (state, action) => {
+                state.loading = false;
+                if (action.payload.checkoutUrl) {
+                    state.chapaCheckoutUrlById[action.payload.id] = action.payload.checkoutUrl;
+                }
+            })
+            .addCase(sendPayoutViaChapa.rejected, (state, action) => {
+                state.loading = false;
+                state.error = (action.payload as string) || 'Failed to send payout via Chapa';
             })
             .addCase(fetchBookingPayoutStatus.pending, (state) => {
                 state.bookingPayoutLoading = true;
