@@ -27,7 +27,7 @@ export interface PolicySettings {
 }
 
 export interface PaymentSettings {
-    chapa?: { name: string; enable: boolean; isActive?: number; [key: string]: string | boolean | number | undefined };
+    chapa?: { name: string; enable: boolean; isActive?: boolean | number; [key: string]: string | boolean | number | undefined };
     telebirr?: { name: string; annld?: string; [key: string]: string | boolean | number | undefined };
     wallet?: { name: string; enable?: boolean; [key: string]: string | boolean | number | undefined };
 }
@@ -56,6 +56,34 @@ const initialState: SettingsState = {
     error: null,
 };
 
+function parseObjectValue(value: unknown): Record<string, unknown> {
+    if (!value) return {};
+    if (typeof value === 'string') {
+        try {
+            const parsed = JSON.parse(value) as Record<string, unknown>;
+            return parsed ?? {};
+        } catch {
+            return {};
+        }
+    }
+    if (typeof value === 'object') return value as Record<string, unknown>;
+    return {};
+}
+
+function normalizePaymentSettingsForStorage(settings?: PaymentSettings): PaymentSettings | undefined {
+    if (!settings) return settings;
+    const normalized: PaymentSettings = { ...settings };
+    if (normalized.chapa) {
+        normalized.chapa = {
+            ...normalized.chapa,
+            enable: Boolean(normalized.chapa.enable),
+            isActive: Boolean(normalized.chapa.isActive),
+            isSandbox: Boolean(normalized.chapa.isSandbox),
+        };
+    }
+    return normalized;
+}
+
 export const fetchSettings = createAsyncThunk<
     Settings,
     void,
@@ -65,49 +93,27 @@ export const fetchSettings = createAsyncThunk<
     async (_, { rejectWithValue }) => {
         try {
             // Try to fetch settings - handle case where table might be empty or have multiple rows
-            let data, error;
+            let data: Record<string, unknown>[] = [];
+            let error: { message?: string } | null = null;
             
             try {
                 const result = await supabase
                     .from('settings')
                     .select('*')
                     .limit(1);
-                data = result.data;
-                error = result.error;
+                data = (result.data as Record<string, unknown>[] | null) ?? [];
+                error = result.error as { message?: string } | null;
             } catch (e) {
-                // If table doesn't exist or any error, return empty settings
-                console.warn('Settings table not accessible, returning empty settings:', e);
-                return {
-                    appSettings: {},
-                    generalSettings: {},
-                    policySettings: {},
-                    paymentSettings: {},
-                };
+                // If legacy settings table fails, continue with defaults + app_settings payment
+                console.warn('Settings table not accessible, falling back to defaults:', e);
             }
 
             if (error) {
-                // If table doesn't exist or RLS issue, return empty settings
-                // 406 errors are common when table doesn't exist or RLS blocks access
-                console.warn('Settings fetch error (returning empty settings):', error.message || error);
-                return {
-                    appSettings: {},
-                    generalSettings: {},
-                    policySettings: {},
-                    paymentSettings: {},
-                };
+                // If legacy settings table has RLS or schema issues, continue to app_settings payment
+                console.warn('Settings fetch error (continuing with defaults):', error.message || error);
             }
 
-            // If no data, return empty settings
-            if (!data || data.length === 0) {
-                return {
-                    appSettings: {},
-                    generalSettings: {},
-                    policySettings: {},
-                    paymentSettings: {},
-                };
-            }
-
-            const settingsData = data[0];
+            const settingsData = data?.[0] ?? {};
 
             // Parse settings from database
             const appSettings: AppSettings = {
@@ -135,7 +141,7 @@ export const fetchSettings = createAsyncThunk<
                 termsAndConditions: settingsData.termsAndConditions,
             };
 
-            // Only include chapa, telebirr, and wallet
+            // Only include chapa, telebirr, and wallet (legacy source from settings table)
             const paymentSettings: PaymentSettings = {};
             if (settingsData.chapa) {
                 try {
@@ -157,6 +163,24 @@ export const fetchSettings = createAsyncThunk<
                 } catch {
                     paymentSettings.wallet = settingsData.wallet;
                 }
+            }
+
+            // Primary source for payment settings is app_settings(id='payment')
+            const { data: appPaymentData } = await supabase
+                .from('app_settings')
+                .select('id, data')
+                .eq('id', 'payment')
+                .maybeSingle();
+
+            const appPayment = parseObjectValue(appPaymentData?.data);
+            if (appPayment.chapa && typeof appPayment.chapa === 'object') {
+                paymentSettings.chapa = appPayment.chapa as PaymentSettings['chapa'];
+            }
+            if (appPayment.telebirr && typeof appPayment.telebirr === 'object') {
+                paymentSettings.telebirr = appPayment.telebirr as PaymentSettings['telebirr'];
+            }
+            if (appPayment.wallet && typeof appPayment.wallet === 'object') {
+                paymentSettings.wallet = appPayment.wallet as PaymentSettings['wallet'];
             }
 
             return {
@@ -197,23 +221,48 @@ export const updateSettings = createAsyncThunk<
                 Object.assign(updateData, updates.policySettings);
             }
 
-            // Update payment settings
+            // Update payment settings in app_settings(id='payment')
             if (updates.paymentSettings) {
-                if (updates.paymentSettings.chapa) {
-                    updateData.chapa = typeof updates.paymentSettings.chapa === 'object' 
-                        ? JSON.stringify(updates.paymentSettings.chapa) 
-                        : updates.paymentSettings.chapa;
+                const normalizedPaymentSettings = normalizePaymentSettingsForStorage(updates.paymentSettings);
+                const { data: existingPaymentSetting } = await supabase
+                    .from('app_settings')
+                    .select('id, data')
+                    .eq('id', 'payment')
+                    .maybeSingle();
+
+                const existingPaymentData = parseObjectValue(existingPaymentSetting?.data);
+                const nextPaymentData = {
+                    ...existingPaymentData,
+                    ...(normalizedPaymentSettings?.chapa ? { chapa: normalizedPaymentSettings.chapa } : {}),
+                    ...(normalizedPaymentSettings?.telebirr ? { telebirr: normalizedPaymentSettings.telebirr } : {}),
+                    ...(normalizedPaymentSettings?.wallet ? { wallet: normalizedPaymentSettings.wallet } : {}),
+                };
+
+                const { error: appSettingsError } = await supabase
+                    .from('app_settings')
+                    .upsert(
+                        {
+                            id: 'payment',
+                            data: nextPaymentData,
+                        },
+                        { onConflict: 'id' }
+                    );
+
+                if (appSettingsError) {
+                    console.error('Error updating app_settings payment:', appSettingsError);
+                    throw appSettingsError;
                 }
-                if (updates.paymentSettings.telebirr) {
-                    updateData.telebirr = typeof updates.paymentSettings.telebirr === 'object' 
-                        ? JSON.stringify(updates.paymentSettings.telebirr) 
-                        : updates.paymentSettings.telebirr;
-                }
-                if (updates.paymentSettings.wallet) {
-                    updateData.wallet = typeof updates.paymentSettings.wallet === 'object' 
-                        ? JSON.stringify(updates.paymentSettings.wallet) 
-                        : updates.paymentSettings.wallet;
-                }
+            }
+
+            const hasSettingsTableFields = Object.keys(updateData).length > 0;
+            if (!hasSettingsTableFields) {
+                const paymentSettings: PaymentSettings = normalizePaymentSettingsForStorage(updates.paymentSettings) || {};
+                return {
+                    appSettings: {},
+                    generalSettings: {},
+                    policySettings: {},
+                    paymentSettings,
+                };
             }
 
             // Try to update existing row first, if no rows exist, insert
@@ -289,7 +338,7 @@ export const updateSettings = createAsyncThunk<
                 termsAndConditions: result.termsAndConditions,
             };
 
-            const paymentSettings: PaymentSettings = {};
+            const paymentSettings: PaymentSettings = updates.paymentSettings || {};
             if (result.chapa) {
                 try {
                     paymentSettings.chapa = typeof result.chapa === 'string' ? JSON.parse(result.chapa) : result.chapa;

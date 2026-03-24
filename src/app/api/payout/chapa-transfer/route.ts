@@ -32,6 +32,19 @@ interface BankDetailsRow {
     branchCountry?: string | null;
 }
 
+interface AppSettingsRow {
+    id: string;
+    data: unknown;
+}
+
+interface ChapaConfig {
+    enable?: boolean;
+    isActive?: boolean | number;
+    isSandbox?: boolean;
+    publicKey?: string;
+    secretKey?: string;
+}
+
 function buildTxRef(withdrawalId: string): string {
     const shortId = withdrawalId.replace(/-/g, '').slice(0, 12);
     return `wd-${shortId}-${Date.now()}`.slice(0, 50);
@@ -50,10 +63,55 @@ function toErrorMessage(value: unknown, fallback: string): string {
     return fallback;
 }
 
+function normalizeBoolean(value: unknown): boolean {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return value === 1;
+    if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        return normalized === 'true' || normalized === '1' || normalized === 'yes';
+    }
+    return false;
+}
+
+function parseSettingsData(value: unknown): Record<string, unknown> {
+    if (!value) return {};
+    if (typeof value === 'string') {
+        try {
+            const parsed = JSON.parse(value) as Record<string, unknown>;
+            return parsed ?? {};
+        } catch {
+            return {};
+        }
+    }
+    if (typeof value === 'object') return value as Record<string, unknown>;
+    return {};
+}
+
+function resolveChapaConfig(settingsData: unknown): ChapaConfig {
+    const root = parseSettingsData(settingsData);
+    const maybeChapa = root.chapa;
+    if (!maybeChapa || typeof maybeChapa !== 'object') return {};
+    return maybeChapa as ChapaConfig;
+}
+
 export async function POST(request: Request) {
     try {
-        const chapaSecretKey = process.env.CHAPA_SECRET_KEY;
+        const { data: paymentSettingsData } = await supabaseAdmin
+            .from('app_settings')
+            .select('id, data')
+            .eq('id', 'payment')
+            .maybeSingle();
+
+        const paymentSettings = paymentSettingsData as AppSettingsRow | null;
+        const chapaConfig = resolveChapaConfig(paymentSettings?.data);
+        const isChapaEnabled =
+            normalizeBoolean(chapaConfig.enable) && normalizeBoolean(chapaConfig.isActive ?? true);
+
+        const chapaSecretKey = (chapaConfig.secretKey || process.env.CHAPA_SECRET_KEY || '').trim();
         const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || '';
+
+        if (!isChapaEnabled)
+            return NextResponse.json({ error: 'Chapa is disabled in app settings' }, { status: 400 });
 
         if (!chapaSecretKey)
             return NextResponse.json({ error: 'Missing CHAPA_SECRET_KEY' }, { status: 500 });
