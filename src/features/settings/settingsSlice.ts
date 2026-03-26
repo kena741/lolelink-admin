@@ -56,6 +56,29 @@ const initialState: SettingsState = {
     error: null,
 };
 
+interface LegacySettingsRow {
+    id?: string;
+    appColor?: string;
+    appName?: string;
+    appVersion?: string;
+    extraCharge_GST?: boolean;
+    googleMapKey?: string;
+    minimum_amount_deposit?: string;
+    minimum_amount_withdraw?: string;
+    notification_server_key?: string;
+    phoneNumber?: string;
+    radius?: string;
+    referralAmount?: string;
+    supportEmail?: string;
+    supportURL?: string;
+    aboutApp?: string;
+    privacyPolicy?: string;
+    termsAndConditions?: string;
+    chapa?: unknown;
+    telebirr?: unknown;
+    wallet?: unknown;
+}
+
 function parseObjectValue(value: unknown): Record<string, unknown> {
     if (!value) return {};
     if (typeof value === 'string') {
@@ -84,6 +107,41 @@ function normalizePaymentSettingsForStorage(settings?: PaymentSettings): Payment
     return normalized;
 }
 
+function toChapaSettings(value: unknown): PaymentSettings['chapa'] | undefined {
+    const objectValue = parseObjectValue(value);
+    if (typeof objectValue.name !== 'string')
+        return undefined;
+    return {
+        ...objectValue,
+        name: objectValue.name,
+        enable: Boolean(objectValue.enable),
+        isActive: typeof objectValue.isActive === 'boolean' || typeof objectValue.isActive === 'number'
+            ? objectValue.isActive
+            : undefined,
+    };
+}
+
+function toTelebirrSettings(value: unknown): PaymentSettings['telebirr'] | undefined {
+    const objectValue = parseObjectValue(value);
+    if (typeof objectValue.name !== 'string')
+        return undefined;
+    return {
+        ...objectValue,
+        name: objectValue.name,
+    };
+}
+
+function toWalletSettings(value: unknown): PaymentSettings['wallet'] | undefined {
+    const objectValue = parseObjectValue(value);
+    if (typeof objectValue.name !== 'string')
+        return undefined;
+    return {
+        ...objectValue,
+        name: objectValue.name,
+        enable: typeof objectValue.enable === 'boolean' ? objectValue.enable : undefined,
+    };
+}
+
 export const fetchSettings = createAsyncThunk<
     Settings,
     void,
@@ -93,7 +151,7 @@ export const fetchSettings = createAsyncThunk<
     async (_, { rejectWithValue }) => {
         try {
             // Try to fetch settings - handle case where table might be empty or have multiple rows
-            let data: Record<string, unknown>[] = [];
+            let data: LegacySettingsRow[] = [];
             let error: { message?: string } | null = null;
             
             try {
@@ -101,7 +159,7 @@ export const fetchSettings = createAsyncThunk<
                     .from('settings')
                     .select('*')
                     .limit(1);
-                data = (result.data as Record<string, unknown>[] | null) ?? [];
+                data = (result.data as LegacySettingsRow[] | null) ?? [];
                 error = result.error as { message?: string } | null;
             } catch (e) {
                 // If legacy settings table fails, continue with defaults + app_settings payment
@@ -113,7 +171,7 @@ export const fetchSettings = createAsyncThunk<
                 console.warn('Settings fetch error (continuing with defaults):', error.message || error);
             }
 
-            const settingsData = data?.[0] ?? {};
+            const settingsData: LegacySettingsRow = data?.[0] ?? {};
 
             // Parse settings from database
             const appSettings: AppSettings = {
@@ -145,23 +203,38 @@ export const fetchSettings = createAsyncThunk<
             const paymentSettings: PaymentSettings = {};
             if (settingsData.chapa) {
                 try {
-                    paymentSettings.chapa = typeof settingsData.chapa === 'string' ? JSON.parse(settingsData.chapa) : settingsData.chapa;
+                    const parsed = typeof settingsData.chapa === 'string' ? JSON.parse(settingsData.chapa) : settingsData.chapa;
+                    const chapaSettings = toChapaSettings(parsed);
+                    if (chapaSettings)
+                        paymentSettings.chapa = chapaSettings;
                 } catch {
-                    paymentSettings.chapa = settingsData.chapa;
+                    const chapaSettings = toChapaSettings(settingsData.chapa);
+                    if (chapaSettings)
+                        paymentSettings.chapa = chapaSettings;
                 }
             }
             if (settingsData.telebirr) {
                 try {
-                    paymentSettings.telebirr = typeof settingsData.telebirr === 'string' ? JSON.parse(settingsData.telebirr) : settingsData.telebirr;
+                    const parsed = typeof settingsData.telebirr === 'string' ? JSON.parse(settingsData.telebirr) : settingsData.telebirr;
+                    const telebirrSettings = toTelebirrSettings(parsed);
+                    if (telebirrSettings)
+                        paymentSettings.telebirr = telebirrSettings;
                 } catch {
-                    paymentSettings.telebirr = settingsData.telebirr;
+                    const telebirrSettings = toTelebirrSettings(settingsData.telebirr);
+                    if (telebirrSettings)
+                        paymentSettings.telebirr = telebirrSettings;
                 }
             }
             if (settingsData.wallet) {
                 try {
-                    paymentSettings.wallet = typeof settingsData.wallet === 'string' ? JSON.parse(settingsData.wallet) : settingsData.wallet;
+                    const parsed = typeof settingsData.wallet === 'string' ? JSON.parse(settingsData.wallet) : settingsData.wallet;
+                    const walletSettings = toWalletSettings(parsed);
+                    if (walletSettings)
+                        paymentSettings.wallet = walletSettings;
                 } catch {
-                    paymentSettings.wallet = settingsData.wallet;
+                    const walletSettings = toWalletSettings(settingsData.wallet);
+                    if (walletSettings)
+                        paymentSettings.wallet = walletSettings;
                 }
             }
 
@@ -174,13 +247,19 @@ export const fetchSettings = createAsyncThunk<
 
             const appPayment = parseObjectValue(appPaymentData?.data);
             if (appPayment.chapa && typeof appPayment.chapa === 'object') {
-                paymentSettings.chapa = appPayment.chapa as PaymentSettings['chapa'];
+                const chapaSettings = toChapaSettings(appPayment.chapa);
+                if (chapaSettings)
+                    paymentSettings.chapa = chapaSettings;
             }
             if (appPayment.telebirr && typeof appPayment.telebirr === 'object') {
-                paymentSettings.telebirr = appPayment.telebirr as PaymentSettings['telebirr'];
+                const telebirrSettings = toTelebirrSettings(appPayment.telebirr);
+                if (telebirrSettings)
+                    paymentSettings.telebirr = telebirrSettings;
             }
             if (appPayment.wallet && typeof appPayment.wallet === 'object') {
-                paymentSettings.wallet = appPayment.wallet as PaymentSettings['wallet'];
+                const walletSettings = toWalletSettings(appPayment.wallet);
+                if (walletSettings)
+                    paymentSettings.wallet = walletSettings;
             }
 
             return {
