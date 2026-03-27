@@ -4,7 +4,6 @@ import Image from "next/image";
 import Sidebar from "../../../components/Sidebar";
 import { useAppDispatch, useAppSelector } from "../../../store/hooks";
 import { fetchAllBookings, fetchBookingById, clearSingle } from "../../../features/bookedService/bookedServiceSlice";
-import { fetchBookingPayoutStatus, processBookingPayout } from "../../../features/payout/payoutSlice";
 import { CalendarCheck2, RefreshCw, Search } from "lucide-react";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import AuthGuard from "@/components/AuthGuard";
@@ -37,36 +36,6 @@ const StatusBadge = ({ status }: { status?: string }) => {
 const DetailModal: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
     const dispatch = useAppDispatch();
     const { single, loading } = useAppSelector((s) => s.bookedService);
-    const { bookingPayoutStatus, bookingPayoutLoading, error: payoutError } = useAppSelector((s) => s.payout);
-
-    useEffect(() => {
-        if (!single?.id) return;
-        dispatch(fetchBookingPayoutStatus({ bookingId: single.id }));
-    }, [dispatch, single?.id]);
-
-    const normalizedBookingStatus = (single?.status ?? "").toString().trim().toLowerCase();
-    const isBookingCompleted =
-        normalizedBookingStatus === "completed" ||
-        normalizedBookingStatus === "service_completion_approved_by_customer";
-    const isCustomerPaymentDone =
-        single?.paymentCompleted === true ||
-        ((single as { payment_status?: string } | null)?.payment_status ?? "").toString().trim().toLowerCase() === "payment_completed" ||
-        [
-            "paid_for_service_booked",
-            "service_started",
-            "service_completion_approval",
-            "service_completion_approved_by_customer",
-            "completed",
-        ].includes(normalizedBookingStatus);
-    const isPayoutProcessed = single?.id ? bookingPayoutStatus[single.id] === true : false;
-    const canProcessPayout =
-        Boolean(single?.id) && isBookingCompleted && isCustomerPaymentDone && !isPayoutProcessed;
-
-    const handleProcessPayout = async () => {
-        if (!single?.id || !canProcessPayout) return;
-        await dispatch(processBookingPayout({ bookingId: single.id })).unwrap();
-        await dispatch(fetchBookingPayoutStatus({ bookingId: single.id }));
-    };
 
     if (!open) return null;
     return (
@@ -122,25 +91,8 @@ const DetailModal: React.FC<{ open: boolean; onClose: () => void }> = ({ open, o
                         </div>
                     )}
                 </div>
-                <div className="px-5 py-3 border-t flex items-center justify-between gap-3">
-                    <div className="text-xs text-gray-600">
-                        {single && !isBookingCompleted && "Complete booking first to process payout"}
-                        {single && isBookingCompleted && !isCustomerPaymentDone && "Customer payment is not completed"}
-                        {single && isPayoutProcessed && "Provider payout already processed"}
-                        {payoutError && <span className="text-red-600">{payoutError}</span>}
-                    </div>
-                    <div className="flex items-center gap-2">
-                        {canProcessPayout && (
-                            <button
-                                onClick={handleProcessPayout}
-                                disabled={bookingPayoutLoading}
-                                className="px-4 py-2 rounded bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
-                            >
-                                {bookingPayoutLoading ? "Processing..." : "Process Payment"}
-                            </button>
-                        )}
+                <div className="px-5 py-3 border-t flex items-center justify-end gap-2">
                     <button onClick={onClose} className="px-4 py-2 rounded bg-gray-100 hover:bg-gray-200">Close</button>
-                    </div>
                 </div>
             </div>
         </div>
