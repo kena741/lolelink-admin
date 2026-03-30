@@ -145,6 +145,14 @@ export async function POST(request: Request) {
                 .eq('id', withdrawalId);
             if (updateError)
                 return NextResponse.json({ error: 'Failed to update withdrawal status' }, { status: 500 });
+
+            await supabaseAdmin.from('notification').insert({
+                title: 'Payout completed',
+                description: `Transfer verified as completed. reference=${reference}`,
+                type: 'payout_completed',
+                action_url: '/admin/finance/payout-request',
+                is_read: false,
+            });
         } else {
             const { error: updateError } = await supabaseAdmin
                 .from('withdrawal_history')

@@ -280,6 +280,15 @@ export const approvePayoutRequest = createAsyncThunk<
 
             if (error) throw error;
 
+            await supabase.from('notification').insert({
+                title: 'Withdrawal approved',
+                description: `Withdrawal ${id} was approved.`,
+                type: 'payout_approved',
+                provider_id: (data as WithdrawalHistoryRow).providerId,
+                action_url: '/admin/finance/payout-request',
+                is_read: false,
+            });
+
             const providerMap: Record<string, string> = {};
             const bankMap: Record<string, PayoutRequest['bankDetails']> = {};
             if (data.providerId) {
@@ -340,6 +349,15 @@ export const rejectPayoutRequest = createAsyncThunk<
 
             if (error) throw error;
 
+            await supabase.from('notification').insert({
+                title: 'Withdrawal rejected',
+                description: `Withdrawal ${id} was rejected.`,
+                type: 'payout_rejected',
+                provider_id: (data as WithdrawalHistoryRow).providerId,
+                action_url: '/admin/finance/payout-request',
+                is_read: false,
+            });
+
             const providerMap: Record<string, string> = {};
             const bankMap: Record<string, PayoutRequest['bankDetails']> = {};
             if (data.providerId) {
@@ -399,6 +417,15 @@ export const completePayoutRequest = createAsyncThunk<
                 .single();
 
             if (error) throw error;
+
+            await supabase.from('notification').insert({
+                title: 'Withdrawal completed',
+                description: `Withdrawal ${id} was marked completed.`,
+                type: 'payout_completed',
+                provider_id: (data as WithdrawalHistoryRow).providerId,
+                action_url: '/admin/finance/payout-request',
+                is_read: false,
+            });
 
             const providerMap: Record<string, string> = {};
             const bankMap: Record<string, PayoutRequest['bankDetails']> = {};

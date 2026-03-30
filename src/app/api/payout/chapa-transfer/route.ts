@@ -377,6 +377,15 @@ export async function POST(request: Request) {
         if (updateError)
             return NextResponse.json({ error: 'Failed to update withdrawal record' }, { status: 500 });
 
+        await supabaseAdmin.from('notification').insert({
+            title: 'Payout transfer initiated',
+            description: `Transfer initiated for withdrawal ${withdrawal.id}. reference=${transferReference}`,
+            type: 'payout_transfer_initiated',
+            provider_id: withdrawal.providerId,
+            action_url: '/admin/finance/payout-request',
+            is_read: false,
+        });
+
         return NextResponse.json({
             status: 'success',
             tx_ref: transferReference,

@@ -77,6 +77,14 @@ export async function POST(request: Request) {
         if (updateError)
             return NextResponse.json({ error: updateError.message || 'Failed to update withdrawal status from webhook' }, { status: 500 });
 
+        await supabaseAdmin.from('notification').insert({
+            title: `Payout ${nextStatus}`,
+            description: `Chapa transfer ${nextStatus}. reference=${reference}`,
+            type: `payout_${nextStatus}`,
+            action_url: '/admin/finance/payout-request',
+            is_read: false,
+        });
+
         return NextResponse.json({
             status: 'ok',
             withdrawalId: (withdrawalData as { id: string }).id,
