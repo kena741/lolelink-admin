@@ -29,10 +29,51 @@ interface AnalyticsData {
     totalRevenue: number;
     monthlyRevenue: number;
     revenueChange: number;
+    totalCompletedRevenueBookings: number;
+    totalCompletedGrossAmount: number;
+    totalCompletedBookings: number;
+    totalInProgressBookings: number;
+    totalRejectedBookings: number;
     bookingsByStatus: Record<string, number>;
     recentBookings: BookedService[];
     weeklyData: number[];
     monthlyData: number[];
+}
+
+interface BookedServiceRow {
+    totalAmount?: number | null;
+    price?: number | null;
+    status?: string | null;
+    paymentCompleted?: boolean | null;
+    payment_status?: string | null;
+    createdAt?: string | null;
+}
+
+function isCompletedBooking(value: BookedServiceRow): boolean {
+    const normalized = (value.status ?? '').toString().trim().toLowerCase();
+    return normalized === 'completed' || normalized === 'service_completion_approved_by_customer';
+}
+
+function isCustomerPaymentDone(value: BookedServiceRow): boolean {
+    if (value.paymentCompleted === true) return true;
+    const normalized = (value.payment_status ?? '').toString().trim().toLowerCase();
+    return normalized === 'payment_completed';
+}
+
+function getBookingGrossAmount(value: BookedServiceRow): number {
+    const raw = Number(value.totalAmount ?? value.price ?? 0);
+    return Number.isFinite(raw) ? raw : 0;
+}
+
+function getPlatformRevenueFromBooking(value: BookedServiceRow): number {
+    if (!isCompletedBooking(value)) return 0;
+    if (!isCustomerPaymentDone(value)) return 0;
+    return getBookingGrossAmount(value) * 0.1;
+}
+
+function isRejectedBooking(value: BookedServiceRow): boolean {
+    const normalized = (value.status ?? '').toString().trim().toLowerCase();
+    return normalized.includes('rejected') || normalized.includes('cancelled') || normalized.includes('canceled');
 }
 
 const Dashboard = () => {
@@ -44,6 +85,11 @@ const Dashboard = () => {
         totalRevenue: 0,
         monthlyRevenue: 0,
         revenueChange: 0,
+        totalCompletedRevenueBookings: 0,
+        totalCompletedGrossAmount: 0,
+        totalCompletedBookings: 0,
+        totalInProgressBookings: 0,
+        totalRejectedBookings: 0,
         bookingsByStatus: {},
         recentBookings: [],
         weeklyData: [],
@@ -65,31 +111,42 @@ const Dashboard = () => {
             if (!bookingsError && bookings) {
                 setBookingCount(bookings.length);
 
-                // Calculate revenue
-                const totalRevenue = bookings.reduce((sum, booking) => {
-                    return sum + (booking.totalAmount || booking.price || 0);
+                const bookingRows = bookings as BookedServiceRow[];
+                const completedPaidBookings = bookingRows.filter((booking) => {
+                    return isCompletedBooking(booking) && isCustomerPaymentDone(booking);
+                });
+                const totalCompletedBookings = bookingRows.filter((booking) => isCompletedBooking(booking)).length;
+                const totalRejectedBookings = bookingRows.filter((booking) => isRejectedBooking(booking)).length;
+                const totalInProgressBookings = bookingRows.length - totalCompletedBookings - totalRejectedBookings;
+
+                // Calculate revenue (10% commission on completed + paid bookings)
+                const totalRevenue = completedPaidBookings.reduce((sum, booking) => {
+                    return sum + getPlatformRevenueFromBooking(booking);
+                }, 0);
+                const totalCompletedGrossAmount = completedPaidBookings.reduce((sum, booking) => {
+                    return sum + getBookingGrossAmount(booking);
                 }, 0);
 
                 // Calculate monthly revenue (last 30 days)
                 const thirtyDaysAgo = new Date();
                 thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-                const monthlyBookings = bookings.filter(booking => {
+                const monthlyBookings = bookingRows.filter(booking => {
                     const createdAt = booking.createdAt ? new Date(booking.createdAt) : null;
                     return createdAt && createdAt >= thirtyDaysAgo;
                 });
                 const monthlyRevenue = monthlyBookings.reduce((sum, booking) => {
-                    return sum + (booking.totalAmount || booking.price || 0);
+                    return sum + getPlatformRevenueFromBooking(booking);
                 }, 0);
 
                 // Calculate previous month revenue for comparison
                 const sixtyDaysAgo = new Date();
                 sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
-                const previousMonthBookings = bookings.filter(booking => {
+                const previousMonthBookings = bookingRows.filter(booking => {
                     const createdAt = booking.createdAt ? new Date(booking.createdAt) : null;
                     return createdAt && createdAt >= sixtyDaysAgo && createdAt < thirtyDaysAgo;
                 });
                 const previousMonthRevenue = previousMonthBookings.reduce((sum, booking) => {
-                    return sum + (booking.totalAmount || booking.price || 0);
+                    return sum + getPlatformRevenueFromBooking(booking);
                 }, 0);
 
                 const revenueChange = previousMonthRevenue > 0 
@@ -136,6 +193,11 @@ const Dashboard = () => {
                     totalRevenue,
                     monthlyRevenue,
                     revenueChange,
+                    totalCompletedRevenueBookings: completedPaidBookings.length,
+                    totalCompletedGrossAmount,
+                    totalCompletedBookings,
+                    totalInProgressBookings: Math.max(totalInProgressBookings, 0),
+                    totalRejectedBookings,
                     bookingsByStatus,
                     recentBookings: bookings.slice(0, 5),
                     weeklyData,
@@ -163,6 +225,9 @@ const Dashboard = () => {
         title, 
         value, 
         change, 
+        note,
+        bookingBreakdown,
+        valueNode,
         icon: Icon, 
         gradient, 
         iconBg,
@@ -171,6 +236,13 @@ const Dashboard = () => {
         title: string; 
         value: number | string; 
         change?: number; 
+        note?: string;
+        bookingBreakdown?: {
+            completed: number;
+            inProgress: number;
+            rejected: number;
+        };
+        valueNode?: React.ReactNode;
         icon: React.ElementType; 
         gradient: string;
         iconBg: string;
@@ -208,12 +280,34 @@ const Dashboard = () => {
                     <p className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
                         {isLoading ? (
                             <span className="inline-block h-8 w-24 animate-pulse rounded bg-gray-200" />
+                        ) : valueNode ? (
+                            valueNode
                         ) : (
                             typeof value === 'number' && title.includes('Revenue') 
                                 ? `ETB ${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                                 : value.toLocaleString()
                         )}
                     </p>
+                    {note && (
+                        <p className="mt-1 text-xs text-gray-500">
+                            <sup>{note}</sup>
+                        </p>
+                    )}
+                    {bookingBreakdown && (
+                        <p className="mt-2 text-sm font-semibold">
+                            <span className="text-emerald-600" title="Completed">
+                                {bookingBreakdown.completed}
+                            </span>
+                            <span className="mx-2 text-gray-400">|</span>
+                            <span className="text-blue-600" title="In Progress">
+                                {bookingBreakdown.inProgress}
+                            </span>
+                            <span className="mx-2 text-gray-400">|</span>
+                            <span className="text-red-600" title="Rejected">
+                                {bookingBreakdown.rejected}
+                            </span>
+                        </p>
+                    )}
                 </div>
             </div>
         );
@@ -298,6 +392,7 @@ const Dashboard = () => {
                                 title="Total Revenue"
                                 value={analytics.totalRevenue}
                                 change={analytics.revenueChange}
+                                note={`Completed bookings amount: ETB ${analytics.totalCompletedGrossAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                                 icon={DollarSign}
                                 gradient="bg-gradient-to-br from-emerald-500/20 to-teal-500/20"
                                 iconBg="bg-gradient-to-br from-emerald-500 to-teal-600"
@@ -313,6 +408,30 @@ const Dashboard = () => {
                             <StatCard
                                 title="Total Bookings"
                                 value={bookingCount}
+                                valueNode={
+                                    <span className="inline-flex items-center text-3xl font-bold">
+                                        <span className="relative inline-flex items-center">
+                                            <span className="peer text-emerald-600">{analytics.totalCompletedBookings}</span>
+                                            <span className="pointer-events-none absolute -top-7 left-1/2 z-20 hidden -translate-x-1/2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-[10px] font-medium text-white peer-hover:block">
+                                                Completed
+                                            </span>
+                                        </span>
+                                        <span className="mx-2 text-gray-400">|</span>
+                                        <span className="relative inline-flex items-center">
+                                            <span className="peer text-blue-600">{analytics.totalInProgressBookings}</span>
+                                            <span className="pointer-events-none absolute -top-7 left-1/2 z-20 hidden -translate-x-1/2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-[10px] font-medium text-white peer-hover:block">
+                                                In Progress
+                                            </span>
+                                        </span>
+                                        <span className="mx-2 text-gray-400">|</span>
+                                        <span className="relative inline-flex items-center">
+                                            <span className="peer text-red-600">{analytics.totalRejectedBookings}</span>
+                                            <span className="pointer-events-none absolute -top-7 left-1/2 z-20 hidden -translate-x-1/2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-[10px] font-medium text-white peer-hover:block">
+                                                Rejected
+                                            </span>
+                                        </span>
+                                    </span>
+                                }
                                 icon={CalendarCheck2}
                                 gradient="bg-gradient-to-br from-purple-500/20 to-pink-500/20"
                                 iconBg="bg-gradient-to-br from-purple-500 to-pink-600"
