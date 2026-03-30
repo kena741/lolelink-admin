@@ -13,11 +13,13 @@ import {
     TrendingUp
 } from 'lucide-react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { fetchPayoutRequests, approvePayoutRequest, rejectPayoutRequest, completePayoutRequest, sendPayoutViaChapa, PayoutRequest } from '@/features/payout/payoutSlice';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const PayoutRequestPage = () => {
     const dispatch = useAppDispatch();
+    const searchParams = useSearchParams();
     const { requests, loading, error } = useAppSelector((state) => state.payout);
     const [processingId, setProcessingId] = useState<string | null>(null);
     const [confirmingRequest, setConfirmingRequest] = useState<PayoutRequest | null>(null);
@@ -210,10 +212,44 @@ const PayoutRequestPage = () => {
     };
 
     const pendingRequests = requests.filter(r => r.paymentStatus === 'pending');
-    const totalPendingAmount = pendingRequests.reduce((sum, r) => sum + getAmountAsNumber(r.amount), 0);
-    const totalRequests = requests.length;
-    const approvedRequests = requests.filter(r => r.paymentStatus === 'approved' || r.paymentStatus === 'completed').length;
+    const segment = (searchParams.get('segment') || '').trim().toLowerCase();
+    const isToday = (value?: string) => {
+        if (!value) return false;
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return false;
+        const today = new Date();
+        return date.getFullYear() === today.getFullYear() &&
+            date.getMonth() === today.getMonth() &&
+            date.getDate() === today.getDate();
+    };
+    const filteredRequests = requests.filter((request) => {
+        const status = (request.paymentStatus || '').toLowerCase();
+        const note = (request.adminNote || '').toLowerCase();
+        if (segment === 'waiting_confirmation')
+            return status === 'approved' && note.includes('reference=');
+        if (segment === 'failed_rejected')
+            return status === 'rejected';
+        if (segment === 'missing_payment_method')
+            return ['pending', 'approved'].includes(status) && !request.bankDetails;
+        if (segment === 'completed_today')
+            return status === 'completed' && isToday(request.paymentDate);
+        return true;
+    });
+    const totalPendingAmount = filteredRequests
+        .filter(r => r.paymentStatus === 'pending')
+        .reduce((sum, r) => sum + getAmountAsNumber(r.amount), 0);
+    const totalRequests = filteredRequests.length;
+    const approvedRequests = filteredRequests.filter(r => r.paymentStatus === 'approved' || r.paymentStatus === 'completed').length;
     const debugRequest = debugRequestId ? requests.find((request) => request.id === debugRequestId) || null : null;
+    const segmentLabel = segment === 'waiting_confirmation'
+        ? 'Waiting Confirmation'
+        : segment === 'failed_rejected'
+            ? 'Failed / Rejected'
+            : segment === 'missing_payment_method'
+                ? 'Missing Payment Method'
+                : segment === 'completed_today'
+                    ? 'Completed Today'
+                    : '';
 
     return (
         <AuthGuard>
@@ -264,6 +300,14 @@ const PayoutRequestPage = () => {
                     </div>
 
                     <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+                        {segmentLabel && (
+                            <div className="mb-4 flex items-center justify-between rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3">
+                                <p className="text-sm font-semibold text-indigo-700">Active segment: {segmentLabel}</p>
+                                <Link href="/admin/finance/payout-request" className="text-sm font-semibold text-indigo-700 hover:text-indigo-900">
+                                    Clear filter
+                                </Link>
+                            </div>
+                        )}
                         {/* Statistics Cards */}
                         <section className="mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                             <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-white/80 to-white/40 backdrop-blur-xl border border-white/20 p-6 shadow-xl transition-all duration-300 hover:shadow-2xl hover:scale-[1.02]">
@@ -408,7 +452,7 @@ const PayoutRequestPage = () => {
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            {requests.length === 0 ? (
+                                            {filteredRequests.length === 0 ? (
                                                 <TableRow>
                                                     <TableCell colSpan={7} className="px-4 py-12 text-center text-gray-500">
                                                         <div className="flex flex-col items-center gap-3">
@@ -421,7 +465,7 @@ const PayoutRequestPage = () => {
                                                     </TableCell>
                                                 </TableRow>
                                             ) : (
-                                                requests.map((request) => {
+                                                filteredRequests.map((request) => {
                                                     const isProcessing = processingId === request.id;
                                                     const normalizedPaymentStatus = request.paymentStatus.toLowerCase();
                                                     const hasChapaTransferStarted = Boolean(

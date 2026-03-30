@@ -34,6 +34,10 @@ interface AnalyticsData {
     totalCompletedBookings: number;
     totalInProgressBookings: number;
     totalRejectedBookings: number;
+    payoutWaitingConfirmation: number;
+    payoutFailedOrRejected: number;
+    payoutMissingPaymentMethod: number;
+    payoutCompletedToday: number;
     bookingsByStatus: Record<string, number>;
     recentBookings: BookedService[];
     weeklyData: number[];
@@ -48,6 +52,22 @@ interface BookedServiceRow {
     payment_status?: string | null;
     createdAt?: string | null;
 }
+
+interface WithdrawalRow {
+    id: string;
+    providerId?: string | null;
+    paymentStatus?: string | null;
+    adminNote?: string | null;
+    paymentDate?: string | null;
+    createdDate?: string | null;
+}
+
+interface ProviderPaymentMethodLiteRow {
+    providerID?: string | null;
+    is_active?: boolean | null;
+}
+
+type DashboardRange = 'today' | '7d' | '30d' | 'all';
 
 function isCompletedBooking(value: BookedServiceRow): boolean {
     const normalized = (value.status ?? '').toString().trim().toLowerCase();
@@ -90,12 +110,36 @@ const Dashboard = () => {
         totalCompletedBookings: 0,
         totalInProgressBookings: 0,
         totalRejectedBookings: 0,
+        payoutWaitingConfirmation: 0,
+        payoutFailedOrRejected: 0,
+        payoutMissingPaymentMethod: 0,
+        payoutCompletedToday: 0,
         bookingsByStatus: {},
         recentBookings: [],
         weeklyData: [],
         monthlyData: []
     });
     const [countsLoading, setCountsLoading] = useState<boolean>(true);
+    const [dashboardRange, setDashboardRange] = useState<DashboardRange>('30d');
+
+    function isDateInRange(dateString?: string | null): boolean {
+        if (dashboardRange === 'all') return true;
+        if (!dateString) return false;
+        const date = new Date(dateString);
+        if (Number.isNaN(date.getTime())) return false;
+
+        const now = new Date();
+        if (dashboardRange === 'today') {
+            return date.getFullYear() === now.getFullYear()
+                && date.getMonth() === now.getMonth()
+                && date.getDate() === now.getDate();
+        }
+
+        const days = dashboardRange === '7d' ? 7 : 30;
+        const from = new Date();
+        from.setDate(now.getDate() - days);
+        return date >= from;
+    }
 
     useEffect(() => {
         dispatch(fetchProviders());
@@ -112,18 +156,22 @@ const Dashboard = () => {
                 setBookingCount(bookings.length);
 
                 const bookingRows = bookings as BookedServiceRow[];
+                const rangedBookingRows = bookingRows.filter((booking) => isDateInRange(booking.createdAt));
                 const completedPaidBookings = bookingRows.filter((booking) => {
                     return isCompletedBooking(booking) && isCustomerPaymentDone(booking);
                 });
-                const totalCompletedBookings = bookingRows.filter((booking) => isCompletedBooking(booking)).length;
-                const totalRejectedBookings = bookingRows.filter((booking) => isRejectedBooking(booking)).length;
-                const totalInProgressBookings = bookingRows.length - totalCompletedBookings - totalRejectedBookings;
+                const rangedCompletedPaidBookings = rangedBookingRows.filter((booking) => {
+                    return isCompletedBooking(booking) && isCustomerPaymentDone(booking);
+                });
+                const totalCompletedBookings = rangedBookingRows.filter((booking) => isCompletedBooking(booking)).length;
+                const totalRejectedBookings = rangedBookingRows.filter((booking) => isRejectedBooking(booking)).length;
+                const totalInProgressBookings = rangedBookingRows.length - totalCompletedBookings - totalRejectedBookings;
 
                 // Calculate revenue (10% commission on completed + paid bookings)
-                const totalRevenue = completedPaidBookings.reduce((sum, booking) => {
+                const totalRevenue = rangedCompletedPaidBookings.reduce((sum, booking) => {
                     return sum + getPlatformRevenueFromBooking(booking);
                 }, 0);
-                const totalCompletedGrossAmount = completedPaidBookings.reduce((sum, booking) => {
+                const totalCompletedGrossAmount = rangedCompletedPaidBookings.reduce((sum, booking) => {
                     return sum + getBookingGrossAmount(booking);
                 }, 0);
 
@@ -160,21 +208,20 @@ const Dashboard = () => {
                     bookingsByStatus[status] = (bookingsByStatus[status] || 0) + 1;
                 });
 
-                // Get weekly data (last 7 days)
+                // Get weekly data from ranged rows (last 7 days buckets)
                 const weeklyData = Array.from({ length: 7 }, (_, i) => {
                     const date = new Date();
                     date.setDate(date.getDate() - (6 - i));
                     date.setHours(0, 0, 0, 0);
                     const nextDate = new Date(date);
                     nextDate.setDate(nextDate.getDate() + 1);
-                    
-                    return bookings.filter(booking => {
+                    return rangedBookingRows.filter((booking) => {
                         const createdAt = booking.createdAt ? new Date(booking.createdAt) : null;
                         return createdAt && createdAt >= date && createdAt < nextDate;
                     }).length;
                 });
 
-                // Get monthly data (last 12 months)
+                // Get monthly data from ranged rows (last 12 months buckets)
                 const monthlyData = Array.from({ length: 12 }, (_, i) => {
                     const date = new Date();
                     date.setMonth(date.getMonth() - (11 - i));
@@ -182,8 +229,7 @@ const Dashboard = () => {
                     date.setHours(0, 0, 0, 0);
                     const nextDate = new Date(date);
                     nextDate.setMonth(nextDate.getMonth() + 1);
-                    
-                    return bookings.filter(booking => {
+                    return rangedBookingRows.filter((booking) => {
                         const createdAt = booking.createdAt ? new Date(booking.createdAt) : null;
                         return createdAt && createdAt >= date && createdAt < nextDate;
                     }).length;
@@ -193,16 +239,81 @@ const Dashboard = () => {
                     totalRevenue,
                     monthlyRevenue,
                     revenueChange,
-                    totalCompletedRevenueBookings: completedPaidBookings.length,
+                    totalCompletedRevenueBookings: rangedCompletedPaidBookings.length,
                     totalCompletedGrossAmount,
                     totalCompletedBookings,
                     totalInProgressBookings: Math.max(totalInProgressBookings, 0),
                     totalRejectedBookings,
+                    payoutWaitingConfirmation: 0,
+                    payoutFailedOrRejected: 0,
+                    payoutMissingPaymentMethod: 0,
+                    payoutCompletedToday: 0,
                     bookingsByStatus,
                     recentBookings: bookings.slice(0, 5),
                     weeklyData,
                     monthlyData
                 });
+            }
+
+            const { data: withdrawalRows, error: withdrawalError } = await supabase
+                .from('withdrawal_history')
+                .select('id, providerId, paymentStatus, adminNote, paymentDate, createdDate');
+            const { data: paymentMethodRows, error: paymentMethodError } = await supabase
+                .from('provider_payment_methods')
+                .select('providerID, is_active');
+
+            if (!withdrawalError && !paymentMethodError && withdrawalRows && paymentMethodRows) {
+                const withdrawals = withdrawalRows as WithdrawalRow[];
+                const methods = paymentMethodRows as ProviderPaymentMethodLiteRow[];
+                const activeProviderIds = new Set(
+                    methods
+                        .filter((row) => row.is_active === true)
+                        .map((row) => (row.providerID || '').trim())
+                        .filter(Boolean)
+                );
+
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const tomorrow = new Date(today);
+                tomorrow.setDate(tomorrow.getDate() + 1);
+
+                const payoutWaitingConfirmation = withdrawals.filter((row) => {
+                    const status = (row.paymentStatus || '').toLowerCase();
+                    const note = (row.adminNote || '').toLowerCase();
+                    const dateRef = row.paymentDate || row.createdDate;
+                    return status === 'approved' && note.includes('reference=') && isDateInRange(dateRef);
+                }).length;
+
+                const payoutFailedOrRejected = withdrawals.filter((row) => {
+                    const status = (row.paymentStatus || '').toLowerCase();
+                    const dateRef = row.paymentDate || row.createdDate;
+                    return status === 'rejected' && isDateInRange(dateRef);
+                }).length;
+
+                const payoutMissingPaymentMethod = withdrawals.filter((row) => {
+                    const status = (row.paymentStatus || '').toLowerCase();
+                    if (!['pending', 'approved'].includes(status)) return false;
+                    const dateRef = row.paymentDate || row.createdDate;
+                    if (!isDateInRange(dateRef)) return false;
+                    const providerId = (row.providerId || '').trim();
+                    if (!providerId) return true;
+                    return !activeProviderIds.has(providerId);
+                }).length;
+
+                const payoutCompletedToday = withdrawals.filter((row) => {
+                    const status = (row.paymentStatus || '').toLowerCase();
+                    if (status !== 'completed') return false;
+                    const paymentDate = row.paymentDate ? new Date(row.paymentDate) : null;
+                    return Boolean(paymentDate && paymentDate >= today && paymentDate < tomorrow);
+                }).length;
+
+                setAnalytics((prev) => ({
+                    ...prev,
+                    payoutWaitingConfirmation,
+                    payoutFailedOrRejected,
+                    payoutMissingPaymentMethod,
+                    payoutCompletedToday,
+                }));
             }
 
             // Count customers
@@ -213,7 +324,7 @@ const Dashboard = () => {
             setCountsLoading(false);
         };
         fetchAnalyticsAndLists();
-    }, [dispatch]);
+    }, [dispatch, dashboardRange]);
 
     const isLoading = providersLoading || countsLoading;
 
@@ -386,6 +497,26 @@ const Dashboard = () => {
                     </div>
 
                     <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+                        <div className="mb-6 flex flex-wrap items-center gap-2">
+                            {[
+                                { id: 'today', label: 'Today' },
+                                { id: '7d', label: '7D' },
+                                { id: '30d', label: '30D' },
+                                { id: 'all', label: 'All' },
+                            ].map((range) => (
+                                <button
+                                    key={range.id}
+                                    onClick={() => setDashboardRange(range.id as DashboardRange)}
+                                    className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
+                                        dashboardRange === range.id
+                                            ? 'bg-indigo-600 text-white'
+                                            : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
+                                    }`}
+                                >
+                                    {range.label}
+                                </button>
+                            ))}
+                        </div>
                         {/* Main Stats Grid */}
                         <section className="mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                             <StatCard
@@ -447,6 +578,33 @@ const Dashboard = () => {
                             />
                         </section>
 
+                        <section className="mb-8 rounded-2xl bg-gradient-to-br from-white/80 to-white/40 backdrop-blur-xl border border-white/20 p-6 shadow-xl">
+                            <div className="mb-5 flex items-center justify-between">
+                                <h2 className="text-lg font-bold text-gray-900">Payout Health</h2>
+                                <Link href="/admin/finance/payout-request" className="text-sm font-semibold text-indigo-700 hover:text-indigo-900">
+                                    Open payout requests
+                                </Link>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <Link href="/admin/finance/payout-request?segment=waiting_confirmation" className="rounded-xl border border-amber-200 bg-amber-50 p-4 hover:bg-amber-100 transition-colors">
+                                    <p className="text-xs font-semibold text-amber-700">Waiting Confirmation</p>
+                                    <p className="mt-2 text-2xl font-bold text-amber-800">{analytics.payoutWaitingConfirmation}</p>
+                                </Link>
+                                <Link href="/admin/finance/payout-request?segment=failed_rejected" className="rounded-xl border border-red-200 bg-red-50 p-4 hover:bg-red-100 transition-colors">
+                                    <p className="text-xs font-semibold text-red-700">Failed / Rejected</p>
+                                    <p className="mt-2 text-2xl font-bold text-red-800">{analytics.payoutFailedOrRejected}</p>
+                                </Link>
+                                <Link href="/admin/finance/payout-request?segment=missing_payment_method" className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 hover:bg-indigo-100 transition-colors">
+                                    <p className="text-xs font-semibold text-indigo-700">Missing Payment Method</p>
+                                    <p className="mt-2 text-2xl font-bold text-indigo-800">{analytics.payoutMissingPaymentMethod}</p>
+                                </Link>
+                                <Link href="/admin/finance/payout-request?segment=completed_today" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 hover:bg-emerald-100 transition-colors">
+                                    <p className="text-xs font-semibold text-emerald-700">Completed Today</p>
+                                    <p className="mt-2 text-2xl font-bold text-emerald-800">{analytics.payoutCompletedToday}</p>
+                                </Link>
+                            </div>
+                        </section>
+
                         {/* Analytics Charts Section */}
                         <section className="mb-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
                             {/* Weekly Activity Chart */}
@@ -458,7 +616,12 @@ const Dashboard = () => {
                                         </div>
                                         <div>
                                             <h2 className="text-lg font-bold text-gray-900">Weekly Activity</h2>
-                                            <p className="text-xs text-gray-600">Last 7 days</p>
+                                            <p className="text-xs text-gray-600">
+                                                {dashboardRange === 'today' ? 'Today'
+                                                    : dashboardRange === '7d' ? 'Last 7 days'
+                                                        : dashboardRange === '30d' ? 'Last 30 days'
+                                                            : 'All time'}
+                                            </p>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2 px-3 py-1 bg-indigo-500/10 rounded-full">
@@ -497,7 +660,12 @@ const Dashboard = () => {
                                     </div>
                                     <div>
                                         <h2 className="text-lg font-bold text-gray-900">Monthly Trend</h2>
-                                        <p className="text-xs text-gray-600">Last 12 months</p>
+                                            <p className="text-xs text-gray-600">
+                                                {dashboardRange === 'today' ? 'Today view'
+                                                    : dashboardRange === '7d' ? '7-day view'
+                                                        : dashboardRange === '30d' ? '30-day view'
+                                                            : 'All-time view'}
+                                            </p>
                                     </div>
                                 </div>
                                 <div className="flex items-end gap-1 h-48">
