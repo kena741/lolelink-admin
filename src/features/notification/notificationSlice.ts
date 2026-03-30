@@ -104,6 +104,43 @@ export const markAllNotificationsRead = createAsyncThunk<
     }
 });
 
+export const deleteNotification = createAsyncThunk<
+    { id: string },
+    { id: string },
+    { rejectValue: string }
+>('notification/deleteNotification', async ({ id }, { rejectWithValue }) => {
+    try {
+        const { error } = await supabase
+            .from('notification')
+            .delete()
+            .eq('id', id);
+        if (error) throw error;
+        return { id };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Failed to delete notification';
+        return rejectWithValue(message);
+    }
+});
+
+export const deleteNotificationsBulk = createAsyncThunk<
+    { ids: string[] },
+    { ids: string[] },
+    { rejectValue: string }
+>('notification/deleteNotificationsBulk', async ({ ids }, { rejectWithValue }) => {
+    try {
+        if (ids.length === 0) return { ids: [] };
+        const { error } = await supabase
+            .from('notification')
+            .delete()
+            .in('id', ids);
+        if (error) throw error;
+        return { ids };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Failed to delete selected notifications';
+        return rejectWithValue(message);
+    }
+});
+
 const notificationSlice = createSlice({
     name: 'notification',
     initialState,
@@ -153,6 +190,19 @@ const notificationSlice = createSlice({
             })
             .addCase(markAllNotificationsRead.rejected, (state, action) => {
                 state.error = (action.payload as string) || 'Failed to mark all notifications as read';
+            })
+            .addCase(deleteNotification.fulfilled, (state, action) => {
+                state.items = state.items.filter((notification) => notification.id !== action.payload.id);
+            })
+            .addCase(deleteNotification.rejected, (state, action) => {
+                state.error = (action.payload as string) || 'Failed to delete notification';
+            })
+            .addCase(deleteNotificationsBulk.fulfilled, (state, action) => {
+                const idSet = new Set(action.payload.ids);
+                state.items = state.items.filter((notification) => !idSet.has(notification.id));
+            })
+            .addCase(deleteNotificationsBulk.rejected, (state, action) => {
+                state.error = (action.payload as string) || 'Failed to delete selected notifications';
             });
     },
 });

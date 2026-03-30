@@ -13,6 +13,7 @@ interface RequestBody {
     booking_id?: string | null;
     sender_id?: string | null;
     action_url?: string | null;
+    dedupe_key?: string | null;
 }
 
 function normalizeText(value: string | null | undefined): string {
@@ -27,6 +28,20 @@ export async function POST(request: Request) {
         const type = normalizeText(body.type);
         if (!title || !description || !type)
             return NextResponse.json({ error: 'title, description, and type are required' }, { status: 400 });
+
+        const dedupeKey = normalizeText(body.dedupe_key);
+        if (dedupeKey) {
+            const { data: existing } = await supabaseAdmin
+                .from('notification')
+                .select('id')
+                .eq('type', type)
+                .eq('description', description)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+            if (existing)
+                return NextResponse.json({ status: 'ok', deduped: true });
+        }
 
         const { error } = await supabaseAdmin.from('notification').insert({
             title,

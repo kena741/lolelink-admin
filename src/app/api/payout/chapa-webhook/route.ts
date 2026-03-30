@@ -40,6 +40,31 @@ function mapWithdrawalStatus(status: string): 'completed' | 'rejected' | 'approv
     return 'approved';
 }
 
+async function insertNotificationIfMissing(params: {
+    title: string;
+    description: string;
+    type: string;
+    action_url?: string;
+}): Promise<void> {
+    const { title, description, type, action_url } = params;
+    const { data: existing } = await supabaseAdmin
+        .from('notification')
+        .select('id')
+        .eq('type', type)
+        .eq('description', description)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+    if (existing) return;
+    await supabaseAdmin.from('notification').insert({
+        title,
+        description,
+        type,
+        action_url: action_url || null,
+        is_read: false,
+    });
+}
+
 export async function POST(request: Request) {
     try {
         const payload = (await request.json()) as ChapaWebhookPayload;
@@ -77,12 +102,11 @@ export async function POST(request: Request) {
         if (updateError)
             return NextResponse.json({ error: updateError.message || 'Failed to update withdrawal status from webhook' }, { status: 500 });
 
-        await supabaseAdmin.from('notification').insert({
+        await insertNotificationIfMissing({
             title: `Payout ${nextStatus}`,
             description: `Chapa transfer ${nextStatus}. reference=${reference}`,
             type: `payout_${nextStatus}`,
             action_url: '/admin/finance/payout-request',
-            is_read: false,
         });
 
         return NextResponse.json({

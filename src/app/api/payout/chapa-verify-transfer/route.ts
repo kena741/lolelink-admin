@@ -72,6 +72,31 @@ function extractReference(adminNote: string): string {
     return match?.[1] || '';
 }
 
+async function insertNotificationIfMissing(params: {
+    title: string;
+    description: string;
+    type: string;
+    action_url?: string;
+}): Promise<void> {
+    const { title, description, type, action_url } = params;
+    const { data: existing } = await supabaseAdmin
+        .from('notification')
+        .select('id')
+        .eq('type', type)
+        .eq('description', description)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+    if (existing) return;
+    await supabaseAdmin.from('notification').insert({
+        title,
+        description,
+        type,
+        action_url: action_url || null,
+        is_read: false,
+    });
+}
+
 export async function POST(request: Request) {
     try {
         const { data: paymentSettingsData } = await supabaseAdmin
@@ -146,12 +171,11 @@ export async function POST(request: Request) {
             if (updateError)
                 return NextResponse.json({ error: 'Failed to update withdrawal status' }, { status: 500 });
 
-            await supabaseAdmin.from('notification').insert({
+            await insertNotificationIfMissing({
                 title: 'Payout completed',
                 description: `Transfer verified as completed. reference=${reference}`,
                 type: 'payout_completed',
                 action_url: '/admin/finance/payout-request',
-                is_read: false,
             });
         } else {
             const { error: updateError } = await supabaseAdmin

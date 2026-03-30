@@ -20,9 +20,11 @@ import {
     XCircle,
     Zap,
     BarChart3,
-    Sparkles
+    Sparkles,
+    CircleHelp
 } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { BookedService } from '@/features/bookedService/bookedServiceSlice';
 
 interface AnalyticsData {
@@ -38,6 +40,7 @@ interface AnalyticsData {
     payoutFailedOrRejected: number;
     payoutMissingPaymentMethod: number;
     payoutCompletedToday: number;
+    payoutIntegrationIssues: number;
     bookingsByStatus: Record<string, number>;
     recentBookings: BookedService[];
     weeklyData: number[];
@@ -98,6 +101,8 @@ function isRejectedBooking(value: BookedServiceRow): boolean {
 
 const Dashboard = () => {
     const dispatch: AppDispatch = useDispatch();
+    const router = useRouter();
+    const searchParams = useSearchParams();
     const { providers, loading: providersLoading } = useSelector((state: { provider: ProviderState }) => state.provider);
     const [bookingCount, setBookingCount] = useState<number>(0);
     const [customerCount, setCustomerCount] = useState<number>(0);
@@ -114,13 +119,20 @@ const Dashboard = () => {
         payoutFailedOrRejected: 0,
         payoutMissingPaymentMethod: 0,
         payoutCompletedToday: 0,
+        payoutIntegrationIssues: 0,
         bookingsByStatus: {},
         recentBookings: [],
         weeklyData: [],
         monthlyData: []
     });
     const [countsLoading, setCountsLoading] = useState<boolean>(true);
-    const [dashboardRange, setDashboardRange] = useState<DashboardRange>('30d');
+    const initialRange = (() => {
+        const range = (searchParams.get('range') || '').toLowerCase();
+        if (range === 'today' || range === '7d' || range === '30d' || range === 'all')
+            return range as DashboardRange;
+        return '30d';
+    })();
+    const [dashboardRange, setDashboardRange] = useState<DashboardRange>(initialRange);
 
     function isDateInRange(dateString?: string | null): boolean {
         if (dashboardRange === 'all') return true;
@@ -140,6 +152,12 @@ const Dashboard = () => {
         from.setDate(now.getDate() - days);
         return date >= from;
     }
+
+    useEffect(() => {
+        const next = new URLSearchParams(searchParams.toString());
+        next.set('range', dashboardRange);
+        router.replace(`/admin/dashboard?${next.toString()}`);
+    }, [dashboardRange, router, searchParams]);
 
     useEffect(() => {
         dispatch(fetchProviders());
@@ -248,6 +266,7 @@ const Dashboard = () => {
                     payoutFailedOrRejected: 0,
                     payoutMissingPaymentMethod: 0,
                     payoutCompletedToday: 0,
+                    payoutIntegrationIssues: 0,
                     bookingsByStatus,
                     recentBookings: bookings.slice(0, 5),
                     weeklyData,
@@ -277,11 +296,20 @@ const Dashboard = () => {
                 const tomorrow = new Date(today);
                 tomorrow.setDate(tomorrow.getDate() + 1);
 
+                const now = Date.now();
                 const payoutWaitingConfirmation = withdrawals.filter((row) => {
                     const status = (row.paymentStatus || '').toLowerCase();
                     const note = (row.adminNote || '').toLowerCase();
                     const dateRef = row.paymentDate || row.createdDate;
                     return status === 'approved' && note.includes('reference=') && isDateInRange(dateRef);
+                }).length;
+                const payoutStuckOver2Hours = withdrawals.filter((row) => {
+                    const status = (row.paymentStatus || '').toLowerCase();
+                    const note = (row.adminNote || '').toLowerCase();
+                    const dateRef = row.paymentDate || row.createdDate;
+                    const dt = dateRef ? new Date(dateRef).getTime() : 0;
+                    if (!dt) return false;
+                    return status === 'approved' && note.includes('reference=') && now - dt >= 2 * 60 * 60 * 1000 && isDateInRange(dateRef);
                 }).length;
 
                 const payoutFailedOrRejected = withdrawals.filter((row) => {
@@ -306,13 +334,23 @@ const Dashboard = () => {
                     const paymentDate = row.paymentDate ? new Date(row.paymentDate) : null;
                     return Boolean(paymentDate && paymentDate >= today && paymentDate < tomorrow);
                 }).length;
+                const payoutIntegrationIssues = withdrawals.filter((row) => {
+                    const status = (row.paymentStatus || '').toLowerCase();
+                    const note = (row.adminNote || '').toLowerCase();
+                    const dateRef = row.paymentDate || row.createdDate;
+                    const dt = dateRef ? new Date(dateRef).getTime() : 0;
+                    const hasFailedMarker = note.includes('status=failed') || note.includes('failed to');
+                    const waitingTooLong = status === 'approved' && note.includes('reference=') && dt > 0 && now - dt >= 2 * 60 * 60 * 1000;
+                    return isDateInRange(dateRef) && (hasFailedMarker || waitingTooLong || status === 'rejected');
+                }).length;
 
                 setAnalytics((prev) => ({
                     ...prev,
-                    payoutWaitingConfirmation,
+                    payoutWaitingConfirmation: payoutStuckOver2Hours > payoutWaitingConfirmation ? payoutStuckOver2Hours : payoutWaitingConfirmation,
                     payoutFailedOrRejected,
                     payoutMissingPaymentMethod,
                     payoutCompletedToday,
+                    payoutIntegrationIssues,
                 }));
             }
 
@@ -580,27 +618,64 @@ const Dashboard = () => {
 
                         <section className="mb-8 rounded-2xl bg-gradient-to-br from-white/80 to-white/40 backdrop-blur-xl border border-white/20 p-6 shadow-xl">
                             <div className="mb-5 flex items-center justify-between">
-                                <h2 className="text-lg font-bold text-gray-900">Payout Health</h2>
+                                <div>
+                                    <h2 className="text-lg font-bold text-gray-900">Payout Health</h2>
+                                    <p className="text-xs text-gray-600">Includes waiting confirmations and delivery issues in selected range.</p>
+                                </div>
                                 <Link href="/admin/finance/payout-request" className="text-sm font-semibold text-indigo-700 hover:text-indigo-900">
                                     Open payout requests
                                 </Link>
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                                <Link href="/admin/finance/payout-request?segment=waiting_confirmation" className="rounded-xl border border-amber-200 bg-amber-50 p-4 hover:bg-amber-100 transition-colors">
-                                    <p className="text-xs font-semibold text-amber-700">Waiting Confirmation</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                                <Link href="/admin/finance/payout-request?segment=waiting_confirmation" className="group relative rounded-xl border border-amber-200 bg-amber-50 p-4 hover:bg-amber-100 transition-colors">
+                                    <p className="flex items-center gap-1 text-xs font-semibold text-amber-700">
+                                        Waiting Confirmation
+                                        <CircleHelp className="h-3.5 w-3.5" />
+                                    </p>
+                                    <span className="pointer-events-none absolute left-4 top-9 z-20 hidden w-[220px] rounded-md bg-gray-900 px-2 py-1.5 text-[11px] font-medium text-white group-hover:block">
+                                        Transfer was initiated but completion confirmation has not arrived yet. Open this to verify and resolve stuck payouts.
+                                    </span>
                                     <p className="mt-2 text-2xl font-bold text-amber-800">{analytics.payoutWaitingConfirmation}</p>
                                 </Link>
-                                <Link href="/admin/finance/payout-request?segment=failed_rejected" className="rounded-xl border border-red-200 bg-red-50 p-4 hover:bg-red-100 transition-colors">
-                                    <p className="text-xs font-semibold text-red-700">Failed / Rejected</p>
+                                <Link href="/admin/finance/payout-request?segment=failed_rejected" className="group relative rounded-xl border border-red-200 bg-red-50 p-4 hover:bg-red-100 transition-colors">
+                                    <p className="flex items-center gap-1 text-xs font-semibold text-red-700">
+                                        Failed / Rejected
+                                        <CircleHelp className="h-3.5 w-3.5" />
+                                    </p>
+                                    <span className="pointer-events-none absolute left-4 top-9 z-20 hidden w-[220px] rounded-md bg-gray-900 px-2 py-1.5 text-[11px] font-medium text-white group-hover:block">
+                                        Chapa payout failed or the request was rejected. Open this list to review reason and retry or close the case.
+                                    </span>
                                     <p className="mt-2 text-2xl font-bold text-red-800">{analytics.payoutFailedOrRejected}</p>
                                 </Link>
-                                <Link href="/admin/finance/payout-request?segment=missing_payment_method" className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 hover:bg-indigo-100 transition-colors">
-                                    <p className="text-xs font-semibold text-indigo-700">Missing Payment Method</p>
+                                <Link href="/admin/finance/payout-request?segment=missing_payment_method" className="group relative rounded-xl border border-indigo-200 bg-indigo-50 p-4 hover:bg-indigo-100 transition-colors">
+                                    <p className="flex items-center gap-1 text-xs font-semibold text-indigo-700">
+                                        Missing Payment Method
+                                        <CircleHelp className="h-3.5 w-3.5" />
+                                    </p>
+                                    <span className="pointer-events-none absolute left-4 top-9 z-20 hidden w-[220px] rounded-md bg-gray-900 px-2 py-1.5 text-[11px] font-medium text-white group-hover:block">
+                                        Provider payout request exists but required bank or wallet method is incomplete or unavailable.
+                                    </span>
                                     <p className="mt-2 text-2xl font-bold text-indigo-800">{analytics.payoutMissingPaymentMethod}</p>
                                 </Link>
-                                <Link href="/admin/finance/payout-request?segment=completed_today" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 hover:bg-emerald-100 transition-colors">
-                                    <p className="text-xs font-semibold text-emerald-700">Completed Today</p>
+                                <Link href="/admin/finance/payout-request?segment=completed_today" className="group relative rounded-xl border border-emerald-200 bg-emerald-50 p-4 hover:bg-emerald-100 transition-colors">
+                                    <p className="flex items-center gap-1 text-xs font-semibold text-emerald-700">
+                                        Completed Today
+                                        <CircleHelp className="h-3.5 w-3.5" />
+                                    </p>
+                                    <span className="pointer-events-none absolute left-4 top-9 z-20 hidden w-[220px] rounded-md bg-gray-900 px-2 py-1.5 text-[11px] font-medium text-white group-hover:block">
+                                        Count of payouts marked completed during today in your selected dashboard range.
+                                    </span>
                                     <p className="mt-2 text-2xl font-bold text-emerald-800">{analytics.payoutCompletedToday}</p>
+                                </Link>
+                                <Link href="/admin/finance/payout-request?segment=failed_rejected" className="group relative rounded-xl border border-rose-200 bg-rose-50 p-4 hover:bg-rose-100 transition-colors">
+                                    <p className="flex items-center gap-1 text-xs font-semibold text-rose-700">
+                                        Integration Issues
+                                        <CircleHelp className="h-3.5 w-3.5" />
+                                    </p>
+                                    <span className="pointer-events-none absolute left-4 top-9 z-20 hidden w-[220px] rounded-md bg-gray-900 px-2 py-1.5 text-[11px] font-medium text-white group-hover:block">
+                                        Transfer records with webhook or verification problems requiring manual payout investigation.
+                                    </span>
+                                    <p className="mt-2 text-2xl font-bold text-rose-800">{analytics.payoutIntegrationIssues}</p>
                                 </Link>
                             </div>
                         </section>

@@ -13,6 +13,8 @@ import {
     fetchNotifications,
     markAllNotificationsRead,
     markNotificationRead,
+    deleteNotification,
+    deleteNotificationsBulk,
     NotificationItem,
 } from "@/features/notification/notificationSlice";
 
@@ -112,6 +114,7 @@ export default function NotificationsPage() {
     const customers = useAppSelector((state) => state.customer.customers);
     const [searchValue, setSearchValue] = useState("");
     const [readFilter, setReadFilter] = useState<ReadFilterOption["id"]>("all");
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
     useEffect(() => {
         dispatch(fetchNotifications());
@@ -158,6 +161,17 @@ export default function NotificationsPage() {
         await dispatch(markAllNotificationsRead());
     };
 
+    const onDeleteOne = async (notificationId: string) => {
+        await dispatch(deleteNotification({ id: notificationId }));
+        setSelectedIds((prev) => prev.filter((id) => id !== notificationId));
+    };
+
+    const onDeleteSelected = async () => {
+        if (selectedIds.length === 0) return;
+        await dispatch(deleteNotificationsBulk({ ids: selectedIds }));
+        setSelectedIds([]);
+    };
+
     const normalizedSearch = useMemo(
         () => searchValue.trim().toLowerCase(),
         [searchValue]
@@ -181,6 +195,22 @@ export default function NotificationsPage() {
             return haystack.includes(normalizedSearch);
         });
     }, [items, normalizedSearch, readFilter]);
+
+    const areAllFilteredSelected = filteredItems.length > 0 && filteredItems.every((item) => selectedIds.includes(item.id));
+
+    const toggleSelectAllFiltered = () => {
+        if (areAllFilteredSelected) {
+            const filteredIdSet = new Set(filteredItems.map((item) => item.id));
+            setSelectedIds((prev) => prev.filter((id) => !filteredIdSet.has(id)));
+            return;
+        }
+        const merged = new Set([...selectedIds, ...filteredItems.map((item) => item.id)]);
+        setSelectedIds(Array.from(merged));
+    };
+
+    const toggleSelectOne = (id: string) => {
+        setSelectedIds((prev) => prev.includes(id) ? prev.filter((value) => value !== id) : [...prev, id]);
+    };
 
     const filterOptions = useMemo<ReadFilterOption[]>(
         () => [
@@ -217,6 +247,20 @@ export default function NotificationsPage() {
                                         <div className="text-[13px] font-semibold leading-[1.2] text-muted-foreground">Unread</div>
                                         <div className="text-[20px] font-bold leading-[1.2] text-foreground">{unreadCount}</div>
                                     </div>
+                                    <button
+                                        onClick={toggleSelectAllFiltered}
+                                        disabled={filteredItems.length === 0}
+                                        className="inline-flex h-[40px] items-center gap-2 rounded-md border border-border bg-background px-4 text-[14px] font-semibold leading-[1.2] text-foreground transition-all duration-150 hover:bg-secondary disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
+                                    >
+                                        {areAllFilteredSelected ? "Unselect all" : "Select all"}
+                                    </button>
+                                    <button
+                                        onClick={onDeleteSelected}
+                                        disabled={selectedIds.length === 0}
+                                        className="inline-flex h-[40px] items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 px-4 text-[14px] font-semibold leading-[1.2] text-destructive transition-all duration-150 hover:bg-destructive/20 disabled:cursor-not-allowed disabled:border-border disabled:bg-muted disabled:text-muted-foreground"
+                                    >
+                                        Delete selected ({selectedIds.length})
+                                    </button>
                                     <button
                                         onClick={onMarkAllRead}
                                         disabled={unreadCount === 0}
@@ -290,6 +334,17 @@ export default function NotificationsPage() {
                                     >
                                         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                                             <div className="min-w-0">
+                                                <div className="mb-3">
+                                                    <label className="inline-flex items-center gap-2 text-[13px] font-semibold leading-[1.2] text-muted-foreground">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedIds.includes(item.id)}
+                                                            onChange={() => toggleSelectOne(item.id)}
+                                                            className="h-4 w-4 rounded border-border accent-primary"
+                                                        />
+                                                        Select
+                                                    </label>
+                                                </div>
                                                 <div className="mb-2 flex items-center gap-2">
                                                     <span
                                                         className={`inline-flex items-center rounded-full px-2.5 py-1 text-[13px] font-semibold leading-[1.2] ${getNotificationTypeColorClasses(
@@ -330,6 +385,12 @@ export default function NotificationsPage() {
                                                 >
                                                     Open
                                                 </Link>
+                                                <button
+                                                    onClick={() => onDeleteOne(item.id)}
+                                                    className="inline-flex h-[40px] items-center rounded-md border border-destructive/50 bg-destructive/10 px-4 text-[14px] font-semibold leading-[1.2] text-destructive transition-all duration-150 hover:bg-destructive/20"
+                                                >
+                                                    Delete
+                                                </button>
                                             </div>
                                         </div>
                                     </div>

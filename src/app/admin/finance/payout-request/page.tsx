@@ -250,6 +250,9 @@ const PayoutRequestPage = () => {
                 : segment === 'completed_today'
                     ? 'Completed Today'
                     : '';
+    const exportAuditHref = segment
+        ? `/api/payout/export-audit?segment=${encodeURIComponent(segment)}`
+        : '/api/payout/export-audit';
 
     return (
         <AuthGuard>
@@ -295,6 +298,12 @@ const PayoutRequestPage = () => {
                                     <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : 'group-hover:rotate-180'} transition-transform duration-500`} />
                                     Refresh
                                 </button>
+                                <Link
+                                    href={exportAuditHref}
+                                    className="inline-flex items-center gap-2 rounded-xl bg-white/10 backdrop-blur-md px-4 py-3 text-sm font-semibold text-white ring-2 ring-white/20 hover:bg-white/20 hover:ring-white/40 transition-all duration-300 hover:scale-105"
+                                >
+                                    Export Audit CSV
+                                </Link>
                             </div>
                         </div>
                     </div>

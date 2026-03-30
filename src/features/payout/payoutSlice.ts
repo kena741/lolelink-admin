@@ -123,6 +123,21 @@ function toErrorMessage(value: unknown, fallback: string): string {
     return fallback;
 }
 
+async function createPayoutNotification(payload: {
+    title: string;
+    description: string;
+    type: string;
+    provider_id?: string;
+    action_url?: string;
+    dedupe_key?: string;
+}): Promise<void> {
+    await fetch('/api/payout/create-notification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+}
+
 function normalizeProviderId(value: string | undefined): string {
     return (value || '').trim();
 }
@@ -280,13 +295,13 @@ export const approvePayoutRequest = createAsyncThunk<
 
             if (error) throw error;
 
-            await supabase.from('notification').insert({
+            await createPayoutNotification({
                 title: 'Withdrawal approved',
                 description: `Withdrawal ${id} was approved.`,
                 type: 'payout_approved',
                 provider_id: (data as WithdrawalHistoryRow).providerId,
                 action_url: '/admin/finance/payout-request',
-                is_read: false,
+                dedupe_key: `payout_approved:${id}`,
             });
 
             const providerMap: Record<string, string> = {};
@@ -349,13 +364,13 @@ export const rejectPayoutRequest = createAsyncThunk<
 
             if (error) throw error;
 
-            await supabase.from('notification').insert({
+            await createPayoutNotification({
                 title: 'Withdrawal rejected',
                 description: `Withdrawal ${id} was rejected.`,
                 type: 'payout_rejected',
                 provider_id: (data as WithdrawalHistoryRow).providerId,
                 action_url: '/admin/finance/payout-request',
-                is_read: false,
+                dedupe_key: `payout_rejected:${id}`,
             });
 
             const providerMap: Record<string, string> = {};
@@ -418,13 +433,13 @@ export const completePayoutRequest = createAsyncThunk<
 
             if (error) throw error;
 
-            await supabase.from('notification').insert({
+            await createPayoutNotification({
                 title: 'Withdrawal completed',
                 description: `Withdrawal ${id} was marked completed.`,
                 type: 'payout_completed',
                 provider_id: (data as WithdrawalHistoryRow).providerId,
                 action_url: '/admin/finance/payout-request',
-                is_read: false,
+                dedupe_key: `payout_completed:${id}`,
             });
 
             const providerMap: Record<string, string> = {};

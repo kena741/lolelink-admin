@@ -198,6 +198,33 @@ function isDigitsOnly(value: string): boolean {
     return /^\d+$/.test(value);
 }
 
+async function insertNotificationIfMissing(params: {
+    title: string;
+    description: string;
+    type: string;
+    provider_id?: string;
+    action_url?: string;
+}): Promise<void> {
+    const { title, description, type, provider_id, action_url } = params;
+    const { data: existing } = await supabaseAdmin
+        .from('notification')
+        .select('id')
+        .eq('type', type)
+        .eq('description', description)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+    if (existing) return;
+    await supabaseAdmin.from('notification').insert({
+        title,
+        description,
+        type,
+        provider_id: provider_id || null,
+        action_url: action_url || null,
+        is_read: false,
+    });
+}
+
 async function getProviderDefaultPaymentMethod(providerId: string): Promise<ProviderPaymentMethodRow | null> {
     const normalizedProviderId = normalizeText(providerId);
     if (!normalizedProviderId) return null;
@@ -377,13 +404,12 @@ export async function POST(request: Request) {
         if (updateError)
             return NextResponse.json({ error: 'Failed to update withdrawal record' }, { status: 500 });
 
-        await supabaseAdmin.from('notification').insert({
+        await insertNotificationIfMissing({
             title: 'Payout transfer initiated',
             description: `Transfer initiated for withdrawal ${withdrawal.id}. reference=${transferReference}`,
             type: 'payout_transfer_initiated',
             provider_id: withdrawal.providerId,
             action_url: '/admin/finance/payout-request',
-            is_read: false,
         });
 
         return NextResponse.json({
