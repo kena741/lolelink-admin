@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import Sidebar from '@/components/Sidebar';
 import AuthGuard from '@/components/AuthGuard';
@@ -13,13 +13,28 @@ import {
     TrendingUp
 } from 'lucide-react';
 import Link from 'next/link';
-import { fetchPayoutRequests, approvePayoutRequest, rejectPayoutRequest, completePayoutRequest, sendPayoutViaChapa } from '@/features/payout/payoutSlice';
+import { fetchPayoutRequests, approvePayoutRequest, rejectPayoutRequest, completePayoutRequest, sendPayoutViaChapa, PayoutRequest } from '@/features/payout/payoutSlice';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const PayoutRequestPage = () => {
     const dispatch = useAppDispatch();
-    const { requests, loading, error, chapaCheckoutUrlById } = useAppSelector((state) => state.payout);
+    const { requests, loading, error } = useAppSelector((state) => state.payout);
     const [processingId, setProcessingId] = useState<string | null>(null);
+    const [confirmingRequest, setConfirmingRequest] = useState<PayoutRequest | null>(null);
+    const [modalValidationError, setModalValidationError] = useState<string | null>(null);
+    const [debugRequestId, setDebugRequestId] = useState<string | null>(null);
+    const [transferResult, setTransferResult] = useState<{
+        message: string;
+        txRef: string;
+        transferId: string;
+        sourceAccount: string;
+        destinationProviderName: string;
+        destinationBankName: string;
+        destinationAccountNumber: string;
+        amount: string;
+    } | null>(null);
+    const autoVerifyInFlightRef = useRef<Set<string>>(new Set());
+    const autoVerifyLastAttemptMsRef = useRef<Record<string, number>>({});
 
     useEffect(() => {
         dispatch(fetchPayoutRequests());
@@ -61,13 +76,33 @@ const PayoutRequestPage = () => {
         }
     };
 
-    const handleSendWithChapa = async (id: string) => {
+    const handleSendWithChapa = async (request: PayoutRequest) => {
+        setModalValidationError(null);
+        setConfirmingRequest(request);
+    };
+
+    const handleConfirmSendWithChapa = async () => {
+        if (!confirmingRequest) return;
+        const request = confirmingRequest;
+        const resolvedBankCode = (request.bankDetails?.bankCode || request.bankDetails?.swiftCode || '').trim();
+        const missingFields = [
+            !request.bankDetails?.holderName?.trim() ? 'Account Holder' : '',
+            !request.bankDetails?.accountNumber?.trim() ? 'Account Number' : '',
+            !request.bankDetails?.bankName?.trim() ? 'Bank Name' : '',
+            !resolvedBankCode ? 'Bank Code (or SWIFT)' : '',
+        ].filter(Boolean);
+        if (missingFields.length > 0) {
+            setModalValidationError(`Missing required fields: ${missingFields.join(', ')}`);
+            return;
+        }
+
+        setConfirmingRequest(null);
+        setModalValidationError(null);
+        const id = request.id;
         setProcessingId(id);
         try {
             const result = await dispatch(sendPayoutViaChapa({ id })).unwrap();
-            if (result.checkoutUrl) {
-                window.open(result.checkoutUrl, '_blank', 'noopener,noreferrer');
-            }
+            setTransferResult(result);
             dispatch(fetchPayoutRequests());
         } catch (err) {
             console.error('Failed to send payout via Chapa:', err);
@@ -75,6 +110,78 @@ const PayoutRequestPage = () => {
             setProcessingId(null);
         }
     };
+
+    const handleVerifyChapaTransfer = async (withdrawalId: string) => {
+        setProcessingId(withdrawalId);
+        try {
+            const response = await fetch('/api/payout/chapa-verify-transfer', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ withdrawalId }),
+            });
+            const payload = (await response.json()) as { error?: unknown; updatedPaymentStatus?: string };
+            if (!response.ok) {
+                window.alert(typeof payload.error === 'string' ? payload.error : 'Failed to verify transfer');
+                return;
+            }
+            dispatch(fetchPayoutRequests());
+        } catch (e) {
+            console.error('Failed to verify transfer:', e);
+        } finally {
+            setProcessingId(null);
+        }
+    };
+
+    const autoVerifyCandidateIds = useMemo(() => {
+        return requests
+            .filter((request) => {
+                const status = (request.paymentStatus || '').toLowerCase();
+                if (status !== 'approved') return false;
+                const note = (request.adminNote || '').toLowerCase();
+                return note.includes('reference=');
+            })
+            .map((request) => request.id);
+    }, [requests]);
+
+    useEffect(() => {
+        const intervalMs = 15000;
+        const perIdCooldownMs = 45000;
+        const maxPerTick = 3;
+
+        async function runAutoVerify(): Promise<void> {
+            const now = Date.now();
+            const candidates = autoVerifyCandidateIds
+                .filter((id) => !autoVerifyInFlightRef.current.has(id))
+                .filter((id) => {
+                    const last = autoVerifyLastAttemptMsRef.current[id] || 0;
+                    return now - last >= perIdCooldownMs;
+                })
+                .slice(0, maxPerTick);
+
+            await Promise.all(
+                candidates.map(async (id) => {
+                    autoVerifyInFlightRef.current.add(id);
+                    autoVerifyLastAttemptMsRef.current[id] = Date.now();
+                    try {
+                        const response = await fetch('/api/payout/chapa-verify-transfer', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ withdrawalId: id }),
+                        });
+                        if (response.ok) dispatch(fetchPayoutRequests());
+                    } catch (e) {
+                        console.error('Auto-verify failed:', e);
+                    } finally {
+                        autoVerifyInFlightRef.current.delete(id);
+                    }
+                })
+            );
+        }
+
+        void runAutoVerify();
+        const timerId = window.setInterval(() => void runAutoVerify(), intervalMs);
+        return () => window.clearInterval(timerId);
+    }, [autoVerifyCandidateIds, dispatch]);
 
     const formatDate = (dateString?: string) => {
         if (!dateString) return '—';
@@ -95,10 +202,18 @@ const PayoutRequestPage = () => {
         return typeof amount === 'string' ? parseFloat(amount) || 0 : amount;
     };
 
+    const maskAccountNumber = (accountNumber?: string) => {
+        if (!accountNumber) return 'Unknown Account';
+        const normalized = accountNumber.trim();
+        if (normalized.length <= 4) return normalized;
+        return `${'*'.repeat(Math.max(normalized.length - 4, 2))}${normalized.slice(-4)}`;
+    };
+
     const pendingRequests = requests.filter(r => r.paymentStatus === 'pending');
     const totalPendingAmount = pendingRequests.reduce((sum, r) => sum + getAmountAsNumber(r.amount), 0);
     const totalRequests = requests.length;
     const approvedRequests = requests.filter(r => r.paymentStatus === 'approved' || r.paymentStatus === 'completed').length;
+    const debugRequest = debugRequestId ? requests.find((request) => request.id === debugRequestId) || null : null;
 
     return (
         <AuthGuard>
@@ -212,6 +327,57 @@ const PayoutRequestPage = () => {
                             </div>
                         </section>
 
+                        {debugRequest && (
+                            <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-5">
+                                <div className="flex items-center justify-between gap-3">
+                                    <div>
+                                        <p className="text-sm font-semibold text-amber-800">Bank Details Debug</p>
+                                        <p className="text-xs text-amber-700">
+                                            Request ID: {debugRequest.id} | Provider ID: {debugRequest.providerId}
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => setDebugRequestId(null)}
+                                        className="rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition-colors"
+                                    >
+                                        Hide Debug
+                                    </button>
+                                </div>
+                                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                                    <div className="rounded-lg border border-amber-200 bg-white px-3 py-2">
+                                        <p className="text-amber-700 font-medium">Holder Name</p>
+                                        <p className="text-amber-900">{debugRequest.bankDetails?.holderName || 'null'}</p>
+                                    </div>
+                                    <div className="rounded-lg border border-amber-200 bg-white px-3 py-2">
+                                        <p className="text-amber-700 font-medium">Bank Name</p>
+                                        <p className="text-amber-900">{debugRequest.bankDetails?.bankName || 'null'}</p>
+                                    </div>
+                                    <div className="rounded-lg border border-amber-200 bg-white px-3 py-2">
+                                        <p className="text-amber-700 font-medium">Account Number</p>
+                                        <p className="text-amber-900">{debugRequest.bankDetails?.accountNumber || 'null'}</p>
+                                    </div>
+                                    <div className="rounded-lg border border-amber-200 bg-white px-3 py-2">
+                                        <p className="text-amber-700 font-medium">Bank Code</p>
+                                        <p className="text-amber-900">{debugRequest.bankDetails?.bankCode || 'null'}</p>
+                                    </div>
+                                    <div className="rounded-lg border border-amber-200 bg-white px-3 py-2">
+                                        <p className="text-amber-700 font-medium">SWIFT</p>
+                                        <p className="text-amber-900">{debugRequest.bankDetails?.swiftCode || 'null'}</p>
+                                    </div>
+                                    <div className="rounded-lg border border-amber-200 bg-white px-3 py-2">
+                                        <p className="text-amber-700 font-medium">Branch</p>
+                                        <p className="text-amber-900">
+                                            {debugRequest.bankDetails?.branchCity || 'null'}
+                                            {debugRequest.bankDetails?.branchCountry ? `, ${debugRequest.bankDetails.branchCountry}` : ''}
+                                        </p>
+                                    </div>
+                                </div>
+                                <pre className="mt-4 overflow-x-auto rounded-lg border border-amber-200 bg-white p-3 text-xs text-amber-900">
+                                    {JSON.stringify(debugRequest.bankDetails, null, 2)}
+                                </pre>
+                            </div>
+                        )}
+
                         {/* Payout Requests Table */}
                         <div className="rounded-2xl border border-white/20 bg-white/80 backdrop-blur-xl shadow-xl overflow-hidden">
                             {loading && (
@@ -258,6 +424,11 @@ const PayoutRequestPage = () => {
                                                 requests.map((request) => {
                                                     const isProcessing = processingId === request.id;
                                                     const normalizedPaymentStatus = request.paymentStatus.toLowerCase();
+                                                    const hasChapaTransferStarted = Boolean(
+                                                        (request.adminNote || '').toLowerCase().includes('chapa transfer sent.') ||
+                                                        (request.adminNote || '').toLowerCase().includes('chapa transfer reference:') ||
+                                                        (request.adminNote || '').toLowerCase().includes('reference=')
+                                                    );
                                                     const statusConfig: Record<string, { color: string; bg: string; icon: React.ElementType }> = {
                                                         pending: { color: 'text-amber-600', bg: 'bg-amber-500/10', icon: Clock },
                                                         approved: { color: 'text-emerald-600', bg: 'bg-emerald-500/10', icon: CheckCircle2 },
@@ -332,32 +503,32 @@ const PayoutRequestPage = () => {
                                                                             Reject
                                                                         </button>
                                                                     </div>
-                                                                ) : normalizedPaymentStatus === 'approved' ? (
+                                                                ) : normalizedPaymentStatus === 'approved' && !hasChapaTransferStarted ? (
                                                                     <div className="flex items-center justify-end gap-2">
                                                                         <button
-                                                                            onClick={() => handleSendWithChapa(request.id)}
+                                                                            onClick={() => setDebugRequestId(request.id)}
+                                                                            className="px-3 py-2 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 text-xs font-semibold hover:bg-amber-100 transition-colors"
+                                                                        >
+                                                                            Debug Bank
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => handleSendWithChapa(request)}
                                                                             disabled={isProcessing}
                                                                             className="px-4 py-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-sm font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                                                                         >
                                                                             {isProcessing ? 'Processing...' : 'Send with Chapa'}
                                                                         </button>
+                                                                    </div>
+                                                                ) : normalizedPaymentStatus === 'approved' && hasChapaTransferStarted ? (
+                                                                    <div className="flex items-center justify-end gap-2">
                                                                         <button
-                                                                            onClick={() => handleMarkPaid(request.id)}
+                                                                            onClick={() => handleVerifyChapaTransfer(request.id)}
                                                                             disabled={isProcessing}
-                                                                            className="px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600 text-white text-sm font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                                                                            className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 text-sm font-semibold hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                                                         >
-                                                                            {isProcessing ? 'Processing...' : 'Mark Paid'}
+                                                                            {isProcessing ? 'Verifying...' : 'Verify status'}
                                                                         </button>
-                                                                        {chapaCheckoutUrlById[request.id] && (
-                                                                            <a
-                                                                                href={chapaCheckoutUrlById[request.id]}
-                                                                                target="_blank"
-                                                                                rel="noopener noreferrer"
-                                                                                className="text-xs font-semibold text-indigo-700 hover:text-indigo-900 hover:underline"
-                                                                            >
-                                                                                Open Chapa
-                                                                            </a>
-                                                                        )}
+                                                                        <span className="text-sm text-gray-500 italic">Waiting confirmation</span>
                                                                     </div>
                                                                 ) : (
                                                                     <span className="text-sm text-gray-500 italic">Processed</span>
@@ -372,6 +543,153 @@ const PayoutRequestPage = () => {
                                 </div>
                             )}
                         </div>
+                        {confirmingRequest && (
+                            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                                <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl">
+                                    <h3 className="text-xl font-bold text-gray-900">Confirm Chapa Transfer</h3>
+                                    <p className="mt-2 text-sm text-gray-600">
+                                        Review payout details before sending money to the provider bank account.
+                                    </p>
+                                    <div className="mt-5 space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
+                                        <div className="flex items-center justify-between gap-3 text-sm">
+                                            <span className="font-medium text-gray-600">From</span>
+                                            <span className="font-semibold text-gray-900">Platform Chapa Account</span>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-3 text-sm">
+                                            <span className="font-medium text-gray-600">To Provider</span>
+                                            <span className="font-semibold text-gray-900">
+                                                {confirmingRequest.provider_name || 'Unknown Provider'}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-3 text-sm">
+                                            <span className="font-medium text-gray-600">Beneficiary Name</span>
+                                            <span className="font-semibold text-gray-900">
+                                                {confirmingRequest.bankDetails?.holderName || 'Unknown Holder'}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-3 text-sm">
+                                            <span className="font-medium text-gray-600">Bank</span>
+                                            <span className="font-semibold text-gray-900">
+                                                {confirmingRequest.bankDetails?.bankName || 'Unknown Bank'}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-3 text-sm">
+                                            <span className="font-medium text-gray-600">Account</span>
+                                            <span className="font-semibold text-gray-900">
+                                                {maskAccountNumber(confirmingRequest.bankDetails?.accountNumber)}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-3 text-sm">
+                                            <span className="font-medium text-gray-600">Account Holder</span>
+                                            <span className="font-semibold text-gray-900">
+                                                {confirmingRequest.bankDetails?.holderName || 'Unknown Holder'}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-3 text-sm">
+                                            <span className="font-medium text-gray-600">Bank Code / SWIFT</span>
+                                            <span className="font-semibold text-gray-900">
+                                                {confirmingRequest.bankDetails?.bankCode || confirmingRequest.bankDetails?.swiftCode || 'Missing'}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-3 text-sm">
+                                            <span className="font-medium text-gray-600">Amount</span>
+                                            <span className="font-semibold text-gray-900">
+                                                {formatCurrency(confirmingRequest.amount)}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-3 text-sm">
+                                            <span className="font-medium text-gray-600">Requested Date</span>
+                                            <span className="font-semibold text-gray-900">
+                                                {formatDate(confirmingRequest.createdDate)}
+                                            </span>
+                                        </div>
+                                        <div className="text-sm">
+                                            <p className="font-medium text-gray-600">Request Note</p>
+                                            <p className="mt-1 text-gray-900">{confirmingRequest.note || '—'}</p>
+                                        </div>
+                                    </div>
+                                    {modalValidationError && (
+                                        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                                            {modalValidationError}
+                                        </div>
+                                    )}
+                                    <div className="mt-6 flex items-center justify-end gap-3">
+                                        <button
+                                            onClick={() => {
+                                                setConfirmingRequest(null);
+                                                setModalValidationError(null);
+                                            }}
+                                            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 transition-colors"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={handleConfirmSendWithChapa}
+                                            className="rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-lg hover:shadow-xl transition-all"
+                                        >
+                                            Confirm Transfer
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        {transferResult && (
+                            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                                <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl">
+                                    <div className="flex items-start justify-between gap-4">
+                                        <div>
+                                            <h3 className="text-xl font-bold text-gray-900">Transfer Submitted</h3>
+                                            <p className="mt-2 text-sm text-gray-600">{transferResult.message}</p>
+                                        </div>
+                                        <button
+                                            onClick={() => setTransferResult(null)}
+                                            className="rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+                                        >
+                                            Close
+                                        </button>
+                                    </div>
+
+                                    <div className="mt-5 space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
+                                        <div className="flex items-center justify-between gap-3 text-sm">
+                                            <span className="font-medium text-gray-600">From</span>
+                                            <span className="font-semibold text-gray-900">{transferResult.sourceAccount}</span>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-3 text-sm">
+                                            <span className="font-medium text-gray-600">To</span>
+                                            <span className="font-semibold text-gray-900">
+                                                {transferResult.destinationProviderName}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-3 text-sm">
+                                            <span className="font-medium text-gray-600">Bank</span>
+                                            <span className="font-semibold text-gray-900">
+                                                {transferResult.destinationBankName || '—'}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-3 text-sm">
+                                            <span className="font-medium text-gray-600">Account</span>
+                                            <span className="font-semibold text-gray-900">
+                                                {transferResult.destinationAccountNumber || '—'}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-3 text-sm">
+                                            <span className="font-medium text-gray-600">Amount</span>
+                                            <span className="font-semibold text-gray-900">
+                                                {transferResult.amount ? `ETB ${transferResult.amount}` : '—'}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-3 text-sm">
+                                            <span className="font-medium text-gray-600">Reference</span>
+                                            <span className="font-semibold text-gray-900">{transferResult.txRef || '—'}</span>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-3 text-sm">
+                                            <span className="font-medium text-gray-600">Transfer ID</span>
+                                            <span className="font-semibold text-gray-900">{transferResult.transferId || '—'}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </main>
             </div>

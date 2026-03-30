@@ -15,21 +15,20 @@ interface WithdrawalRow {
     adminNote?: string | null;
 }
 
-interface ProviderRow {
+interface ProviderPaymentMethodRow {
     id: string;
-    firstName?: string | null;
-    lastName?: string | null;
-    email?: string | null;
-}
-
-interface BankDetailsRow {
     providerID: string;
-    bankName?: string | null;
-    accountNumber?: string | null;
+    method_type?: string | null;
+    method_code?: string | null;
+    method_name?: string | null;
     holderName?: string | null;
+    accountNumber?: string | null;
     swiftCode?: string | null;
+    bankName?: string | null;
     branchCity?: string | null;
     branchCountry?: string | null;
+    is_active?: boolean | null;
+    is_default?: boolean | null;
 }
 
 interface AppSettingsRow {
@@ -43,6 +42,18 @@ interface ChapaConfig {
     isSandbox?: boolean;
     publicKey?: string;
     secretKey?: string;
+}
+
+interface ChapaBank {
+    id: number;
+    slug?: string;
+    swift?: string;
+    name?: string;
+    acct_length?: number;
+    currency?: string;
+    active?: number;
+    is_active?: number;
+    is_mobilemoney?: number | null;
 }
 
 function buildTxRef(withdrawalId: string): string {
@@ -94,6 +105,128 @@ function resolveChapaConfig(settingsData: unknown): ChapaConfig {
     return maybeChapa as ChapaConfig;
 }
 
+function normalizeText(value: string | null | undefined): string {
+    return (value || '').trim();
+}
+
+function normalizeBankLabel(value: string): string {
+    return value.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function isNumericText(value: string): boolean {
+    return /^\d+$/.test(value.trim());
+}
+
+function pickPreferredBank(candidates: ChapaBank[]): ChapaBank | null {
+    if (candidates.length === 0) return null;
+    const sorted = [...candidates].sort((a, b) => {
+        const aMobile = (a.is_mobilemoney ?? 0) ? 1 : 0;
+        const bMobile = (b.is_mobilemoney ?? 0) ? 1 : 0;
+        return aMobile - bMobile;
+    });
+    return sorted[0];
+}
+
+async function fetchChapaBanks(chapaSecretKey: string): Promise<ChapaBank[]> {
+    const response = await fetch('https://api.chapa.co/v1/banks', {
+        method: 'GET',
+        headers: {
+            Authorization: `Bearer ${chapaSecretKey}`,
+        },
+    });
+    const payload = (await response.json()) as {
+        data?: ChapaBank[];
+        message?: unknown;
+    };
+    if (!response.ok)
+        throw new Error(toErrorMessage(payload.message, 'Failed to fetch Chapa banks'));
+    return payload.data || [];
+}
+
+async function resolveNumericBankCode(params: {
+    chapaSecretKey: string;
+    storedBankCode: string;
+    swiftCode: string;
+    bankName: string;
+}): Promise<{ bankCode: string; bank: ChapaBank | null }> {
+    const { chapaSecretKey, storedBankCode, swiftCode, bankName } = params;
+    if (storedBankCode && isNumericText(storedBankCode))
+        return { bankCode: storedBankCode, bank: null };
+
+    const banks = await fetchChapaBanks(chapaSecretKey);
+    const etbBanks = banks.filter((bank) => {
+        const isActive = bank.active === 1 || bank.is_active === 1;
+        return (bank.currency || '').toUpperCase() === 'ETB' && isActive;
+    });
+
+    const normalizedStoredCode = normalizeBankLabel(storedBankCode);
+    const normalizedSwift = normalizeBankLabel(swiftCode);
+    const normalizedBankName = normalizeBankLabel(bankName);
+
+    const bySlug = normalizedStoredCode
+        ? etbBanks.filter((bank) => normalizeBankLabel(bank.slug || '') === normalizedStoredCode)
+        : [];
+    const preferredBySlug = pickPreferredBank(bySlug);
+    if (preferredBySlug)
+        return { bankCode: String(preferredBySlug.id), bank: preferredBySlug };
+
+    const bySwift = normalizedSwift
+        ? etbBanks.filter((bank) => normalizeBankLabel(bank.swift || '') === normalizedSwift)
+        : [];
+    const preferredBySwift = pickPreferredBank(bySwift);
+    if (preferredBySwift)
+        return { bankCode: String(preferredBySwift.id), bank: preferredBySwift };
+
+    const byName = normalizedBankName
+        ? etbBanks.filter((bank) => {
+            const bankLabel = normalizeBankLabel(bank.name || '');
+            return bankLabel === normalizedBankName || bankLabel.includes(normalizedBankName) || normalizedBankName.includes(bankLabel);
+        })
+        : [];
+    const preferredByName = pickPreferredBank(byName);
+    if (preferredByName)
+        return { bankCode: String(preferredByName.id), bank: preferredByName };
+
+    throw new Error(`Unable to resolve numeric bank code for bank "${bankName}"`);
+}
+
+function normalizeAccountNumber(value: string): string {
+    return value.replace(/\s+/g, '');
+}
+
+function isDigitsOnly(value: string): boolean {
+    return /^\d+$/.test(value);
+}
+
+async function getProviderDefaultPaymentMethod(providerId: string): Promise<ProviderPaymentMethodRow | null> {
+    const normalizedProviderId = normalizeText(providerId);
+    if (!normalizedProviderId) return null;
+
+    const { data: defaultActive, error: defaultActiveError } = await supabaseAdmin
+        .from('provider_payment_methods')
+        .select('*')
+        .eq('providerID', normalizedProviderId)
+        .eq('is_active', true)
+        .eq('is_default', true)
+        .order('updated_at', { ascending: false })
+        .maybeSingle();
+    if (!defaultActiveError && defaultActive)
+        return defaultActive as ProviderPaymentMethodRow;
+
+    const { data: anyActive, error: anyActiveError } = await supabaseAdmin
+        .from('provider_payment_methods')
+        .select('*')
+        .eq('providerID', normalizedProviderId)
+        .eq('is_active', true)
+        .order('is_default', { ascending: false })
+        .order('updated_at', { ascending: false })
+        .maybeSingle();
+    if (!anyActiveError && anyActive)
+        return anyActive as ProviderPaymentMethodRow;
+
+    return null;
+}
+
 export async function POST(request: Request) {
     try {
         const { data: paymentSettingsData } = await supabaseAdmin
@@ -108,8 +241,8 @@ export async function POST(request: Request) {
             normalizeBoolean(chapaConfig.enable) && normalizeBoolean(chapaConfig.isActive ?? true);
 
         const chapaSecretKey = (chapaConfig.secretKey || process.env.CHAPA_SECRET_KEY || '').trim();
-        const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || '';
-
+        const appBaseUrl = (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || '').trim();
+        const webhookUrl = (process.env.CHAPA_TRANSFER_WEBHOOK_URL || `${appBaseUrl}/api/payout/chapa-webhook`).trim();
         if (!isChapaEnabled)
             return NextResponse.json({ error: 'Chapa is disabled in app settings' }, { status: 400 });
 
@@ -137,55 +270,69 @@ export async function POST(request: Request) {
                 { status: 400 }
             );
 
-        const { data: providerData } = await supabaseAdmin
-            .from('provider')
-            .select('id, firstName, lastName, email')
-            .eq('id', withdrawal.providerId)
-            .maybeSingle();
-
-        const provider = providerData as ProviderRow | null;
-
-        const { data: bankData } = await supabaseAdmin
-            .from('bank_details')
-            .select('providerID, bankName, accountNumber, holderName, swiftCode, branchCity, branchCountry')
-            .eq('providerID', withdrawal.providerId)
-            .maybeSingle();
-
-        const bank = bankData as BankDetailsRow | null;
-        if (!bank?.accountNumber || !bank?.bankName || !bank?.holderName)
+        const paymentMethod = await getProviderDefaultPaymentMethod(withdrawal.providerId);
+        if (!paymentMethod)
             return NextResponse.json(
-                { error: 'Provider bank details are incomplete' },
+                {
+                    error: `Provider payment method not found for providerId "${normalizeText(withdrawal.providerId)}". Please add a default active payment method first.`,
+                },
+                { status: 400 }
+            );
+
+        const normalizedBankName = normalizeText(paymentMethod.bankName || paymentMethod.method_name);
+        const normalizedAccountNumber = normalizeAccountNumber(normalizeText(paymentMethod.accountNumber));
+        const normalizedHolderName = normalizeText(paymentMethod.holderName);
+        const missingFields = [
+            !normalizedBankName ? 'bankName/method_name' : '',
+            !normalizedAccountNumber ? 'accountNumber' : '',
+            !normalizedHolderName ? 'holderName' : '',
+        ].filter(Boolean);
+        if (missingFields.length > 0)
+            return NextResponse.json(
+                { error: `Provider payment method details are incomplete: missing ${missingFields.join(', ')}` },
                 { status: 400 }
             );
 
         const txRef = buildTxRef(withdrawal.id);
-        const callbackUrl = appBaseUrl ? `${appBaseUrl}/api/payout/chapa-callback` : undefined;
+        const storedBankCode = normalizeText(paymentMethod.method_code);
+        const swiftCode = normalizeText(paymentMethod.swiftCode);
+        if (!storedBankCode && !swiftCode)
+            return NextResponse.json(
+                { error: 'Provider method_code is missing. Store numeric Chapa bank id in method_code (or swiftCode as fallback).' },
+                { status: 400 }
+            );
+        const resolvedBank = await resolveNumericBankCode({
+            chapaSecretKey,
+            storedBankCode,
+            swiftCode,
+            bankName: normalizedBankName,
+        });
+        const bankCode = resolvedBank.bankCode;
+        const chapaBank = resolvedBank.bank;
+        if (!isDigitsOnly(normalizedAccountNumber))
+            return NextResponse.json(
+                { error: 'Account number must contain only digits for bank transfer.' },
+                { status: 400 }
+            );
+        if (typeof chapaBank?.acct_length === 'number' && chapaBank.acct_length > 0 && normalizedAccountNumber.length !== chapaBank.acct_length)
+            return NextResponse.json(
+                {
+                    error: `Invalid account number length for ${chapaBank.name || normalizedBankName}. Expected ${chapaBank.acct_length} digits, got ${normalizedAccountNumber.length}.`,
+                },
+                { status: 400 }
+            );
 
         const payload = {
+            account_name: normalizedHolderName,
+            account_number: normalizedAccountNumber,
+            bank_code: bankCode,
             amount: withdrawal.amount,
             currency: 'ETB',
-            email: provider?.email || 'payout@zemenservice.com',
-            first_name: provider?.firstName || bank.holderName || 'Provider',
-            last_name: provider?.lastName || '',
-            tx_ref: txRef,
-            callback_url: callbackUrl,
-            customization: {
-                title: 'Withdrawal',
-                description: `Payout ${withdrawal.id}`.slice(0, 50),
-            },
-            meta: {
-                withdrawal_id: withdrawal.id,
-                provider_id: withdrawal.providerId,
-                bank_name: bank.bankName,
-                account_number: bank.accountNumber,
-                account_name: bank.holderName,
-                swift_code: bank.swiftCode || '',
-                branch_city: bank.branchCity || '',
-                branch_country: bank.branchCountry || '',
-            },
+            reference: txRef,
+            webhook_url: webhookUrl,
         };
 
-        const chapaResponse = await fetch('https://api.chapa.co/v1/transaction/initialize', {
+        const chapaResponse = await fetch('https://api.chapa.co/v1/transfers', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -197,18 +344,24 @@ export async function POST(request: Request) {
         const chapaData = (await chapaResponse.json()) as {
             status?: string;
             message?: string;
-            data?: { checkout_url?: string };
+            data?: {
+                transfer_id?: string;
+                reference?: string;
+                status?: string;
+            };
         };
 
         if (!chapaResponse.ok || chapaData.status !== 'success') {
-            const message = toErrorMessage(chapaData.message, 'Failed to initialize Chapa transfer');
+            const message = toErrorMessage(chapaData.message, 'Failed to create Chapa transfer');
             return NextResponse.json(
                 { error: message, details: chapaData },
                 { status: 400 }
             );
         }
 
-        const notePart = `Chapa initialized. tx_ref=${txRef}`;
+        const transferReference = chapaData.data?.reference || txRef;
+        const transferId = chapaData.data?.transfer_id || '';
+        const notePart = `Chapa transfer sent. reference=${transferReference}${transferId ? ` transfer_id=${transferId}` : ''}`;
         const updatedAdminNote = withdrawal.adminNote
             ? `${withdrawal.adminNote}\n${notePart}`
             : notePart;
@@ -226,9 +379,18 @@ export async function POST(request: Request) {
 
         return NextResponse.json({
             status: 'success',
-            tx_ref: txRef,
-            checkout_url: chapaData.data?.checkout_url || null,
-            message: 'Chapa payout initialized',
+            tx_ref: transferReference,
+            transfer_id: transferId,
+            message: 'Chapa payout transfer initiated. Waiting webhook confirmation.',
+            source: {
+                account: 'Platform Chapa Account',
+            },
+            destination: {
+                provider_name: normalizedHolderName,
+                bank_name: normalizedBankName,
+                account_number: normalizedAccountNumber,
+            },
+            amount: withdrawal.amount,
         });
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unexpected payout error';

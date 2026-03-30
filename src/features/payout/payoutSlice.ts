@@ -13,6 +13,7 @@ export interface PayoutRequest {
     paymentDate?: string;
     bankDetails?: {
         bankName?: string;
+        bankCode?: string;
         accountNumber?: string;
         holderName?: string;
         swiftCode?: string;
@@ -27,7 +28,6 @@ interface PayoutRequestState {
     error: string | null;
     bookingPayoutStatus: Record<string, boolean>;
     bookingPayoutLoading: boolean;
-    chapaCheckoutUrlById: Record<string, string>;
 }
 
 const initialState: PayoutRequestState = {
@@ -36,7 +36,6 @@ const initialState: PayoutRequestState = {
     error: null,
     bookingPayoutStatus: {},
     bookingPayoutLoading: false,
-    chapaCheckoutUrlById: {},
 };
 
 interface BookingPaymentRow {
@@ -84,14 +83,32 @@ function normalizePaymentStatus(value?: string): 'pending' | 'approved' | 'rejec
 }
 
 type BankDetailsRow = {
-    providerID: string;
+    providerID?: string;
     bankName?: string;
+    bankCode?: string;
     accountNumber?: string;
     holderName?: string;
     swiftCode?: string;
     branchCity?: string;
     branchCountry?: string;
 };
+
+interface ProviderPaymentMethodRow {
+    id: string;
+    providerID: string;
+    method_type?: string;
+    method_code?: string;
+    method_name?: string;
+    holderName?: string;
+    accountNumber?: string;
+    swiftCode?: string;
+    bankName?: string;
+    branchCity?: string;
+    branchCountry?: string;
+    is_active?: boolean;
+    is_default?: boolean;
+    currency?: string;
+}
 
 function toErrorMessage(value: unknown, fallback: string): string {
     if (typeof value === 'string' && value.trim())
@@ -106,6 +123,67 @@ function toErrorMessage(value: unknown, fallback: string): string {
     return fallback;
 }
 
+function normalizeProviderId(value: string | undefined): string {
+    return (value || '').trim();
+}
+
+function toBankDetails(bank: BankDetailsRow): PayoutRequest['bankDetails'] {
+    return {
+        bankName: bank.bankName,
+        bankCode: bank.bankCode,
+        accountNumber: bank.accountNumber,
+        holderName: bank.holderName,
+        swiftCode: bank.swiftCode,
+        branchCity: bank.branchCity,
+        branchCountry: bank.branchCountry,
+    };
+}
+
+function addBankToMap(
+    bankMap: Record<string, PayoutRequest['bankDetails']>,
+    bank: BankDetailsRow
+): void {
+    const details = toBankDetails(bank);
+    const keys = [normalizeProviderId(bank.providerID)].filter(Boolean);
+    keys.forEach((key) => {
+        bankMap[key] = details;
+    });
+}
+
+function toBankDetailsFromPaymentMethod(method: ProviderPaymentMethodRow): BankDetailsRow {
+    return {
+        providerID: method.providerID,
+        bankName: method.bankName || method.method_name,
+        bankCode: method.method_code,
+        accountNumber: method.accountNumber,
+        holderName: method.holderName,
+        swiftCode: method.swiftCode,
+        branchCity: method.branchCity,
+        branchCountry: method.branchCountry,
+    };
+}
+
+// Provider payment methods are fetched from a server endpoint
+// to avoid client-side RLS restrictions.
+
+async function fetchPaymentMethodsByProviderIds(providerIds: string[]): Promise<Record<string, BankDetailsRow | null>> {
+    const response = await fetch('/api/payout/provider-payment-methods', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ providerIds }),
+    });
+
+    const payload = (await response.json()) as {
+        error?: unknown;
+        data?: Record<string, BankDetailsRow | null>;
+    };
+
+    if (!response.ok)
+        throw new Error(toErrorMessage(payload.error, 'Failed to fetch provider payment methods'));
+
+    return payload.data || {};
+}
+
 const normalizeRows = (
     rows: WithdrawalHistoryRow[] | null | undefined,
     providerMap: Record<string, string>,
@@ -113,15 +191,15 @@ const normalizeRows = (
 ): PayoutRequest[] =>
     (rows ?? []).map((row) => ({
         id: row.id,
-        providerId: row.providerId,
-        provider_name: providerMap[row.providerId] || 'Unknown Provider',
+        providerId: normalizeProviderId(row.providerId),
+        provider_name: providerMap[normalizeProviderId(row.providerId)] || 'Unknown Provider',
         note: row.note,
         adminNote: row.adminNote,
         amount: row.amount,
         paymentStatus: normalizePaymentStatus(row.paymentStatus),
         createdDate: row.createdDate,
         paymentDate: row.paymentDate,
-        bankDetails: bankMap[row.providerId] || null,
+        bankDetails: bankMap[normalizeProviderId(row.providerId)] || null,
     }));
 
 export const fetchPayoutRequests = createAsyncThunk<
@@ -141,7 +219,7 @@ export const fetchPayoutRequests = createAsyncThunk<
             if (withdrawalError) throw withdrawalError;
 
             // Get unique provider IDs
-            const providerIds = [...new Set((withdrawalData || []).map((row: WithdrawalHistoryRow) => row.providerId).filter(Boolean))];
+            const providerIds = [...new Set((withdrawalData || []).map((row: WithdrawalHistoryRow) => normalizeProviderId(row.providerId)).filter(Boolean))];
             
             // Fetch provider info using providerId == id from providers table
             const providerMap: Record<string, string> = {};
@@ -157,27 +235,15 @@ export const fetchPayoutRequests = createAsyncThunk<
                         const first = provider.firstName;
                         const last = provider.lastName;
                         const full = [first, last].filter(Boolean).join(' ');
-                        providerMap[provider.id] = full || 'Unknown Provider';
+                        providerMap[normalizeProviderId(provider.id)] = full || 'Unknown Provider';
                     });
                 }
 
-                const { data: banks, error: bankError } = await supabase
-                    .from('bank_details')
-                    .select('providerID, bankName, accountNumber, holderName, swiftCode, branchCity, branchCountry')
-                    .in('providerID', providerIds);
-
-                if (!bankError && banks) {
-                    (banks as BankDetailsRow[]).forEach((bank) => {
-                        bankMap[bank.providerID] = {
-                            bankName: bank.bankName,
-                            accountNumber: bank.accountNumber,
-                            holderName: bank.holderName,
-                            swiftCode: bank.swiftCode,
-                            branchCity: bank.branchCity,
-                            branchCountry: bank.branchCountry,
-                        };
-                    });
-                }
+                const methodsByProviderId = await fetchPaymentMethodsByProviderIds(providerIds);
+                Object.entries(methodsByProviderId).forEach(([providerId, method]) => {
+                    if (!method) return;
+                    addBankToMap(bankMap, { ...method, providerID: providerId });
+                });
             }
 
             return normalizeRows(withdrawalData as WithdrawalHistoryRow[], providerMap, bankMap);
@@ -231,22 +297,14 @@ export const approvePayoutRequest = createAsyncThunk<
                 }
 
                 const { data: bank, error: bankError } = await supabase
-                    .from('bank_details')
-                    .select('providerID, bankName, accountNumber, holderName, swiftCode, branchCity, branchCountry')
+                    .from('provider_payment_methods')
+                    .select('*')
                     .eq('providerID', data.providerId)
+                    .eq('is_active', true)
+                    .order('is_default', { ascending: false })
+                    .order('updated_at', { ascending: false })
                     .maybeSingle();
-
-                if (!bankError && bank) {
-                    const bankRow = bank as BankDetailsRow;
-                    bankMap[bankRow.providerID] = {
-                        bankName: bankRow.bankName,
-                        accountNumber: bankRow.accountNumber,
-                        holderName: bankRow.holderName,
-                        swiftCode: bankRow.swiftCode,
-                        branchCity: bankRow.branchCity,
-                        branchCountry: bankRow.branchCountry,
-                    };
-                }
+                if (!bankError && bank) addBankToMap(bankMap, toBankDetailsFromPaymentMethod(bank as ProviderPaymentMethodRow));
             }
 
             return normalizeRows([data as WithdrawalHistoryRow], providerMap, bankMap)[0];
@@ -299,22 +357,14 @@ export const rejectPayoutRequest = createAsyncThunk<
                 }
 
                 const { data: bank, error: bankError } = await supabase
-                    .from('bank_details')
-                    .select('providerID, bankName, accountNumber, holderName, swiftCode, branchCity, branchCountry')
+                    .from('provider_payment_methods')
+                    .select('*')
                     .eq('providerID', data.providerId)
+                    .eq('is_active', true)
+                    .order('is_default', { ascending: false })
+                    .order('updated_at', { ascending: false })
                     .maybeSingle();
-
-                if (!bankError && bank) {
-                    const bankRow = bank as BankDetailsRow;
-                    bankMap[bankRow.providerID] = {
-                        bankName: bankRow.bankName,
-                        accountNumber: bankRow.accountNumber,
-                        holderName: bankRow.holderName,
-                        swiftCode: bankRow.swiftCode,
-                        branchCity: bankRow.branchCity,
-                        branchCountry: bankRow.branchCountry,
-                    };
-                }
+                if (!bankError && bank) addBankToMap(bankMap, toBankDetailsFromPaymentMethod(bank as ProviderPaymentMethodRow));
             }
 
             return normalizeRows([data as WithdrawalHistoryRow], providerMap, bankMap)[0];
@@ -367,22 +417,14 @@ export const completePayoutRequest = createAsyncThunk<
                 }
 
                 const { data: bank, error: bankError } = await supabase
-                    .from('bank_details')
-                    .select('providerID, bankName, accountNumber, holderName, swiftCode, branchCity, branchCountry')
+                    .from('provider_payment_methods')
+                    .select('*')
                     .eq('providerID', data.providerId)
+                    .eq('is_active', true)
+                    .order('is_default', { ascending: false })
+                    .order('updated_at', { ascending: false })
                     .maybeSingle();
-
-                if (!bankError && bank) {
-                    const bankRow = bank as BankDetailsRow;
-                    bankMap[bankRow.providerID] = {
-                        bankName: bankRow.bankName,
-                        accountNumber: bankRow.accountNumber,
-                        holderName: bankRow.holderName,
-                        swiftCode: bankRow.swiftCode,
-                        branchCity: bankRow.branchCity,
-                        branchCountry: bankRow.branchCountry,
-                    };
-                }
+                if (!bankError && bank) addBankToMap(bankMap, toBankDetailsFromPaymentMethod(bank as ProviderPaymentMethodRow));
             }
 
             return normalizeRows([data as WithdrawalHistoryRow], providerMap, bankMap)[0];
@@ -394,7 +436,17 @@ export const completePayoutRequest = createAsyncThunk<
 );
 
 export const sendPayoutViaChapa = createAsyncThunk<
-    { id: string; txRef: string; checkoutUrl: string | null },
+    {
+        id: string;
+        txRef: string;
+        transferId: string;
+        message: string;
+        sourceAccount: string;
+        destinationProviderName: string;
+        destinationBankName: string;
+        destinationAccountNumber: string;
+        amount: string;
+    },
     { id: string },
     { rejectValue: string }
 >(
@@ -410,7 +462,17 @@ export const sendPayoutViaChapa = createAsyncThunk<
             const payload = (await response.json()) as {
                 error?: unknown;
                 tx_ref?: string;
-                checkout_url?: string | null;
+                transfer_id?: string;
+                message?: string;
+                source?: {
+                    account?: string;
+                };
+                destination?: {
+                    provider_name?: string;
+                    bank_name?: string;
+                    account_number?: string;
+                };
+                amount?: string;
             };
 
             if (!response.ok)
@@ -419,7 +481,13 @@ export const sendPayoutViaChapa = createAsyncThunk<
             return {
                 id,
                 txRef: payload.tx_ref || '',
-                checkoutUrl: payload.checkout_url || null,
+                transferId: payload.transfer_id || '',
+                message: payload.message || 'Chapa payout transfer completed',
+                sourceAccount: payload.source?.account || 'Platform Chapa Account',
+                destinationProviderName: payload.destination?.provider_name || 'Provider',
+                destinationBankName: payload.destination?.bank_name || '',
+                destinationAccountNumber: payload.destination?.account_number || '',
+                amount: payload.amount || '',
             };
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to send payout via Chapa';
@@ -598,9 +666,14 @@ const payoutSlice = createSlice({
             })
             .addCase(sendPayoutViaChapa.fulfilled, (state, action) => {
                 state.loading = false;
-                if (action.payload.checkoutUrl) {
-                    state.chapaCheckoutUrlById[action.payload.id] = action.payload.checkoutUrl;
-                }
+                const index = state.requests.findIndex(req => req.id === action.payload.id);
+                if (index !== -1 && state.requests[index].paymentStatus === 'approved')
+                    state.requests[index].adminNote = [
+                        state.requests[index].adminNote,
+                        action.payload.txRef ? `Chapa transfer reference: ${action.payload.txRef}` : undefined,
+                    ]
+                        .filter(Boolean)
+                        .join('\n');
             })
             .addCase(sendPayoutViaChapa.rejected, (state, action) => {
                 state.loading = false;
