@@ -16,6 +16,7 @@ import {
     Eye
 } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { fetchVerifyDocuments, verifyDocument, rejectDocument, approveAllDocuments } from '@/features/verifyDocuments/verifyDocumentsSlice';
 
 const VerifyDocumentsPage = () => {
@@ -473,9 +474,11 @@ const VerifyDocumentsPage = () => {
                                             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 block">Document Image</label>
                                             <div className="rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
                                                 <div className="relative">
-                                                    <img
+                                                    <Image
                                                         src={selectedDocument.documentImage}
                                                         alt={selectedDocument.documentName || 'Document'}
+                                                        width={1200}
+                                                        height={900}
                                                         className="w-full h-auto max-h-96 object-contain cursor-pointer"
                                                         onClick={() => setSelectedImage(selectedDocument.documentImage || null)}
                                                     />
@@ -533,9 +536,11 @@ const VerifyDocumentsPage = () => {
                                 >
                                     <XCircle className="h-6 w-6" />
                                 </button>
-                                <img
+                                <Image
                                     src={selectedImage}
                                     alt="Document Preview"
+                                    width={1600}
+                                    height={1200}
                                     className="max-w-full max-h-[95vh] rounded-xl shadow-2xl object-contain"
                                     onClick={(e) => e.stopPropagation()}
                                 />

@@ -34,7 +34,6 @@ const StatusBadge = ({ status }: { status?: string }) => {
 };
 
 const DetailModal: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
-    const dispatch = useAppDispatch();
     const { single, loading } = useAppSelector((s) => s.bookedService);
 
     if (!open) return null;

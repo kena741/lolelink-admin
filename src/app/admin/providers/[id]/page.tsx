@@ -20,6 +20,7 @@ import type { RootState } from '@/store/store';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import Image from 'next/image';
 
 export default function ProviderDetailPage() {
     const params = useParams();
@@ -456,8 +457,7 @@ export default function ProviderDetailPage() {
                                                                     ?? s.image_url
                                                                     ?? undefined;
                                                                 return primary ? (
-                                                                    // eslint-disable-next-line @next/next/no-img-element
-                                                                    <img src={primary} alt={s.serviceName || s.name || 'Service'} className="h-36 w-full object-cover" />
+                                                                    <Image src={primary} alt={s.serviceName || s.name || 'Service'} width={640} height={144} className="h-36 w-full object-cover" />
                                                                 ) : (
                                                                     <div className="h-36 w-full bg-gray-200" />
                                                                 );
@@ -469,8 +469,7 @@ export default function ProviderDetailPage() {
                                                         {s.images && s.images.length > 1 && (
                                                             <div className="flex gap-2 mt-3">
                                                                 {s.images.slice(1, 5).map((img, idx) => (
-                                                                    // eslint-disable-next-line @next/next/no-img-element
-                                                                    <img key={idx} src={img} alt={`thumb-${idx}`} className="h-10 w-10 rounded object-cover border" />
+                                                                    <Image key={idx} src={img} alt={`thumb-${idx}`} width={40} height={40} className="h-10 w-10 rounded object-cover border" />
                                                                 ))}
                                                             </div>
                                                         )}
@@ -506,9 +505,11 @@ export default function ProviderDetailPage() {
                                                         </div>
                                                         {doc.documentImage && (
                                                             <div className="mt-3 relative">
-                                                                <img 
-                                                                    src={doc.documentImage} 
+                                                                <Image
+                                                                    src={doc.documentImage}
                                                                     alt={doc.documentName || 'Document'}
+                                                                    width={640}
+                                                                    height={128}
                                                                     className="w-full h-32 object-cover rounded cursor-pointer hover:opacity-80"
                                                                     onClick={() => setSelectedDocument(doc.documentImage || null)}
                                                                 />
@@ -599,7 +600,7 @@ export default function ProviderDetailPage() {
                                                                 <td className="px-6 py-4">
                                                                     <div className="flex items-center gap-2">
                                                                         {handyman.profileImage ? (
-                                                                            <img src={handyman.profileImage} alt={`${handyman.firstName} ${handyman.lastName}`} className="w-8 h-8 rounded-full object-cover" />
+                                                                            <Image src={handyman.profileImage} alt={`${handyman.firstName} ${handyman.lastName}`} width={32} height={32} className="w-8 h-8 rounded-full object-cover" />
                                                                         ) : (
                                                                             <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center">
                                                                                 <Wrench className="h-4 w-4 text-indigo-600" />
@@ -833,7 +834,7 @@ export default function ProviderDetailPage() {
                                         <DialogTitle>Document Image</DialogTitle>
                                     </DialogHeader>
                                     <div className="p-4">
-                                        <img src={selectedDocument} alt="Document" className="w-full h-auto rounded-lg" />
+                                        <Image src={selectedDocument} alt="Document" width={1200} height={800} className="w-full h-auto rounded-lg" />
                                     </div>
                                     <DialogFooter>
                                         <Button onClick={() => setSelectedDocument(null)}>Close</Button>

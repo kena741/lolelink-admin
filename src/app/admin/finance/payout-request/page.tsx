@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import Sidebar from '@/components/Sidebar';
 import AuthGuard from '@/components/AuthGuard';
@@ -14,10 +14,10 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { fetchPayoutRequests, approvePayoutRequest, rejectPayoutRequest, completePayoutRequest, sendPayoutViaChapa, PayoutRequest } from '@/features/payout/payoutSlice';
+import { fetchPayoutRequests, approvePayoutRequest, rejectPayoutRequest, sendPayoutViaChapa, PayoutRequest } from '@/features/payout/payoutSlice';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
-const PayoutRequestPage = () => {
+function PayoutRequestPageContent() {
     const dispatch = useAppDispatch();
     const searchParams = useSearchParams();
     const { requests, loading, error } = useAppSelector((state) => state.payout);
@@ -61,18 +61,6 @@ const PayoutRequestPage = () => {
             dispatch(fetchPayoutRequests());
         } catch (err) {
             console.error('Failed to reject payout:', err);
-        } finally {
-            setProcessingId(null);
-        }
-    };
-
-    const handleMarkPaid = async (id: string) => {
-        setProcessingId(id);
-        try {
-            await dispatch(completePayoutRequest({ id })).unwrap();
-            dispatch(fetchPayoutRequests());
-        } catch (err) {
-            console.error('Failed to mark payout as paid:', err);
         } finally {
             setProcessingId(null);
         }
@@ -747,6 +735,14 @@ const PayoutRequestPage = () => {
                 </main>
             </div>
         </AuthGuard>
+    );
+}
+
+const PayoutRequestPage = () => {
+    return (
+        <Suspense fallback={<div className="min-h-screen bg-gradient-to-br from-gray-50 via-indigo-50/30 to-purple-50/30" />}>
+            <PayoutRequestPageContent />
+        </Suspense>
     );
 };
 

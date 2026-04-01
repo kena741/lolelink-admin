@@ -17,6 +17,7 @@ import {
     Image as ImageIcon
 } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { fetchCategories, createCategory, updateCategory, deleteCategory } from '@/features/category/categorySlice';
 import { fetchSubCategories } from '@/features/subcategory/subcategorySlice';
 import { uploadFilesToSupabase } from '@/lib/upload';
@@ -236,9 +237,11 @@ const CategoriesPage = () => {
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         {category.image ? (
                                                             <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100">
-                                                                <img
+                                                                <Image
                                                                     src={category.image}
                                                                     alt={category.categoryName}
+                                                                    width={48}
+                                                                    height={48}
                                                                     className="w-full h-full object-cover"
                                                                 />
                                                             </div>
@@ -381,9 +384,11 @@ const CategoriesPage = () => {
                                         </label>
                                         {imagePreview && (
                                             <div className="mb-3 relative">
-                                                <img
+                                                <Image
                                                     src={imagePreview}
                                                     alt="Preview"
+                                                    width={800}
+                                                    height={192}
                                                     className="w-full h-48 object-cover rounded-lg border border-gray-200"
                                                 />
                                                 <button

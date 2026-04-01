@@ -17,6 +17,7 @@ import {
     MapPin
 } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { fetchHandymen, createHandyman, updateHandyman, deleteHandyman } from '@/features/handyman/handymanSlice';
 
 const HandymanPage = () => {
@@ -259,9 +260,11 @@ const HandymanPage = () => {
                                                         <td className="px-6 py-4">
                                                             <div className="flex items-center gap-2">
                                                                 {handyman.profileImage ? (
-                                                                    <img 
-                                                                        src={handyman.profileImage} 
+                                                                    <Image
+                                                                        src={handyman.profileImage}
                                                                         alt={`${handyman.firstName} ${handyman.lastName}`}
+                                                                        width={32}
+                                                                        height={32}
                                                                         className="w-8 h-8 rounded-full object-cover"
                                                                     />
                                                                 ) : (

@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { supabase } from '@/lib/supabaseClient';
 import { fetchProviders, ProviderState } from '@/features/provider/providerSlice';
@@ -99,7 +99,7 @@ function isRejectedBooking(value: BookedServiceRow): boolean {
     return normalized.includes('rejected') || normalized.includes('cancelled') || normalized.includes('canceled');
 }
 
-const Dashboard = () => {
+function DashboardContent() {
     const dispatch: AppDispatch = useDispatch();
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -134,7 +134,7 @@ const Dashboard = () => {
     })();
     const [dashboardRange, setDashboardRange] = useState<DashboardRange>(initialRange);
 
-    function isDateInRange(dateString?: string | null): boolean {
+    const isDateInRange = useCallback((dateString?: string | null): boolean => {
         if (dashboardRange === 'all') return true;
         if (!dateString) return false;
         const date = new Date(dateString);
@@ -151,7 +151,7 @@ const Dashboard = () => {
         const from = new Date();
         from.setDate(now.getDate() - days);
         return date >= from;
-    }
+    }, [dashboardRange]);
 
     useEffect(() => {
         const next = new URLSearchParams(searchParams.toString());
@@ -175,9 +175,6 @@ const Dashboard = () => {
 
                 const bookingRows = bookings as BookedServiceRow[];
                 const rangedBookingRows = bookingRows.filter((booking) => isDateInRange(booking.createdAt));
-                const completedPaidBookings = bookingRows.filter((booking) => {
-                    return isCompletedBooking(booking) && isCustomerPaymentDone(booking);
-                });
                 const rangedCompletedPaidBookings = rangedBookingRows.filter((booking) => {
                     return isCompletedBooking(booking) && isCustomerPaymentDone(booking);
                 });
@@ -362,7 +359,7 @@ const Dashboard = () => {
             setCountsLoading(false);
         };
         fetchAnalyticsAndLists();
-    }, [dispatch, dashboardRange]);
+    }, [dispatch, dashboardRange, isDateInRange]);
 
     const isLoading = providersLoading || countsLoading;
 
@@ -826,6 +823,14 @@ const Dashboard = () => {
                 </main>
             </div>
         </AuthGuard>
+    );
+}
+
+const Dashboard = () => {
+    return (
+        <Suspense fallback={<div className="min-h-screen bg-gradient-to-br from-gray-50 via-indigo-50/30 to-purple-50/30" />}>
+            <DashboardContent />
+        </Suspense>
     );
 };
 
