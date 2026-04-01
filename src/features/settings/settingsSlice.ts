@@ -56,27 +56,9 @@ const initialState: SettingsState = {
     error: null,
 };
 
-interface LegacySettingsRow {
+interface AppSettingsRow {
     id?: string;
-    appColor?: string;
-    appName?: string;
-    appVersion?: string;
-    extraCharge_GST?: boolean;
-    googleMapKey?: string;
-    minimum_amount_deposit?: string;
-    minimum_amount_withdraw?: string;
-    notification_server_key?: string;
-    phoneNumber?: string;
-    radius?: string;
-    referralAmount?: string;
-    supportEmail?: string;
-    supportURL?: string;
-    aboutApp?: string;
-    privacyPolicy?: string;
-    termsAndConditions?: string;
-    chapa?: unknown;
-    telebirr?: unknown;
-    wallet?: unknown;
+    data?: unknown;
 }
 
 function parseObjectValue(value: unknown): Record<string, unknown> {
@@ -91,6 +73,14 @@ function parseObjectValue(value: unknown): Record<string, unknown> {
     }
     if (typeof value === 'object') return value as Record<string, unknown>;
     return {};
+}
+
+function readString(value: unknown): string | undefined {
+    return typeof value === 'string' ? value : undefined;
+}
+
+function readBoolean(value: unknown): boolean | undefined {
+    return typeof value === 'boolean' ? value : undefined;
 }
 
 function normalizePaymentSettingsForStorage(settings?: PaymentSettings): PaymentSettings | undefined {
@@ -150,93 +140,40 @@ export const fetchSettings = createAsyncThunk<
     'settings/fetchSettings',
     async (_, { rejectWithValue }) => {
         try {
-            // Try to fetch settings - handle case where table might be empty or have multiple rows
-            let data: LegacySettingsRow[] = [];
-            let error: { message?: string } | null = null;
-            
-            try {
-                const result = await supabase
-                    .from('settings')
-                    .select('*')
-                    .limit(1);
-                data = (result.data as LegacySettingsRow[] | null) ?? [];
-                error = result.error as { message?: string } | null;
-            } catch (e) {
-                // If legacy settings table fails, continue with defaults + app_settings payment
-                console.warn('Settings table not accessible, falling back to defaults:', e);
-            }
-
-            if (error) {
-                // If legacy settings table has RLS or schema issues, continue to app_settings payment
-                console.warn('Settings fetch error (continuing with defaults):', error.message || error);
-            }
-
-            const settingsData: LegacySettingsRow = data?.[0] ?? {};
+            const { data: appRootSettingsData } = await supabase
+                .from('app_settings')
+                .select('id, data')
+                .eq('id', 'settings')
+                .maybeSingle();
+            const rootSettings = parseObjectValue((appRootSettingsData as AppSettingsRow | null)?.data);
 
             // Parse settings from database
             const appSettings: AppSettings = {
-                appColor: settingsData.appColor,
-                appName: settingsData.appName,
-                appVersion: settingsData.appVersion,
-                extraCharge_GST: settingsData.extraCharge_GST,
-                googleMapKey: settingsData.googleMapKey,
-                minimum_amount_deposit: settingsData.minimum_amount_deposit,
-                minimum_amount_withdraw: settingsData.minimum_amount_withdraw,
+                appColor: readString(rootSettings.appColor),
+                appName: readString(rootSettings.appName),
+                appVersion: readString(rootSettings.appVersion),
+                extraCharge_GST: readBoolean(rootSettings.extraCharge_GST),
+                googleMapKey: readString(rootSettings.googleMapKey),
+                minimum_amount_deposit: readString(rootSettings.minimum_amount_deposit),
+                minimum_amount_withdraw: readString(rootSettings.minimum_amount_withdraw),
             };
 
             const generalSettings: GeneralSettings = {
-                notification_server_key: settingsData.notification_server_key,
-                phoneNumber: settingsData.phoneNumber,
-                radius: settingsData.radius,
-                referralAmount: settingsData.referralAmount,
-                supportEmail: settingsData.supportEmail,
-                supportURL: settingsData.supportURL,
+                notification_server_key: readString(rootSettings.notification_server_key),
+                phoneNumber: readString(rootSettings.phoneNumber),
+                radius: readString(rootSettings.radius),
+                referralAmount: readString(rootSettings.referralAmount),
+                supportEmail: readString(rootSettings.supportEmail),
+                supportURL: readString(rootSettings.supportURL),
             };
 
             const policySettings: PolicySettings = {
-                aboutApp: settingsData.aboutApp,
-                privacyPolicy: settingsData.privacyPolicy,
-                termsAndConditions: settingsData.termsAndConditions,
+                aboutApp: readString(rootSettings.aboutApp),
+                privacyPolicy: readString(rootSettings.privacyPolicy),
+                termsAndConditions: readString(rootSettings.termsAndConditions),
             };
 
-            // Only include chapa, telebirr, and wallet (legacy source from settings table)
             const paymentSettings: PaymentSettings = {};
-            if (settingsData.chapa) {
-                try {
-                    const parsed = typeof settingsData.chapa === 'string' ? JSON.parse(settingsData.chapa) : settingsData.chapa;
-                    const chapaSettings = toChapaSettings(parsed);
-                    if (chapaSettings)
-                        paymentSettings.chapa = chapaSettings;
-                } catch {
-                    const chapaSettings = toChapaSettings(settingsData.chapa);
-                    if (chapaSettings)
-                        paymentSettings.chapa = chapaSettings;
-                }
-            }
-            if (settingsData.telebirr) {
-                try {
-                    const parsed = typeof settingsData.telebirr === 'string' ? JSON.parse(settingsData.telebirr) : settingsData.telebirr;
-                    const telebirrSettings = toTelebirrSettings(parsed);
-                    if (telebirrSettings)
-                        paymentSettings.telebirr = telebirrSettings;
-                } catch {
-                    const telebirrSettings = toTelebirrSettings(settingsData.telebirr);
-                    if (telebirrSettings)
-                        paymentSettings.telebirr = telebirrSettings;
-                }
-            }
-            if (settingsData.wallet) {
-                try {
-                    const parsed = typeof settingsData.wallet === 'string' ? JSON.parse(settingsData.wallet) : settingsData.wallet;
-                    const walletSettings = toWalletSettings(parsed);
-                    if (walletSettings)
-                        paymentSettings.wallet = walletSettings;
-                } catch {
-                    const walletSettings = toWalletSettings(settingsData.wallet);
-                    if (walletSettings)
-                        paymentSettings.wallet = walletSettings;
-                }
-            }
 
             // Primary source for payment settings is app_settings(id='payment')
             const { data: appPaymentData } = await supabase
@@ -333,8 +270,8 @@ export const updateSettings = createAsyncThunk<
                 }
             }
 
-            const hasSettingsTableFields = Object.keys(updateData).length > 0;
-            if (!hasSettingsTableFields) {
+            const hasRootSettingsFields = Object.keys(updateData).length > 0;
+            if (!hasRootSettingsFields) {
                 const paymentSettings: PaymentSettings = normalizePaymentSettingsForStorage(updates.paymentSettings) || {};
                 return {
                     appSettings: {},
@@ -344,101 +281,57 @@ export const updateSettings = createAsyncThunk<
                 };
             }
 
-            // Try to update existing row first, if no rows exist, insert
-            let existingData;
-            try {
-                const existingResult = await supabase
-                    .from('settings')
-                    .select('id')
-                    .limit(1);
-                existingData = existingResult.data?.[0];
-            } catch (e) {
-                // Table might not exist, will try to insert
-                console.warn('Could not check existing settings:', e);
-            }
-
-            let result;
-            if (existingData?.id) {
-                // Update existing row
-                const { data, error } = await supabase
-                    .from('settings')
-                    .update(updateData)
-                    .eq('id', existingData.id)
-                    .select()
-                    .limit(1);
-                
-                if (error) {
-                    console.error('Error updating settings:', error);
-                    throw error;
-                }
-                result = data?.[0];
-            } else {
-                // Insert new row
-                const { data, error } = await supabase
-                    .from('settings')
-                    .insert(updateData)
-                    .select()
-                    .limit(1);
-                
-                if (error) {
-                    console.error('Error inserting settings:', error);
-                    throw error;
-                }
-                result = data?.[0];
-            }
-
-            if (!result) {
-                throw new Error('Failed to save settings');
+            const { data: existingRootSettingsData } = await supabase
+                .from('app_settings')
+                .select('id, data')
+                .eq('id', 'settings')
+                .maybeSingle();
+            const existingRootData = parseObjectValue((existingRootSettingsData as AppSettingsRow | null)?.data);
+            const nextRootData = {
+                ...existingRootData,
+                ...updateData,
+            };
+            const { error: rootSettingsError } = await supabase
+                .from('app_settings')
+                .upsert(
+                    {
+                        id: 'settings',
+                        data: nextRootData,
+                    },
+                    { onConflict: 'id' }
+                );
+            if (rootSettingsError) {
+                console.error('Error updating app_settings root settings:', rootSettingsError);
+                throw rootSettingsError;
             }
 
             // Return updated settings in same format as fetchSettings
             const appSettings: AppSettings = {
-                appColor: result.appColor,
-                appName: result.appName,
-                appVersion: result.appVersion,
-                extraCharge_GST: result.extraCharge_GST,
-                googleMapKey: result.googleMapKey,
-                minimum_amount_deposit: result.minimum_amount_deposit,
-                minimum_amount_withdraw: result.minimum_amount_withdraw,
+                appColor: readString(nextRootData.appColor),
+                appName: readString(nextRootData.appName),
+                appVersion: readString(nextRootData.appVersion),
+                extraCharge_GST: readBoolean(nextRootData.extraCharge_GST),
+                googleMapKey: readString(nextRootData.googleMapKey),
+                minimum_amount_deposit: readString(nextRootData.minimum_amount_deposit),
+                minimum_amount_withdraw: readString(nextRootData.minimum_amount_withdraw),
             };
 
             const generalSettings: GeneralSettings = {
-                notification_server_key: result.notification_server_key,
-                phoneNumber: result.phoneNumber,
-                radius: result.radius,
-                referralAmount: result.referralAmount,
-                supportEmail: result.supportEmail,
-                supportURL: result.supportURL,
+                notification_server_key: readString(nextRootData.notification_server_key),
+                phoneNumber: readString(nextRootData.phoneNumber),
+                radius: readString(nextRootData.radius),
+                referralAmount: readString(nextRootData.referralAmount),
+                supportEmail: readString(nextRootData.supportEmail),
+                supportURL: readString(nextRootData.supportURL),
             };
 
             const policySettings: PolicySettings = {
-                aboutApp: result.aboutApp,
-                privacyPolicy: result.privacyPolicy,
-                termsAndConditions: result.termsAndConditions,
+                aboutApp: readString(nextRootData.aboutApp),
+                privacyPolicy: readString(nextRootData.privacyPolicy),
+                termsAndConditions: readString(nextRootData.termsAndConditions),
             };
 
-            const paymentSettings: PaymentSettings = updates.paymentSettings || {};
-            if (result.chapa) {
-                try {
-                    paymentSettings.chapa = typeof result.chapa === 'string' ? JSON.parse(result.chapa) : result.chapa;
-                } catch {
-                    paymentSettings.chapa = result.chapa;
-                }
-            }
-            if (result.telebirr) {
-                try {
-                    paymentSettings.telebirr = typeof result.telebirr === 'string' ? JSON.parse(result.telebirr) : result.telebirr;
-                } catch {
-                    paymentSettings.telebirr = result.telebirr;
-                }
-            }
-            if (result.wallet) {
-                try {
-                    paymentSettings.wallet = typeof result.wallet === 'string' ? JSON.parse(result.wallet) : result.wallet;
-                } catch {
-                    paymentSettings.wallet = result.wallet;
-                }
-            }
+            const paymentSettings: PaymentSettings = normalizePaymentSettingsForStorage(updates.paymentSettings) || {};
 
             return {
                 appSettings,
