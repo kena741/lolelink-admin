@@ -23,7 +23,9 @@ export interface ServiceSchema {
   prePayment?: boolean;
   duration?: string;
   categoryId?: string;
+  categoryModel?: Record<string, unknown> | null;
   subCategoryId?: string;
+  subCategoryModel?: Record<string, unknown> | null;
   address?: string;
   video?: string | null;
   active?: boolean | null;
@@ -40,6 +42,10 @@ export interface ServiceSchema {
     };
   };
   likedUser?: string[] | null;
+  liked_users?: string[] | null;
   reviewCount?: number | null;
   reviewSum?: number | null;
+  isArchived?: boolean;
+  feature_requested_at?: string;
+  feature_requested_status?: string;
 }

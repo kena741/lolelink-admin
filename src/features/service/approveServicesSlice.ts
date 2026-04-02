@@ -101,6 +101,105 @@ export const approveServiceById = createAsyncThunk<number, string, { rejectValue
     }
 );
 
+export const approveFeatureRequestById = createAsyncThunk<number, string, { rejectValue: string }>(
+    'service/approveFeatureRequestById',
+    async (serviceId, thunkAPI) => {
+        try {
+            if (!serviceId) return thunkAPI.rejectWithValue('Missing service id');
+
+            const payload = {
+                feature: true,
+                feature_requested_status: 'accepted',
+            };
+
+            const tryUpdate = async (tableName: string) => {
+                const { error } = await supabase
+                    .from(tableName)
+                    .update(payload)
+                    .eq('id', serviceId);
+                return error;
+            };
+
+            const firstError = await tryUpdate('service');
+            if (firstError) {
+                const secondError = await tryUpdate('services');
+                if (secondError) return thunkAPI.rejectWithValue(secondError.message || 'Failed to approve featured service');
+            }
+
+            return 1;
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Unexpected error';
+            return thunkAPI.rejectWithValue(msg);
+        }
+    }
+);
+
+export const rejectFeatureRequestById = createAsyncThunk<number, string, { rejectValue: string }>(
+    'service/rejectFeatureRequestById',
+    async (serviceId, thunkAPI) => {
+        try {
+            if (!serviceId) return thunkAPI.rejectWithValue('Missing service id');
+
+            const payload = {
+                feature: false,
+                feature_requested_status: 'rejected',
+            };
+
+            const tryUpdate = async (tableName: string) => {
+                const { error } = await supabase
+                    .from(tableName)
+                    .update(payload)
+                    .eq('id', serviceId);
+                return error;
+            };
+
+            const firstError = await tryUpdate('service');
+            if (firstError) {
+                const secondError = await tryUpdate('services');
+                if (secondError) return thunkAPI.rejectWithValue(secondError.message || 'Failed to reject featured service');
+            }
+
+            return 1;
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Unexpected error';
+            return thunkAPI.rejectWithValue(msg);
+        }
+    }
+);
+
+export const unfeatureServiceById = createAsyncThunk<number, string, { rejectValue: string }>(
+    'service/unfeatureServiceById',
+    async (serviceId, thunkAPI) => {
+        try {
+            if (!serviceId) return thunkAPI.rejectWithValue('Missing service id');
+
+            const payload = {
+                feature: false,
+                feature_requested_status: 'none',
+            };
+
+            const tryUpdate = async (tableName: string) => {
+                const { error } = await supabase
+                    .from(tableName)
+                    .update(payload)
+                    .eq('id', serviceId);
+                return error;
+            };
+
+            const firstError = await tryUpdate('service');
+            if (firstError) {
+                const secondError = await tryUpdate('services');
+                if (secondError) return thunkAPI.rejectWithValue(secondError.message || 'Failed to remove featured status');
+            }
+
+            return 1;
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Unexpected error';
+            return thunkAPI.rejectWithValue(msg);
+        }
+    }
+);
+
 const approveServicesSlice = createSlice({
     name: 'approveServices',
     initialState,
@@ -148,6 +247,66 @@ const approveServicesSlice = createSlice({
                 state.updatedCount = action.payload;
             })
             .addCase(approveServiceById.rejected, (state, action) => {
+                state.loading = false;
+                state.success = false;
+                state.error = action.payload as string;
+                state.updatedCount = 0;
+            });
+
+        // featured request approval handlers
+        builder
+            .addCase(approveFeatureRequestById.pending, (state) => {
+                state.loading = true;
+                state.error = null;
+                state.success = false;
+                state.updatedCount = 0;
+            })
+            .addCase(approveFeatureRequestById.fulfilled, (state, action) => {
+                state.loading = false;
+                state.success = true;
+                state.error = null;
+                state.updatedCount = action.payload;
+            })
+            .addCase(approveFeatureRequestById.rejected, (state, action) => {
+                state.loading = false;
+                state.success = false;
+                state.error = action.payload as string;
+                state.updatedCount = 0;
+            })
+            .addCase(rejectFeatureRequestById.pending, (state) => {
+                state.loading = true;
+                state.error = null;
+                state.success = false;
+                state.updatedCount = 0;
+            })
+            .addCase(rejectFeatureRequestById.fulfilled, (state, action) => {
+                state.loading = false;
+                state.success = true;
+                state.error = null;
+                state.updatedCount = action.payload;
+            })
+            .addCase(rejectFeatureRequestById.rejected, (state, action) => {
+                state.loading = false;
+                state.success = false;
+                state.error = action.payload as string;
+                state.updatedCount = 0;
+            });
+
+        // unfeature handlers
+        builder
+            .addCase(unfeatureServiceById.pending, (state) => {
+                state.loading = true;
+                state.error = null;
+                state.success = false;
+                state.updatedCount = 0;
+            })
+            .addCase(unfeatureServiceById.fulfilled, (state, action) => {
+                state.loading = false;
+                state.success = true;
+                state.error = null;
+                state.updatedCount = action.payload;
+            })
+            .addCase(unfeatureServiceById.rejected, (state, action) => {
                 state.loading = false;
                 state.success = false;
                 state.error = action.payload as string;

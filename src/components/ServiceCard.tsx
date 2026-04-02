@@ -9,9 +9,20 @@ import type { ServiceModel } from "@/features/service/editServiceSlice";
 export interface ServiceCardProps {
     service: ServiceModel;
     onView: (service: ServiceModel) => void;
+    isActionLoading?: boolean;
+    onApproveFeature?: (serviceId: string) => void | Promise<void>;
+    onRejectFeature?: (serviceId: string) => void | Promise<void>;
+    onRemoveFeatured?: (serviceId: string) => void | Promise<void>;
 }
 
-const ServiceCard: React.FC<ServiceCardProps> = ({ service, onView }) => {
+const ServiceCard: React.FC<ServiceCardProps> = ({
+    service,
+    onView,
+    isActionLoading = false,
+    onApproveFeature,
+    onRejectFeature,
+    onRemoveFeatured,
+}) => {
     const videoRef = React.useRef<HTMLVideoElement | null>(null);
     const playHoverPreview = async () => {
         const v = videoRef.current;
@@ -37,6 +48,11 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onView }) => {
             v.currentTime = 0;
         } catch { }
     };
+
+    const featureRequestStatus = service.feature_requested_status ?? null;
+    const isFeatureRequestPending = String(featureRequestStatus ?? '').toLowerCase() === "pending";
+    const isFeatured = Boolean(service.feature);
+
     return (
         <div
             className="rounded-lg border bg-gray-50 text-card-foreground shadow-sm overflow-hidden hover:shadow-md transition-shadow flex flex-col group h-full"
@@ -89,6 +105,22 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onView }) => {
                                 >
                                     {` ${service.approved ? 'Approved:' : 'Not approved'}`}
                                 </span>
+                                {isFeatured && (
+                                    <span
+                                        aria-label="Featured"
+                                        className="text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap bg-purple-100 text-purple-800"
+                                    >
+                                        Featured
+                                    </span>
+                                )}
+                                {!isFeatured && isFeatureRequestPending && (
+                                    <span
+                                        aria-label="Feature request pending"
+                                        className="text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap bg-amber-100 text-amber-700"
+                                    >
+                                        Feature requested
+                                    </span>
+                                )}
                             </div>
                         </div>
                         <div className="text-right shrink-0">
@@ -102,7 +134,38 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onView }) => {
             </div>
             {/* Action buttons outside the interactive div */}
             <div className="flex justify-between gap-2 mt-auto px-4 pb-4">
+                {isFeatureRequestPending && onApproveFeature && (
+                    <button
+                        type="button"
+                        disabled={isActionLoading}
+                        onClick={() => onApproveFeature(service.id)}
+                        className="whitespace-nowrap font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 h-9 rounded-md px-3 flex items-center justify-center gap-1 text-xs sm:text-sm"
+                    >
+                        Approve
+                    </button>
+                )}
+                {isFeatureRequestPending && onRejectFeature && (
+                    <button
+                        type="button"
+                        disabled={isActionLoading}
+                        onClick={() => onRejectFeature(service.id)}
+                        className="whitespace-nowrap font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-red-300 bg-red-50 hover:bg-red-100 text-red-800 h-9 rounded-md px-3 flex items-center justify-center gap-1 text-xs sm:text-sm"
+                    >
+                        Reject
+                    </button>
+                )}
+                {isFeatured && !isFeatureRequestPending && onRemoveFeatured && (
+                    <button
+                        type="button"
+                        disabled={isActionLoading}
+                        onClick={() => onRemoveFeatured(service.id)}
+                        className="whitespace-nowrap font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-800 h-9 rounded-md px-3 flex items-center justify-center gap-1 text-xs sm:text-sm"
+                    >
+                        Remove featured
+                    </button>
+                )}
                 <button
+                    type="button"
                     className="whitespace-nowrap font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-black bg-white hover:bg-gray-100 text-black h-9 rounded-md px-3 flex-1 flex items-center justify-center gap-1 text-xs sm:text-sm"
                     onClick={() => onView(service)}
                 >

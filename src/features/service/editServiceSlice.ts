@@ -9,6 +9,7 @@ export type ServiceModel = {
     id: string;
     provider_id?: string;
     serviceName?: string;
+    address?: string;
     categoryModel?: CategoryModel;
     categoryId?: string;
     subCategoryModel?: SubCategoryModel;
@@ -16,15 +17,35 @@ export type ServiceModel = {
     description?: string | null;
     price?: string | number;
     duration?: string;
+    slug?: string;
     serviceImage?: string[];
     discount?: string;
     type?: string;
     status?: boolean;
     prePayment?: boolean;
     feature?: boolean;
+    active?: boolean | null;
+    isArchived?: boolean;
+    likedUser?: string[] | null;
+    liked_users?: string[] | null;
+    reviewCount?: number | null;
+    reviewSum?: number | null;
+    location?: {
+        latitude: number;
+        longitude: number;
+    };
+    position?: {
+        geohash: string;
+        geopoint: {
+            latitude: number;
+            longitude: number;
+        };
+    };
     serviceLocationMode?: string;
     video?: string | null;
     approved?: boolean;
+    feature_requested_at?: string;
+    feature_requested_status?: string;
 };
 
 interface EditServiceState {
