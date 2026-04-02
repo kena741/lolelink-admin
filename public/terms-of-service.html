@@ -5,11 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Terms of Service</title>
   <style>
+    :root {
+      --primary-900: #174309;
+      --primary-700: #2a6118;
+      --primary-500: #3f8a26;
+      --primary-100: #e8f2e4;
+      --primary-050: #f4f9f2;
+    }
     body {
       font-family: "Times New Roman", serif;
       color: #222;
       margin: 0;
-      background: #fff;
+      background: var(--primary-050);
       line-height: 1.7;
     }
     .container {
@@ -20,14 +27,16 @@
     h1 {
       text-align: center;
       margin-bottom: 24px;
-      color: #070707;
+      color: var(--primary-900);
     }
     h2 {
       font-size: 20px;
       margin: 36px 0 14px;
       padding: 6px 14px;
-      border-left: 3px solid #009fec;
-      color: #333;
+      border-left: 3px solid var(--primary-500);
+      color: var(--primary-900);
+      background: #fff;
+      border-radius: 4px;
     }
     p {
       margin: 0 0 12px;
@@ -41,6 +50,17 @@
     }
     .muted {
       color: #666;
+    }
+    a {
+      color: var(--primary-700);
+    }
+    a:hover {
+      color: var(--primary-900);
+    }
+    .container {
+      background: #fff;
+      border: 1px solid #e6ece3;
+      border-radius: 12px;
     }
   </style>
 </head>
