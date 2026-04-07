@@ -22,7 +22,9 @@ import {
     FileImage,
     FileText,
     Ticket,
-    CheckSquare
+    CheckSquare,
+    Moon,
+    Sun
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import Image from 'next/image';
@@ -69,6 +71,7 @@ const financeSubItems = [
 
 const Sidebar = () => {
     const pathname = usePathname();
+    const [theme, setTheme] = useState<'light' | 'dark'>('dark');
     
     // Category sub-section (still collapsible)
     const isCategoryActive = pathname?.startsWith('/admin/categories') || pathname?.startsWith('/admin/subcategories');
@@ -90,8 +93,24 @@ const Sidebar = () => {
         }
     }, [isFinanceActive]);
 
+    React.useEffect(() => {
+        const savedTheme = localStorage.getItem('theme');
+        const initialTheme = savedTheme === 'light' || savedTheme === 'dark'
+            ? savedTheme
+            : 'dark';
+        document.documentElement.classList.toggle('dark', initialTheme === 'dark');
+        setTheme(initialTheme);
+    }, []);
+
+    const toggleTheme = () => {
+        const nextTheme = theme === 'dark' ? 'light' : 'dark';
+        setTheme(nextTheme);
+        document.documentElement.classList.toggle('dark', nextTheme === 'dark');
+        localStorage.setItem('theme', nextTheme);
+    };
+
     return (
-        <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r border-gray-200 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 flex flex-col">
+        <aside className="fixed left-0 top-0 z-40 flex h-screen w-64 flex-col border-r border-sidebar-border bg-sidebar/95 text-sidebar-foreground backdrop-blur supports-[backdrop-filter]:bg-sidebar/90">
             {/* Scrollable content */}
             <div className="flex-1 overflow-y-auto">
                 {/* Brand */}
@@ -99,15 +118,15 @@ const Sidebar = () => {
                     <Image
                         src="/logo.png"
                         alt="Zemen Service logo"
-                        width={56}
-                        height={56}
+                        width={32}
+                        height={32}
                         className="h-28 w-28 rounded-lg object-contain"
                         priority
                     />
-                    <span className="text-base font-semibold text-gray-900">Zemen Service Admin</span>
+                    <span className="text-base font-semibold text-sidebar-foreground">Zemen Service Admin</span>
                 </div>
                 <div className="px-6">
-                    <div className="h-px w-full bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
+                    <div className="h-px w-full bg-gradient-to-r from-transparent via-sidebar-border to-transparent" />
                 </div>
 
                 {/* Nav */}
@@ -119,11 +138,11 @@ const Sidebar = () => {
                                 href="/admin/dashboard"
                                 className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                                     pathname === '/admin/dashboard'
-                                        ? 'bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-200'
-                                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                                        ? 'bg-sidebar-primary text-sidebar-primary-foreground ring-1 ring-inset ring-sidebar-ring/40'
+                                        : 'text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent'
                                 }`}
                             >
-                                <LayoutDashboard className={`h-4 w-4 ${pathname === '/admin/dashboard' ? 'text-indigo-600' : 'text-gray-400 group-hover:text-gray-700'}`} />
+                                <LayoutDashboard className={`h-4 w-4 ${pathname === '/admin/dashboard' ? 'text-sidebar-primary-foreground' : 'text-muted-foreground group-hover:text-sidebar-foreground'}`} />
                                 <span>Dashboard</span>
                             </Link>
                         </li>
@@ -131,7 +150,7 @@ const Sidebar = () => {
                         {/* Works Section */}
                         <li className="pt-2">
                             <div className="px-3 py-1 mb-1">
-                                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Works</p>
+                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Works</p>
                             </div>
                             <ul className="space-y-1">
                                 {worksSubItems.map(({ href, label, icon: Icon }) => {
@@ -142,11 +161,11 @@ const Sidebar = () => {
                                                 href={href}
                                                 className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                                                     active
-                                                        ? 'bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-200'
-                                                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                                                        ? 'bg-sidebar-primary text-sidebar-primary-foreground ring-1 ring-inset ring-sidebar-ring/40'
+                                                        : 'text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent'
                                                 }`}
                                             >
-                                                <Icon className={`h-4 w-4 ${active ? 'text-indigo-600' : 'text-gray-400 group-hover:text-gray-700'}`} />
+                                                <Icon className={`h-4 w-4 ${active ? 'text-sidebar-primary-foreground' : 'text-muted-foreground group-hover:text-sidebar-foreground'}`} />
                                                 <span>{label}</span>
                                             </Link>
                                         </li>
@@ -158,7 +177,7 @@ const Sidebar = () => {
                         {/* Customers Section */}
                         <li className="pt-2">
                             <div className="px-3 py-1 mb-1">
-                                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Customers</p>
+                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Customers</p>
                             </div>
                             <ul className="space-y-1">
                                 {customersSubItems.map(({ href, label, icon: Icon }) => {
@@ -169,11 +188,11 @@ const Sidebar = () => {
                                                 href={href}
                                                 className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                                                     active
-                                                        ? 'bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-200'
-                                                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                                                        ? 'bg-sidebar-primary text-sidebar-primary-foreground ring-1 ring-inset ring-sidebar-ring/40'
+                                                        : 'text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent'
                                                 }`}
                                             >
-                                                <Icon className={`h-4 w-4 ${active ? 'text-indigo-600' : 'text-gray-400 group-hover:text-gray-700'}`} />
+                                                <Icon className={`h-4 w-4 ${active ? 'text-sidebar-primary-foreground' : 'text-muted-foreground group-hover:text-sidebar-foreground'}`} />
                                                 <span>{label}</span>
                                             </Link>
                                         </li>
@@ -185,7 +204,7 @@ const Sidebar = () => {
                         {/* Provider Management Section */}
                         <li className="pt-2">
                             <div className="px-3 py-1 mb-1">
-                                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Provider Management</p>
+                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Provider Management</p>
                             </div>
                             <ul className="space-y-1">
                                 {providerManagementSubItems.map(({ href, label, icon: Icon }) => {
@@ -196,11 +215,11 @@ const Sidebar = () => {
                                                 href={href}
                                                 className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                                                     active
-                                                        ? 'bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-200'
-                                                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                                                        ? 'bg-sidebar-primary text-sidebar-primary-foreground ring-1 ring-inset ring-sidebar-ring/40'
+                                                        : 'text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent'
                                                 }`}
                                             >
-                                                <Icon className={`h-4 w-4 ${active ? 'text-indigo-600' : 'text-gray-400 group-hover:text-gray-700'}`} />
+                                                <Icon className={`h-4 w-4 ${active ? 'text-sidebar-primary-foreground' : 'text-muted-foreground group-hover:text-sidebar-foreground'}`} />
                                                 <span>{label}</span>
                                             </Link>
                                         </li>
@@ -212,7 +231,7 @@ const Sidebar = () => {
                         {/* Service Management Section */}
                         <li className="pt-2">
                             <div className="px-3 py-1 mb-1">
-                                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Service Management</p>
+                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Service Management</p>
                             </div>
                             <ul className="space-y-1">
                                 {serviceManagementSubItems.map(({ href, label, icon: Icon, isCategory }) => {
@@ -224,18 +243,18 @@ const Sidebar = () => {
                                                     onClick={() => setIsCategoryOpen(!isCategoryOpen)}
                                                     className={`group w-full flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                                                         isCategoryActive
-                                                            ? 'bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-200'
-                                                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                                                            ? 'bg-sidebar-primary text-sidebar-primary-foreground ring-1 ring-inset ring-sidebar-ring/40'
+                                                            : 'text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent'
                                                     }`}
                                                 >
                                                     <div className="flex items-center gap-3">
-                                                        <Icon className={`h-4 w-4 ${isCategoryActive ? 'text-indigo-600' : 'text-gray-400 group-hover:text-gray-700'}`} />
+                                                        <Icon className={`h-4 w-4 ${isCategoryActive ? 'text-sidebar-primary-foreground' : 'text-muted-foreground group-hover:text-sidebar-foreground'}`} />
                                                         <span>{label}</span>
                                                     </div>
                                                     {isCategoryOpen ? (
-                                                        <ChevronDown className="h-4 w-4 text-gray-400" />
+                                                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
                                                     ) : (
-                                                        <ChevronRight className="h-4 w-4 text-gray-400" />
+                                                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
                                                     )}
                                                 </button>
                                                 {isCategoryOpen && (
@@ -248,11 +267,11 @@ const Sidebar = () => {
                                                                         href={catHref}
                                                                         className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                                                                             active
-                                                                                ? 'bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-200'
-                                                                                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                                                                                ? 'bg-sidebar-primary text-sidebar-primary-foreground ring-1 ring-inset ring-sidebar-ring/40'
+                                                                                : 'text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent'
                                                                         }`}
                                                                     >
-                                                                        <CatIcon className={`h-3.5 w-3.5 ${active ? 'text-indigo-600' : 'text-gray-400 group-hover:text-gray-700'}`} />
+                                                                        <CatIcon className={`h-3.5 w-3.5 ${active ? 'text-sidebar-primary-foreground' : 'text-muted-foreground group-hover:text-sidebar-foreground'}`} />
                                                                         <span>{catLabel}</span>
                                                                     </Link>
                                                                 </li>
@@ -273,11 +292,11 @@ const Sidebar = () => {
                                                 href={href}
                                                 className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                                                     active
-                                                        ? 'bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-200'
-                                                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                                                        ? 'bg-sidebar-primary text-sidebar-primary-foreground ring-1 ring-inset ring-sidebar-ring/40'
+                                                        : 'text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent'
                                                 }`}
                                             >
-                                                <Icon className={`h-4 w-4 ${active ? 'text-indigo-600' : 'text-gray-400 group-hover:text-gray-700'}`} />
+                                                <Icon className={`h-4 w-4 ${active ? 'text-sidebar-primary-foreground' : 'text-muted-foreground group-hover:text-sidebar-foreground'}`} />
                                                 <span>{label}</span>
                                             </Link>
                                         </li>
@@ -289,7 +308,7 @@ const Sidebar = () => {
                         {/* System Management Section */}
                         <li className="pt-2">
                             <div className="px-3 py-1 mb-1">
-                                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">System Management</p>
+                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">System Management</p>
                             </div>
                             <ul className="space-y-1">
                                 {/* Finance Sub-section (still collapsible) */}
@@ -298,18 +317,18 @@ const Sidebar = () => {
                                         onClick={() => setIsFinanceOpen(!isFinanceOpen)}
                                         className={`group w-full flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                                             isFinanceActive
-                                                ? 'bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-200'
-                                                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                                                ? 'bg-sidebar-primary text-sidebar-primary-foreground ring-1 ring-inset ring-sidebar-ring/40'
+                                                : 'text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent'
                                         }`}
                                     >
                                         <div className="flex items-center gap-3">
-                                            <DollarSign className={`h-4 w-4 ${isFinanceActive ? 'text-indigo-600' : 'text-gray-400 group-hover:text-gray-700'}`} />
+                                            <DollarSign className={`h-4 w-4 ${isFinanceActive ? 'text-sidebar-primary-foreground' : 'text-muted-foreground group-hover:text-sidebar-foreground'}`} />
                                             <span>Finance</span>
                                         </div>
                                         {isFinanceOpen ? (
-                                            <ChevronDown className="h-4 w-4 text-gray-400" />
+                                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
                                         ) : (
-                                            <ChevronRight className="h-4 w-4 text-gray-400" />
+                                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
                                         )}
                                     </button>
                                     {isFinanceOpen && (
@@ -322,11 +341,11 @@ const Sidebar = () => {
                                                             href={href}
                                                             className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                                                                 active
-                                                                    ? 'bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-200'
-                                                                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                                                                    ? 'bg-sidebar-primary text-sidebar-primary-foreground ring-1 ring-inset ring-sidebar-ring/40'
+                                                                    : 'text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent'
                                                             }`}
                                                         >
-                                                            <Icon className={`h-3.5 w-3.5 ${active ? 'text-indigo-600' : 'text-gray-400 group-hover:text-gray-700'}`} />
+                                                            <Icon className={`h-3.5 w-3.5 ${active ? 'text-sidebar-primary-foreground' : 'text-muted-foreground group-hover:text-sidebar-foreground'}`} />
                                                             <span>{label}</span>
                                                         </Link>
                                                     </li>
@@ -342,11 +361,11 @@ const Sidebar = () => {
                                         href="/admin/settings"
                                         className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                                             pathname?.startsWith('/admin/settings')
-                                                ? 'bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-200'
-                                                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                                                ? 'bg-sidebar-primary text-sidebar-primary-foreground ring-1 ring-inset ring-sidebar-ring/40'
+                                                : 'text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent'
                                         }`}
                                     >
-                                        <Settings className={`h-4 w-4 ${pathname?.startsWith('/admin/settings') ? 'text-indigo-600' : 'text-gray-400 group-hover:text-gray-700'}`} />
+                                        <Settings className={`h-4 w-4 ${pathname?.startsWith('/admin/settings') ? 'text-sidebar-primary-foreground' : 'text-muted-foreground group-hover:text-sidebar-foreground'}`} />
                                         <span>Global Settings</span>
                                     </Link>
                                 </li>
@@ -357,15 +376,22 @@ const Sidebar = () => {
             </div>
 
             {/* Footer */}
-            <div className="mt-auto border-t border-gray-200 px-6 py-4">
+            <div className="mt-auto border-t border-sidebar-border px-6 py-4">
+                <button
+                    onClick={toggleTheme}
+                    className="mb-2 inline-flex w-full items-center justify-center gap-2 rounded-md border border-sidebar-border bg-sidebar-accent px-3 py-2 text-sm text-sidebar-accent-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground"
+                >
+                    {theme === 'dark' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+                    {theme === 'dark' ? 'Dark mode' : 'Light mode'}
+                </button>
                 <button
                     onClick={async () => { await supabase.auth.signOut(); location.href = '/login'; }}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-sidebar-border bg-sidebar-accent px-3 py-2 text-sm text-sidebar-accent-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground"
                 >
                     <LogOut className="h-4 w-4" />
                     Sign out
                 </button>
-                <p className="mt-3 text-center text-xs text-gray-500">© {new Date().getFullYear()} Zemen Service</p>
+                <p className="mt-3 text-center text-xs text-muted-foreground">© {new Date().getFullYear()} Zemen Service</p>
             </div>
         </aside>
     );

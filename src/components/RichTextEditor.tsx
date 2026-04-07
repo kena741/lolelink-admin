@@ -60,15 +60,15 @@ const HTMLEditor: React.FC<HTMLEditorProps> = ({ value, onChange, placeholder, l
         <div className="space-y-2">
             {label && (
                 <div className="flex items-center justify-between">
-                    <label className="block text-sm font-medium text-gray-700">{label}</label>
+                    <label className="block text-sm font-medium text-foreground">{label}</label>
                     <div className="flex items-center gap-2">
                         <button
                             type="button"
                             onClick={() => setIsReviewing(!isReviewing)}
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                                 isReviewing
-                                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                    ? 'bg-secondary text-secondary-foreground hover:bg-accent'
+                                    : 'bg-muted text-foreground hover:bg-secondary'
                             }`}
                         >
                             {isReviewing ? <Check className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
@@ -79,8 +79,8 @@ const HTMLEditor: React.FC<HTMLEditorProps> = ({ value, onChange, placeholder, l
                             onClick={() => setIsPreview(!isPreview)}
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                                 isPreview
-                                    ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
-                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                    ? 'bg-primary text-primary-foreground hover:bg-accent'
+                                    : 'bg-muted text-foreground hover:bg-secondary'
                             }`}
                         >
                             {isPreview ? <Code className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
@@ -91,10 +91,10 @@ const HTMLEditor: React.FC<HTMLEditorProps> = ({ value, onChange, placeholder, l
             )}
 
             {isPreview ? (
-                <div className="min-h-[400px] w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 overflow-y-auto">
+                <div className="min-h-[400px] w-full overflow-y-auto rounded-lg border border-input bg-card px-4 py-3 text-sm text-card-foreground">
                     <div 
                         className="prose prose-sm max-w-none"
-                        dangerouslySetInnerHTML={{ __html: htmlCode || '<p class="text-gray-400">No content</p>' }}
+                        dangerouslySetInnerHTML={{ __html: htmlCode || '<p class="text-muted-foreground">No content</p>' }}
                     />
                 </div>
             ) : (
@@ -219,20 +219,20 @@ const HTMLEditor: React.FC<HTMLEditorProps> = ({ value, onChange, placeholder, l
             {/* Review Modal */}
             {isReviewing && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-                    <div className="relative bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-                        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
-                            <h3 className="text-xl font-bold text-gray-900">Review Content</h3>
+                    <div className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-card shadow-2xl">
+                        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-card px-6 py-4">
+                            <h3 className="text-xl font-bold text-card-foreground">Review Content</h3>
                             <button
                                 onClick={() => setIsReviewing(false)}
-                                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                                className="rounded-lg p-2 transition-colors hover:bg-muted"
                             >
-                                <X className="h-5 w-5 text-gray-500" />
+                                <X className="h-5 w-5 text-muted-foreground" />
                             </button>
                         </div>
                         <div className="p-6">
                             <div 
                                 className="prose prose-sm max-w-none"
-                                dangerouslySetInnerHTML={{ __html: htmlCode || '<p class="text-gray-400">No content</p>' }}
+                                dangerouslySetInnerHTML={{ __html: htmlCode || '<p class="text-muted-foreground">No content</p>' }}
                             />
                         </div>
                     </div>
