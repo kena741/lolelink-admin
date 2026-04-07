@@ -613,66 +613,86 @@ function DashboardContent() {
                             />
                         </section>
 
-                        <section className="mb-8 rounded-2xl bg-gradient-to-br from-white/80 to-white/40 backdrop-blur-xl border border-white/20 p-6 shadow-xl">
+                        <section className="mb-8 rounded-2xl border border-border bg-card p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
                             <div className="mb-5 flex items-center justify-between">
                                 <div>
-                                    <h2 className="text-lg font-bold text-gray-900">Payout Health</h2>
-                                    <p className="text-xs text-gray-600">Includes waiting confirmations and delivery issues in selected range.</p>
+                                    <h2 className="text-lg font-bold text-foreground">Payout Health</h2>
+                                    <p className="text-xs text-muted-foreground">
+                                        Includes waiting confirmations and delivery issues in selected range.
+                                    </p>
                                 </div>
-                                <Link href="/admin/finance/payout-request" className="text-sm font-semibold text-indigo-700 hover:text-indigo-900">
+                                <Link
+                                    href="/admin/finance/payout-request"
+                                    className="text-sm font-semibold text-foreground/90 underline-offset-4 hover:text-foreground hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
+                                >
                                     Open payout requests
                                 </Link>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                                <Link href="/admin/finance/payout-request?segment=waiting_confirmation" className="group relative rounded-xl border border-amber-200 bg-amber-50 p-4 hover:bg-amber-100 transition-colors">
-                                    <p className="flex items-center gap-1 text-xs font-semibold text-amber-700">
+                                <Link
+                                    href="/admin/finance/payout-request?segment=waiting_confirmation"
+                                    className="group relative rounded-xl border border-border bg-background p-4 transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                >
+                                    <p className="flex items-center gap-1 text-xs font-semibold text-muted-foreground">
                                         Waiting Confirmation
                                         <CircleHelp className="h-3.5 w-3.5" />
                                     </p>
-                                    <span className="pointer-events-none absolute left-4 top-9 z-20 hidden w-[220px] rounded-md bg-gray-900 px-2 py-1.5 text-[11px] font-medium text-white group-hover:block">
+                                    <span className="pointer-events-none absolute left-4 top-9 z-20 hidden w-[220px] rounded-md border border-border bg-popover px-2 py-1.5 text-[11px] font-medium text-popover-foreground shadow-[0_8px_18px_rgba(0,0,0,0.12)] group-hover:block">
                                         Transfer was initiated but completion confirmation has not arrived yet. Open this to verify and resolve stuck payouts.
                                     </span>
-                                    <p className="mt-2 text-2xl font-bold text-amber-800">{analytics.payoutWaitingConfirmation}</p>
+                                    <p className="mt-2 text-2xl font-bold text-foreground">{analytics.payoutWaitingConfirmation}</p>
                                 </Link>
-                                <Link href="/admin/finance/payout-request?segment=failed_rejected" className="group relative rounded-xl border border-red-200 bg-red-50 p-4 hover:bg-red-100 transition-colors">
-                                    <p className="flex items-center gap-1 text-xs font-semibold text-red-700">
+                                <Link
+                                    href="/admin/finance/payout-request?segment=failed_rejected"
+                                    className="group relative rounded-xl border border-border bg-background p-4 transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                >
+                                    <p className="flex items-center gap-1 text-xs font-semibold text-muted-foreground">
                                         Failed / Rejected
                                         <CircleHelp className="h-3.5 w-3.5" />
                                     </p>
-                                    <span className="pointer-events-none absolute left-4 top-9 z-20 hidden w-[220px] rounded-md bg-gray-900 px-2 py-1.5 text-[11px] font-medium text-white group-hover:block">
+                                    <span className="pointer-events-none absolute left-4 top-9 z-20 hidden w-[220px] rounded-md border border-border bg-popover px-2 py-1.5 text-[11px] font-medium text-popover-foreground shadow-[0_8px_18px_rgba(0,0,0,0.12)] group-hover:block">
                                         Chapa payout failed or the request was rejected. Open this list to review reason and retry or close the case.
                                     </span>
-                                    <p className="mt-2 text-2xl font-bold text-red-800">{analytics.payoutFailedOrRejected}</p>
+                                    <p className="mt-2 text-2xl font-bold text-foreground">{analytics.payoutFailedOrRejected}</p>
                                 </Link>
-                                <Link href="/admin/finance/payout-request?segment=missing_payment_method" className="group relative rounded-xl border border-indigo-200 bg-indigo-50 p-4 hover:bg-indigo-100 transition-colors">
-                                    <p className="flex items-center gap-1 text-xs font-semibold text-indigo-700">
+                                <Link
+                                    href="/admin/finance/payout-request?segment=missing_payment_method"
+                                    className="group relative rounded-xl border border-border bg-background p-4 transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                >
+                                    <p className="flex items-center gap-1 text-xs font-semibold text-muted-foreground">
                                         Missing Payment Method
                                         <CircleHelp className="h-3.5 w-3.5" />
                                     </p>
-                                    <span className="pointer-events-none absolute left-4 top-9 z-20 hidden w-[220px] rounded-md bg-gray-900 px-2 py-1.5 text-[11px] font-medium text-white group-hover:block">
+                                    <span className="pointer-events-none absolute left-4 top-9 z-20 hidden w-[220px] rounded-md border border-border bg-popover px-2 py-1.5 text-[11px] font-medium text-popover-foreground shadow-[0_8px_18px_rgba(0,0,0,0.12)] group-hover:block">
                                         Provider payout request exists but required bank or wallet method is incomplete or unavailable.
                                     </span>
-                                    <p className="mt-2 text-2xl font-bold text-indigo-800">{analytics.payoutMissingPaymentMethod}</p>
+                                    <p className="mt-2 text-2xl font-bold text-foreground">{analytics.payoutMissingPaymentMethod}</p>
                                 </Link>
-                                <Link href="/admin/finance/payout-request?segment=completed_today" className="group relative rounded-xl border border-emerald-200 bg-emerald-50 p-4 hover:bg-emerald-100 transition-colors">
-                                    <p className="flex items-center gap-1 text-xs font-semibold text-emerald-700">
+                                <Link
+                                    href="/admin/finance/payout-request?segment=completed_today"
+                                    className="group relative rounded-xl border border-border bg-background p-4 transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                >
+                                    <p className="flex items-center gap-1 text-xs font-semibold text-muted-foreground">
                                         Completed Today
                                         <CircleHelp className="h-3.5 w-3.5" />
                                     </p>
-                                    <span className="pointer-events-none absolute left-4 top-9 z-20 hidden w-[220px] rounded-md bg-gray-900 px-2 py-1.5 text-[11px] font-medium text-white group-hover:block">
+                                    <span className="pointer-events-none absolute left-4 top-9 z-20 hidden w-[220px] rounded-md border border-border bg-popover px-2 py-1.5 text-[11px] font-medium text-popover-foreground shadow-[0_8px_18px_rgba(0,0,0,0.12)] group-hover:block">
                                         Count of payouts marked completed during today in your selected dashboard range.
                                     </span>
-                                    <p className="mt-2 text-2xl font-bold text-emerald-800">{analytics.payoutCompletedToday}</p>
+                                    <p className="mt-2 text-2xl font-bold text-foreground">{analytics.payoutCompletedToday}</p>
                                 </Link>
-                                <Link href="/admin/finance/payout-request?segment=failed_rejected" className="group relative rounded-xl border border-rose-200 bg-rose-50 p-4 hover:bg-rose-100 transition-colors">
-                                    <p className="flex items-center gap-1 text-xs font-semibold text-rose-700">
+                                <Link
+                                    href="/admin/finance/payout-request?segment=failed_rejected"
+                                    className="group relative rounded-xl border border-border bg-background p-4 transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                >
+                                    <p className="flex items-center gap-1 text-xs font-semibold text-muted-foreground">
                                         Integration Issues
                                         <CircleHelp className="h-3.5 w-3.5" />
                                     </p>
-                                    <span className="pointer-events-none absolute left-4 top-9 z-20 hidden w-[220px] rounded-md bg-gray-900 px-2 py-1.5 text-[11px] font-medium text-white group-hover:block">
+                                    <span className="pointer-events-none absolute left-4 top-9 z-20 hidden w-[220px] rounded-md border border-border bg-popover px-2 py-1.5 text-[11px] font-medium text-popover-foreground shadow-[0_8px_18px_rgba(0,0,0,0.12)] group-hover:block">
                                         Transfer records with webhook or verification problems requiring manual payout investigation.
                                     </span>
-                                    <p className="mt-2 text-2xl font-bold text-rose-800">{analytics.payoutIntegrationIssues}</p>
+                                    <p className="mt-2 text-2xl font-bold text-foreground">{analytics.payoutIntegrationIssues}</p>
                                 </Link>
                             </div>
                         </section>

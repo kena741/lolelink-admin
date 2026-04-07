@@ -166,4 +166,30 @@
   body {
     @apply bg-background text-foreground;
   }
+
+.partner-marquee {
+  overflow: hidden;
+}
+
+.partner-marquee-track {
+  display: flex;
+  width: max-content;
+  gap: 16px;
+  animation: partner-marquee 18s linear infinite;
+}
+
+@keyframes partner-marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(calc(-50% - 8px));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .partner-marquee-track {
+    animation: none;
+  }
+}
 }

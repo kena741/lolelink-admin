@@ -118,9 +118,9 @@ const Sidebar = () => {
                     <Image
                         src="/logo.png"
                         alt="Zemen Service logo"
-                        width={32}
-                        height={32}
-                        className="h-28 w-28 rounded-lg object-contain"
+                        width={56}
+                        height={56}
+                        className="h-14 w-14 rounded-lg object-contain"
                         priority
                     />
                     <span className="text-base font-semibold text-sidebar-foreground">Zemen Service Admin</span>
