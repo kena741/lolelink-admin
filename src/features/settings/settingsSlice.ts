@@ -57,9 +57,14 @@ export interface ConstantSettings {
     provider_activation_account_activation_fee_amount?: string;
 }
 
-export interface LanguageSettings {
-    [key: string]: string;
+export interface LanguageSetting {
+    id?: string;
+    code: string;
+    name: string;
+    active: boolean;
 }
+
+export type LanguageSettings = LanguageSetting[];
 
 export interface Settings {
     appSettings: AppSettings;
@@ -71,6 +76,10 @@ export interface Settings {
     adminCommission?: AdminCommissionSettings;
     statusOptions?: BookingStatusOption[];
     constants?: ConstantSettings;
+}
+
+interface UpdateSettingsPayload extends Partial<Settings> {
+    languageDeletedIds?: string[];
 }
 
 interface SettingsState {
@@ -88,6 +97,13 @@ const initialState: SettingsState = {
 interface AppSettingsRow {
     id?: string;
     data?: unknown;
+}
+
+interface LanguageRow {
+    id?: string;
+    code?: string;
+    name?: string;
+    active?: boolean;
 }
 
 function parseObjectValue(value: unknown): Record<string, unknown> {
@@ -255,7 +271,24 @@ function buildPaymentSettingsFromRow(paymentData: Record<string, unknown>): Paym
     return paymentSettings;
 }
 
-function buildSettingsFromRows(rows: AppSettingsRow[] | null): Settings {
+function parseLanguageRows(rows: LanguageRow[] | null): LanguageSettings {
+    const languages: LanguageSettings = [];
+    for (const row of rows ?? []) {
+        const code = readString(row.code);
+        const name = readString(row.name);
+        if (!code || !name)
+            continue;
+        languages.push({
+            id: readString(row.id),
+            code,
+            name,
+            active: Boolean(row.active),
+        });
+    }
+    return languages;
+}
+
+function buildSettingsFromRows(rows: AppSettingsRow[] | null, languageRows: LanguageRow[] | null): Settings {
     const byId: Record<string, Record<string, unknown>> = {};
     for (const row of rows ?? []) {
         if (row.id)
@@ -299,12 +332,14 @@ function buildSettingsFromRows(rows: AppSettingsRow[] | null): Settings {
 
     const constantRow = byId.constant ?? {};
     const constants = Object.keys(constantRow).length > 0 ? parseConstants(constantRow) : undefined;
+    const languageSettings = parseLanguageRows(languageRows);
 
     return {
         appSettings,
         generalSettings,
         policySettings,
         paymentSettings,
+        languageSettings,
         ...(contactUs && Object.values(contactUs).some((v) => v !== undefined) ? { contactUs } : {}),
         ...(adminCommission && Object.values(adminCommission).some((v) => v !== undefined) ? { adminCommission } : {}),
         ...(statusOptions !== undefined ? { statusOptions } : {}),
@@ -325,7 +360,15 @@ export const fetchSettings = createAsyncThunk<
                 .select('id, data');
             if (error)
                 throw error;
-            return buildSettingsFromRows((rows as AppSettingsRow[]) ?? null);
+            const { data: languageRows, error: languageError } = await supabase
+                .from('languages')
+                .select('id, code, name, active');
+            if (languageError)
+                throw languageError;
+            return buildSettingsFromRows(
+                (rows as AppSettingsRow[]) ?? null,
+                (languageRows as LanguageRow[]) ?? null
+            );
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to fetch settings';
             return rejectWithValue(msg);
@@ -335,7 +378,7 @@ export const fetchSettings = createAsyncThunk<
 
 export const updateSettings = createAsyncThunk<
     Settings,
-    Partial<Settings>,
+    UpdateSettingsPayload,
     { rejectValue: string }
 >(
     'settings/updateSettings',
@@ -429,6 +472,62 @@ export const updateSettings = createAsyncThunk<
                     throw constantError;
             }
 
+            if (updates.languageSettings !== undefined) {
+                const normalizedLanguages = updates.languageSettings
+                    .map((language) => ({
+                        id: language.id,
+                        code: language.code.trim(),
+                        name: language.name.trim(),
+                        active: language.active,
+                    }))
+                    .filter((language) => language.code.length > 0 && language.name.length > 0);
+
+                const existingLanguages = normalizedLanguages
+                    .filter((language) => Boolean(language.id))
+                    .map((language) => ({
+                        id: language.id as string,
+                        code: language.code,
+                        name: language.name,
+                        active: language.active,
+                    }));
+
+                const newLanguages = normalizedLanguages
+                    .filter((language) => !language.id)
+                    .map((language) => ({
+                        code: language.code,
+                        name: language.name,
+                        active: language.active,
+                    }));
+
+                if (existingLanguages.length > 0) {
+                    const { error: languageUpdateError } = await supabase
+                        .from('languages')
+                        .upsert(existingLanguages, { onConflict: 'id' });
+                    if (languageUpdateError)
+                        throw languageUpdateError;
+                }
+
+                if (newLanguages.length > 0) {
+                    const { error: languageInsertError } = await supabase
+                        .from('languages')
+                        .insert(newLanguages);
+                    if (languageInsertError)
+                        throw languageInsertError;
+                }
+            }
+
+            if (updates.languageDeletedIds && updates.languageDeletedIds.length > 0) {
+                const languageDeletedIds = updates.languageDeletedIds.filter((id) => id.trim().length > 0);
+                if (languageDeletedIds.length > 0) {
+                    const { error: languageDeleteError } = await supabase
+                        .from('languages')
+                        .delete()
+                        .in('id', languageDeletedIds);
+                    if (languageDeleteError)
+                        throw languageDeleteError;
+                }
+            }
+
             const hasRootSettingsFields = Object.keys(updateData).length > 0;
             if (hasRootSettingsFields) {
                 const { data: existingRootSettingsData } = await supabase
@@ -475,7 +574,15 @@ export const updateSettings = createAsyncThunk<
                 .select('id, data');
             if (reloadError)
                 throw reloadError;
-            return buildSettingsFromRows((allRows as AppSettingsRow[]) ?? null);
+            const { data: updatedLanguageRows, error: reloadLanguageError } = await supabase
+                .from('languages')
+                .select('id, code, name, active');
+            if (reloadLanguageError)
+                throw reloadLanguageError;
+            return buildSettingsFromRows(
+                (allRows as AppSettingsRow[]) ?? null,
+                (updatedLanguageRows as LanguageRow[]) ?? null
+            );
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to update settings';
             return rejectWithValue(msg);

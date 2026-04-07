@@ -95,13 +95,13 @@ const Sidebar = () => {
             {/* Scrollable content */}
             <div className="flex-1 overflow-y-auto">
                 {/* Brand */}
-                <div className="flex items-center gap-2 px-6 py-5">
+                <div className="flex items-center gap-2 ">
                     <Image
-                        src="/img/logoicon.png"
+                        src="/logo.png"
                         alt="Zemen Service logo"
-                        width={32}
-                        height={32}
-                        className="h-8 w-8 rounded-lg object-contain"
+                        width={56}
+                        height={56}
+                        className="h-28 w-28 rounded-lg object-contain"
                         priority
                     />
                     <span className="text-base font-semibold text-gray-900">Zemen Service Admin</span>
