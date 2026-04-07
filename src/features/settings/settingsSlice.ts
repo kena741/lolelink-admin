@@ -30,6 +30,31 @@ export interface PaymentSettings {
     chapa?: { name: string; enable: boolean; isActive?: boolean | number; [key: string]: string | boolean | number | undefined };
     telebirr?: { name: string; annld?: string; [key: string]: string | boolean | number | undefined };
     wallet?: { name: string; enable?: boolean; [key: string]: string | boolean | number | undefined };
+    flutterWave?: { name: string; isActive?: boolean; isSandBox?: boolean; publicKey?: string; [key: string]: string | boolean | number | undefined };
+}
+
+export interface ContactUsSettings {
+    email?: string;
+    address?: string;
+    phoneNumber?: string;
+    emailSubject?: string;
+}
+
+export interface AdminCommissionSettings {
+    isFix?: boolean;
+    value?: string;
+    active?: boolean;
+}
+
+export interface BookingStatusOption {
+    flag: string;
+    name: string;
+}
+
+export interface ConstantSettings {
+    minimum_wallet_balance_to_keep?: string;
+    provider_service_featured_request_fee_amount?: string;
+    provider_activation_account_activation_fee_amount?: string;
 }
 
 export interface LanguageSettings {
@@ -42,6 +67,10 @@ export interface Settings {
     policySettings: PolicySettings;
     paymentSettings: PaymentSettings;
     languageSettings?: LanguageSettings;
+    contactUs?: ContactUsSettings;
+    adminCommission?: AdminCommissionSettings;
+    statusOptions?: BookingStatusOption[];
+    constants?: ConstantSettings;
 }
 
 interface SettingsState {
@@ -94,20 +123,42 @@ function normalizePaymentSettingsForStorage(settings?: PaymentSettings): Payment
             isSandbox: Boolean(normalized.chapa.isSandbox),
         };
     }
+    if (normalized.flutterWave) {
+        normalized.flutterWave = {
+            ...normalized.flutterWave,
+            isActive: Boolean(normalized.flutterWave.isActive),
+            isSandBox: Boolean(normalized.flutterWave.isSandBox),
+        };
+    }
     return normalized;
 }
 
 function toChapaSettings(value: unknown): PaymentSettings['chapa'] | undefined {
     const objectValue = parseObjectValue(value);
-    if (typeof objectValue.name !== 'string')
+    if (Object.keys(objectValue).length === 0)
         return undefined;
+    const name = typeof objectValue.name === 'string' ? objectValue.name : 'Chapa';
     return {
         ...objectValue,
-        name: objectValue.name,
+        name,
         enable: Boolean(objectValue.enable),
         isActive: typeof objectValue.isActive === 'boolean' || typeof objectValue.isActive === 'number'
             ? objectValue.isActive
             : undefined,
+        isSandbox: Boolean(objectValue.isSandbox),
+    };
+}
+
+function toFlutterWaveSettings(value: unknown): PaymentSettings['flutterWave'] | undefined {
+    const objectValue = parseObjectValue(value);
+    if (Object.keys(objectValue).length === 0)
+        return undefined;
+    const name = typeof objectValue.name === 'string' ? objectValue.name : 'Flutter Wave';
+    return {
+        ...objectValue,
+        name,
+        isActive: Boolean(objectValue.isActive),
+        isSandBox: Boolean(objectValue.isSandBox),
     };
 }
 
@@ -132,6 +183,135 @@ function toWalletSettings(value: unknown): PaymentSettings['wallet'] | undefined
     };
 }
 
+function parseStatusOptions(data: unknown): BookingStatusOption[] | undefined {
+    if (!Array.isArray(data))
+        return undefined;
+    const options = data
+        .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object' && !Array.isArray(item))
+        .map((item) => ({
+            flag: readString(item.flag) ?? '',
+            name: readString(item.name) ?? '',
+        }))
+        .filter((item) => item.flag.length > 0);
+    return options.length > 0 ? options : [];
+}
+
+function parseContactUs(data: Record<string, unknown>): ContactUsSettings {
+    return {
+        email: readString(data.email),
+        address: readString(data.address),
+        phoneNumber: readString(data.phoneNumber),
+        emailSubject: readString(data.emailSubject),
+    };
+}
+
+function parseAdminCommission(data: Record<string, unknown>): AdminCommissionSettings {
+    return {
+        isFix: readBoolean(data.isFix),
+        value: readString(data.value),
+        active: readBoolean(data.active),
+    };
+}
+
+function parseConstants(data: Record<string, unknown>): ConstantSettings {
+    return {
+        minimum_wallet_balance_to_keep: readString(data.minimum_wallet_balance_to_keep),
+        provider_service_featured_request_fee_amount: readString(data.provider_service_featured_request_fee_amount),
+        provider_activation_account_activation_fee_amount: readString(data.provider_activation_account_activation_fee_amount),
+    };
+}
+
+function mergePolicyFields(policyRow: Record<string, unknown>, settingsRow: Record<string, unknown>): PolicySettings {
+    const pick = (key: string) => readString(settingsRow[key]) ?? readString(policyRow[key]);
+    return {
+        aboutApp: pick('aboutApp'),
+        privacyPolicy: pick('privacyPolicy'),
+        termsAndConditions: pick('termsAndConditions'),
+    };
+}
+
+function buildPaymentSettingsFromRow(paymentData: Record<string, unknown>): PaymentSettings {
+    const paymentSettings: PaymentSettings = {};
+    if (paymentData.chapa && typeof paymentData.chapa === 'object') {
+        const chapaSettings = toChapaSettings(paymentData.chapa);
+        if (chapaSettings)
+            paymentSettings.chapa = chapaSettings;
+    }
+    if (paymentData.telebirr && typeof paymentData.telebirr === 'object') {
+        const telebirrSettings = toTelebirrSettings(paymentData.telebirr);
+        if (telebirrSettings)
+            paymentSettings.telebirr = telebirrSettings;
+    }
+    if (paymentData.wallet && typeof paymentData.wallet === 'object') {
+        const walletSettings = toWalletSettings(paymentData.wallet);
+        if (walletSettings)
+            paymentSettings.wallet = walletSettings;
+    }
+    if (paymentData.flutterWave && typeof paymentData.flutterWave === 'object') {
+        const flutterWaveSettings = toFlutterWaveSettings(paymentData.flutterWave);
+        if (flutterWaveSettings)
+            paymentSettings.flutterWave = flutterWaveSettings;
+    }
+    return paymentSettings;
+}
+
+function buildSettingsFromRows(rows: AppSettingsRow[] | null): Settings {
+    const byId: Record<string, Record<string, unknown>> = {};
+    for (const row of rows ?? []) {
+        if (row.id)
+            byId[row.id] = parseObjectValue(row.data);
+    }
+
+    const rootSettings = byId.settings ?? {};
+    const policyRow = byId.policy ?? {};
+
+    const appSettings: AppSettings = {
+        appColor: readString(rootSettings.appColor),
+        appName: readString(rootSettings.appName),
+        appVersion: readString(rootSettings.appVersion),
+        extraCharge_GST: readBoolean(rootSettings.extraCharge_GST),
+        googleMapKey: readString(rootSettings.googleMapKey),
+        minimum_amount_deposit: readString(rootSettings.minimum_amount_deposit),
+        minimum_amount_withdraw: readString(rootSettings.minimum_amount_withdraw),
+    };
+
+    const generalSettings: GeneralSettings = {
+        notification_server_key: readString(rootSettings.notification_server_key),
+        phoneNumber: readString(rootSettings.phoneNumber),
+        radius: readString(rootSettings.radius),
+        referralAmount: readString(rootSettings.referralAmount),
+        supportEmail: readString(rootSettings.supportEmail),
+        supportURL: readString(rootSettings.supportURL),
+    };
+
+    const policySettings = mergePolicyFields(policyRow, rootSettings);
+
+    const paymentSettings = buildPaymentSettingsFromRow(byId.payment ?? {});
+
+    const statusRaw = rows?.find((r) => r.id === 'status')?.data;
+    const statusOptions = parseStatusOptions(statusRaw);
+
+    const contactUsRow = byId.contact_us ?? {};
+    const contactUs = Object.keys(contactUsRow).length > 0 ? parseContactUs(contactUsRow) : undefined;
+
+    const adminRow = byId.admin_commission ?? {};
+    const adminCommission = Object.keys(adminRow).length > 0 ? parseAdminCommission(adminRow) : undefined;
+
+    const constantRow = byId.constant ?? {};
+    const constants = Object.keys(constantRow).length > 0 ? parseConstants(constantRow) : undefined;
+
+    return {
+        appSettings,
+        generalSettings,
+        policySettings,
+        paymentSettings,
+        ...(contactUs && Object.values(contactUs).some((v) => v !== undefined) ? { contactUs } : {}),
+        ...(adminCommission && Object.values(adminCommission).some((v) => v !== undefined) ? { adminCommission } : {}),
+        ...(statusOptions !== undefined ? { statusOptions } : {}),
+        ...(constants && Object.values(constants).some((v) => v !== undefined) ? { constants } : {}),
+    };
+}
+
 export const fetchSettings = createAsyncThunk<
     Settings,
     void,
@@ -140,71 +320,12 @@ export const fetchSettings = createAsyncThunk<
     'settings/fetchSettings',
     async (_, { rejectWithValue }) => {
         try {
-            const { data: appRootSettingsData } = await supabase
+            const { data: rows, error } = await supabase
                 .from('app_settings')
-                .select('id, data')
-                .eq('id', 'settings')
-                .maybeSingle();
-            const rootSettings = parseObjectValue((appRootSettingsData as AppSettingsRow | null)?.data);
-
-            // Parse settings from database
-            const appSettings: AppSettings = {
-                appColor: readString(rootSettings.appColor),
-                appName: readString(rootSettings.appName),
-                appVersion: readString(rootSettings.appVersion),
-                extraCharge_GST: readBoolean(rootSettings.extraCharge_GST),
-                googleMapKey: readString(rootSettings.googleMapKey),
-                minimum_amount_deposit: readString(rootSettings.minimum_amount_deposit),
-                minimum_amount_withdraw: readString(rootSettings.minimum_amount_withdraw),
-            };
-
-            const generalSettings: GeneralSettings = {
-                notification_server_key: readString(rootSettings.notification_server_key),
-                phoneNumber: readString(rootSettings.phoneNumber),
-                radius: readString(rootSettings.radius),
-                referralAmount: readString(rootSettings.referralAmount),
-                supportEmail: readString(rootSettings.supportEmail),
-                supportURL: readString(rootSettings.supportURL),
-            };
-
-            const policySettings: PolicySettings = {
-                aboutApp: readString(rootSettings.aboutApp),
-                privacyPolicy: readString(rootSettings.privacyPolicy),
-                termsAndConditions: readString(rootSettings.termsAndConditions),
-            };
-
-            const paymentSettings: PaymentSettings = {};
-
-            // Primary source for payment settings is app_settings(id='payment')
-            const { data: appPaymentData } = await supabase
-                .from('app_settings')
-                .select('id, data')
-                .eq('id', 'payment')
-                .maybeSingle();
-
-            const appPayment = parseObjectValue(appPaymentData?.data);
-            if (appPayment.chapa && typeof appPayment.chapa === 'object') {
-                const chapaSettings = toChapaSettings(appPayment.chapa);
-                if (chapaSettings)
-                    paymentSettings.chapa = chapaSettings;
-            }
-            if (appPayment.telebirr && typeof appPayment.telebirr === 'object') {
-                const telebirrSettings = toTelebirrSettings(appPayment.telebirr);
-                if (telebirrSettings)
-                    paymentSettings.telebirr = telebirrSettings;
-            }
-            if (appPayment.wallet && typeof appPayment.wallet === 'object') {
-                const walletSettings = toWalletSettings(appPayment.wallet);
-                if (walletSettings)
-                    paymentSettings.wallet = walletSettings;
-            }
-
-            return {
-                appSettings,
-                generalSettings,
-                policySettings,
-                paymentSettings,
-            };
+                .select('id, data');
+            if (error)
+                throw error;
+            return buildSettingsFromRows((rows as AppSettingsRow[]) ?? null);
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to fetch settings';
             return rejectWithValue(msg);
@@ -222,22 +343,15 @@ export const updateSettings = createAsyncThunk<
         try {
             const updateData: Record<string, string | number | boolean | null | undefined> = {};
 
-            // Update app settings
-            if (updates.appSettings) {
+            if (updates.appSettings)
                 Object.assign(updateData, updates.appSettings);
-            }
 
-            // Update general settings
-            if (updates.generalSettings) {
+            if (updates.generalSettings)
                 Object.assign(updateData, updates.generalSettings);
-            }
 
-            // Update policy settings
-            if (updates.policySettings) {
+            if (updates.policySettings)
                 Object.assign(updateData, updates.policySettings);
-            }
 
-            // Update payment settings in app_settings(id='payment')
             if (updates.paymentSettings) {
                 const normalizedPaymentSettings = normalizePaymentSettingsForStorage(updates.paymentSettings);
                 const { data: existingPaymentSetting } = await supabase
@@ -252,93 +366,116 @@ export const updateSettings = createAsyncThunk<
                     ...(normalizedPaymentSettings?.chapa ? { chapa: normalizedPaymentSettings.chapa } : {}),
                     ...(normalizedPaymentSettings?.telebirr ? { telebirr: normalizedPaymentSettings.telebirr } : {}),
                     ...(normalizedPaymentSettings?.wallet ? { wallet: normalizedPaymentSettings.wallet } : {}),
+                    ...(normalizedPaymentSettings?.flutterWave ? { flutterWave: normalizedPaymentSettings.flutterWave } : {}),
                 };
 
-                const { error: appSettingsError } = await supabase
+                const { error: paymentError } = await supabase
                     .from('app_settings')
-                    .upsert(
-                        {
-                            id: 'payment',
-                            data: nextPaymentData,
-                        },
-                        { onConflict: 'id' }
-                    );
+                    .upsert({ id: 'payment', data: nextPaymentData }, { onConflict: 'id' });
 
-                if (appSettingsError) {
-                    console.error('Error updating app_settings payment:', appSettingsError);
-                    throw appSettingsError;
+                if (paymentError) {
+                    console.error('Error updating app_settings payment:', paymentError);
+                    throw paymentError;
                 }
             }
 
+            if (updates.contactUs && Object.keys(updates.contactUs).length > 0) {
+                const { data: existing } = await supabase
+                    .from('app_settings')
+                    .select('id, data')
+                    .eq('id', 'contact_us')
+                    .maybeSingle();
+                const merged = { ...parseObjectValue(existing?.data), ...updates.contactUs };
+                const { error: contactError } = await supabase
+                    .from('app_settings')
+                    .upsert({ id: 'contact_us', data: merged }, { onConflict: 'id' });
+                if (contactError)
+                    throw contactError;
+            }
+
+            if (updates.adminCommission && Object.keys(updates.adminCommission).length > 0) {
+                const { data: existing } = await supabase
+                    .from('app_settings')
+                    .select('id, data')
+                    .eq('id', 'admin_commission')
+                    .maybeSingle();
+                const merged = { ...parseObjectValue(existing?.data), ...updates.adminCommission };
+                const { error: commissionError } = await supabase
+                    .from('app_settings')
+                    .upsert({ id: 'admin_commission', data: merged }, { onConflict: 'id' });
+                if (commissionError)
+                    throw commissionError;
+            }
+
+            if (updates.statusOptions !== undefined) {
+                const { error: statusError } = await supabase
+                    .from('app_settings')
+                    .upsert({ id: 'status', data: updates.statusOptions }, { onConflict: 'id' });
+                if (statusError)
+                    throw statusError;
+            }
+
+            if (updates.constants && Object.keys(updates.constants).length > 0) {
+                const { data: existing } = await supabase
+                    .from('app_settings')
+                    .select('id, data')
+                    .eq('id', 'constant')
+                    .maybeSingle();
+                const merged = { ...parseObjectValue(existing?.data), ...updates.constants };
+                const { error: constantError } = await supabase
+                    .from('app_settings')
+                    .upsert({ id: 'constant', data: merged }, { onConflict: 'id' });
+                if (constantError)
+                    throw constantError;
+            }
+
             const hasRootSettingsFields = Object.keys(updateData).length > 0;
-            if (!hasRootSettingsFields) {
-                const paymentSettings: PaymentSettings = normalizePaymentSettingsForStorage(updates.paymentSettings) || {};
-                return {
-                    appSettings: {},
-                    generalSettings: {},
-                    policySettings: {},
-                    paymentSettings,
+            if (hasRootSettingsFields) {
+                const { data: existingRootSettingsData } = await supabase
+                    .from('app_settings')
+                    .select('id, data')
+                    .eq('id', 'settings')
+                    .maybeSingle();
+                const existingRootData = parseObjectValue((existingRootSettingsData as AppSettingsRow | null)?.data);
+                const nextRootData = {
+                    ...existingRootData,
+                    ...updateData,
                 };
+                const { error: rootSettingsError } = await supabase
+                    .from('app_settings')
+                    .upsert({ id: 'settings', data: nextRootData }, { onConflict: 'id' });
+                if (rootSettingsError) {
+                    console.error('Error updating app_settings root settings:', rootSettingsError);
+                    throw rootSettingsError;
+                }
+
+                if (updates.policySettings) {
+                    const definedPolicyPatch = Object.fromEntries(
+                        Object.entries(updates.policySettings).filter(([, v]) => v !== undefined)
+                    ) as PolicySettings;
+                    if (Object.keys(definedPolicyPatch).length > 0) {
+                        const { data: existingPolicy } = await supabase
+                            .from('app_settings')
+                            .select('id, data')
+                            .eq('id', 'policy')
+                            .maybeSingle();
+                        const policyData = parseObjectValue(existingPolicy?.data);
+                        const nextPolicyData = { ...policyData, ...definedPolicyPatch };
+                        const { error: policyError } = await supabase
+                            .from('app_settings')
+                            .upsert({ id: 'policy', data: nextPolicyData }, { onConflict: 'id' });
+                        if (policyError)
+                            throw policyError;
+                    }
+                }
             }
 
-            const { data: existingRootSettingsData } = await supabase
+            const { data: allRows, error: reloadError } = await supabase
                 .from('app_settings')
-                .select('id, data')
-                .eq('id', 'settings')
-                .maybeSingle();
-            const existingRootData = parseObjectValue((existingRootSettingsData as AppSettingsRow | null)?.data);
-            const nextRootData = {
-                ...existingRootData,
-                ...updateData,
-            };
-            const { error: rootSettingsError } = await supabase
-                .from('app_settings')
-                .upsert(
-                    {
-                        id: 'settings',
-                        data: nextRootData,
-                    },
-                    { onConflict: 'id' }
-                );
-            if (rootSettingsError) {
-                console.error('Error updating app_settings root settings:', rootSettingsError);
-                throw rootSettingsError;
-            }
-
-            // Return updated settings in same format as fetchSettings
-            const appSettings: AppSettings = {
-                appColor: readString(nextRootData.appColor),
-                appName: readString(nextRootData.appName),
-                appVersion: readString(nextRootData.appVersion),
-                extraCharge_GST: readBoolean(nextRootData.extraCharge_GST),
-                googleMapKey: readString(nextRootData.googleMapKey),
-                minimum_amount_deposit: readString(nextRootData.minimum_amount_deposit),
-                minimum_amount_withdraw: readString(nextRootData.minimum_amount_withdraw),
-            };
-
-            const generalSettings: GeneralSettings = {
-                notification_server_key: readString(nextRootData.notification_server_key),
-                phoneNumber: readString(nextRootData.phoneNumber),
-                radius: readString(nextRootData.radius),
-                referralAmount: readString(nextRootData.referralAmount),
-                supportEmail: readString(nextRootData.supportEmail),
-                supportURL: readString(nextRootData.supportURL),
-            };
-
-            const policySettings: PolicySettings = {
-                aboutApp: readString(nextRootData.aboutApp),
-                privacyPolicy: readString(nextRootData.privacyPolicy),
-                termsAndConditions: readString(nextRootData.termsAndConditions),
-            };
-
-            const paymentSettings: PaymentSettings = normalizePaymentSettingsForStorage(updates.paymentSettings) || {};
-
-            return {
-                appSettings,
-                generalSettings,
-                policySettings,
-                paymentSettings,
-            };
+                .select('id, data');
+            if (reloadError)
+                throw reloadError;
+            return buildSettingsFromRows((allRows as AppSettingsRow[]) ?? null);
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to update settings';
             return rejectWithValue(msg);

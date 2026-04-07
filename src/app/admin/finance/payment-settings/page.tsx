@@ -23,6 +23,13 @@ interface ChapaFormValues {
     secretKey: string;
 }
 
+interface FlutterWaveFormValues {
+    name: string;
+    isActive: boolean;
+    isSandBox: boolean;
+    publicKey: string;
+}
+
 interface ToastState {
     message: string;
     variant: 'success' | 'error';
@@ -45,6 +52,13 @@ const PaymentSettingsPage = () => {
         secretKey: String(paymentSettings.chapa?.secretKey || ''),
     };
 
+    const flutterWaveValues: FlutterWaveFormValues = {
+        name: String(paymentSettings.flutterWave?.name || 'Flutter Wave'),
+        isActive: Boolean(paymentSettings.flutterWave?.isActive),
+        isSandBox: Boolean(paymentSettings.flutterWave?.isSandBox),
+        publicKey: String(paymentSettings.flutterWave?.publicKey || ''),
+    };
+
     useEffect(() => {
         dispatch(fetchSettings()).catch((err) => {
             console.warn('Settings fetch error:', err);
@@ -63,7 +77,11 @@ const PaymentSettingsPage = () => {
         return () => clearTimeout(timeoutId);
     }, [toast]);
 
-    const updatePaymentSetting = (provider: 'chapa' | 'telebirr' | 'wallet', key: string, value: string | boolean | number) => {
+    const updatePaymentSetting = (
+        provider: 'chapa' | 'telebirr' | 'wallet' | 'flutterWave',
+        key: string,
+        value: string | boolean | number
+    ) => {
         setPaymentSettings(prev => ({
             ...prev,
             [provider]: {
@@ -74,8 +92,11 @@ const PaymentSettingsPage = () => {
     };
 
     const updateChapaField = (key: keyof ChapaFormValues, value: string | boolean) => {
-        const normalizedValue = value;
-        updatePaymentSetting('chapa', key, normalizedValue);
+        updatePaymentSetting('chapa', key, value);
+    };
+
+    const updateFlutterWaveField = (key: keyof FlutterWaveFormValues, value: string | boolean) => {
+        updatePaymentSetting('flutterWave', key, value);
     };
 
     const handleSave = async () => {
@@ -248,6 +269,52 @@ const PaymentSettingsPage = () => {
                                                 {isSecretVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                             </button>
                                         </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Flutterwave */}
+                            <div className="rounded-2xl bg-white/80 backdrop-blur-xl border border-white/20 shadow-xl p-6">
+                                <h3 className="text-lg font-bold text-gray-900 mb-4">Flutterwave</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
+                                        <input
+                                            type="text"
+                                            value={flutterWaveValues.name}
+                                            onChange={(e) => updateFlutterWaveField('name', e.target.value)}
+                                            className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                                        />
+                                    </div>
+                                    <div className="flex items-end gap-6">
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={flutterWaveValues.isActive}
+                                                onChange={(e) => updateFlutterWaveField('isActive', e.target.checked)}
+                                                className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                                            />
+                                            <span className="text-sm font-medium text-gray-700">Active</span>
+                                        </label>
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={flutterWaveValues.isSandBox}
+                                                onChange={(e) => updateFlutterWaveField('isSandBox', e.target.checked)}
+                                                className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                                            />
+                                            <span className="text-sm font-medium text-gray-700">Sandbox</span>
+                                        </label>
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Public Key</label>
+                                        <input
+                                            type="text"
+                                            value={flutterWaveValues.publicKey}
+                                            onChange={(e) => updateFlutterWaveField('publicKey', e.target.value)}
+                                            placeholder="FLWPUBK_..."
+                                            className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                                        />
                                     </div>
                                 </div>
                             </div>
