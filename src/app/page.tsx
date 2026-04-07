@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import { Apple, ChevronsDown, Store } from "lucide-react";
 
 const MarketingDeferredSections = dynamic(
   () => import("./_components/MarketingDeferredSections"),
@@ -22,12 +23,6 @@ const MarketingDeferredSections = dynamic(
 );
 
 export default function Home() {
-  const trustItems = [
-    { label: "Fast setup", value: "Create your profile in minutes" },
-    { label: "Live updates", value: "Track every booking end-to-end" },
-    { label: "Secure payments", value: "Built-in payment experience" },
-  ];
-
   return (
     <main className="min-h-screen bg-background text-foreground">
       <header className="border-b border-border">
@@ -63,77 +58,85 @@ export default function Home() {
         </div>
       </header>
 
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-primary via-accent to-secondary opacity-15" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(59,107,33,0.18),transparent_55%)]" />
+      <section className="relative overflow-hidden border-b border-border">
+        <div className="absolute inset-0 bg-gradient-to-r from-primary/20 via-accent/15 to-secondary/20" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_left_top,rgba(59,107,33,0.25),transparent_45%)]" />
         <div className="relative mx-auto max-w-[1100px] px-6 py-14 sm:py-20">
-          <div className="grid gap-10 lg:grid-cols-2 lg:items-center">
+          <div className="grid gap-10 lg:grid-cols-[1fr_1.1fr] lg:items-center">
             <div>
               <p className="inline-flex items-center rounded-full border border-border bg-card px-3 py-1 text-[13px] font-semibold text-muted-foreground">
-                Built for on-demand services
+                Three apps, one marketplace
               </p>
               <h1 className="mt-4 text-[32px] font-bold leading-[1.1] sm:text-[40px]">
-                Three apps. One Zemen Service marketplace.
+                Get Zemen apps on your phone and start today.
               </h1>
               <p className="mt-4 text-[16px] font-normal leading-[1.3] text-muted-foreground">
-                ZS Customer for bookings, ZS Provider for managing requests, and ZS Handyman for getting the job done.
-                Built to keep everyone in sync with clear status updates.
+                Zemen Service, Zemen Provider, and Zemen Handyman in one ecosystem.
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-                <Link
-                  href="#download"
-                  className="h-[40px] rounded-md bg-primary px-5 text-[14px] font-semibold leading-[40px] text-primary-foreground transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                <a
+                  href="#"
+                  aria-disabled="true"
+                  tabIndex={-1}
+                  className="inline-flex h-[40px] items-center justify-center gap-2 rounded-md bg-primary px-5 text-[14px] font-semibold text-primary-foreground opacity-70"
                 >
-                  Download the app
-                </Link>
-                <Link
-                  href="#features"
-                  className="h-[40px] rounded-md border border-border bg-card px-5 text-[14px] font-semibold leading-[40px] text-card-foreground transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  <Store className="h-4 w-4 shrink-0" aria-hidden />
+                  Google Play
+                </a>
+                <a
+                  href="#"
+                  aria-disabled="true"
+                  tabIndex={-1}
+                  className="inline-flex h-[40px] items-center justify-center gap-2 rounded-md border border-border bg-card px-5 text-[14px] font-semibold text-card-foreground opacity-70"
                 >
-                  Explore features
-                </Link>
-              </div>
-              <div className="mt-10 grid gap-4 sm:grid-cols-3">
-                {trustItems.map((item) => (
-                  <div key={item.label} className="rounded-md border border-border bg-card p-4">
-                    <p className="text-[13px] font-semibold text-muted-foreground">{item.label}</p>
-                    <p className="mt-1 text-[14px] font-semibold">{item.value}</p>
-                  </div>
-                ))}
+                  <Apple className="h-4 w-4 shrink-0" aria-hidden />
+                  App Store
+                </a>
               </div>
             </div>
 
-            <div className="rounded-md border border-border bg-card p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-              <div className="flex items-center justify-between">
-                <p className="text-[14px] font-semibold">What you can do</p>
-                <p className="text-[13px] font-semibold text-muted-foreground">Across the apps</p>
+            <div className="grid gap-4">
+              <div className="-rotate-2 overflow-hidden rounded-md border border-border bg-card p-2 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
+                <Image
+                  src="/Zemen-Service-Main-Preview.png"
+                  alt="Zemen Service app preview"
+                  width={1200}
+                  height={700}
+                  className="h-auto w-full rounded-sm object-cover"
+                  priority
+                />
               </div>
-              <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                {[
-                  "Book services",
-                  "Accept requests",
-                  "Track job status",
-                  "Chat & coordination",
-                  "Payments",
-                  "Earnings tracking",
-                  "Ratings & reviews",
-                  "Support flows",
-                ].map((label) => (
-                  <div
-                    key={label}
-                    className="rounded-md border border-border bg-background px-4 py-3 text-[14px] font-semibold text-foreground"
-                  >
-                    {label}
-                  </div>
-                ))}
+              <div className="rotate-1 overflow-hidden rounded-md border border-border bg-card p-2 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
+                <Image
+                  src="/Zemen-Provider-Main-Preview.png"
+                  alt="Zemen Provider app preview"
+                  width={1200}
+                  height={700}
+                  className="h-auto w-full rounded-sm object-cover"
+                  priority
+                />
               </div>
-              <div className="mt-6 rounded-md border border-border bg-muted p-4">
-                <p className="text-[13px] font-semibold text-muted-foreground">Tip</p>
-                <p className="mt-1 text-[14px] font-semibold">
-                  Choose the app for your role—customer, provider, or handyman.
-                </p>
+              <div className="-rotate-1 overflow-hidden rounded-md border border-border bg-card p-2 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
+                <Image
+                  src="/mock-handyman.png"
+                  alt="Zemen Handyman app preview"
+                  width={1200}
+                  height={700}
+                  className="h-auto w-full rounded-sm object-cover"
+                  priority
+                />
               </div>
             </div>
+          </div>
+
+          <div className="mt-10 flex justify-center">
+            <Link
+              href="#partners"
+              className="inline-flex flex-col items-center gap-1 text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-md px-3 py-2"
+            >
+              <span className="text-[13px] font-semibold">Scroll</span>
+              <ChevronsDown className="h-5 w-5 animate-bounce" aria-hidden />
+            </Link>
           </div>
         </div>
       </section>

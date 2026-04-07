@@ -4,6 +4,12 @@ import Link from "next/link";
 import { Apple, Store } from "lucide-react";
 
 export default function MarketingDeferredSections() {
+  const trustItems = [
+    { label: "Fast setup", value: "Create your profile in minutes" },
+    { label: "Live updates", value: "Track every booking end-to-end" },
+    { label: "Secure payments", value: "Built-in payment experience" },
+  ];
+
   const features = [
     {
       title: "Book services in seconds",
@@ -76,7 +82,7 @@ export default function MarketingDeferredSections() {
 
   return (
     <>
-      <section className="border-b border-subtle bg-base">
+      <section id="partners" className="border-b border-subtle bg-base scroll-mt-24">
         <div className="mx-auto max-w-[1100px] px-6 py-10">
           <div className="rounded-md border border-subtle bg-surface p-6 sm:p-8">
             <div className="flex flex-col items-center text-center">
@@ -95,6 +101,77 @@ export default function MarketingDeferredSections() {
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-[1100px] px-6 py-14 sm:py-16">
+        <div className="grid gap-10 lg:grid-cols-2 lg:items-center">
+          <div>
+            <p className="inline-flex items-center rounded-full border border-border bg-card px-3 py-1 text-[13px] font-semibold text-muted-foreground">
+              Built for on-demand services
+            </p>
+            <h2 className="mt-4 text-[32px] font-bold leading-[1.1] sm:text-[40px]">
+              Three apps. One Zemen Service marketplace.
+            </h2>
+            <p className="mt-4 text-[16px] font-normal leading-[1.3] text-muted-foreground">
+              ZS Customer for bookings, ZS Provider for managing requests, and ZS Handyman for getting the job done.
+              Built to keep everyone in sync with clear status updates.
+            </p>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <Link
+                href="#download"
+                className="h-[40px] rounded-md bg-primary px-5 text-[14px] font-semibold leading-[40px] text-primary-foreground transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                Download the app
+              </Link>
+              <Link
+                href="#features"
+                className="h-[40px] rounded-md border border-border bg-card px-5 text-[14px] font-semibold leading-[40px] text-card-foreground transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                Explore features
+              </Link>
+            </div>
+            <div className="mt-10 grid gap-4 sm:grid-cols-3">
+              {trustItems.map((item) => (
+                <div key={item.label} className="rounded-md border border-border bg-card p-4">
+                  <p className="text-[13px] font-semibold text-muted-foreground">{item.label}</p>
+                  <p className="mt-1 text-[14px] font-semibold">{item.value}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-md border border-border bg-card p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+            <div className="flex items-center justify-between">
+              <p className="text-[14px] font-semibold">What you can do</p>
+              <p className="text-[13px] font-semibold text-muted-foreground">Across the apps</p>
+            </div>
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              {[
+                "Book services",
+                "Accept requests",
+                "Track job status",
+                "Chat & coordination",
+                "Payments",
+                "Earnings tracking",
+                "Ratings & reviews",
+                "Support flows",
+              ].map((label) => (
+                <div
+                  key={label}
+                  className="rounded-md border border-border bg-background px-4 py-3 text-[14px] font-semibold text-foreground"
+                >
+                  {label}
+                </div>
+              ))}
+            </div>
+            <div className="mt-6 rounded-md border border-border bg-muted p-4">
+              <p className="text-[13px] font-semibold text-muted-foreground">Tip</p>
+              <p className="mt-1 text-[14px] font-semibold">
+                Choose the app for your role—customer, provider, or handyman.
+              </p>
             </div>
           </div>
         </div>
