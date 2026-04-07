@@ -120,7 +120,7 @@ const PaymentSettingsPage = () => {
 
     return (
         <AuthGuard>
-            <div className="flex min-h-screen bg-gradient-to-br from-gray-50 via-indigo-50/30 to-purple-50/30">
+            <div className="flex min-h-screen bg-background">
                 {toast && (
                     <div className="fixed right-6 top-6 z-[100]">
                         <div
@@ -138,7 +138,10 @@ const PaymentSettingsPage = () => {
                 <main className="ml-64 w-full min-h-screen">
                     {/* Header */}
                     <div className="relative isolate overflow-hidden">
-                        <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600 opacity-90" />
+                        <div className="absolute inset-0 bg-gradient-to-r from-primary via-accent to-secondary opacity-90" />
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(230,240,224,0.18),transparent_55%)]" />
+                        <div className="absolute top-0 left-1/4 h-72 w-72 rounded-full bg-card/10 blur-3xl animate-pulse" />
+                        <div className="absolute bottom-0 right-1/4 h-96 w-96 rounded-full bg-card/10 blur-3xl animate-pulse delay-1000" />
                         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4xIj48Y2lyY2xlIGN4PSIzMCIgY3k9IjMwIiByPSIxLjUiLz48L2c+PC9nPjwvc3ZnPg==')] opacity-20" />
                         <div className="relative mx-auto max-w-7xl px-6 py-12 sm:py-16 lg:px-8">
                             <div className="flex items-center justify-between gap-6">
@@ -146,33 +149,33 @@ const PaymentSettingsPage = () => {
                                     <div className="flex items-center gap-3 mb-2">
                                         <Link 
                                             href="/admin/dashboard"
-                                            className="p-2 bg-white/20 rounded-lg backdrop-blur-sm hover:bg-white/30 transition-colors"
+                                            className="rounded-lg bg-card/15 p-2 backdrop-blur-sm transition-colors hover:bg-card/25"
                                         >
-                                            <ArrowLeft className="h-5 w-5 text-white" />
+                                            <ArrowLeft className="h-5 w-5 text-primary-foreground" />
                                         </Link>
-                                        <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                                            <CreditCard className="h-6 w-6 text-white" />
+                                        <div className="rounded-lg bg-card/15 p-2 backdrop-blur-sm">
+                                            <CreditCard className="h-6 w-6 text-primary-foreground" />
                                         </div>
-                                        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white drop-shadow-lg">
+                                        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-primary-foreground drop-shadow-lg">
                                             Payment Settings
                                         </h1>
                                     </div>
-                                    <div className="flex items-center gap-2 text-white/90 text-sm">
-                                        <Link href="/admin/dashboard" className="hover:text-white transition-colors">
+                                    <div className="flex items-center gap-2 text-primary-foreground/90 text-sm">
+                                        <Link href="/admin/dashboard" className="hover:text-primary-foreground transition-colors">
                                             Dashboard
                                         </Link>
                                         <span>/</span>
-                                        <Link href="/admin/finance/payout-request" className="hover:text-white transition-colors">
+                                        <Link href="/admin/finance/payout-request" className="hover:text-primary-foreground transition-colors">
                                             Finance
                                         </Link>
                                         <span>/</span>
-                                        <span className="text-white font-semibold">Payment Settings</span>
+                                        <span className="text-primary-foreground font-semibold">Payment Settings</span>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <button
                                         onClick={handleRefresh}
-                                        className="group inline-flex items-center gap-2 rounded-xl bg-white/10 backdrop-blur-md px-4 py-3 text-sm font-semibold text-white ring-2 ring-white/20 hover:bg-white/20 hover:ring-white/40 transition-all duration-300 hover:scale-105"
+                                        className="group inline-flex items-center gap-2 rounded-xl bg-card/15 backdrop-blur-md px-4 py-3 text-sm font-semibold text-primary-foreground ring-2 ring-primary-foreground/20 hover:bg-card/25 hover:ring-primary-foreground/35 transition-all duration-300 hover:scale-105"
                                     >
                                         <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : 'group-hover:rotate-180'} transition-transform duration-500`} />
                                         Refresh
@@ -180,7 +183,7 @@ const PaymentSettingsPage = () => {
                                     <button
                                         onClick={handleSave}
                                         disabled={saving}
-                                        className="inline-flex items-center gap-2 rounded-xl bg-white/20 backdrop-blur-md px-4 py-3 text-sm font-semibold text-white ring-2 ring-white/30 hover:bg-white/30 hover:ring-white/50 transition-all duration-300 hover:scale-105 disabled:opacity-50"
+                                        className="inline-flex items-center gap-2 rounded-xl bg-card/20 backdrop-blur-md px-4 py-3 text-sm font-semibold text-primary-foreground ring-2 ring-primary-foreground/25 hover:bg-card/30 hover:ring-primary-foreground/40 transition-all duration-300 hover:scale-105 disabled:opacity-50"
                                     >
                                         <Save className="h-4 w-4" />
                                         {saving ? 'Saving...' : 'Save'}

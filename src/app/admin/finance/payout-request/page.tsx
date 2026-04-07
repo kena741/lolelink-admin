@@ -740,7 +740,7 @@ function PayoutRequestPageContent() {
 
 const PayoutRequestPage = () => {
     return (
-        <Suspense fallback={<div className="min-h-screen bg-gradient-to-br from-gray-50 via-indigo-50/30 to-purple-50/30" />}>
+        <Suspense fallback={<div className="min-h-screen bg-background" />}>
             <PayoutRequestPageContent />
         </Suspense>
     );

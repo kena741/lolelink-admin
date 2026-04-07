@@ -10,7 +10,15 @@ const nextConfig: NextConfig = {
     domains: [
       // fallback to a known host if env not set yet (can be removed later)
       "rffptyqhqvzrpmyxlwwu.supabase.co",
+      "firebasestorage.googleapis.com",
       ...(supabaseHost ? [supabaseHost] : []),
+    ],
+    remotePatterns: [
+      ...(supabaseHost
+        ? [{ protocol: "https" as const, hostname: supabaseHost, pathname: "/storage/v1/object/public/**" }]
+        : []),
+      { protocol: "https", hostname: "rffptyqhqvzrpmyxlwwu.supabase.co", pathname: "/storage/v1/object/public/**" },
+      { protocol: "https", hostname: "firebasestorage.googleapis.com", pathname: "/**" },
     ],
   },
 };
