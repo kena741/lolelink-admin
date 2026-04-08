@@ -1,28 +1,65 @@
-"use client";
-
 import Image from "next/image";
 import { Apple, Store } from "lucide-react";
 
 export default function MarketingDeferredSections() {
-  const steps = [
-    {
-      title: "Choose your app",
-      description: "Pick ZS Customer, ZS Provider, or ZS Handyman based on your role.",
-    },
-    {
-      title: "Set up your profile",
-      description: "Add your details and preferences to get matched quickly.",
-    },
-    {
-      title: "Start using the platform",
-      description: "Book, accept, and complete services with real-time status updates.",
-    },
+  const customerAppSteps = [
+    "Customer signup",
+    "Customer login",
+    "Customer sees list of services",
+  ];
+
+  const providerAppSteps = [
+    "Provider signup",
+    "Provider sends documents (national ID)",
+    "Admin approves provider account",
+    "Provider signin",
+    "Provider pays activation fee before creating service",
+    "Provider creates service",
+    "Admin approves or declines service",
+  ];
+
+  const serviceFlowSteps = [
+    "Customer sees approved service",
+    "Customer books service",
+    "Provider accepts assignment (self or worker) or rejects",
+    "After assignment, provider starts work with customer OTP",
+    "Provider completes work (with or without extra charges)",
+    "Customer approves completed task (provider wallet top-up)",
+    "Provider sends withdrawal request",
+    "Admin approves withdrawal and transfers to provider",
   ];
 
   const apps = [
-    { name: "ZS Customer", description: "Book services and track progress." },
-    { name: "ZS Provider", description: "Manage requests and earnings." },
-    { name: "ZS Handyman", description: "Deliver tasks faster on the go." },
+    { name: "ZS Customer", description: "Find, book, and approve completed services." },
+    { name: "ZS Provider", description: "Create services, accept jobs, and request withdrawals." },
+  ];
+
+  const flowSections = [
+    {
+      title: "Customer app",
+      badge: "3 steps",
+      steps: customerAppSteps,
+      toneClassName: "bg-accent-info-bg text-accent-info",
+    },
+    {
+      title: "Provider app",
+      badge: "7 steps",
+      steps: providerAppSteps,
+      toneClassName: "bg-accent-success text-primary",
+    },
+    {
+      title: "Service lifecycle",
+      badge: "8 steps",
+      steps: serviceFlowSteps,
+      toneClassName: "bg-accent-primary/20 text-primary",
+    },
+  ];
+
+  const partners = [
+    { name: "Zulu Tech", logo: "/partners/zulu_tech-removebg-preview.png" },
+    { name: "IBEX", logo: "/partners/ibexeth_logo-removebg-preview.png" },
+    { name: "Ethio Telecom", logo: "/partners/ethiotelecom-removebg-preview.png" },
+    { name: "CBE", logo: "/partners/cbe-removebg-preview.png" },
   ];
 
   return (
@@ -36,12 +73,23 @@ export default function MarketingDeferredSections() {
             </div>
             <div className="partner-marquee mt-8">
               <div className="partner-marquee-track">
-                {["ibex.et", "Zulu Tech", "Zulu Dine", "Zemen Service", "Ezedin Kamil", "Testing"].map((partner, idx) => (
+                {[...partners, ...partners].map((partner, index) => (
                   <div
-                    key={`${partner}-${idx}`}
-                    className="-rotate-2 flex h-[72px] min-w-[240px] items-center justify-center rounded-md border border-subtle bg-base px-6"
+                    key={`${partner.name}-${index}`}
+                    className="rounded-md bg-gradient-to-r from-accent-info/40 via-border-subtle to-accent-primary/45 p-px"
                   >
-                    <p className="rotate-2 text-[24px] font-bold leading-[1.2] text-primary">{partner}</p>
+                    <div className="flex items-center gap-4 rounded-md bg-base px-4 py-3">
+                      <div className="relative h-[56px] w-[120px] shrink-0">
+                        <Image
+                          src={partner.logo}
+                          alt={`${partner.name} logo`}
+                          fill
+                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                          className="object-contain"
+                        />
+                      </div>
+                      <p className="text-[16px] font-bold leading-[1.2] text-primary">{partner.name}</p>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -52,15 +100,38 @@ export default function MarketingDeferredSections() {
 
       <section id="features" className="mx-auto max-w-[1100px] px-6 py-12 scroll-mt-24">
         <div className="rounded-md border border-border bg-card p-6 sm:p-8">
-          <div className="grid gap-6 sm:grid-cols-[1fr_220px] sm:items-start lg:grid-cols-[1fr_300px] lg:items-center">
+          <div className="grid gap-6 lg:grid-cols-[1fr_300px] lg:items-start">
             <div>
-              <h2 className="text-[24px] font-bold leading-[1.2]">Start in 3 simple steps</h2>
-              <div className="mt-6 space-y-4">
-                {steps.map((step, idx) => (
-                  <div key={step.title} className="rounded-md border border-border bg-background p-4">
-                    <p className="text-[13px] font-semibold text-muted-foreground">Step {idx + 1}</p>
-                    <p className="mt-1 text-[18px] font-semibold leading-[1.2]">{step.title}</p>
-                    <p className="mt-1 text-[14px] text-muted-foreground">{step.description}</p>
+              <h2 className="text-[24px] font-bold leading-[1.2]">How Zemen Service works</h2>
+              <p className="mt-2 text-[16px] font-normal leading-[1.3] text-muted-foreground">
+                A clear journey for customers, providers, and service completion.
+              </p>
+              <div className="mt-6 grid gap-4">
+                {flowSections.map((section) => (
+                  <div key={section.title} className="rounded-md border border-border bg-background p-4 sm:p-5">
+                    <div className="flex items-center justify-between gap-3 border-b border-subtle pb-3">
+                      <p className="text-[20px] font-bold leading-[1.2] text-primary">{section.title}</p>
+                      <span className={`rounded-full px-3 py-1 text-[13px] font-semibold leading-[1.2] ${section.toneClassName}`}>
+                        {section.badge}
+                      </span>
+                    </div>
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                      {section.steps.map((step, idx) => (
+                        <div key={step} className="flex items-center gap-2">
+                          <div className="inline-flex min-h-[40px] items-center gap-2 rounded-full border border-subtle bg-surface px-3 py-2">
+                            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-subtle text-[13px] font-semibold text-primary">
+                              {idx + 1}
+                            </span>
+                            <p className="text-[14px] font-medium leading-[1.2] text-primary">{step}</p>
+                          </div>
+                          {idx < section.steps.length - 1 ? (
+                            <span className="text-[14px] font-semibold leading-[1.2] text-secondary" aria-hidden>
+                              →
+                            </span>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -100,13 +171,13 @@ export default function MarketingDeferredSections() {
                     <p className="mt-1 text-[14px] text-muted-foreground">{app.description}</p>
                     <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                       <a
-                        href="#"
-                        aria-disabled="true"
-                        tabIndex={-1}
-                        className="inline-flex h-[40px] items-center justify-center gap-2 rounded-md bg-primary px-4 text-[14px] font-semibold text-primary-foreground opacity-70"
+                        href="https://play.google.com/store/apps/details?id=com.zemen.service"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex h-[40px] items-center justify-center gap-2 rounded-md bg-primary px-4 text-[14px] font-semibold text-primary-foreground transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                       >
                         <Store className="h-4 w-4" aria-hidden />
-                        Google Play
+                        Play Store
                       </a>
                       <a
                         href="#"

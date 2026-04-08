@@ -35,7 +35,7 @@ export default function ContactUsPage() {
           </div>
           <div className="rounded-md border border-border bg-card p-6">
             <p className="text-[13px] font-semibold text-muted-foreground">Phone</p>
-            <p className="mt-2 text-[16px] font-medium">+251 900 000 000</p>
+            <p className="mt-2 text-[16px] font-medium">+251941024355</p>
           </div>
           <div className="rounded-md border border-border bg-card p-6">
             <p className="text-[13px] font-semibold text-muted-foreground">Address</p>

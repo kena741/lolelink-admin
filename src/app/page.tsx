@@ -25,7 +25,7 @@ const MarketingDeferredSections = dynamic(
 export default function Home() {
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <header className="border-b border-border">
+      <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur">
         <div className="mx-auto flex max-w-[1100px] items-center justify-between gap-4 px-6 py-4">
           <div className="flex items-center gap-3">
             <Image
@@ -36,10 +36,7 @@ export default function Home() {
               className="h-14 w-14 rounded-md object-contain"
               priority
             />
-            <div className="leading-tight">
-              <p className="text-[14px] font-semibold">Zemen Service</p>
-              <p className="text-[13px] font-semibold text-muted-foreground">Mobile apps marketplace</p>
-            </div>
+            <p className="text-[14px] font-semibold">Zemen Service</p>
           </div>
           <div className="flex items-center gap-3">
             <Link
@@ -75,13 +72,13 @@ export default function Home() {
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
                 <a
-                  href="#"
-                  aria-disabled="true"
-                  tabIndex={-1}
-                  className="inline-flex h-[40px] items-center justify-center gap-2 rounded-md bg-primary px-5 text-[14px] font-semibold text-primary-foreground opacity-70"
+                  href="https://play.google.com/store/apps/details?id=com.zemen.service"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex h-[40px] items-center justify-center gap-2 rounded-md bg-primary px-5 text-[14px] font-semibold text-primary-foreground transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   <Store className="h-4 w-4 shrink-0" aria-hidden />
-                  Google Play
+                  Play Store
                 </a>
                 <a
                   href="#"

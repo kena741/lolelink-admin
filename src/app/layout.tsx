@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Zemen Service Admin",
-  description: "Zemen Service admin dashboard",
+  title: "Zemen Service",
+  description: "Zemen Service is a platform for finding and booking services",
 };
 
 export default function RootLayout({
