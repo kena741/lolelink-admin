@@ -4,7 +4,7 @@ export default function ContactUsPage() {
   return (
     <main className="min-h-screen bg-background text-foreground">
       <section className="border-b border-border">
-        <div className="mx-auto max-w-[1100px] px-6 py-12">
+        <div className="mx-auto max-w-[1280px] px-4 sm:px-6 py-12">
           <p className="text-[13px] font-semibold text-muted-foreground">Contact</p>
           <h1 className="mt-2 text-[32px] font-bold leading-[1.1] sm:text-[40px]">Get in touch with Zemen Service</h1>
           <p className="mt-3 max-w-[720px] text-[16px] font-normal leading-[1.3] text-muted-foreground">
@@ -27,7 +27,7 @@ export default function ContactUsPage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-[1100px] px-6 py-12">
+      <section className="mx-auto max-w-[1280px] px-4 sm:px-6 py-12">
         <div className="grid gap-6 md:grid-cols-3">
           <div className="rounded-md border border-border bg-card p-6">
             <p className="text-[13px] font-semibold text-muted-foreground">Email</p>

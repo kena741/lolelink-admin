@@ -7,7 +7,7 @@ const MarketingDeferredSections = dynamic(
   () => import("./_components/MarketingDeferredSections"),
   {
     loading: () => (
-      <section className="mx-auto max-w-[1100px] px-6 py-12">
+      <section className="mx-auto max-w-[1280px] px-4 sm:px-6 py-12">
         <div className="space-y-4 rounded-md border border-border bg-card p-6">
           <div className="h-4 w-40 animate-pulse rounded bg-muted" />
           <div className="h-4 w-72 animate-pulse rounded bg-muted" />
@@ -26,7 +26,7 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur">
-        <div className="mx-auto flex max-w-[1100px] items-center justify-between gap-4 px-6 py-4">
+        <div className="mx-auto flex max-w-[1280px] items-center justify-between gap-4 px-4 sm:px-6 py-4">
           <div className="flex items-center gap-3">
             <Image
               src="/logo.png"
@@ -58,7 +58,7 @@ export default function Home() {
       <section className="relative overflow-hidden border-b border-border">
         <div className="absolute inset-0 bg-gradient-to-r from-primary/20 via-accent/15 to-secondary/20" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_left_top,rgba(59,107,33,0.25),transparent_45%)]" />
-        <div className="relative mx-auto max-w-[1100px] px-6 py-14 sm:py-20">
+        <div className="relative mx-auto max-w-[1280px] px-4 sm:px-6 py-14 sm:py-20">
           <div className="grid gap-10 lg:grid-cols-[1fr_1.1fr] lg:items-center">
             <div>
               <p className="inline-flex items-center rounded-full border border-border bg-card px-3 py-1 text-[13px] font-semibold text-muted-foreground">
@@ -99,6 +99,7 @@ export default function Home() {
                   alt="Zemen Service app preview"
                   width={1200}
                   height={700}
+                  sizes="(max-width: 1024px) 100vw, 52vw"
                   className="h-auto w-full rounded-sm object-cover"
                   priority
                 />
@@ -109,8 +110,8 @@ export default function Home() {
                   alt="Zemen Provider app preview"
                   width={1200}
                   height={700}
+                  sizes="(max-width: 1024px) 100vw, 52vw"
                   className="h-auto w-full rounded-sm object-cover"
-                  priority
                 />
               </div>
               <div className="-rotate-1 overflow-hidden rounded-md border border-border bg-card p-2 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
@@ -119,8 +120,8 @@ export default function Home() {
                   alt="Zemen Handyman app preview"
                   width={1200}
                   height={700}
+                  sizes="(max-width: 1024px) 100vw, 52vw"
                   className="h-auto w-full rounded-sm object-cover"
-                  priority
                 />
               </div>
             </div>
