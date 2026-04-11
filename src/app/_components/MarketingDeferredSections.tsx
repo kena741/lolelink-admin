@@ -385,24 +385,24 @@ export default function MarketingDeferredSections() {
                         <p className="text-[20px] font-bold">{app.name}</p>
                         <p className="mt-1 text-[14px] text-muted-foreground">{app.description}</p>
                       </div>
-                      <div className="flex flex-col gap-2 sm:flex-row lg:shrink-0">
+                      <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-stretch lg:max-w-md lg:shrink-0 xl:max-w-none">
                         <a
                           href={app.playStoreUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex h-[40px] items-center justify-center gap-2 rounded-md bg-primary px-4 text-[14px] font-semibold text-primary-foreground transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                          className="inline-flex h-[40px] min-h-[40px] flex-1 items-center justify-center gap-2 rounded-md bg-primary px-4 text-[14px] font-semibold text-primary-foreground transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                         >
-                          <Store className="h-4 w-4" aria-hidden />
+                          <Store className="h-4 w-4 shrink-0" aria-hidden />
                           Play Store
-                          <ArrowRight className="h-4 w-4" aria-hidden />
+                          <ArrowRight className="h-4 w-4 shrink-0" aria-hidden />
                         </a>
                         <a
                           href="#"
                           aria-disabled="true"
                           tabIndex={-1}
-                          className="inline-flex h-[40px] items-center justify-center gap-2 rounded-md border border-border bg-card px-4 text-[14px] font-semibold opacity-70"
+                          className="inline-flex h-[40px] min-h-[40px] flex-1 items-center justify-center gap-2 rounded-md border border-border bg-card px-4 text-[14px] font-semibold opacity-70"
                         >
-                          <Apple className="h-4 w-4" aria-hidden />
+                          <Apple className="h-4 w-4 shrink-0" aria-hidden />
                           Coming soon
                         </a>
                       </div>

@@ -25,33 +25,41 @@ const MarketingDeferredSections = dynamic(
 export default function Home() {
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur">
-        <div className="mx-auto flex max-w-[1280px] items-center justify-between gap-4 px-4 sm:px-6 py-4">
-          <div className="flex items-center gap-3">
+      <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        <div className="mx-auto flex max-w-[1280px] items-center justify-between gap-2 px-3 py-3 sm:gap-4 sm:px-6 sm:py-4">
+          <Link
+            href="/"
+            className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-md"
+          >
             <Image
               src="/logo.png"
-              alt="Zemen Service"
+              alt=""
               width={56}
               height={56}
-              className="h-14 w-14 rounded-md object-contain"
+              className="h-10 w-10 shrink-0 rounded-md object-contain sm:h-14 sm:w-14"
               priority
             />
-            <p className="text-[14px] font-semibold">Zemen Service</p>
-          </div>
-          <div className="flex items-center gap-3">
+            <span className="truncate text-[13px] font-semibold leading-tight sm:text-[14px]">Zemen Service</span>
+          </Link>
+          <nav
+            className="flex shrink-0 items-center gap-2 sm:gap-3"
+            aria-label="Primary"
+          >
             <Link
               href="/contact-us"
-              className="h-[40px] rounded-md border border-border bg-card px-4 text-[14px] font-semibold leading-[40px] text-card-foreground transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="inline-flex h-10 min-h-10 min-w-[40px] items-center justify-center rounded-md border border-border bg-card px-2.5 text-[13px] font-semibold text-card-foreground transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:h-[40px] sm:min-h-[40px] sm:px-4 sm:text-[14px]"
             >
-              Contact us
+              <span className="sm:hidden">Contact</span>
+              <span className="hidden sm:inline">Contact us</span>
             </Link>
             <Link
               href="#download"
-              className="h-[40px] rounded-md bg-primary px-4 text-[14px] font-semibold leading-[40px] text-primary-foreground transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="inline-flex h-10 min-h-10 min-w-[40px] items-center justify-center rounded-md bg-primary px-2.5 text-[13px] font-semibold text-primary-foreground transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:h-[40px] sm:min-h-[40px] sm:px-4 sm:text-[14px]"
             >
-              Get the app
+              <span className="sm:hidden">Apps</span>
+              <span className="hidden sm:inline">Get the app</span>
             </Link>
-          </div>
+          </nav>
         </div>
       </header>
 
@@ -77,12 +85,12 @@ export default function Home() {
                 >
                   How it works
                 </Link>
-                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                   <a
                     href="https://play.google.com/store/apps/details?id=com.zemen.service"
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex h-[40px] items-center justify-center gap-2 rounded-md bg-primary px-4 text-[14px] font-semibold text-primary-foreground transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    className="inline-flex h-[40px] w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-[14px] font-semibold text-primary-foreground transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   >
                     <Store className="h-4 w-4 shrink-0" aria-hidden />
                     Zemen Service
@@ -91,7 +99,7 @@ export default function Home() {
                     href="https://play.google.com/store/apps/details?id=com.zemen.provider"
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex h-[40px] items-center justify-center gap-2 rounded-md bg-primary px-4 text-[14px] font-semibold text-primary-foreground transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    className="inline-flex h-[40px] w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-[14px] font-semibold text-primary-foreground transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   >
                     <Store className="h-4 w-4 shrink-0" aria-hidden />
                     Zemen Provider
@@ -100,21 +108,21 @@ export default function Home() {
                     href="https://play.google.com/store/apps/details?id=com.zemen.handyman"
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex h-[40px] items-center justify-center gap-2 rounded-md bg-primary px-4 text-[14px] font-semibold text-primary-foreground transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    className="inline-flex h-[40px] w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-[14px] font-semibold text-primary-foreground transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   >
                     <Store className="h-4 w-4 shrink-0" aria-hidden />
                     Zemen Handyman
                   </a>
+                  <a
+                    href="#"
+                    aria-disabled="true"
+                    tabIndex={-1}
+                    className="inline-flex h-[40px] w-full items-center justify-center gap-2 rounded-md border border-border bg-card px-4 text-[14px] font-semibold text-card-foreground opacity-70 sm:col-span-3"
+                  >
+                    <Apple className="h-4 w-4 shrink-0" aria-hidden />
+                    App Store — coming soon
+                  </a>
                 </div>
-                <a
-                  href="#"
-                  aria-disabled="true"
-                  tabIndex={-1}
-                  className="inline-flex h-[40px] w-fit items-center justify-center gap-2 rounded-md border border-border bg-card px-5 text-[14px] font-semibold text-card-foreground opacity-70"
-                >
-                  <Apple className="h-4 w-4 shrink-0" aria-hidden />
-                  App Store — coming soon
-                </a>
               </div>
             </div>
 
