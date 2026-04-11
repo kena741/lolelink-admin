@@ -24,7 +24,7 @@ export const metadata: Metadata = {
     template: "%s · Zemen Service",
   },
   description:
-    "Book trusted home and everyday services in Ethiopia. Zemen connects customers with verified providers—admin-approved listings, OTP-verified work start, and secure wallet payouts. Apps for customers, providers, and handymen.",
+    "Book admin-approved services in Ethiopia. Verified providers (ID, medical, criminal checks). Escrow until you approve work; admin-approved payouts. OTP at start. Customer, provider, and handyman apps.",
   keywords: [
     "Zemen",
     "Zemen Service",
@@ -41,7 +41,7 @@ export const metadata: Metadata = {
     siteName: "Zemen Service",
     title: "Zemen Service — Book verified local services in Ethiopia",
     description:
-      "Book trusted services with verified providers. Customer, provider, and handyman apps with secure booking and payouts.",
+      "Admin-approved services, verified providers (medical and criminal checks), escrow-style payments until completion, admin-approved payouts. Customer, provider, and handyman apps.",
     images: [
       {
         url: "/logo.png",
@@ -55,7 +55,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Zemen Service — Book verified local services in Ethiopia",
     description:
-      "Book trusted services with verified providers. Apps for customers, providers, and handymen.",
+      "Admin-approved services, escrow-style payments, verified providers. Apps for customers, providers, and handymen.",
     images: ["/logo.png"],
   },
   robots: {

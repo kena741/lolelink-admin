@@ -159,7 +159,7 @@ export default function MarketingDeferredSections() {
     {
       id: 2,
       title: "Browse Services",
-      description: "Explore approved services by category and price.",
+      description: "Explore admin-approved services by category and price.",
     },
     {
       id: 3,
@@ -184,7 +184,7 @@ export default function MarketingDeferredSections() {
     {
       id: 7,
       title: "Wallet Top-up",
-      description: "Payment is processed to the provider wallet.",
+      description: "After you approve, payment releases from escrow to the provider wallet.",
     },
   ];
 
@@ -197,12 +197,12 @@ export default function MarketingDeferredSections() {
     {
       id: 2,
       title: "Submit Documents",
-      description: "Upload national ID and required documents.",
+      description: "Upload ID, medical, criminal record, and other required documents.",
     },
     {
       id: 3,
       title: "Admin Approval",
-      description: "Admin reviews and verifies your documents.",
+      description: "Admin verifies your documents and background checks.",
     },
     {
       id: 4,
@@ -237,12 +237,12 @@ export default function MarketingDeferredSections() {
     {
       id: 10,
       title: "Withdraw Request",
-      description: "Submit wallet withdrawal request.",
+      description: "Request a payout from your wallet balance.",
     },
     {
       id: 11,
       title: "Admin Approval",
-      description: "Admin approves and transfers funds.",
+      description: "Admin approves the withdrawal and transfers funds to you.",
     },
   ];
 
@@ -272,11 +272,11 @@ export default function MarketingDeferredSections() {
   ];
 
   const whyChooseItems = [
-    "Verified providers with admin-led document checks.",
-    "Secure service start using customer OTP verification.",
-    "Only approved services are shown to customers.",
-    "Clear booking lifecycle with real-time progress visibility.",
-    "Reliable wallet payouts with admin-approved withdrawals.",
+    "Customers only see admin-approved services—every listing is vetted before it goes live.",
+    "Providers are verified with identity, medical status, and criminal record checks.",
+    "Escrow-style payments: your money stays protected until you approve completed work.",
+    "OTP when work starts, plus a clear booking lifecycle you can follow end to end.",
+    "Providers receive payouts after customer approval and admin-approved withdrawal transfers.",
   ];
 
   return (

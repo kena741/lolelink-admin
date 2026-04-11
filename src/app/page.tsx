@@ -70,13 +70,13 @@ export default function Home() {
           <div className="grid gap-10 lg:grid-cols-[1fr_1.1fr] lg:items-center">
             <div>
               <p className="inline-flex items-center rounded-full border border-border bg-card px-3 py-1 text-[13px] font-semibold text-muted-foreground">
-                Book services · Verified providers
+                Admin-approved services · Verified providers
               </p>
               <h1 className="mt-4 text-[32px] font-bold leading-[1.1] sm:text-[40px]">
                 Trusted local services, booked in minutes.
               </h1>
-              <p className="mt-4 text-[16px] font-normal leading-[1.3] text-muted-foreground">
-                Zemen connects customers with verified providers in Ethiopia—admin-approved listings, OTP-verified work start, and secure wallet payouts.
+              <p className="mt-4 text-balance text-[16px] font-normal leading-[1.3] text-muted-foreground">
+                Book admin-approved services from providers verified with identity, medical status, and criminal record checks. Payments stay in escrow until you approve completed work; providers receive payouts after admin-approved withdrawals. OTP verifies when the job starts.
               </p>
               <div className="mt-8 flex flex-col gap-3">
                 <Link
