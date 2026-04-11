@@ -62,32 +62,58 @@ export default function Home() {
           <div className="grid gap-10 lg:grid-cols-[1fr_1.1fr] lg:items-center">
             <div>
               <p className="inline-flex items-center rounded-full border border-border bg-card px-3 py-1 text-[13px] font-semibold text-muted-foreground">
-                Three apps, one marketplace
+                Book services · Verified providers
               </p>
               <h1 className="mt-4 text-[32px] font-bold leading-[1.1] sm:text-[40px]">
-                Get Zemen apps on your phone and start today.
+                Trusted local services, booked in minutes.
               </h1>
               <p className="mt-4 text-[16px] font-normal leading-[1.3] text-muted-foreground">
-                Zemen Service, Zemen Provider, and Zemen Handyman in one ecosystem.
+                Zemen connects customers with verified providers in Ethiopia—admin-approved listings, OTP-verified work start, and secure wallet payouts.
               </p>
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-                <a
-                  href="https://play.google.com/store/apps/details?id=com.zemen.service"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex h-[40px] items-center justify-center gap-2 rounded-md bg-primary px-5 text-[14px] font-semibold text-primary-foreground transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              <div className="mt-8 flex flex-col gap-3">
+                <Link
+                  href="#features"
+                  className="inline-flex w-fit items-center rounded-sm text-[14px] font-semibold leading-[1.2] text-primary underline underline-offset-4 transition-colors hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
-                  <Store className="h-4 w-4 shrink-0" aria-hidden />
-                  Play Store
-                </a>
+                  How it works
+                </Link>
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                  <a
+                    href="https://play.google.com/store/apps/details?id=com.zemen.service"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex h-[40px] items-center justify-center gap-2 rounded-md bg-primary px-4 text-[14px] font-semibold text-primary-foreground transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    <Store className="h-4 w-4 shrink-0" aria-hidden />
+                    Zemen Service
+                  </a>
+                  <a
+                    href="https://play.google.com/store/apps/details?id=com.zemen.provider"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex h-[40px] items-center justify-center gap-2 rounded-md bg-primary px-4 text-[14px] font-semibold text-primary-foreground transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    <Store className="h-4 w-4 shrink-0" aria-hidden />
+                    Zemen Provider
+                  </a>
+                  <a
+                    href="https://play.google.com/store/apps/details?id=com.zemen.handyman"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex h-[40px] items-center justify-center gap-2 rounded-md bg-primary px-4 text-[14px] font-semibold text-primary-foreground transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    <Store className="h-4 w-4 shrink-0" aria-hidden />
+                    Zemen Handyman
+                  </a>
+                </div>
                 <a
                   href="#"
                   aria-disabled="true"
                   tabIndex={-1}
-                  className="inline-flex h-[40px] items-center justify-center gap-2 rounded-md border border-border bg-card px-5 text-[14px] font-semibold text-card-foreground opacity-70"
+                  className="inline-flex h-[40px] w-fit items-center justify-center gap-2 rounded-md border border-border bg-card px-5 text-[14px] font-semibold text-card-foreground opacity-70"
                 >
                   <Apple className="h-4 w-4 shrink-0" aria-hidden />
-                  App Store
+                  App Store — coming soon
                 </a>
               </div>
             </div>

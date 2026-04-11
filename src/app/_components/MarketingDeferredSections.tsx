@@ -247,8 +247,21 @@ export default function MarketingDeferredSections() {
   ];
 
   const apps = [
-    { name: "ZS Customer", description: "Find, book, and approve completed services." },
-    { name: "ZS Provider", description: "Create services, accept jobs, and request withdrawals." },
+    {
+      name: "Zemen Service",
+      description: "Find, book, and approve completed services.",
+      playStoreUrl: "https://play.google.com/store/apps/details?id=com.zemen.service",
+    },
+    {
+      name: "Zemen Provider",
+      description: "Create services, accept jobs, and request withdrawals.",
+      playStoreUrl: "https://play.google.com/store/apps/details?id=com.zemen.provider",
+    },
+    {
+      name: "Zemen Handyman",
+      description: "Complete assigned jobs and track work on the go.",
+      playStoreUrl: "https://play.google.com/store/apps/details?id=com.zemen.handyman",
+    },
   ];
 
   const partners = [
@@ -374,7 +387,7 @@ export default function MarketingDeferredSections() {
                       </div>
                       <div className="flex flex-col gap-2 sm:flex-row lg:shrink-0">
                         <a
-                          href="https://play.google.com/store/apps/details?id=com.zemen.service"
+                          href={app.playStoreUrl}
                           target="_blank"
                           rel="noreferrer"
                           className="inline-flex h-[40px] items-center justify-center gap-2 rounded-md bg-primary px-4 text-[14px] font-semibold text-primary-foreground transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
