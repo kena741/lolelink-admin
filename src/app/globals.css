@@ -428,6 +428,38 @@
   margin-top: auto;
 }
 
+.hero-arrows {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.hero-arrow {
+  position: absolute;
+  opacity: 0.95;
+  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.12));
+}
+
+.hero-arrow--left {
+  width: 150px;
+  left: 20%;
+  top: 37%;
+}
+
+.hero-arrow--center {
+  width: 70px;
+  left: 50%;
+  top: 14%;
+  transform: translateX(-50%);
+}
+
+.hero-arrow--right {
+  width: 150px;
+  right: 20%;
+  top: 43%;
+}
+
 .hero-col {
   display: flex;
   flex-direction: column;
@@ -561,7 +593,7 @@
   color: #fff;
   border: 1px solid #027a3b;
   box-shadow: 0 4px 4px rgba(0, 0, 0, 0.25);
-  margin-bottom: 30px;
+  margin-bottom: 100px;
 }
 
 .hero-app-btn--filled:hover {
@@ -595,6 +627,10 @@
   .hero-columns {
     grid-template-columns: 1fr;
     gap: 32px;
+  }
+
+  .hero-arrows {
+    display: none;
   }
 
   .hero-col--provider,
