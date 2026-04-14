@@ -392,9 +392,10 @@
 }
 
 .hero-title-word--trusted .hero-badge--title {
-  left: 57%;
-  top: calc(100% - 19px);
-  transform: translateX(-50%) rotate(-2deg);
+  left: 50%;
+  top: auto;
+  bottom: calc(100% + 14 px);
+  transform: translateX(-50%);
 }
 
 .hero-title--trusted {
@@ -410,10 +411,10 @@
 }
 
 .hero-title-word--minutes .hero-badge--title {
-  top: auto;
-  bottom: calc(100% - 24px);
-  left: 85%;
-  transform: translateX(-50%) rotate(10deg);
+  top: calc(100% + 10px);
+  bottom: auto;
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 /* Three-column phone layout */
@@ -620,7 +621,55 @@
 
 /* Responsive */
 @media (max-width: 900px) {
+  .landing-nav-wrapper {
+    padding: 12px 14px;
+  }
+
+  .landing-nav {
+    padding: 10px 14px;
+    border-radius: 12px;
+    gap: 10px;
+  }
+
+  .landing-nav-brand {
+    min-width: 0;
+    gap: 8px;
+    flex: 1;
+  }
+
+  .landing-nav-logo {
+    width: 42px;
+    height: 42px;
+  }
+
+  .landing-nav-title {
+    font-size: 18px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .landing-nav-links {
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .landing-nav-contact {
+    font-size: 15px;
+  }
+
+  .landing-nav-cta {
+    font-size: 15px;
+    padding: 8px 14px;
+    border-radius: 20px;
+  }
+
+  .hero-section {
+    min-height: 100svh;
+  }
+
   .hero-inner {
+    min-height: calc(100svh - 120px);
     padding-inline: 20px;
   }
 
@@ -648,7 +697,7 @@
 
   .hero-phone--center,
   .hero-phone--side {
-    width: min(260px, 70vw);
+    width: min(230px, 46vw);
   }
 
   .hero-col--provider .hero-phone--side {
@@ -662,37 +711,71 @@
   .hero-app-info {
     text-align: center;
   }
-}
 
-@media (max-width: 600px) {
-  .hero-inner {
-    padding-inline: 16px;
+  .hero-title {
+    max-width: 620px;
+    line-height: 1.06;
   }
 
-  .landing-nav-title {
-    font-size: 16px;
-  }
-
-  .landing-nav-contact {
-    font-size: 14px;
-  }
-
-  .landing-nav-cta {
-    font-size: 14px;
-    padding: 8px 16px;
-  }
-
-  .hero-badges {
+  .hero-title-word {
+    display: inline-flex;
     flex-direction: column;
     align-items: center;
   }
 
-  .hero-badge--green {
+  .hero-badge--title,
+  .hero-title-word--trusted .hero-badge--title,
+  .hero-title-word--minutes .hero-badge--title {
+    position: static;
     transform: none;
+    left: auto;
+    top: auto;
+    bottom: auto;
+    margin-top: 8px;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 600px) {
+  .landing-nav-wrapper {
+    padding: 8px 10px;
+  }
+
+  .landing-nav {
+    padding: 8px 10px;
+    border-radius: 10px;
+    gap: 8px;
+  }
+
+  .landing-nav-brand {
+    gap: 6px;
+  }
+
+  .landing-nav-links {
+    gap: 8px;
+  }
+
+  .hero-inner {
+    padding-inline: 16px;
+    min-height: calc(100svh - 108px);
+  }
+
+  .landing-nav-title {
+    font-size: 14px;
+  }
+
+  .landing-nav-contact {
+    font-size: 13px;
+  }
+
+  .landing-nav-cta {
+    font-size: 13px;
+    padding: 7px 12px;
   }
 
   .hero-title {
     font-size: clamp(36px, 10vw, 60px);
+    line-height: 1.05;
   }
 
   .hero-app-btn {
@@ -700,9 +783,14 @@
     padding: 12px 20px;
   }
 
+  .hero-phone--center,
+  .hero-phone--side {
+    width: min(175px, 44vw);
+  }
+
   .landing-nav-logo {
-    width: 38px;
-    height: 38px;
+    width: 34px;
+    height: 34px;
   }
 }
 }
