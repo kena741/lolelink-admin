@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, New_Amsterdam, Outfit } from "next/font/google";
 import "./globals.css";
 import Providers from "./providers";
 
@@ -10,6 +10,18 @@ const geistSans = Geist({
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+const newAmsterdam = New_Amsterdam({
+  weight: "400",
+  variable: "--font-new-amsterdam",
+  subsets: ["latin"],
+});
+
+const outfit = Outfit({
+  weight: ["300", "400", "500", "600"],
+  variable: "--font-outfit",
   subsets: ["latin"],
 });
 
@@ -72,7 +84,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${newAmsterdam.variable} ${outfit.variable} antialiased`}
       >
         <Providers>
           {children}

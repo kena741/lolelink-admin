@@ -1,4 +1,4 @@
- "use client";
+"use client";
 
 import Image from "next/image";
 import { Apple, ArrowRight, Store } from "lucide-react";
@@ -281,36 +281,27 @@ export default function MarketingDeferredSections() {
 
   return (
     <>
-      <section id="partners" className="border-b border-subtle bg-base scroll-mt-24">
-        <div className="mx-auto max-w-[1280px] px-4 sm:px-6 py-10">
-          <LazyMount minHeightClassName="min-h-[200px]">
-            <div className="rounded-md border border-subtle bg-surface p-6 sm:p-8">
-              <div className="flex flex-col items-center text-center">
-                <p className="text-[13px] font-semibold leading-[1.2] text-muted-foreground">Trusted Partners</p>
-                <h2 className="mt-2 text-[24px] font-bold leading-[1.2] text-primary">Our Partners</h2>
-              </div>
-              <div className="partner-marquee mt-8">
-                <div className="partner-marquee-track">
-                  {[...partners, ...partners].map((partner, index) => (
-                    <div
-                      key={`${partner.name}-${index}`}
-                      className="rounded-md bg-gradient-to-r from-accent-info/40 via-border-subtle to-accent-primary/45 p-px"
-                    >
-                      <div className="flex items-center gap-4 rounded-md bg-base px-4 py-3">
-                        <div className="relative h-[56px] w-[120px] shrink-0">
-                          <Image
-                            src={partner.logo}
-                            alt={`${partner.name} logo`}
-                            fill
-                            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-                            className="object-contain"
-                          />
-                        </div>
-                        <p className="text-[16px] font-bold leading-[1.2] text-primary">{partner.name}</p>
-                      </div>
+      <section id="partners" className="partners-bar scroll-mt-24">
+        <div className="mx-auto max-w-[1640px] px-4 sm:px-6 py-4">
+          <LazyMount minHeightClassName="min-h-[120px]">
+            <div className="partner-marquee">
+              <div className="partner-marquee-track">
+                {[...partners, ...partners].map((partner, index) => (
+                  <div
+                    key={`${partner.name}-${index}`}
+                    className="flex items-center gap-3 px-6"
+                  >
+                    <div className="relative h-[64px] w-[130px] shrink-0">
+                      <Image
+                        src={partner.logo}
+                        alt={`${partner.name} logo`}
+                        fill
+                        sizes="130px"
+                        className="object-contain"
+                      />
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
             </div>
           </LazyMount>
