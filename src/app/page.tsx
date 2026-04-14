@@ -112,17 +112,36 @@ export default function Home() {
                 <path
                   d="M126 70C106 42 82 26 44 24"
                   stroke="#027A3B"
+                  strokeWidth="10"
+                  strokeOpacity="0.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M126 70C106 42 82 26 44 24"
+                  stroke="#027A3B"
                   strokeWidth="7"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
                 <path d="M56 12L36 24L56 36" stroke="#027A3B" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M56 12L36 24L56 36" stroke="#027A3B" strokeWidth="10" strokeOpacity="0.2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
               <svg className="hero-arrow hero-arrow--center" viewBox="0 0 80 100" fill="none">
+                <path d="M40 84C42 64 42 48 40 24" stroke="#027A3B" strokeWidth="10" strokeOpacity="0.2" strokeLinecap="round" strokeLinejoin="round" />
                 <path d="M40 84C42 64 42 48 40 24" stroke="#027A3B" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M28 36L40 20L52 36" stroke="#027A3B" strokeWidth="10" strokeOpacity="0.2" strokeLinecap="round" strokeLinejoin="round" />
                 <path d="M28 36L40 20L52 36" stroke="#027A3B" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
               <svg className="hero-arrow hero-arrow--right" viewBox="0 0 140 90" fill="none">
+                <path
+                  d="M14 70C34 42 58 26 96 24"
+                  stroke="#027A3B"
+                  strokeWidth="10"
+                  strokeOpacity="0.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
                 <path
                   d="M14 70C34 42 58 26 96 24"
                   stroke="#027A3B"
@@ -131,6 +150,7 @@ export default function Home() {
                   strokeLinejoin="round"
                 />
                 <path d="M84 12L104 24L84 36" stroke="#027A3B" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M84 12L104 24L84 36" stroke="#027A3B" strokeWidth="10" strokeOpacity="0.2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
             {/* Left – Provider */}
