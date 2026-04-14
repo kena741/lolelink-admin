@@ -125,9 +125,9 @@ export default function Home() {
                 <PlayStoreIcon />
                 Zemen Provider
               </a>
-              <div className="hero-phone hero-phone--side">
+              <div className="hero-phone hero-phone--side hero-phone--plain">
                 <Image
-                  src="/Zemen-Provider-Main-Preview.png"
+                  src="/provider_.png"
                   alt="Zemen Provider app screenshot"
                   width={390}
                   height={808}
@@ -147,9 +147,9 @@ export default function Home() {
                 <PlayStoreIcon />
                 Zemen Service
               </a>
-              <div className="hero-phone hero-phone--center">
+              <div className="hero-phone hero-phone--center hero-phone--plain">
                 <Image
-                  src="/Zemen-Service-Main-Preview.png"
+                  src="/zemen_.png"
                   alt="Zemen Service app screenshot"
                   width={390}
                   height={808}
@@ -177,9 +177,9 @@ export default function Home() {
                 <PlayStoreIcon />
                 Zemen Handyman
               </a>
-              <div className="hero-phone hero-phone--side">
+              <div className="hero-phone hero-phone--side hero-phone--plain">
                 <Image
-                  src="/mock-handyman.png"
+                  src="/handyman_.png"
                   alt="Zemen Handyman app screenshot"
                   width={390}
                   height={808}

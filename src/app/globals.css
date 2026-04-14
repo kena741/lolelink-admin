@@ -216,7 +216,7 @@
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  max-width: 1641px;
+  max-width: 1400px;
   padding: 13px 28px;
   background: #fff;
   border-radius: 16px;
@@ -333,6 +333,7 @@
   z-index: 1;
   width: 100%;
   max-width: 1400px;
+  min-height: calc(100vh - 128px);
   margin: 0 auto;
   padding-inline: 32px;
   display: flex;
@@ -345,11 +346,12 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 12px 4px 4px;
+  padding: 4px 16px 4px 8px;
   border-radius: 40px;
   box-shadow: 0 4px 4px rgba(0, 0, 0, 0.25);
   font-size: 15px;
   font-weight: 500;
+  font-family: var(--font-outfit), sans-serif;
   color: #fff;
 }
 
@@ -390,9 +392,9 @@
 }
 
 .hero-title-word--trusted .hero-badge--title {
-  left: 64%;
-  top: calc(100% - 14px);
-  transform: translateX(-50%) rotate(-3deg);
+  left: 57%;
+  top: calc(100% - 19px);
+  transform: translateX(-50%) rotate(-2deg);
 }
 
 .hero-title--trusted {
@@ -409,9 +411,9 @@
 
 .hero-title-word--minutes .hero-badge--title {
   top: auto;
-  bottom: calc(100% - 10px);
-  left: 58%;
-  transform: translateX(-50%) rotate(9deg);
+  bottom: calc(100% - 24px);
+  left: 85%;
+  transform: translateX(-50%) rotate(10deg);
 }
 
 /* Three-column phone layout */
@@ -423,13 +425,14 @@
   align-items: end;
   position: relative;
   z-index: 1;
+  margin-top: auto;
 }
 
 .hero-col {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 20px;
+  gap: 30px;
 }
 
 .hero-col--provider {
@@ -503,6 +506,24 @@
   z-index: 1;
 }
 
+.hero-phone--plain {
+  border: 0;
+  border-radius: 0;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  overflow: visible;
+  height: auto;
+  aspect-ratio: auto;
+  align-items: flex-start;
+}
+
+.hero-phone--plain .hero-phone-img {
+  height: auto;
+  object-fit: contain;
+}
+
 .hero-col--provider .hero-phone--side {
   margin-right: -96px;
 }
@@ -540,6 +561,7 @@
   color: #fff;
   border: 1px solid #027a3b;
   box-shadow: 0 4px 4px rgba(0, 0, 0, 0.25);
+  margin-bottom: 30px;
 }
 
 .hero-app-btn--filled:hover {
