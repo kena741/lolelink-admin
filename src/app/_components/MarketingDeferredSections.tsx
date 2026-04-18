@@ -1,7 +1,27 @@
 "use client";
 
 import Image from "next/image";
-import { Apple, ArrowRight, Store } from "lucide-react";
+import {
+  Apple,
+  ArrowLeftRight,
+  ArrowRight,
+  Banknote,
+  BookOpenCheck,
+  Briefcase,
+  Camera,
+  CircleCheck,
+  ClipboardCheck,
+  ClipboardList,
+  CreditCard,
+  FileCheck,
+  Hammer,
+  KeyRound,
+  LogIn,
+  Store,
+  UserCheck,
+  UserPlus,
+  type LucideIcon,
+} from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { partnerLogoBoxClassName, partnerLogoImageSizes } from "./partner-logo-layout";
@@ -26,21 +46,53 @@ const mobileDownloadLabels = [
   { heading: "Handyman App", storeLabel: "Zemen Handyman" },
 ] as const;
 
-interface WorkflowStep {
-  id: number;
+interface JourneyStep {
   title: string;
   description: string;
+  Icon: LucideIcon;
 }
 
-interface WorkflowBoardProps {
-  steps: WorkflowStep[];
-  isVisible: boolean;
-}
-
-interface WorkflowSectionProps {
-  steps: WorkflowStep[];
+interface JourneyColumnProps {
   title: string;
   description: string;
+  steps: JourneyStep[];
+}
+
+function JourneyColumn({ title, description, steps }: JourneyColumnProps) {
+  return (
+    <article className="how-platforms-card flex h-full flex-col rounded-md border border-[#ededed] bg-white p-5 shadow-[0_2px_12px_rgba(0,0,0,0.06)] sm:p-6">
+      <h3 className="font-[family-name:var(--font-outfit),sans-serif] text-[20px] font-bold leading-[1.2] text-[#027a3b] sm:text-[22px]">
+        {title}
+      </h3>
+      <p className="mt-2 font-[family-name:var(--font-outfit),sans-serif] text-[15px] font-normal leading-[1.4] text-[#838383]">
+        {description}
+      </p>
+      <ol className="mt-6 list-none space-y-0 pl-0">
+        {steps.map((step, index) => {
+          const Icon = step.Icon;
+          const showConnector = index < steps.length - 1;
+          return (
+            <li key={step.title} className="flex gap-3">
+              <div className="flex w-9 flex-col items-center">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#027a3b] text-white">
+                  <Icon className="h-4 w-4" strokeWidth={2} aria-hidden />
+                </span>
+                {showConnector ? (
+                  <span className="mb-px mt-1 block h-10 w-0.5 shrink-0 bg-[#027a3b]" aria-hidden />
+                ) : null}
+              </div>
+              <div className={`min-w-0 flex-1 pt-0.5 ${showConnector ? "pb-4" : ""}`}>
+                <p className="text-[15px] font-semibold leading-[1.2] text-[#1b1b1b]">{step.title}</p>
+                <p className="mt-1 text-[14px] font-normal leading-[1.35] text-[#838383]">
+                  {step.description}
+                </p>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    </article>
+  );
 }
 
 interface LazyMountProps {
@@ -71,200 +123,108 @@ function LazyMount({ children, minHeightClassName = "min-h-[200px]" }: LazyMount
   return <div ref={hostRef} className={isMounted ? "" : minHeightClassName}>{isMounted ? children : null}</div>;
 }
 
-function WorkflowBoard({ steps, isVisible }: WorkflowBoardProps) {
-  return (
-    <div className="space-y-6">
-      <div className="hidden md:block">
-        <div className="flex flex-wrap items-center gap-4">
-          {steps.map((step, index) => {
-            const transitionDelay = `${index * 90}ms`;
-            return (
-              <div
-                key={step.id}
-                style={{ transitionDelay }}
-                className={`flex items-center gap-4 transition-all duration-500 motion-reduce:transition-none ${isVisible ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0 motion-reduce:translate-y-0"}`}
-              >
-              <div className="min-w-[240px] max-w-[320px] flex-1">
-                <div className="rounded-md border border-subtle bg-gradient-to-br from-accent-info-bg to-base p-5 transition-all duration-200 hover:border-strong">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-primary text-inverse text-[13px] font-bold leading-[1.2]">
-                      {step.id}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h4 className="text-[14px] font-semibold leading-[1.2] text-primary">{step.title}</h4>
-                      <p className="mt-1 text-[13px] font-medium leading-[1.2] text-primary">{step.description}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              {index < steps.length - 1 ? (
-                <div className="hidden shrink-0 lg:block">
-                  <ArrowRight className="h-5 w-5 text-secondary" aria-hidden />
-                </div>
-              ) : null}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="space-y-4 md:hidden">
-        {steps.map((step, index) => {
-          const transitionDelay = `${index * 90}ms`;
-          return (
-            <div
-              key={step.id}
-              style={{ transitionDelay }}
-              className={`flex gap-4 transition-all duration-500 motion-reduce:transition-none ${isVisible ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0 motion-reduce:translate-y-0"}`}
-            >
-            <div className="flex shrink-0 flex-col items-center">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent-primary text-inverse text-[14px] font-bold leading-[1.2]">
-                {step.id}
-              </div>
-              {index < steps.length - 1 ? <div className="mt-2 h-12 w-px bg-border-strong" /> : null}
-            </div>
-            <div className="flex-1 rounded-md border border-subtle bg-gradient-to-br from-accent-info-bg to-base p-4">
-              <h4 className="text-[16px] font-semibold leading-[1.2] text-primary">{step.title}</h4>
-              <p className="mt-1 text-[14px] font-medium leading-[1.2] text-primary">{step.description}</p>
-            </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function WorkflowSection({ steps, title, description }: WorkflowSectionProps) {
-  const sectionRef = useRef<HTMLDivElement | null>(null);
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    const element = sectionRef.current;
-    if (!element) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting) {
-          setIsVisible(true);
-          observer.disconnect();
-        }
-      },
-      { rootMargin: "160px 0px" }
-    );
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
-
-  return (
-    <div ref={sectionRef} className="space-y-8 rounded-md border border-subtle bg-background p-4 sm:p-5">
-      <div className="space-y-3">
-        <h3 className="text-[24px] font-bold leading-[1.2] text-primary">{title}</h3>
-        <p className="text-[16px] font-normal leading-[1.3] text-primary">{description}</p>
-        <div className="inline-block pt-2">
-          <span className="rounded-full bg-accent-info-bg px-3 py-1 text-[13px] font-semibold leading-[1.2] text-accent-info">
-            {steps.length} Steps
-          </span>
-        </div>
-      </div>
-      <WorkflowBoard steps={steps} isVisible={isVisible} />
-    </div>
-  );
-}
-
 export default function MarketingDeferredSections() {
-  const customerAppSteps: WorkflowStep[] = [
+  const customerJourneySteps: JourneyStep[] = [
     {
-      id: 1,
       title: "Sign Up",
       description: "Create your customer account in minutes.",
+      Icon: UserPlus,
     },
     {
-      id: 2,
-      title: "Browse Services",
-      description: "Explore admin-approved services by category and price.",
-    },
-    {
-      id: 3,
-      title: "Book Service",
+      title: "Browse & Book Service",
       description: "Pick a service and schedule your booking.",
+      Icon: BookOpenCheck,
     },
     {
-      id: 4,
       title: "Provider Assigned",
       description: "A provider or worker is assigned to your request.",
+      Icon: UserCheck,
     },
     {
-      id: 5,
       title: "Share OTP",
       description: "Share OTP at work start for secure verification.",
+      Icon: KeyRound,
     },
     {
-      id: 6,
       title: "Work Completion",
       description: "Review the result and confirm completion.",
+      Icon: ClipboardCheck,
     },
     {
-      id: 7,
-      title: "Wallet Top-up",
+      title: "Complete Process",
       description: "After you approve, payment releases from escrow to the provider wallet.",
+      Icon: CircleCheck,
     },
   ];
 
-  const providerAppSteps: WorkflowStep[] = [
+  const providerJourneySteps: JourneyStep[] = [
     {
-      id: 1,
       title: "Provider Sign Up",
       description: "Register your provider account.",
+      Icon: UserPlus,
     },
     {
-      id: 2,
-      title: "Submit Documents",
+      title: "Admin Approval for Submitted Documents",
       description: "Upload ID, medical, criminal record, and other required documents.",
+      Icon: FileCheck,
     },
     {
-      id: 3,
-      title: "Admin Approval",
-      description: "Admin verifies your documents and background checks.",
-    },
-    {
-      id: 4,
-      title: "Provider Sign In",
-      description: "Sign in and access your provider dashboard.",
-    },
-    {
-      id: 5,
       title: "Pay Activation Fee",
       description: "Pay activation fee before creating services.",
+      Icon: CreditCard,
     },
     {
-      id: 6,
-      title: "Create Service",
-      description: "Create service with pricing and availability.",
+      title: "Create Approved Services",
+      description: "Create Approved services with pricing and availability.",
+      Icon: Briefcase,
     },
     {
-      id: 7,
-      title: "Service Approval",
-      description: "Admin approves or declines your service.",
-    },
-    {
-      id: 8,
       title: "Accept/Reject Booking",
       description: "Accept or reject bookings and assign worker.",
+      Icon: ArrowLeftRight,
     },
     {
-      id: 9,
       title: "Complete Work",
       description: "Complete work and add extra charges if needed.",
+      Icon: Hammer,
     },
     {
-      id: 10,
-      title: "Withdraw Request",
+      title: "Withdraw Your Payment",
       description: "Request a payout from your wallet balance.",
+      Icon: Banknote,
+    },
+  ];
+
+  const handymanJourneySteps: JourneyStep[] = [
+    {
+      title: "Sign In",
+      description: "Sign in with your handyman account to see assigned jobs.",
+      Icon: LogIn,
     },
     {
-      id: 11,
-      title: "Admin Approval",
-      description: "Admin approves the withdrawal and transfers funds to you.",
+      title: "Browse Assigned Services",
+      description: "Explore admin-approved services by category and price.",
+      Icon: ClipboardList,
+    },
+    {
+      title: "Start Service and Fill OTP",
+      description: "Share OTP at work start for secure verification with the customer.",
+      Icon: KeyRound,
+    },
+    {
+      title: "Work Completion",
+      description: "Review the result and confirm completion.",
+      Icon: ClipboardCheck,
+    },
+    {
+      title: "Upload Proof of Completion",
+      description: "Upload Photos and Videos to confirm completion.",
+      Icon: Camera,
+    },
+    {
+      title: "Complete Process",
+      description: "After you approve, payment releases from escrow to the provider wallet.",
+      Icon: CircleCheck,
     },
   ];
 
@@ -360,28 +320,33 @@ export default function MarketingDeferredSections() {
         </div>
       </section>
 
-      <section id="features" className="mx-auto max-w-[1280px] px-4 sm:px-6 py-12 scroll-mt-24">
-        <LazyMount minHeightClassName="min-h-[380px]">
-          <div className="rounded-md border border-border bg-card p-6 sm:p-8">
-            <div className="grid gap-6">
-              <div>
-                <h2 className="text-[24px] font-bold leading-[1.2]">How Zemen Service works</h2>
-                <p className="mt-2 text-[16px] font-normal leading-[1.3] text-muted-foreground">
-                  A clear journey for customers, providers, and service completion.
-                </p>
-                <div className="mt-6 grid gap-4">
-                  <WorkflowSection
-                    title="Customer Journey"
-                    description="From account creation to secure service completion and payment."
-                    steps={customerAppSteps}
-                  />
-                  <WorkflowSection
-                    title="Provider Journey"
-                    description="From onboarding and verification to service delivery and payout."
-                    steps={providerAppSteps}
-                  />
-                </div>
-              </div>
+      <section id="features" className="how-platforms-work scroll-mt-24">
+        <LazyMount minHeightClassName="min-h-[480px]">
+          <div className="how-platforms-work__inner mx-auto max-w-[1280px] px-4 py-12 sm:px-6">
+            <header className="mx-auto mb-10 max-w-[720px] text-center">
+              <h2 className="font-[family-name:var(--font-outfit),sans-serif] text-[28px] font-bold leading-[1.15] text-[#027a3b] sm:text-[32px]">
+                How Zemen Platforms work
+              </h2>
+              <p className="mt-3 font-[family-name:var(--font-outfit),sans-serif] text-[16px] font-normal leading-[1.4] text-[#838383]">
+                {mobileDownloadSharedDescription}
+              </p>
+            </header>
+            <div className="grid gap-6 lg:grid-cols-3">
+              <JourneyColumn
+                title="Customer Journey"
+                description={mobileDownloadSharedDescription}
+                steps={customerJourneySteps}
+              />
+              <JourneyColumn
+                title="Provider Journey"
+                description={mobileDownloadSharedDescription}
+                steps={providerJourneySteps}
+              />
+              <JourneyColumn
+                title="Handyman Journey"
+                description={mobileDownloadSharedDescription}
+                steps={handymanJourneySteps}
+              />
             </div>
           </div>
         </LazyMount>
