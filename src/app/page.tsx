@@ -229,8 +229,46 @@ export default function Home() {
                 className="hero-app-btn hero-app-btn--filled"
               >
                 <PlayStoreIcon />
-              Customer App
+                Customer App
               </a>
+              <div className="hero-arrow-between" aria-hidden>
+                <svg
+                  className="hero-arrow-between__svg"
+                  viewBox="0 0 80 100"
+                  fill="none"
+                >
+                  <path
+                    d="M40 84C42 64 42 48 40 24"
+                    stroke="#027A3B"
+                    strokeWidth="10"
+                    strokeOpacity="0.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M40 84C42 64 42 48 40 24"
+                    stroke="#027A3B"
+                    strokeWidth="7"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M28 36L40 20L52 36"
+                    stroke="#027A3B"
+                    strokeWidth="10"
+                    strokeOpacity="0.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M28 36L40 20L52 36"
+                    stroke="#027A3B"
+                    strokeWidth="7"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </div>
               <div className="hero-phone hero-phone--center hero-phone--plain">
                 <Image
                   src="/zemen_.png"
