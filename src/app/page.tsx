@@ -2,12 +2,12 @@ import Image from "next/image";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import {
-  BadgeCheck,
-  Fingerprint,
-  Shield,
-  Trophy,
-  Users,
-} from "lucide-react";
+  CheckBadgeIcon,
+  FingerPrintIcon,
+  ShieldCheckIcon,
+  TrophyIcon,
+  UserGroupIcon,
+} from "@heroicons/react/24/solid";
 
 const MarketingDeferredSections = dynamic(
   () => import("./_components/MarketingDeferredSections"),
@@ -119,33 +119,25 @@ export default function Home() {
           >
             <div className="hero-tags-row">
               <div className="hero-tag">
-                <Shield className="hero-tag-icon" aria-hidden strokeWidth={2.25} />
+                <ShieldCheckIcon className="hero-tag-icon" aria-hidden />
                 Admin Approved Services
               </div>
               <div className="hero-tag">
-                <Trophy className="hero-tag-icon" aria-hidden strokeWidth={2.25} />
+                <TrophyIcon className="hero-tag-icon" aria-hidden />
                 Outstanding Reputation
               </div>
             </div>
             <div className="hero-tags-row">
               <div className="hero-tag">
-                <Users className="hero-tag-icon" aria-hidden strokeWidth={2.25} />
+                <UserGroupIcon className="hero-tag-icon" aria-hidden />
                 Personal Guarantor
               </div>
               <div className="hero-tag">
-                <Fingerprint
-                  className="hero-tag-icon"
-                  aria-hidden
-                  strokeWidth={2.25}
-                />
+                <FingerPrintIcon className="hero-tag-icon" aria-hidden />
                 National Id
               </div>
               <div className="hero-tag">
-                <BadgeCheck
-                  className="hero-tag-icon"
-                  aria-hidden
-                  strokeWidth={2.25}
-                />
+                <CheckBadgeIcon className="hero-tag-icon" aria-hidden />
                 Verified Identity
               </div>
             </div>
