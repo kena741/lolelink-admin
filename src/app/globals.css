@@ -510,25 +510,30 @@
 
 .hero-arrow--left {
   width: 150px;
-  left: 20%;
-  top: 37%;
-}
-
-.hero-arrow--center {
-  width: 70px;
-  left: 50%;
-  top: 14%;
-  transform: translateX(-50%);
+  left: 19%;
+  top: 31%;
 }
 
 .hero-arrow--right {
   width: 150px;
-  right: 20%;
-  top: 43%;
+  right: 22%;
+  top: 35%;
 }
 
 .hero-arrow-between {
-  display: none;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  flex-shrink: 0;
+  padding-block: 10px 10px;
+}
+
+.hero-arrow-between__svg {
+  width: min(52px, 3.8vw);
+  height: auto;
+  max-height: 72px;
+  display: block;
 }
 
 .hero-col {
@@ -543,7 +548,31 @@
 }
 
 .hero-col--handyman {
-  align-items: flex-end;
+  align-items: flex-start;
+}
+
+@media (min-width: 901px) {
+  .hero-col--provider {
+    justify-self: end;
+    width: max-content;
+    max-width: min(100%, 420px);
+  }
+
+  .hero-col--handyman {
+    justify-self: start;
+    width: max-content;
+    max-width: min(100%, 420px);
+  }
+
+  .hero-col--provider .hero-app-info,
+  .hero-col--provider .hero-app-btn--outline {
+    transform: translate(-180px, -68px);
+  }
+
+  .hero-col--handyman .hero-app-info,
+  .hero-col--handyman .hero-app-btn--outline {
+    transform: translate(180px, -68px);
+  }
 }
 
 .hero-col--service {
@@ -554,6 +583,8 @@
 
 .hero-app-info {
   padding: 0 8px;
+  max-width: 300px;
+  box-sizing: border-box;
 }
 
 .hero-app-name {
@@ -572,7 +603,7 @@
 }
 
 .hero-col--handyman .hero-app-desc {
-  text-align: right;
+  text-align: left;
 }
 
 /* Phone mockups */
@@ -633,6 +664,7 @@
 
 .hero-col--handyman .hero-phone--side {
   margin-left: -96px;
+  margin-right: auto;
 }
 
 .hero-phone-img {
@@ -664,7 +696,7 @@
   color: #fff;
   border: 1px solid #027a3b;
   box-shadow: 0 4px 4px rgba(0, 0, 0, 0.25);
-  margin-bottom: 16px;
+  margin-bottom: 0;
 }
 
 .hero-app-btn--filled:hover {
@@ -902,7 +934,7 @@
   }
 
   .hero-col--handyman .hero-app-desc {
-    text-align: right;
+    text-align: left;
   }
 
   .hero-phone--center,
@@ -925,6 +957,7 @@
 
   .hero-col--handyman .hero-phone--side {
     margin-left: min(-68px, -17vw);
+    margin-right: auto;
   }
 
   .hero-app-btn {
@@ -988,6 +1021,7 @@
 
   .hero-col--handyman .hero-phone--side {
     margin-left: min(-58px, -16vw);
+    margin-right: auto;
   }
 
   .hero-badge {
