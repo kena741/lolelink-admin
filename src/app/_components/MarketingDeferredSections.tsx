@@ -4,6 +4,8 @@ import Image from "next/image";
 import { Apple, ArrowRight, Store } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
+import { partnerLogoBoxClassName, partnerLogoImageSizes } from "./partner-logo-layout";
+
 interface WorkflowStep {
   id: number;
   title: string;
@@ -265,10 +267,12 @@ export default function MarketingDeferredSections() {
   ];
 
   const partners = [
-    { name: "Zulu Tech", logo: "/partners/zulu_tech-removebg-preview.png" },
-    { name: "IBEX", logo: "/partners/ibexeth_logo-removebg-preview.png" },
-    { name: "Ethio Telecom", logo: "/partners/ethiotelecom-removebg-preview.png" },
-    { name: "CBE", logo: "/partners/cbe-removebg-preview.png" },
+    { name: "Zulu Tech", logo: "/partners/zulu.png" },
+    { name: "Chapa", logo: "/partners/chapa.png" },
+    { name: "Ethio Telecom", logo: "/partners/et.png" },
+    { name: "IBEX", logo: "/partners/ibex.png" },
+    { name: "CBE", logo: "/partners/cbe.png" },
+    { name: "Telebirr", logo: "/partners/telebirr.png" },
   ];
 
   const whyChooseItems = [
@@ -282,21 +286,21 @@ export default function MarketingDeferredSections() {
   return (
     <>
       <section id="partners" className="partners-bar scroll-mt-24">
-        <div className="mx-auto max-w-[1640px] px-4 sm:px-6 py-4">
-          <LazyMount minHeightClassName="min-h-[120px]">
+        <div className="mx-auto max-w-[1640px] px-3 py-2 sm:px-6 sm:py-4">
+          <LazyMount minHeightClassName="min-h-[72px] sm:min-h-[120px]">
             <div className="partner-marquee">
               <div className="partner-marquee-track">
-                {[...partners, ...partners].map((partner, index) => (
+                {partners.map((partner) => (
                   <div
-                    key={`${partner.name}-${index}`}
-                    className="flex items-center gap-3 px-6"
+                    key={partner.name}
+                    className="flex items-center justify-center"
                   >
-                    <div className="relative h-[64px] w-[130px] shrink-0">
+                    <div className={partnerLogoBoxClassName}>
                       <Image
                         src={partner.logo}
                         alt={`${partner.name} logo`}
                         fill
-                        sizes="130px"
+                        sizes={partnerLogoImageSizes()}
                         className="object-contain"
                       />
                     </div>
