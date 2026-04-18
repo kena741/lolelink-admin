@@ -13,10 +13,15 @@ import {
   ClipboardCheck,
   ClipboardList,
   CreditCard,
+  ChevronDown,
   FileCheck,
+  Facebook,
   Hammer,
+  Instagram,
   KeyRound,
   LogIn,
+  Music2,
+  Send,
   Store,
   UserCheck,
   UserPlus,
@@ -92,6 +97,111 @@ function JourneyColumn({ title, description, steps }: JourneyColumnProps) {
         })}
       </ol>
     </article>
+  );
+}
+
+interface WhyChoosePlainCard {
+  key: string;
+  image: string;
+  alt: string;
+  variant: "plain";
+  text: string;
+}
+
+interface WhyChooseEscrowCard {
+  key: string;
+  image: string;
+  alt: string;
+  variant: "escrow";
+}
+
+interface WhyChooseFeaturedCard {
+  key: string;
+  image: string;
+  alt: string;
+  variant: "featured";
+  text: string;
+}
+
+interface WhyChooseThankYouCard {
+  key: string;
+  image: string;
+  alt: string;
+  variant: "thankyou";
+}
+
+type WhyChooseCard =
+  | WhyChoosePlainCard
+  | WhyChooseEscrowCard
+  | WhyChooseFeaturedCard
+  | WhyChooseThankYouCard;
+
+function WhyChooseGridCard({ card, index }: { card: WhyChooseCard; index: number }) {
+  const colSpanClass = index >= 4 ? "col-span-2 md:col-span-1" : "";
+
+  const imageBlock = (
+    <div className="flex min-h-[100px] w-full items-center justify-center sm:min-h-[120px]">
+      <Image
+        src={card.image}
+        alt={card.alt}
+        width={200}
+        height={160}
+        sizes="(max-width: 767px) 42vw, 28vw"
+        className="h-auto max-h-[120px] w-auto max-w-full object-contain sm:max-h-[140px]"
+      />
+    </div>
+  );
+
+  if (card.variant === "featured") {
+    return (
+      <div
+        className={`flex flex-col items-center gap-4 rounded-md bg-[#027a3b] px-4 py-5 text-center shadow-[0_2px_12px_rgba(2,122,59,0.2)] sm:px-5 sm:py-6 ${colSpanClass}`}
+      >
+        {imageBlock}
+        <p className="font-[family-name:var(--font-outfit),sans-serif] text-[14px] font-medium leading-[1.35] text-white sm:text-[15px]">
+          {card.text}
+        </p>
+      </div>
+    );
+  }
+
+  if (card.variant === "thankyou") {
+    return (
+      <div
+        className={`flex flex-col items-center gap-3 rounded-md border border-[#b8d4c4] bg-white p-4 text-center shadow-[0_1px_3px_rgba(0,0,0,0.05)] sm:p-5 ${colSpanClass}`}
+      >
+        {imageBlock}
+        <p className="font-[family-name:var(--font-outfit),sans-serif] text-[14px] font-normal leading-[1.35] text-[#1b1b1b] sm:text-[15px]">
+          Thank you for choosing{" "}
+          <span className="font-bold text-[#027a3b]">Zemen</span>
+        </p>
+      </div>
+    );
+  }
+
+  if (card.variant === "escrow") {
+    return (
+      <div
+        className={`flex flex-col items-center gap-3 rounded-md border border-[#b8d4c4] bg-white p-4 text-center shadow-[0_1px_3px_rgba(0,0,0,0.05)] sm:p-5 ${colSpanClass}`}
+      >
+        {imageBlock}
+        <p className="font-[family-name:var(--font-outfit),sans-serif] text-[14px] font-normal leading-[1.35] text-[#1b1b1b] sm:text-[15px]">
+          <span className="font-semibold text-[#027a3b]">Escrow-style payments:</span> your money stays protected
+          until you approve completed work.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`flex flex-col items-center gap-3 rounded-md border border-[#b8d4c4] bg-white p-4 text-center shadow-[0_1px_3px_rgba(0,0,0,0.05)] sm:p-5 ${colSpanClass}`}
+    >
+      {imageBlock}
+      <p className="font-[family-name:var(--font-outfit),sans-serif] text-[14px] font-normal leading-[1.35] text-[#1b1b1b] sm:text-[15px]">
+        {card.text}
+      </p>
+    </div>
   );
 }
 
@@ -255,13 +365,79 @@ export default function MarketingDeferredSections() {
     { name: "Telebirr", logo: "/partners/telebirr.png" },
   ];
 
-  const whyChooseItems = [
-    "Customers only see admin-approved services—every listing is vetted before it goes live.",
-    "Providers are verified with identity, medical status, and criminal record checks.",
-    "Escrow-style payments: your money stays protected until you approve completed work.",
-    "OTP when work starts, plus a clear booking lifecycle you can follow end to end.",
-    "Providers receive payouts after customer approval and admin-approved withdrawal transfers.",
+  const whyChooseCards: WhyChooseCard[] = [
+    {
+      key: "vetted",
+      image: "/why/w1.png",
+      alt: "Admin-approved listings",
+      variant: "plain",
+      text: "Every listing is vetted before it goes live.",
+    },
+    {
+      key: "verified",
+      image: "/why/w2.png",
+      alt: "Verified providers",
+      variant: "plain",
+      text: "Providers are verified with identity, medical status, and criminal record checks.",
+    },
+    {
+      key: "escrow",
+      image: "/why/w3.png",
+      alt: "Escrow payments",
+      variant: "escrow",
+    },
+    {
+      key: "payouts",
+      image: "/why/w4.png",
+      alt: "Provider payouts",
+      variant: "plain",
+      text: "Payouts after customer approval and admin-approved withdrawal transfers.",
+    },
+    {
+      key: "lifecycle",
+      image: "/why/w5.png",
+      alt: "Booking steps",
+      variant: "featured",
+      text: "Clear booking lifecycle you can follow end to end.",
+    },
+    {
+      key: "thanks",
+      image: "/why/w6.png",
+      alt: "Thank you",
+      variant: "thankyou",
+    },
   ];
+
+  const faqItems = [
+    {
+      question: "Where can I Get the Service?",
+      answer:
+        "You can get service across Addis Ababa in areas currently covered by Zemen. Open the app, pick your location, and you will only see available providers near you.",
+    },
+    {
+      question: "When can i payout?",
+      answer:
+        "Providers can request payout after work completion is approved by the customer and withdrawal is approved by admin.",
+    },
+    {
+      question: "How do i get a service?",
+      answer:
+        "Create your customer account, browse approved services, book your preferred provider, then confirm completion with OTP and final approval.",
+    },
+    {
+      question: "How to provide a service?",
+      answer:
+        "Sign up as a provider, upload required documents for verification, activate your account, then create services and start receiving bookings.",
+    },
+  ] as const;
+
+  const [openFaqIndex, setOpenFaqIndex] = useState(0);
+  const socialLinks = [
+    { label: "Telegram", Icon: Send, href: "#" },
+    { label: "Facebook", Icon: Facebook, href: "#" },
+    { label: "TikTok", Icon: Music2, href: "#" },
+    { label: "Instagram", Icon: Instagram, href: "#" },
+  ] as const;
 
   return (
     <>
@@ -352,79 +528,114 @@ export default function MarketingDeferredSections() {
         </LazyMount>
       </section>
 
-      <section className="mx-auto max-w-[1280px] px-4 sm:px-6 pb-12">
-        <LazyMount minHeightClassName="min-h-[240px]">
-          <div className="rounded-md border border-subtle bg-background p-6 sm:p-8">
-            <h3 className="text-[24px] font-bold leading-[1.2] text-primary">Why Choose Zemen Service?</h3>
-            <p className="mt-2 text-[14px] font-medium leading-[1.3] text-muted-foreground">
-              Built for reliable service delivery, trust, and transparent payments.
-            </p>
-            <div className="mt-5 grid gap-3 md:grid-cols-2">
-              {whyChooseItems.map((item) => (
-                <div key={item} className="rounded-md border border-subtle bg-surface p-3">
-                  <p className="text-[14px] font-medium leading-[1.3] text-primary">{item}</p>
-                </div>
+      <section id="why-choose" className="mx-auto max-w-[1280px] scroll-mt-24 px-4 py-12 sm:px-6">
+        <LazyMount minHeightClassName="min-h-[320px]">
+          <div>
+            <header className="mx-auto mb-8 max-w-[720px] text-center">
+              <h2 className="font-[family-name:var(--font-outfit),sans-serif] text-[24px] font-bold leading-[1.2] text-[#027a3b] sm:text-[28px]">
+                Why Choose Zemen Service?
+              </h2>
+              <p className="mt-3 font-[family-name:var(--font-outfit),sans-serif] text-[15px] font-normal leading-[1.4] text-[#838383] sm:text-[16px]">
+                {mobileDownloadSharedDescription}
+              </p>
+            </header>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-5">
+              {whyChooseCards.map((card, index) => (
+                <WhyChooseGridCard key={card.key} card={card} index={index} />
               ))}
             </div>
           </div>
         </LazyMount>
       </section>
 
-      <section id="download" className="mx-auto max-w-[1280px] px-4 sm:px-6 py-12 scroll-mt-24">
-        <LazyMount minHeightClassName="min-h-[280px]">
-          <div className="rounded-md border border-border bg-card p-6 sm:p-8">
-            <h2 className="text-[24px] font-bold leading-[1.2]">Get the apps</h2>
-            <div className="mt-6 grid gap-6 md:grid-cols-[30%_70%] md:items-start lg:items-center">
-              <div className="mx-auto w-[170px] overflow-hidden rounded-md border border-border bg-background p-2 sm:order-1 lg:w-[190px]">
-                <Image
-                  src="/zp_4.png"
-                  alt="Zemen Provider app preview"
-                  width={700}
-                  height={1200}
-                  className="h-[300px] w-auto rounded-sm object-contain lg:h-[340px]"
-                />
-              </div>
+      <section id="faq" className="bg-[#eef3ef] px-4 py-10 sm:px-6 sm:py-12 scroll-mt-24">
+        <LazyMount minHeightClassName="min-h-[320px]">
+          <div className="mx-auto grid w-full max-w-[1280px] gap-8 lg:grid-cols-[34%_66%] lg:items-center">
+            <div className="order-2 relative mx-auto w-full max-w-[320px] lg:order-1 lg:max-w-[380px]">
+              <div className="absolute left-1/2 top-8 h-[220px] w-[220px] -translate-x-1/2 rounded-full bg-[#6ee260]/30 blur-3xl" />
+              <Image
+                src="/man.png"
+                alt="Service professional"
+                width={760}
+                height={1000}
+                sizes="(max-width: 1023px) 320px, 380px"
+                className="relative z-10 h-auto w-full object-contain"
+              />
+            </div>
 
-              <div className="space-y-4 sm:order-2">
-                {apps.map((app) => (
-                  <div key={app.name} className="rounded-md border border-border bg-background p-4">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                      <div>
-                        <p className="text-[20px] font-bold">{app.name}</p>
-                        <p className="mt-1 text-[14px] text-muted-foreground">{app.description}</p>
-                      </div>
-                      <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-stretch lg:max-w-md lg:shrink-0 xl:max-w-none">
-                        <a
-                          href={app.playStoreUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex h-[40px] min-h-[40px] flex-1 items-center justify-center gap-2 rounded-md bg-primary px-4 text-[14px] font-semibold text-primary-foreground transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                        >
-                          <Store className="h-4 w-4 shrink-0" aria-hidden />
-                          Play Store
-                          <ArrowRight className="h-4 w-4 shrink-0" aria-hidden />
-                        </a>
-                        <a
-                          href="#"
-                          aria-disabled="true"
-                          tabIndex={-1}
-                          className="inline-flex h-[40px] min-h-[40px] flex-1 items-center justify-center gap-2 rounded-md border border-border bg-card px-4 text-[14px] font-semibold opacity-70"
-                        >
-                          <Apple className="h-4 w-4 shrink-0" aria-hidden />
-                          Coming soon
-                        </a>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+            <div className="order-1 lg:order-2">
+              <h2 className="font-[family-name:var(--font-outfit),sans-serif] text-[32px] font-bold leading-[1.1] text-[#027a3b]">
+                FAQ
+              </h2>
+              <p className="mt-2 max-w-[560px] font-[family-name:var(--font-outfit),sans-serif] text-[14px] font-normal leading-[1.4] text-[#7b7b7b] sm:text-[15px]">
+                {mobileDownloadSharedDescription}
+              </p>
+
+              <div className="mt-5 space-y-3">
+                {faqItems.map((item, index) => {
+                  const isOpen = index === openFaqIndex;
+                  return (
+                    <article key={item.question} className="overflow-hidden rounded-md border border-[#e2e2e2] bg-white">
+                      <button
+                        type="button"
+                        className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left"
+                        onClick={() => setOpenFaqIndex((prevIndex) => (prevIndex === index ? -1 : index))}
+                        aria-expanded={isOpen}
+                      >
+                        <span className="text-[16px] font-semibold leading-[1.2] text-[#1b1b1b]">{item.question}</span>
+                        <ChevronDown
+                          className={`h-4 w-4 shrink-0 text-[#027a3b] transition-transform duration-150 ${isOpen ? "rotate-180" : "rotate-0"}`}
+                          aria-hidden
+                        />
+                      </button>
+                      {isOpen ? (
+                        <div className="border-t border-[#efefef] px-4 py-3">
+                          <p className="text-[14px] font-normal leading-[1.45] text-[#5f5f5f]">{item.answer}</p>
+                        </div>
+                      ) : null}
+                    </article>
+                  );
+                })}
               </div>
             </div>
           </div>
         </LazyMount>
       </section>
 
-      <footer className="mx-auto mt-4 max-w-[1280px] border-t border-border px-4 sm:px-6 py-6 text-[13px] font-semibold text-muted-foreground">
-        © {new Date().getFullYear()} Zemen Service
+      <footer className="bg-[#01572a]">
+        <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-6 px-5 py-6 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:py-4">
+          <div className="flex items-center justify-center gap-3 text-center lg:justify-start lg:text-left">
+            <Image
+              src="/logo_white.svg"
+              alt="Zemen Service logo"
+              width={72}
+              height={72}
+              className="h-[64px] w-[64px] object-contain opacity-100 lg:h-[44px] lg:w-[44px]"
+            />
+            <div>
+              <p className="text-[17px] font-semibold leading-[1.2] text-white lg:text-[20px]">Zemen Service</p>
+              <p className="text-[14px] font-light leading-[1.2] text-white lg:text-[15px]">
+                © {new Date().getFullYear()} Zemen Service
+              </p>
+            </div>
+          </div>
+
+          <div className="flex w-full flex-col items-center gap-3 border-t border-white/25 pt-6 text-center lg:w-auto lg:items-start lg:border-t-0 lg:pt-0 lg:text-left">
+            <p className="text-[14px] font-semibold leading-[1.2] text-white lg:text-[14px]">Join us on our socials</p>
+            <div className="flex items-center gap-3">
+              {socialLinks.map(({ label, Icon, href }) => (
+                <a
+                  key={label}
+                  href={href}
+                  aria-label={label}
+                  className="inline-flex h-[42px] w-[42px] items-center justify-center rounded-full bg-white/20 text-white/80 transition-all duration-150 hover:bg-white/30 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#01572a] lg:h-[30px] lg:w-[30px]"
+                >
+                  <Icon className="h-[21px] w-[21px] lg:h-[16px] lg:w-[16px]" aria-hidden />
+                </a>
+              ))}
+            </div>
+          </div>
+        </div>
       </footer>
     </>
   );
