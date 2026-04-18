@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { Facebook, Instagram, Music2, Send, type LucideIcon } from "lucide-react";
+import { Instagram, Linkedin, Music2, Send, type LucideIcon } from "lucide-react";
 
 interface SocialLink {
   label: string;
@@ -14,10 +14,10 @@ interface LandingFooterProps {
 }
 
 const defaultSocialLinks: readonly SocialLink[] = [
-  { label: "Telegram", Icon: Send, href: "#" },
-  { label: "Facebook", Icon: Facebook, href: "#" },
-  { label: "TikTok", Icon: Music2, href: "#" },
-  { label: "Instagram", Icon: Instagram, href: "#" },
+  { label: "Telegram", Icon: Send, href: "https://t.me/zemenservicediscussion" },
+  { label: "TikTok", Icon: Music2, href: "https://www.tiktok.com/@zemenserv" },
+  { label: "Instagram", Icon: Instagram, href: "https://www.instagram.com/zemenserv/" },
+  { label: "LinkedIn", Icon: Linkedin, href: "https://www.linkedin.com/company/zemenservices/" },
 ];
 
 export function LandingFooter({ socialLinks = defaultSocialLinks }: LandingFooterProps) {
