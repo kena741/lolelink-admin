@@ -1,6 +1,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import {
+  BadgeCheck,
+  Fingerprint,
+  Shield,
+  Trophy,
+  Users,
+} from "lucide-react";
 
 const MarketingDeferredSections = dynamic(
   () => import("./_components/MarketingDeferredSections"),
@@ -31,21 +38,21 @@ const PlayStoreIcon = () => (
 );
 
 const VerifiedBadgeIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 30 30" fill="none" aria-hidden>
+  <svg viewBox="0 0 30 30" fill="none" aria-hidden>
     <path
       fillRule="evenodd"
       clipRule="evenodd"
       d="M19.356 9.162C19.275 8.916 19.119 8.7 18.909 8.546C18.7 8.392 18.448 8.307 18.188 8.303L16.343 8.275C16.154 8.272 15.968 8.226 15.799 8.141L14.152 7.311C13.92 7.194 13.657 7.152 13.4 7.191C13.143 7.23 12.905 7.349 12.718 7.53L11.393 8.814C11.258 8.946 11.094 9.045 10.915 9.104L9.162 9.682C8.916 9.764 8.7 9.92 8.547 10.129C8.393 10.338 8.308 10.59 8.304 10.849L8.275 12.696C8.272 12.884 8.226 13.07 8.141 13.239L7.31 14.887C7.193 15.119 7.152 15.381 7.191 15.638C7.23 15.895 7.349 16.133 7.529 16.32L8.814 17.645C8.946 17.78 9.044 17.944 9.104 18.123L9.682 19.876C9.848 20.381 10.318 20.726 10.85 20.735L12.695 20.763C12.884 20.766 13.07 20.812 13.238 20.897L14.887 21.728C15.119 21.844 15.381 21.886 15.638 21.847C15.895 21.808 16.133 21.689 16.32 21.508L17.645 20.224C17.78 20.092 17.943 19.993 18.123 19.935L19.876 19.357C20.123 19.275 20.339 19.119 20.492 18.909C20.646 18.7 20.731 18.448 20.735 18.188L20.764 16.344C20.767 16.155 20.813 15.969 20.898 15.8L21.728 14.151C21.845 13.92 21.887 13.657 21.848 13.4C21.809 13.144 21.691 12.905 21.51 12.719L20.225 11.393C20.093 11.258 19.995 11.095 19.935 10.916L19.356 9.162ZM17.882 13.05C17.969 12.954 18.016 12.828 18.013 12.699C18.009 12.57 17.955 12.447 17.863 12.356C17.77 12.265 17.646 12.214 17.517 12.213C17.387 12.212 17.263 12.261 17.169 12.35L13.572 16.023L12.4 14.178C12.366 14.12 12.321 14.07 12.267 14.03C12.213 13.99 12.151 13.961 12.086 13.945C12.021 13.929 11.953 13.927 11.887 13.938C11.821 13.949 11.757 13.973 11.701 14.009C11.644 14.045 11.595 14.092 11.557 14.148C11.519 14.203 11.492 14.265 11.479 14.331C11.466 14.397 11.466 14.465 11.479 14.53C11.492 14.596 11.519 14.659 11.557 14.714L13.066 17.093C13.107 17.156 13.161 17.21 13.225 17.249C13.289 17.289 13.361 17.314 13.436 17.321C13.511 17.329 13.587 17.32 13.658 17.295C13.728 17.269 13.793 17.228 13.845 17.174L17.882 13.05Z"
-      fill="black"
+      fill="currentColor"
     />
   </svg>
 );
 
 const AdminBadgeIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 22 22" fill="none" aria-hidden>
+  <svg viewBox="0 0 22 22" fill="none" aria-hidden>
     <path
       d="M10.341 1.466L2.826 5.353L3.13 10.498C3.412 15.257 6.968 19.513 11.457 20.332C15.818 18.99 18.848 14.344 18.566 9.585L18.262 4.44L10.341 1.466ZM10.539 4.811C11.048 4.78 11.554 4.902 11.994 5.16C12.434 5.417 12.787 5.8 13.01 6.258C13.232 6.717 13.314 7.231 13.244 7.736C13.174 8.241 12.956 8.714 12.618 9.095C12.279 9.476 11.835 9.748 11.342 9.877C10.849 10.005 10.329 9.985 9.847 9.818C9.366 9.651 8.944 9.345 8.637 8.939C8.329 8.533 8.149 8.044 8.118 7.535C8.078 6.853 8.31 6.183 8.764 5.672C9.218 5.161 9.857 4.851 10.539 4.811ZM10.94 11.585C12.655 11.484 16.14 12.216 16.241 13.922C15.728 14.804 15.005 15.546 14.135 16.081C13.266 16.616 12.278 16.927 11.259 16.988C10.24 17.048 9.222 16.855 8.296 16.426C7.37 15.998 6.564 15.346 5.951 14.531C5.85 12.824 9.225 11.687 10.94 11.585Z"
-      fill="black"
+      fill="currentColor"
     />
   </svg>
 );
@@ -104,6 +111,45 @@ export default function Home() {
               </span>
             </span>
           </h1>
+
+          <div
+            className="hero-tags"
+            role="group"
+            aria-label="Trust and verification highlights"
+          >
+            <div className="hero-tags-row">
+              <div className="hero-tag">
+                <Shield className="hero-tag-icon" aria-hidden strokeWidth={2.25} />
+                Admin Approved Services
+              </div>
+              <div className="hero-tag">
+                <Trophy className="hero-tag-icon" aria-hidden strokeWidth={2.25} />
+                Outstanding Reputation
+              </div>
+            </div>
+            <div className="hero-tags-row">
+              <div className="hero-tag">
+                <Users className="hero-tag-icon" aria-hidden strokeWidth={2.25} />
+                Personal Guarantor
+              </div>
+              <div className="hero-tag">
+                <Fingerprint
+                  className="hero-tag-icon"
+                  aria-hidden
+                  strokeWidth={2.25}
+                />
+                National Id
+              </div>
+              <div className="hero-tag">
+                <BadgeCheck
+                  className="hero-tag-icon"
+                  aria-hidden
+                  strokeWidth={2.25}
+                />
+                Verified Identity
+              </div>
+            </div>
+          </div>
 
           {/* Three-column layout: Provider | Service | Handyman */}
           <div className="hero-columns">
@@ -191,7 +237,7 @@ export default function Home() {
                 className="hero-app-btn hero-app-btn--filled"
               >
                 <PlayStoreIcon />
-                Zemen Service
+              Customer App
               </a>
               <div className="hero-phone hero-phone--center hero-phone--plain">
                 <Image
