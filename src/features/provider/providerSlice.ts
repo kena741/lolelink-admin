@@ -3,21 +3,47 @@ import { supabase } from "@/lib/supabaseClient";
 
 export interface Provider {
     id: string;
+    user_id?: string;
     name?: string;
     firstName?: string;
     lastName?: string;
     first_name?: string;
     last_name?: string;
     email?: string;
+    userName?: string;
     phone?: string;
     phoneNumber?: string; // alternative field naming
+    bannerImage?: string;
+    companyName?: string;
+    industry?: string;
+    companySize?: string;
+    headquarters?: string;
+    founded?: string;
     address?: string;
+    country?: string;
+    countryCode?: string;
     country_code?: string;
+    currency?: string;
+    location?: Record<string, unknown> | null;
+    profileBio?: string;
+    slug?: string;
+    userType?: string;
+    walletAmount?: string;
+    active?: boolean;
+    fcmToken?: string;
+    professionId?: string;
+    categoryId?: string;
+    socialLinks?: Record<string, unknown> | null;
     createdAt?: string;
+    updateAt?: string;
+    password?: string;
     profileImage?: string; // camelCase variant
     profile_image?: string; // snake_case variant
     avatar_url?: string; // common alternative
     banner?: string | null;
+    activation_paid?: boolean;
+    activation_paid_at?: string;
+    activation_tx_ref?: string;
 }
 
 export interface ProviderState {

@@ -304,7 +304,16 @@ export default function ProviderDetailPage() {
                                 <div className="p-10 pt-16">
                                     <div className="flex items-center justify-between mb-6">
                                         <div>
-                                            <h1 className="text-3xl font-bold">{displayName}</h1>
+                                            <div className="flex items-center gap-3">
+                                                <h1 className="text-3xl font-bold">{displayName}</h1>
+                                                <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
+                                                    provider.activation_paid
+                                                        ? 'bg-emerald-100 text-emerald-700'
+                                                        : 'bg-amber-100 text-amber-700'
+                                                }`}>
+                                                    {provider.activation_paid ? 'Activation Paid' : 'Activation Pending'}
+                                                </span>
+                                            </div>
                                             <p className="text-gray-600">{provider.email || '—'} · {provider.phoneNumber || provider.phone || '—'}</p>
                                             <p className="text-gray-600">{provider.address || '—'}</p>
                                         </div>

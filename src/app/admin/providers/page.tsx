@@ -318,6 +318,13 @@ const ProvidersPage = () => {
                                                                 {label}
                                                             </h3>
                                                             <p className="text-sm text-gray-600 mt-1">{p.email ?? "—"}</p>
+                                                            <span className={`mt-2 inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+                                                                p.activation_paid
+                                                                    ? "bg-emerald-100 text-emerald-700"
+                                                                    : "bg-amber-100 text-amber-700"
+                                                            }`}>
+                                                                {p.activation_paid ? "Activation Paid" : "Activation Pending"}
+                                                            </span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -449,6 +456,13 @@ const ProvidersPage = () => {
                                                                         <Mail className="h-3 w-3" />
                                                                         {p.email ?? ""}
                                                                     </span>
+                                                                    <span className={`mt-1 inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                                                                        p.activation_paid
+                                                                            ? "bg-emerald-100 text-emerald-700"
+                                                                            : "bg-amber-100 text-amber-700"
+                                                                    }`}>
+                                                                        {p.activation_paid ? "Activation Paid" : "Activation Pending"}
+                                                                    </span>
                                                                 </div>
                                                             ) : (
                                                                 <div className="flex flex-col">
@@ -456,6 +470,13 @@ const ProvidersPage = () => {
                                                                     <span className="text-xs text-gray-500 mt-1 flex items-center gap-1">
                                                                         <Mail className="h-3 w-3" />
                                                                         {p.email ?? ""}
+                                                                    </span>
+                                                                    <span className={`mt-1 inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                                                                        p.activation_paid
+                                                                            ? "bg-emerald-100 text-emerald-700"
+                                                                            : "bg-amber-100 text-amber-700"
+                                                                    }`}>
+                                                                        {p.activation_paid ? "Activation Paid" : "Activation Pending"}
                                                                     </span>
                                                                 </div>
                                                             )}
