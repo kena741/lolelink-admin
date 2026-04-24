@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { Instagram, Linkedin, Music2, Send, type LucideIcon } from "lucide-react";
 
 interface SocialLink {
@@ -41,6 +42,20 @@ export function LandingFooter({ socialLinks = defaultSocialLinks }: LandingFoote
         </div>
 
         <div className="flex w-full flex-col items-center gap-3 border-t border-white/25 pt-6 text-center lg:w-auto lg:items-start lg:border-t-0 lg:pt-0 lg:text-left">
+          <div className="flex items-center gap-4">
+            <Link
+              href="/privacy-policy"
+              className="text-[14px] font-medium leading-[1.2] text-white/90 transition-all duration-150 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#01572a]"
+            >
+              Privacy Policy
+            </Link>
+            <Link
+              href="/terms-of-service"
+              className="text-[14px] font-medium leading-[1.2] text-white/90 transition-all duration-150 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#01572a]"
+            >
+              Terms of Service
+            </Link>
+          </div>
           <p className="text-[14px] font-semibold leading-[1.2] text-white lg:text-[14px]">Join us on our socials</p>
           <div className="flex items-center gap-3">
             {socialLinks.map(({ label, Icon, href }) => (

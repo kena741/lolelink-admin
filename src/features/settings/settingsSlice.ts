@@ -237,8 +237,20 @@ function parseConstants(data: Record<string, unknown>): ConstantSettings {
     };
 }
 
+function readPolicyValue(value: unknown): string | undefined {
+    const text = readString(value);
+    if (!text)
+        return undefined;
+    const normalized = text.trim();
+    if (normalized.length === 0)
+        return undefined;
+    if (normalized.startsWith('PASTE_') && normalized.endsWith('_HERE'))
+        return undefined;
+    return text;
+}
+
 function mergePolicyFields(policyRow: Record<string, unknown>, settingsRow: Record<string, unknown>): PolicySettings {
-    const pick = (key: string) => readString(settingsRow[key]) ?? readString(policyRow[key]);
+    const pick = (key: string) => readPolicyValue(policyRow[key]) ?? readPolicyValue(settingsRow[key]);
     return {
         aboutApp: pick('aboutApp'),
         privacyPolicy: pick('privacyPolicy'),
@@ -422,6 +434,26 @@ export const updateSettings = createAsyncThunk<
                 }
             }
 
+            if (updates.policySettings) {
+                const definedPolicyPatch = Object.fromEntries(
+                    Object.entries(updates.policySettings).filter(([, v]) => v !== undefined)
+                ) as PolicySettings;
+                if (Object.keys(definedPolicyPatch).length > 0) {
+                    const { data: existingPolicy } = await supabase
+                        .from('app_settings')
+                        .select('id, data')
+                        .eq('id', 'policy')
+                        .maybeSingle();
+                    const policyData = parseObjectValue(existingPolicy?.data);
+                    const nextPolicyData = { ...policyData, ...definedPolicyPatch };
+                    const { error: policyError } = await supabase
+                        .from('app_settings')
+                        .upsert({ id: 'policy', data: nextPolicyData }, { onConflict: 'id' });
+                    if (policyError)
+                        throw policyError;
+                }
+            }
+
             if (updates.contactUs && Object.keys(updates.contactUs).length > 0) {
                 const { data: existing } = await supabase
                     .from('app_settings')
@@ -548,25 +580,6 @@ export const updateSettings = createAsyncThunk<
                     throw rootSettingsError;
                 }
 
-                if (updates.policySettings) {
-                    const definedPolicyPatch = Object.fromEntries(
-                        Object.entries(updates.policySettings).filter(([, v]) => v !== undefined)
-                    ) as PolicySettings;
-                    if (Object.keys(definedPolicyPatch).length > 0) {
-                        const { data: existingPolicy } = await supabase
-                            .from('app_settings')
-                            .select('id, data')
-                            .eq('id', 'policy')
-                            .maybeSingle();
-                        const policyData = parseObjectValue(existingPolicy?.data);
-                        const nextPolicyData = { ...policyData, ...definedPolicyPatch };
-                        const { error: policyError } = await supabase
-                            .from('app_settings')
-                            .upsert({ id: 'policy', data: nextPolicyData }, { onConflict: 'id' });
-                        if (policyError)
-                            throw policyError;
-                    }
-                }
             }
 
             const { data: allRows, error: reloadError } = await supabase
