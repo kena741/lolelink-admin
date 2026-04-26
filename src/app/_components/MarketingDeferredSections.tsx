@@ -141,19 +141,22 @@ export default function MarketingDeferredSections() {
   const apps = [
     {
       name: "Zemen Service",
-      description: "Find, book, and approve completed services.",
+      description:
+        "Find trusted services, book in minutes, and approve completed work with a clear and secure customer flow.",
       playStoreUrl: "https://play.google.com/store/apps/details?id=com.zemen.service",
       appStoreUrl: "https://apps.apple.com/app/zemen-provider/id6763142218",
     },
     {
       name: "Zemen Provider",
-      description: "Create services, accept jobs, and request withdrawals.",
+      description:
+        "Create and manage services, accept customer bookings, and track earnings with controlled payout requests.",
       playStoreUrl: "https://play.google.com/store/apps/details?id=com.zemen.provider",
       appStoreUrl: "https://apps.apple.com/app/zemen-provider/id6763142218",
     },
     {
       name: "Zemen Handyman",
-      description: "Complete assigned jobs and track work on the go.",
+      description:
+        "View assigned tasks, complete jobs on-site, and upload proof of completion while tracking progress on the go.",
       playStoreUrl: "https://play.google.com/store/apps/details?id=com.zemen.handyman",
       appStoreUrl: "https://apps.apple.com/app/zemen-provider/id6763142218",
     },
@@ -237,7 +240,7 @@ export default function MarketingDeferredSections() {
   return (
     <>
       <PartnersSection partners={partners} />
-      <MobileDownloadSection apps={apps} labels={mobileDownloadLabels} sharedDescription={mobileDownloadSharedDescription} />
+      <MobileDownloadSection apps={apps} labels={mobileDownloadLabels} />
       <HowPlatformsSection
         sharedDescription={mobileDownloadSharedDescription}
         customerJourneySteps={customerJourneySteps}

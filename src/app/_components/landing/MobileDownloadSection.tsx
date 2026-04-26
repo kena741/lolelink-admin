@@ -17,7 +17,6 @@ interface MobileLabel {
 interface MobileDownloadSectionProps {
   apps: AppItem[];
   labels: readonly MobileLabel[];
-  sharedDescription: string;
 }
 
 function PlayStoreIcon() {
@@ -42,7 +41,7 @@ function AppStoreIcon() {
   );
 }
 
-export function MobileDownloadSection({ apps, labels, sharedDescription }: MobileDownloadSectionProps) {
+export function MobileDownloadSection({ apps, labels }: MobileDownloadSectionProps) {
   return (
     <section id="download" className="hero-mobile-apps scroll-mt-24" aria-label="Download Zemen mobile apps">
       <LazyMount minHeightClassName="min-h-[200px]">
@@ -64,7 +63,7 @@ export function MobileDownloadSection({ apps, labels, sharedDescription }: Mobil
                     </a>
                   ) : null}
                 </div>
-                <p className="hero-mobile-apps-desc">{sharedDescription}</p>
+                <p className="hero-mobile-apps-desc">{app.description}</p>
               </div>
             );
           })}
