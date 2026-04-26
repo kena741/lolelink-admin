@@ -11,13 +11,6 @@ const allowedDevOrigins = process.env.NEXT_ALLOWED_DEV_ORIGINS?.split(",")
 const nextConfig: NextConfig = {
   ...(allowedDevOrigins?.length ? { allowedDevOrigins } : {}),
   images: {
-    // Allow Supabase storage images
-    domains: [
-      // fallback to a known host if env not set yet (can be removed later)
-      "rffptyqhqvzrpmyxlwwu.supabase.co",
-      "firebasestorage.googleapis.com",
-      ...(supabaseHost ? [supabaseHost] : []),
-    ],
     remotePatterns: [
       ...(supabaseHost
         ? [{ protocol: "https" as const, hostname: supabaseHost, pathname: "/storage/v1/object/public/**" }]
