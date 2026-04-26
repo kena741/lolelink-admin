@@ -30,7 +30,7 @@ export default function ContactUsPage() {
             <Link href="/contact-us" className="landing-nav-contact">
               Contact Us
             </Link>
-            <Link href="/#download" className="landing-nav-cta">
+            <Link href="/customer-app" className="landing-nav-cta">
               Get The App
             </Link>
           </div>
@@ -56,7 +56,7 @@ export default function ContactUsPage() {
               Back to home
             </Link>
             <Link
-              href="/#download"
+              href="/customer-app"
               className="inline-flex h-[40px] items-center justify-center rounded-md border border-[#027a3b] bg-[#027a3b] px-6 font-[family-name:var(--font-outfit),sans-serif] text-[14px] font-semibold text-white shadow-[0_4px_4px_rgba(0,0,0,0.15)] transition-colors hover:bg-[#015d2c] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#027a3b] focus-visible:ring-offset-2"
             >
               Get the apps

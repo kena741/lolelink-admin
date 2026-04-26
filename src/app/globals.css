@@ -560,13 +560,11 @@
     max-width: min(100%, 420px);
   }
 
-  .hero-col--provider .hero-app-info,
-  .hero-col--provider .hero-app-btn--outline {
+  .hero-col--provider .hero-app-info {
     transform: translate(-180px, -68px);
   }
 
-  .hero-col--handyman .hero-app-info,
-  .hero-col--handyman .hero-app-btn--outline {
+  .hero-col--handyman .hero-app-info {
     transform: translate(180px, -68px);
   }
 }
@@ -709,6 +707,12 @@
   background: #d0deda;
 }
 
+.hero-app-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .hero-mobile-apps {
   display: none;
 }
@@ -771,6 +775,12 @@
 .hero-mobile-apps-btn:focus-visible {
   outline: 2px solid #027a3b;
   outline-offset: 3px;
+}
+
+.hero-mobile-apps-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .how-platforms-work {

@@ -37,6 +37,15 @@ const PlayStoreIcon = () => (
   </svg>
 );
 
+const AppStoreIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden>
+    <path
+      d="M16.678 12.59C16.662 10.792 18.147 9.926 18.215 9.885C17.374 8.654 16.069 8.485 15.611 8.47C14.515 8.355 13.453 9.123 12.896 9.123C12.329 9.123 11.472 8.482 10.547 8.5C9.356 8.518 8.243 9.206 7.631 10.278C6.367 12.458 7.31 15.661 8.52 17.428C9.125 18.294 9.829 19.259 10.75 19.225C11.651 19.188 11.987 18.649 13.074 18.649C14.152 18.649 14.467 19.225 15.406 19.204C16.374 19.188 16.984 18.338 17.568 17.463C18.268 16.469 18.548 15.489 18.559 15.439C18.536 15.431 16.697 14.734 16.678 12.59ZM14.895 7.304C15.381 6.702 15.714 5.887 15.622 5.055C14.919 5.086 14.04 5.542 13.532 6.126C13.081 6.645 12.678 7.492 12.781 8.292C13.571 8.351 14.389 7.891 14.895 7.304Z"
+      fill="currentColor"
+    />
+  </svg>
+);
+
 const VerifiedBadgeIcon = () => (
   <svg viewBox="0 0 30 30" fill="none" aria-hidden>
     <path
@@ -78,7 +87,7 @@ export default function Home() {
             <Link href="/contact-us" className="landing-nav-contact">
               Contact Us
             </Link>
-            <Link href="#download" className="landing-nav-cta">
+            <Link href="/customer-app" className="landing-nav-cta">
               Get The App
             </Link>
           </div>
@@ -188,21 +197,31 @@ export default function Home() {
             {/* Left – Provider */}
             <div className="hero-col hero-col--provider">
               <div className="hero-app-info">
-                <h2 className="hero-app-name">Zemen Provider</h2>
+                <div className="hero-app-actions">
+                  <a
+                    href="https://play.google.com/store/apps/details?id=com.zemen.provider"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="hero-app-btn hero-app-btn--outline"
+                  >
+                    <PlayStoreIcon />
+                    Provider App
+                  </a>
+                  <a
+                    href="https://apps.apple.com/app/zemen-provider/id6763142218"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="hero-app-btn hero-app-btn--outline"
+                  >
+                    <AppStoreIcon />
+                    Provider App
+                  </a>
+                </div>
                 <p className="hero-app-desc">
-                  Book admin-approved services from providers verified with
-                  identity, medical status, and criminal record checks.
+                  Create approved services, manage bookings, and handle payouts
+                  from one provider dashboard.
                 </p>
               </div>
-              <a
-                href="https://play.google.com/store/apps/details?id=com.zemen.provider"
-                target="_blank"
-                rel="noreferrer"
-                className="hero-app-btn hero-app-btn--outline"
-              >
-                <PlayStoreIcon />
-                Zemen Provider
-              </a>
               <div className="hero-phone hero-phone--side hero-phone--plain">
                 <Image
                   src="/provider_.png"
@@ -216,15 +235,26 @@ export default function Home() {
 
             {/* Center – Service */}
             <div className="hero-col hero-col--service">
-              <a
-                href="https://play.google.com/store/apps/details?id=com.zemen.service"
-                target="_blank"
-                rel="noreferrer"
-                className="hero-app-btn hero-app-btn--filled"
-              >
-                <PlayStoreIcon />
-                Customer App
-              </a>
+              <div className="hero-app-actions">
+                <a
+                  href="https://play.google.com/store/apps/details?id=com.zemen.service"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="hero-app-btn hero-app-btn--filled"
+                >
+                  <PlayStoreIcon />
+                  Customer App
+                </a>
+                <a
+                  href="https://apps.apple.com/app/zemen-provider/id6763142218"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="hero-app-btn hero-app-btn--outline"
+                >
+                  <AppStoreIcon />
+                  Customer App
+                </a>
+              </div>
               <div className="hero-arrow-between" aria-hidden>
                 <svg
                   className="hero-arrow-between__svg"
@@ -278,21 +308,31 @@ export default function Home() {
             {/* Right – Handyman */}
             <div className="hero-col hero-col--handyman">
               <div className="hero-app-info">
-                <h2 className="hero-app-name">Zemen Handyman</h2>
+                <div className="hero-app-actions">
+                  <a
+                    href="https://play.google.com/store/apps/details?id=com.zemen.handyman"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="hero-app-btn hero-app-btn--outline"
+                  >
+                    <PlayStoreIcon />
+                    Handyman App
+                  </a>
+                  <a
+                    href="https://apps.apple.com/app/zemen-provider/id6763142218"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="hero-app-btn hero-app-btn--outline"
+                  >
+                    <AppStoreIcon />
+                    Handyman App
+                  </a>
+                </div>
                 <p className="hero-app-desc">
-                  Book admin-approved services from providers verified with
-                  identity, medical status, and criminal record checks.
+                  Track assigned jobs, upload completion proof, and finish work
+                  securely on the go.
                 </p>
               </div>
-              <a
-                href="https://play.google.com/store/apps/details?id=com.zemen.handyman"
-                target="_blank"
-                rel="noreferrer"
-                className="hero-app-btn hero-app-btn--outline"
-              >
-                <PlayStoreIcon />
-                Zemen Handyman
-              </a>
               <div className="hero-phone hero-phone--side hero-phone--plain">
                 <Image
                   src="/handyman_.png"

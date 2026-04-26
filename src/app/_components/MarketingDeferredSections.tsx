@@ -28,9 +28,9 @@ const mobileDownloadSharedDescription =
   "Book admin-approved services from providers verified with identity, medical status, and criminal record checks.";
 
 const mobileDownloadLabels = [
-  { heading: "Customer App", storeLabel: "Zemen Customer" },
-  { heading: "Provider App", storeLabel: "Zemen Provider" },
-  { heading: "Handyman App", storeLabel: "Zemen Handyman" },
+  { heading: "Customer App", storeLabel: "Customer App" },
+  { heading: "Provider App", storeLabel: "Provider App" },
+  { heading: "Handyman App", storeLabel: "Handyman App" },
 ] as const;
 
 export default function MarketingDeferredSections() {
@@ -143,16 +143,19 @@ export default function MarketingDeferredSections() {
       name: "Zemen Service",
       description: "Find, book, and approve completed services.",
       playStoreUrl: "https://play.google.com/store/apps/details?id=com.zemen.service",
+      appStoreUrl: "https://apps.apple.com/app/zemen-provider/id6763142218",
     },
     {
       name: "Zemen Provider",
       description: "Create services, accept jobs, and request withdrawals.",
       playStoreUrl: "https://play.google.com/store/apps/details?id=com.zemen.provider",
+      appStoreUrl: "https://apps.apple.com/app/zemen-provider/id6763142218",
     },
     {
       name: "Zemen Handyman",
       description: "Complete assigned jobs and track work on the go.",
       playStoreUrl: "https://play.google.com/store/apps/details?id=com.zemen.handyman",
+      appStoreUrl: "https://apps.apple.com/app/zemen-provider/id6763142218",
     },
   ];
 

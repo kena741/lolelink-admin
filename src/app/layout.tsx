@@ -31,6 +31,25 @@ const siteUrl =
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
+  icons: {
+    icon: [
+      {
+        url: "/logo.png?v=4",
+        type: "image/png",
+        sizes: "32x32",
+        media: "(prefers-color-scheme: light)",
+      },
+      {
+        url: "/logo_white.png?v=4",
+        type: "image/png",
+        sizes: "32x32",
+        media: "(prefers-color-scheme: dark)",
+      },
+      { url: "/logo.png?v=4", type: "image/png", sizes: "192x192" },
+    ],
+    shortcut: [{ url: "/logo.png?v=4", type: "image/png" }],
+    apple: [{ url: "/logo.png?v=4", type: "image/png", sizes: "180x180" }],
+  },
   title: {
     default: "Zemen Service — Book verified local services in Ethiopia",
     template: "%s · Zemen Service",
@@ -82,7 +101,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${newAmsterdam.variable} ${outfit.variable} antialiased`}
       >
