@@ -48,7 +48,6 @@ export const metadata: Metadata = {
       },
       { url: "/logo.png?v=5", type: "image/png", sizes: "192x192" },
     ],
-    shortcut: [{ url: "/logo.png?v=5", type: "image/png" }],
     apple: [{ url: "/logo.png?v=5", type: "image/png", sizes: "180x180" }],
   },
   title: {
@@ -113,6 +112,11 @@ export default function RootLayout({
   var media = window.matchMedia("(prefers-color-scheme: dark)");
   function upsertThemeFavicon() {
     var href = media.matches ? darkIcon : lightIcon;
+    var existingIcons = document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"]');
+    for (var i = 0; i < existingIcons.length; i += 1) {
+      var icon = existingIcons[i];
+      if (icon.id !== "theme-favicon-link") icon.parentNode && icon.parentNode.removeChild(icon);
+    }
     var favicon = document.querySelector('link#theme-favicon-link');
     if (!favicon) {
       favicon = document.createElement("link");

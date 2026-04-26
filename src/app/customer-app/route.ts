@@ -10,7 +10,8 @@ function isIosDevice(userAgent: string): boolean {
   if (normalizedUserAgent.includes("iphone")) return true;
   if (normalizedUserAgent.includes("ipad")) return true;
   if (normalizedUserAgent.includes("ipod")) return true;
-  return normalizedUserAgent.includes("macintosh") && normalizedUserAgent.includes("mobile");
+  if (normalizedUserAgent.includes("macintosh")) return true;
+  return normalizedUserAgent.includes("mac os x");
 }
 
 export async function GET() {
