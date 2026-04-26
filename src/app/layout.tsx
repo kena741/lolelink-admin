@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, New_Amsterdam, Outfit } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 import Providers from "./providers";
 
@@ -34,21 +35,21 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       {
-        url: "/logo.png?v=4",
+        url: "/logo.png?v=5",
         type: "image/png",
         sizes: "32x32",
         media: "(prefers-color-scheme: light)",
       },
       {
-        url: "/logo_white.png?v=4",
+        url: "/logo_white.png?v=5",
         type: "image/png",
         sizes: "32x32",
         media: "(prefers-color-scheme: dark)",
       },
-      { url: "/logo.png?v=4", type: "image/png", sizes: "192x192" },
+      { url: "/logo.png?v=5", type: "image/png", sizes: "192x192" },
     ],
-    shortcut: [{ url: "/logo.png?v=4", type: "image/png" }],
-    apple: [{ url: "/logo.png?v=4", type: "image/png", sizes: "180x180" }],
+    shortcut: [{ url: "/logo.png?v=5", type: "image/png" }],
+    apple: [{ url: "/logo.png?v=5", type: "image/png", sizes: "180x180" }],
   },
   title: {
     default: "Zemen Service — Book verified local services in Ethiopia",
@@ -105,6 +106,29 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${newAmsterdam.variable} ${outfit.variable} antialiased`}
       >
+        <Script id="theme-favicon" strategy="beforeInteractive">
+          {`(function () {
+  var lightIcon = "/logo.png?v=5";
+  var darkIcon = "/logo_white.png?v=5";
+  var media = window.matchMedia("(prefers-color-scheme: dark)");
+  function upsertThemeFavicon() {
+    var href = media.matches ? darkIcon : lightIcon;
+    var favicon = document.querySelector('link#theme-favicon-link');
+    if (!favicon) {
+      favicon = document.createElement("link");
+      favicon.id = "theme-favicon-link";
+      favicon.rel = "icon";
+      favicon.type = "image/png";
+      favicon.sizes = "32x32";
+      document.head.appendChild(favicon);
+    }
+    if (favicon.getAttribute("href") !== href) favicon.setAttribute("href", href);
+  }
+  upsertThemeFavicon();
+  if (typeof media.addEventListener === "function") media.addEventListener("change", upsertThemeFavicon);
+  else if (typeof media.addListener === "function") media.addListener(upsertThemeFavicon);
+})();`}
+        </Script>
         <Providers>
           {children}
         </Providers>
