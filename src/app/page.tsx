@@ -87,9 +87,6 @@ export default function Home() {
             <Link href="/contact-us" className="landing-nav-contact">
               Contact Us
             </Link>
-            <Link href="/customer-app" className="landing-nav-cta">
-              Get The App
-            </Link>
           </div>
         </nav>
       </header>

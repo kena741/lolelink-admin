@@ -17,7 +17,11 @@ interface LandingFooterProps {
 const defaultSocialLinks: readonly SocialLink[] = [
   { label: "Telegram", Icon: Send, href: "https://t.me/zemenservicediscussion" },
   { label: "TikTok", Icon: Music2, href: "https://www.tiktok.com/@zemenserv" },
-  { label: "Instagram", Icon: Instagram, href: "https://www.instagram.com/zemenserv/" },
+  {
+    label: "Instagram",
+    Icon: Instagram,
+    href: "https://www.instagram.com/zemen_service?igsh=a251bHFnZWZ5eWJr&utm_source=qr",
+  },
   { label: "LinkedIn", Icon: Linkedin, href: "https://www.linkedin.com/company/zemenservices/" },
 ];
 

@@ -35,6 +35,7 @@ import {
     ConstantSettings,
     LanguageSettings,
 } from '@/features/settings/settingsSlice';
+import { DEFAULT_CONTACT_US } from '@/features/settings/contactDefaults';
 import HTMLEditor from '@/components/RichTextEditor';
 
 type TabType = 'app' | 'general' | 'policy' | 'contact' | 'commission' | 'status' | 'constants' | 'language';
@@ -49,7 +50,7 @@ const SettingsPage = () => {
     const [appSettings, setAppSettings] = useState<AppSettings>({});
     const [generalSettings, setGeneralSettings] = useState<GeneralSettings>({});
     const [policySettings, setPolicySettings] = useState<PolicySettings>({});
-    const [contactUs, setContactUs] = useState<ContactUsSettings>({});
+    const [contactUs, setContactUs] = useState<ContactUsSettings>(DEFAULT_CONTACT_US);
     const [adminCommission, setAdminCommission] = useState<AdminCommissionSettings>({});
     const [statusOptions, setStatusOptions] = useState<BookingStatusOption[]>([]);
     const [constants, setConstants] = useState<ConstantSettings>({});
@@ -69,7 +70,10 @@ const SettingsPage = () => {
             setAppSettings(settings.appSettings || {});
             setGeneralSettings(settings.generalSettings || {});
             setPolicySettings(settings.policySettings || {});
-            setContactUs(settings.contactUs || {});
+            setContactUs({
+                ...DEFAULT_CONTACT_US,
+                ...(settings.contactUs || {}),
+            });
             setAdminCommission(settings.adminCommission || {});
             setStatusOptions(
                 settings.statusOptions && settings.statusOptions.length > 0
@@ -173,12 +177,7 @@ const SettingsPage = () => {
                 <Sidebar />
                 <main className="ml-64 w-full min-h-screen">
                     {/* Header */}
-                    <div className="relative isolate overflow-hidden">
-                        <div className="absolute inset-0 bg-gradient-to-r from-primary via-accent to-secondary opacity-90" />
-                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(230,240,224,0.18),transparent_55%)]" />
-                        <div className="absolute top-0 left-1/4 h-72 w-72 rounded-full bg-card/10 blur-3xl animate-pulse" />
-                        <div className="absolute bottom-0 right-1/4 h-96 w-96 rounded-full bg-card/10 blur-3xl animate-pulse delay-1000" />
-                        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4xIj48Y2lyY2xlIGN4PSIzMCIgY3k9IjMwIiByPSIxLjUiLz48L2c+PC9nPjwvc3ZnPg==')] opacity-20" />
+                    <div className="relative isolate overflow-hidden bg-primary transition-colors dark:!bg-sidebar dark:border-b dark:border-sidebar-border">
                         <div className="relative mx-auto max-w-7xl px-6 py-10 sm:py-12 lg:px-8">
                             <div className="flex items-center justify-between gap-6">
                                 <div>
@@ -327,6 +326,7 @@ const SettingsPage = () => {
                                             </button>
                                         </div>
                                     </div>
+                                    {/*
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-2">Minimum Amount Deposit</label>
                                         <input
@@ -345,6 +345,7 @@ const SettingsPage = () => {
                                             className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                                         />
                                     </div>
+                                    */}
                                     <div>
                                         <label className="flex items-center gap-2 cursor-pointer">
                                             <input

@@ -29,6 +29,9 @@ import { BookedService } from '@/features/bookedService/bookedServiceSlice';
 
 interface AnalyticsData {
     totalRevenue: number;
+    totalTransaction: number;
+    totalNetFlow: number;
+    totalTopUp: number;
     monthlyRevenue: number;
     revenueChange: number;
     totalCompletedRevenueBookings: number;
@@ -70,6 +73,15 @@ interface ProviderPaymentMethodLiteRow {
     is_active?: boolean | null;
 }
 
+interface WalletTransactionLiteRow {
+    amount?: string | number | null;
+    isCredit?: boolean | null;
+    note?: string | null;
+    transactionId?: string | null;
+    createdDate?: string | null;
+}
+
+
 type DashboardRange = 'today' | '7d' | '30d' | 'all';
 
 function isCompletedBooking(value: BookedServiceRow): boolean {
@@ -94,6 +106,10 @@ function getPlatformRevenueFromBooking(value: BookedServiceRow): number {
     return getBookingGrossAmount(value) * 0.1;
 }
 
+function formatCurrency(value: number): string {
+    return `ETB ${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 function isRejectedBooking(value: BookedServiceRow): boolean {
     const normalized = (value.status ?? '').toString().trim().toLowerCase();
     return normalized.includes('rejected') || normalized.includes('cancelled') || normalized.includes('canceled');
@@ -108,6 +124,9 @@ function DashboardContent() {
     const [customerCount, setCustomerCount] = useState<number>(0);
     const [analytics, setAnalytics] = useState<AnalyticsData>({
         totalRevenue: 0,
+        totalTransaction: 0,
+        totalNetFlow: 0,
+        totalTopUp: 0,
         monthlyRevenue: 0,
         revenueChange: 0,
         totalCompletedRevenueBookings: 0,
@@ -189,6 +208,35 @@ function DashboardContent() {
                 const totalCompletedGrossAmount = rangedCompletedPaidBookings.reduce((sum, booking) => {
                     return sum + getBookingGrossAmount(booking);
                 }, 0);
+                const { data: walletRows, error: walletRowsError } = await supabase
+                    .from('wallet_transaction')
+                    .select('amount, isCredit, note, transactionId, createdDate');
+                const rangedWalletRows = !walletRowsError && walletRows
+                    ? (walletRows as WalletTransactionLiteRow[]).filter((row) => isDateInRange(row.createdDate))
+                    : [];
+                const totalTransaction = rangedWalletRows.reduce((sum, row) => {
+                    const amount = Number(row.amount ?? 0);
+                    return sum + (Number.isFinite(amount) ? Math.abs(amount) : 0);
+                }, 0);
+                const totalNetFlow = rangedWalletRows.reduce((sum, row) => {
+                    const amount = Number(row.amount ?? 0);
+                    if (!Number.isFinite(amount)) return sum;
+                    return row.isCredit === true ? sum + amount : sum - amount;
+                }, 0);
+                const totalTopUp = rangedWalletRows
+                    .filter((row) => {
+                        if (row.isCredit !== true) return false;
+                        const normalizedNote = (row.note ?? '').toLowerCase();
+                        const normalizedTransactionId = (row.transactionId ?? '').toLowerCase();
+                        return normalizedNote.includes('top up')
+                            || normalizedNote.includes('topup')
+                            || normalizedTransactionId.startsWith('wallet_')
+                            || normalizedTransactionId.startsWith('activation_');
+                    })
+                    .reduce((sum, row) => {
+                        const amount = Number(row.amount ?? 0);
+                        return sum + (Number.isFinite(amount) ? amount : 0);
+                    }, 0);
 
                 // Calculate monthly revenue (last 30 days)
                 const thirtyDaysAgo = new Date();
@@ -252,6 +300,9 @@ function DashboardContent() {
 
                 setAnalytics({
                     totalRevenue,
+                    totalTransaction,
+                    totalNetFlow,
+                    totalTopUp,
                     monthlyRevenue,
                     revenueChange,
                     totalCompletedRevenueBookings: rangedCompletedPaidBookings.length,
@@ -374,6 +425,8 @@ function DashboardContent() {
         note,
         bookingBreakdown,
         valueNode,
+        isCurrency,
+        iconClassName,
         icon: Icon, 
         gradient, 
         iconBg,
@@ -389,6 +442,8 @@ function DashboardContent() {
             rejected: number;
         };
         valueNode?: React.ReactNode;
+        isCurrency?: boolean;
+        iconClassName?: string;
         icon: React.ElementType; 
         gradient: string;
         iconBg: string;
@@ -405,7 +460,7 @@ function DashboardContent() {
                 <div className="relative z-10">
                     <div className="flex items-start justify-between mb-4">
                         <div className={`${iconBg} p-3 rounded-xl shadow-lg`}>
-                            <Icon className="h-6 w-6 text-white" />
+                            <Icon className={`h-6 w-6 ${iconClassName ?? 'text-white'}`} />
                         </div>
                         {change !== undefined && (
                             <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${
@@ -429,8 +484,8 @@ function DashboardContent() {
                         ) : valueNode ? (
                             valueNode
                         ) : (
-                            typeof value === 'number' && title.includes('Revenue') 
-                                ? `ETB ${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                            typeof value === 'number' && isCurrency
+                                ? formatCurrency(value)
                                 : value.toLocaleString()
                         )}
                     </p>
@@ -496,15 +551,9 @@ function DashboardContent() {
                 <Sidebar />
                 <main className="ml-64 w-full min-h-screen">
                     {/* Futuristic Header */}
-                    <div className="relative isolate overflow-hidden">
+                    <div className="relative isolate overflow-hidden bg-primary transition-colors dark:!bg-sidebar dark:border-b dark:border-sidebar-border">
                         {/* Animated gradient background */}
-                        <div className="absolute inset-0 bg-gradient-to-r from-primary via-accent to-secondary opacity-90" />
-                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(230,240,224,0.18),transparent_55%)]" />
-                        
-                        {/* Animated orbs */}
-                        <div className="absolute top-0 left-1/4 h-72 w-72 rounded-full bg-card/10 blur-3xl animate-pulse" />
-                        <div className="absolute bottom-0 right-1/4 h-96 w-96 rounded-full bg-card/10 blur-3xl animate-pulse delay-1000" />
-                        
+                     
                         <div className="relative mx-auto max-w-7xl px-6 py-12 sm:py-16 lg:px-8">
                             <div className="flex items-center justify-between gap-6">
                                 <div>
@@ -553,12 +602,27 @@ function DashboardContent() {
                             ))}
                         </div>
                         {/* Main Stats Grid */}
-                        <section className="mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <section className="mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-6">
                             <StatCard
-                                title="Total Revenue"
-                                value={analytics.totalRevenue}
-                                change={analytics.revenueChange}
-                                note={`Completed bookings amount: ETB ${analytics.totalCompletedGrossAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                                title="Total Transaction"
+                                value={analytics.totalTransaction}
+                                isCurrency
+                                icon={DollarSign}
+                                gradient="bg-gradient-to-br from-emerald-500/20 to-teal-500/20"
+                                iconBg="bg-gradient-to-br from-emerald-500 to-teal-600"
+                            />
+                            <StatCard
+                                title="Total Top Up"
+                                value={analytics.totalTopUp}
+                                isCurrency
+                                icon={DollarSign}
+                                gradient="bg-gradient-to-br from-emerald-500/20 to-teal-500/20"
+                                iconBg="bg-gradient-to-br from-emerald-500 to-teal-600"
+                            />
+                            <StatCard
+                                title="Net Flow"
+                                value={analytics.totalNetFlow}
+                                isCurrency
                                 icon={DollarSign}
                                 gradient="bg-gradient-to-br from-emerald-500/20 to-teal-500/20"
                                 iconBg="bg-gradient-to-br from-emerald-500 to-teal-600"
@@ -599,16 +663,17 @@ function DashboardContent() {
                                     </span>
                                 }
                                 icon={CalendarCheck2}
-                                gradient="bg-gradient-to-br from-purple-500/20 to-pink-500/20"
-                                iconBg="bg-gradient-to-br from-purple-500 to-pink-600"
+                                gradient="bg-gradient-to-br from-blue-500/20 to-indigo-500/20"
+                                iconBg="bg-gradient-to-br from-blue-500 to-indigo-600"
+                                iconClassName="text-indigo-950"
                                 href="/admin/bookings"
                             />
                             <StatCard
                                 title="Total Customers"
                                 value={customerCount}
-                                icon={UserPlus}
-                                gradient="bg-gradient-to-br from-fuchsia-500/20 to-rose-500/20"
-                                iconBg="bg-gradient-to-br from-fuchsia-500 to-rose-600"
+                                icon={Users}
+                                gradient="bg-gradient-to-br from-violet-500/20 to-purple-500/20"
+                                iconBg="bg-gradient-to-br from-violet-500 to-purple-600"
                                 href="/admin/customers"
                             />
                         </section>
@@ -700,15 +765,15 @@ function DashboardContent() {
                         {/* Analytics Charts Section */}
                         <section className="mb-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
                             {/* Weekly Activity Chart */}
-                            <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/80 to-white/40 backdrop-blur-xl border border-white/20 p-6 shadow-xl">
+                            <div className="lg:col-span-2 rounded-2xl border border-subtle bg-surface p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
                                 <div className="flex items-center justify-between mb-6">
                                     <div className="flex items-center gap-3">
-                                        <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl shadow-lg">
-                                            <BarChart3 className="h-5 w-5 text-white" />
+                                        <div className="rounded-xl bg-accent-info-bg p-2">
+                                            <BarChart3 className="h-5 w-5 text-accent-info" />
                                         </div>
                                         <div>
-                                            <h2 className="text-lg font-bold text-gray-900">Weekly Activity</h2>
-                                            <p className="text-xs text-gray-600">
+                                            <h2 className="text-lg font-bold text-primary">Weekly Activity</h2>
+                                            <p className="text-xs font-medium text-primary/80">
                                                 {dashboardRange === 'today' ? 'Today'
                                                     : dashboardRange === '7d' ? 'Last 7 days'
                                                         : dashboardRange === '30d' ? 'Last 30 days'
@@ -716,28 +781,30 @@ function DashboardContent() {
                                             </p>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2 px-3 py-1 bg-indigo-500/10 rounded-full">
-                                        <Zap className="h-4 w-4 text-indigo-600" />
-                                        <span className="text-xs font-semibold text-indigo-600">Live</span>
+                                    <div className="flex items-center gap-2 rounded-full bg-subtle px-3 py-1">
+                                        <Zap className="h-4 w-4 text-primary" />
+                                        <span className="text-xs font-semibold text-primary">Live</span>
                                     </div>
                                 </div>
-                                <div className="flex items-end gap-2 h-48">
+                                <div className="h-48 rounded-xl border border-subtle bg-subtle/60 p-3">
+                                    <div className="flex h-full items-end gap-2">
                                     {analytics.weeklyData.map((value, idx) => {
                                         const height = maxWeeklyValue > 0 ? (value / maxWeeklyValue) * 100 : 0;
                                         return (
                                             <div key={idx} className="flex-1 flex flex-col items-center group">
                                                 <div 
-                                                    className="w-full rounded-t-lg bg-gradient-to-t from-indigo-500 via-purple-500 to-fuchsia-500 transition-all duration-500 hover:from-indigo-400 hover:via-purple-400 hover:to-fuchsia-400 group-hover:shadow-lg group-hover:shadow-purple-500/50"
-                                                    style={{ height: `${height}%`, minHeight: value > 0 ? '4px' : '0' }}
+                                                    className="w-full rounded-t-lg bg-gradient-to-t from-indigo-600 to-purple-600 transition-all duration-200 group-hover:opacity-90"
+                                                    style={{ height: `${height}%`, minHeight: value > 0 ? '6px' : '0' }}
                                                 />
-                                                <div className="mt-2 text-xs font-medium text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <div className="mt-2 text-xs font-medium text-primary/70 opacity-0 group-hover:opacity-100 transition-opacity">
                                                     {value}
                                                 </div>
                                             </div>
                                         );
                                     })}
+                                    </div>
                                 </div>
-                                <div className="flex justify-between mt-4 text-xs text-gray-500">
+                                <div className="mt-4 flex justify-between text-xs font-medium text-primary/80">
                                     {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, idx) => (
                                         <span key={idx}>{day}</span>
                                     ))}
@@ -745,14 +812,14 @@ function DashboardContent() {
                             </div>
 
                             {/* Monthly Overview */}
-                            <div className="rounded-2xl bg-gradient-to-br from-white/80 to-white/40 backdrop-blur-xl border border-white/20 p-6 shadow-xl">
+                            <div className="rounded-2xl border border-subtle bg-surface p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
                                 <div className="flex items-center gap-3 mb-6">
-                                    <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl shadow-lg">
-                                        <Activity className="h-5 w-5 text-white" />
+                                    <div className="rounded-xl bg-accent-info-bg p-2">
+                                        <Activity className="h-5 w-5 text-accent-info" />
                                     </div>
                                     <div>
-                                        <h2 className="text-lg font-bold text-gray-900">Monthly Trend</h2>
-                                            <p className="text-xs text-gray-600">
+                                        <h2 className="text-lg font-bold text-primary">Monthly Trend</h2>
+                                            <p className="text-xs font-medium text-primary/80">
                                                 {dashboardRange === 'today' ? 'Today view'
                                                     : dashboardRange === '7d' ? '7-day view'
                                                         : dashboardRange === '30d' ? '30-day view'
@@ -760,18 +827,20 @@ function DashboardContent() {
                                             </p>
                                     </div>
                                 </div>
-                                <div className="flex items-end gap-1 h-48">
+                                <div className="h-48 rounded-xl border border-subtle bg-subtle/60 p-3">
+                                    <div className="flex h-full items-end gap-1">
                                     {analytics.monthlyData.map((value, idx) => {
                                         const height = maxMonthlyValue > 0 ? (value / maxMonthlyValue) * 100 : 0;
                                         return (
                                             <div 
                                                 key={idx} 
-                                                className="flex-1 rounded-t-md bg-gradient-to-t from-purple-500 to-pink-500 transition-all duration-300 hover:from-purple-400 hover:to-pink-400"
-                                                style={{ height: `${height}%`, minHeight: value > 0 ? '4px' : '0' }}
+                                                className="flex-1 rounded-t-md bg-gradient-to-t from-indigo-600 to-purple-600 transition-all duration-200 hover:opacity-90"
+                                                style={{ height: `${height}%`, minHeight: value > 0 ? '6px' : '0' }}
                                                 title={`${value} bookings`}
                                             />
                                         );
                                     })}
+                                    </div>
                                 </div>
                             </div>
                         </section>
@@ -794,46 +863,46 @@ function DashboardContent() {
                             </div>
 
                             {/* Quick Actions */}
-                            <div className="rounded-2xl bg-gradient-to-br from-white/80 to-white/40 backdrop-blur-xl border border-white/20 p-6 shadow-xl">
-                                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                                    <Zap className="h-5 w-5 text-indigo-600" />
+                            <div className="rounded-2xl border border-subtle bg-surface p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+                                <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-primary">
+                                    <Zap className="h-5 w-5 text-accent-info" />
                                     Quick Actions
                                 </h3>
                                 <ul className="space-y-3">
                                     <li>
                                         <Link 
-                                            className="group flex items-center justify-between w-full rounded-xl bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border border-indigo-200/50 px-4 py-3 hover:from-indigo-500/20 hover:to-purple-500/20 hover:border-indigo-300/50 transition-all duration-300 hover:scale-[1.02]" 
+                                            className="group flex w-full items-center justify-between rounded-md border border-subtle bg-base px-4 py-3 text-primary transition-all duration-150 hover:bg-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-info focus-visible:ring-offset-2" 
                                             href="/admin/providers"
                                         >
-                                            <span className="font-medium text-gray-700">Providers</span>
-                                            <ArrowUpRight className="h-4 w-4 text-indigo-600 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+                                            <span className="text-[16px] font-medium leading-[1.3]">Providers</span>
+                                            <ArrowUpRight className="h-4 w-4 text-secondary transition-transform group-hover:-translate-y-1 group-hover:translate-x-1" />
                                         </Link>
                                     </li>
                                     <li>
                                         <Link 
-                                            className="group flex items-center justify-between w-full rounded-xl bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-200/50 px-4 py-3 hover:from-purple-500/20 hover:to-pink-500/20 hover:border-purple-300/50 transition-all duration-300 hover:scale-[1.02]" 
+                                            className="group flex w-full items-center justify-between rounded-md border border-subtle bg-base px-4 py-3 text-primary transition-all duration-150 hover:bg-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-info focus-visible:ring-offset-2" 
                                             href="/admin/customers"
                                         >
-                                            <span className="font-medium text-gray-700">Customers</span>
-                                            <ArrowUpRight className="h-4 w-4 text-purple-600 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+                                            <span className="text-[16px] font-medium leading-[1.3]">Customers</span>
+                                            <ArrowUpRight className="h-4 w-4 text-secondary transition-transform group-hover:-translate-y-1 group-hover:translate-x-1" />
                                         </Link>
                                     </li>
                                     <li>
                                         <Link 
-                                            className="group flex items-center justify-between w-full rounded-xl bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-200/50 px-4 py-3 hover:from-emerald-500/20 hover:to-teal-500/20 hover:border-emerald-300/50 transition-all duration-300 hover:scale-[1.02]" 
+                                            className="group flex w-full items-center justify-between rounded-md border border-subtle bg-base px-4 py-3 text-primary transition-all duration-150 hover:bg-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-info focus-visible:ring-offset-2" 
                                             href="/admin/bookings"
                                         >
-                                            <span className="font-medium text-gray-700">Bookings</span>
-                                            <ArrowUpRight className="h-4 w-4 text-emerald-600 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+                                            <span className="text-[16px] font-medium leading-[1.3]">Bookings</span>
+                                            <ArrowUpRight className="h-4 w-4 text-secondary transition-transform group-hover:-translate-y-1 group-hover:translate-x-1" />
                                         </Link>
                                     </li>
                                     <li>
                                         <Link 
-                                            className="group flex items-center justify-between w-full rounded-xl bg-gradient-to-r from-fuchsia-500/10 to-rose-500/10 border border-fuchsia-200/50 px-4 py-3 hover:from-fuchsia-500/20 hover:to-rose-500/20 hover:border-fuchsia-300/50 transition-all duration-300 hover:scale-[1.02]" 
+                                            className="group flex w-full items-center justify-between rounded-md border border-subtle bg-base px-4 py-3 text-primary transition-all duration-150 hover:bg-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-info focus-visible:ring-offset-2" 
                                             href="/admin/services/approve"
                                         >
-                                            <span className="font-medium text-gray-700">Approve Services</span>
-                                            <ArrowUpRight className="h-4 w-4 text-fuchsia-600 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+                                            <span className="text-[16px] font-medium leading-[1.3]">Approve Services</span>
+                                            <ArrowUpRight className="h-4 w-4 text-secondary transition-transform group-hover:-translate-y-1 group-hover:translate-x-1" />
                                         </Link>
                                     </li>
                                 </ul>

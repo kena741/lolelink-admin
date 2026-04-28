@@ -137,12 +137,7 @@ const PaymentSettingsPage = () => {
                 <Sidebar />
                 <main className="ml-64 w-full min-h-screen">
                     {/* Header */}
-                    <div className="relative isolate overflow-hidden">
-                        <div className="absolute inset-0 bg-gradient-to-r from-primary via-accent to-secondary opacity-90" />
-                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(230,240,224,0.18),transparent_55%)]" />
-                        <div className="absolute top-0 left-1/4 h-72 w-72 rounded-full bg-card/10 blur-3xl animate-pulse" />
-                        <div className="absolute bottom-0 right-1/4 h-96 w-96 rounded-full bg-card/10 blur-3xl animate-pulse delay-1000" />
-                        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4xIj48Y2lyY2xlIGN4PSIzMCIgY3k9IjMwIiByPSIxLjUiLz48L2c+PC9nPjwvc3ZnPg==')] opacity-20" />
+                    <div className="relative isolate overflow-hidden bg-primary transition-colors dark:!bg-sidebar dark:border-b dark:border-sidebar-border">
                         <div className="relative mx-auto max-w-7xl px-6 py-12 sm:py-16 lg:px-8">
                             <div className="flex items-center justify-between gap-6">
                                 <div>
@@ -276,7 +271,7 @@ const PaymentSettingsPage = () => {
                                 </div>
                             </div>
 
-                            {/* Flutterwave */}
+                            {/*
                             <div className="rounded-2xl bg-white/80 backdrop-blur-xl border border-white/20 shadow-xl p-6">
                                 <h3 className="text-lg font-bold text-gray-900 mb-4">Flutterwave</h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -321,6 +316,7 @@ const PaymentSettingsPage = () => {
                                     </div>
                                 </div>
                             </div>
+                            */}
 
                             {/* Telebirr */}
                             <div className="rounded-2xl bg-white/80 backdrop-blur-xl border border-white/20 shadow-xl p-6">

@@ -1,14 +1,50 @@
 import Image from "next/image";
 import Link from "next/link";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 import { LandingFooter } from "../_components/landing/LandingFooter";
+import { DEFAULT_CONTACT_US } from "@/features/settings/contactDefaults";
+import { ContactMessageForm } from "./ContactMessageForm";
 import {
   getGoogleMapsEmbedSrc,
   getGoogleMapsPlaceUrl,
   officeLocation,
 } from "./office-location";
 
-export default function ContactUsPage() {
+interface ContactUsRow {
+  data?: unknown;
+}
+
+function parseContactUsData(value: unknown): Partial<typeof DEFAULT_CONTACT_US> {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    return {};
+  const source = value as Record<string, unknown>;
+  return {
+    email: typeof source.email === "string" ? source.email : undefined,
+    phoneNumber: typeof source.phoneNumber === "string" ? source.phoneNumber : undefined,
+    address: typeof source.address === "string" ? source.address : undefined,
+    emailSubject: typeof source.emailSubject === "string" ? source.emailSubject : undefined,
+  };
+}
+
+async function getContactUsValues(): Promise<typeof DEFAULT_CONTACT_US> {
+  try {
+    const { data } = await supabaseAdmin
+      .from("app_settings")
+      .select("data")
+      .eq("id", "contact_us")
+      .maybeSingle();
+    return {
+      ...DEFAULT_CONTACT_US,
+      ...parseContactUsData((data as ContactUsRow | null)?.data),
+    };
+  } catch {
+    return DEFAULT_CONTACT_US;
+  }
+}
+
+export default async function ContactUsPage() {
+  const contactUs = await getContactUsValues();
   const mapEmbedSrc = getGoogleMapsEmbedSrc();
   const googleMapsUrl = getGoogleMapsPlaceUrl();
   return (
@@ -29,9 +65,6 @@ export default function ContactUsPage() {
           <div className="landing-nav-links">
             <Link href="/contact-us" className="landing-nav-contact">
               Contact Us
-            </Link>
-            <Link href="/customer-app" className="landing-nav-cta">
-              Get The App
             </Link>
           </div>
         </nav>
@@ -55,12 +88,6 @@ export default function ContactUsPage() {
             >
               Back to home
             </Link>
-            <Link
-              href="/customer-app"
-              className="inline-flex h-[40px] items-center justify-center rounded-md border border-[#027a3b] bg-[#027a3b] px-6 font-[family-name:var(--font-outfit),sans-serif] text-[14px] font-semibold text-white shadow-[0_4px_4px_rgba(0,0,0,0.15)] transition-colors hover:bg-[#015d2c] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#027a3b] focus-visible:ring-offset-2"
-            >
-              Get the apps
-            </Link>
           </div>
         </div>
       </section>
@@ -72,7 +99,7 @@ export default function ContactUsPage() {
               Email
             </p>
             <p className="mt-2 font-[family-name:var(--font-outfit),sans-serif] text-[16px] font-medium text-[#1b1b1b]">
-              support@zemenservice.com
+              {contactUs.email}
             </p>
           </div>
           <div className="rounded-md border border-[#b8d4c4] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.05)] sm:p-6">
@@ -80,7 +107,7 @@ export default function ContactUsPage() {
               Phone
             </p>
             <p className="mt-2 font-[family-name:var(--font-outfit),sans-serif] text-[16px] font-medium text-[#1b1b1b]">
-              +251941024355
+              {contactUs.phoneNumber}
             </p>
           </div>
           <div className="rounded-md border border-[#b8d4c4] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.05)] sm:p-6">
@@ -88,7 +115,7 @@ export default function ContactUsPage() {
               Address
             </p>
             <p className="mt-2 font-[family-name:var(--font-outfit),sans-serif] text-[16px] font-medium text-[#1b1b1b]">
-              {officeLocation.shortLabel}
+              {contactUs.address}
             </p>
           </div>
         </div>
@@ -129,40 +156,7 @@ export default function ContactUsPage() {
           <p className="mt-2 font-[family-name:var(--font-outfit),sans-serif] text-[15px] font-normal leading-[1.4] text-[#838383]">
             Share a few details and we will get back to you as soon as we can.
           </p>
-          <form className="mt-6 grid gap-4 md:grid-cols-2">
-            <input
-              type="text"
-              name="name"
-              placeholder="Your name"
-              autoComplete="name"
-              className="h-[44px] rounded-md border border-[#dadada] bg-white px-4 font-[family-name:var(--font-outfit),sans-serif] text-[14px] text-[#1b1b1b] placeholder:text-[#838383] focus:outline-none focus:ring-2 focus:ring-[#027a3b] focus:ring-offset-2"
-            />
-            <input
-              type="email"
-              name="email"
-              placeholder="Your email"
-              autoComplete="email"
-              className="h-[44px] rounded-md border border-[#dadada] bg-white px-4 font-[family-name:var(--font-outfit),sans-serif] text-[14px] text-[#1b1b1b] placeholder:text-[#838383] focus:outline-none focus:ring-2 focus:ring-[#027a3b] focus:ring-offset-2"
-            />
-            <input
-              type="text"
-              name="subject"
-              placeholder="Subject"
-              className="h-[44px] rounded-md border border-[#dadada] bg-white px-4 font-[family-name:var(--font-outfit),sans-serif] text-[14px] text-[#1b1b1b] placeholder:text-[#838383] focus:outline-none focus:ring-2 focus:ring-[#027a3b] focus:ring-offset-2 md:col-span-2"
-            />
-            <textarea
-              name="message"
-              placeholder="How can we help?"
-              rows={5}
-              className="rounded-md border border-[#dadada] bg-white px-4 py-3 font-[family-name:var(--font-outfit),sans-serif] text-[14px] text-[#1b1b1b] placeholder:text-[#838383] focus:outline-none focus:ring-2 focus:ring-[#027a3b] focus:ring-offset-2 md:col-span-2"
-            />
-            <button
-              type="button"
-              className="h-[40px] rounded-md border border-[#027a3b] bg-[#027a3b] px-6 font-[family-name:var(--font-outfit),sans-serif] text-[14px] font-semibold text-white shadow-[0_4px_4px_rgba(0,0,0,0.15)] transition-colors hover:bg-[#015d2c] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#027a3b] focus-visible:ring-offset-2 md:col-span-2 md:w-fit"
-            >
-              Send message
-            </button>
-          </form>
+          <ContactMessageForm defaultSubject={contactUs.emailSubject} />
         </div>
       </section>
 

@@ -107,11 +107,7 @@ const VerifyDocumentsPage = () => {
                 <Sidebar />
                 <main className="ml-64 w-full min-h-screen">
                     {/* Futuristic Header */}
-                    <div className="relative isolate overflow-hidden">
-                        <div className="absolute inset-0 bg-gradient-to-r from-primary via-accent to-secondary opacity-90" />
-                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(230,240,224,0.18),transparent_55%)]" />
-                        <div className="absolute top-0 left-1/4 h-72 w-72 rounded-full bg-card/10 blur-3xl animate-pulse" />
-                        <div className="absolute bottom-0 right-1/4 h-96 w-96 rounded-full bg-card/10 blur-3xl animate-pulse delay-1000" />
+                    <div className="relative isolate overflow-hidden bg-primary transition-colors dark:!bg-sidebar dark:border-b dark:border-sidebar-border">
                         
                         <div className="relative mx-auto max-w-7xl px-6 py-12 sm:py-16 lg:px-8">
                             <div className="flex items-center justify-between gap-6">

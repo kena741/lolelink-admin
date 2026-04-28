@@ -23,6 +23,7 @@ import {
     FileText,
     Ticket,
     CheckSquare,
+    MessageSquare,
     Moon,
     Sun
 } from 'lucide-react';
@@ -367,6 +368,19 @@ const Sidebar = () => {
                                     >
                                         <Settings className={`h-4 w-4 ${pathname?.startsWith('/admin/settings') ? 'text-sidebar-primary-foreground' : 'text-muted-foreground group-hover:text-sidebar-foreground'}`} />
                                         <span>Global Settings</span>
+                                    </Link>
+                                </li>
+                                <li>
+                                    <Link
+                                        href="/admin/contact-messages"
+                                        className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                                            pathname === '/admin/contact-messages'
+                                                ? 'bg-sidebar-primary text-sidebar-primary-foreground ring-1 ring-inset ring-sidebar-ring/40'
+                                                : 'text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent'
+                                        }`}
+                                    >
+                                        <MessageSquare className={`h-4 w-4 ${pathname === '/admin/contact-messages' ? 'text-sidebar-primary-foreground' : 'text-muted-foreground group-hover:text-sidebar-foreground'}`} />
+                                        <span>Contact Messages</span>
                                     </Link>
                                 </li>
                             </ul>
