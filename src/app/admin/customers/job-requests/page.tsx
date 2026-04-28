@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, RefreshCw, Search, FileText } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Search, FileText, X } from 'lucide-react';
 import AuthGuard from '@/components/AuthGuard';
 import Sidebar from '@/components/Sidebar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -43,7 +43,7 @@ const JobRequestsPage = () => {
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const [query, setQuery] = useState('');
-    const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'accepted'>('all');
+    const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'accepted' | 'rejected'>('all');
     const [updatingId, setUpdatingId] = useState<string | null>(null);
 
     async function fetchJobRequests() {
@@ -160,18 +160,43 @@ const JobRequestsPage = () => {
                                     value={query}
                                     onChange={(event) => setQuery(event.target.value)}
                                     placeholder="Search title, description, customer ID, service..."
-                                    className="w-full rounded-md border border-subtle bg-base py-2 pl-10 pr-3 text-sm text-primary focus:outline-none focus:ring-2 focus:ring-accent-info"
+                                    className="w-full rounded-full border border-subtle bg-base py-2 pl-10 pr-10 text-sm text-primary shadow-[0_1px_3px_rgba(0,0,0,0.06)] focus:outline-none focus:ring-2 focus:ring-accent-info"
                                 />
+                                {query ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => setQuery('')}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-secondary hover:bg-subtle hover:text-primary"
+                                        aria-label="Clear search"
+                                    >
+                                        <X className="h-3.5 w-3.5" />
+                                    </button>
+                                ) : null}
                             </div>
-                            <select
-                                value={statusFilter}
-                                onChange={(event) => setStatusFilter(event.target.value as 'all' | 'pending' | 'accepted')}
-                                className="h-10 rounded-md border border-subtle bg-base px-3 text-sm text-primary focus:outline-none focus:ring-2 focus:ring-accent-info"
-                            >
-                                <option value="all">All statuses</option>
-                                <option value="pending">Pending</option>
-                                <option value="accepted">Accepted</option>
-                            </select>
+                            <div className="flex flex-wrap items-center gap-2">
+                                {[
+                                    { id: 'all', label: 'All' },
+                                    { id: 'pending', label: 'Pending' },
+                                    { id: 'accepted', label: 'Accepted' },
+                                    { id: 'rejected', label: 'Rejected' },
+                                ].map((option) => (
+                                    <button
+                                        key={option.id}
+                                        type="button"
+                                        onClick={() => setStatusFilter(option.id as 'all' | 'pending' | 'accepted' | 'rejected')}
+                                        className={`h-[32px] rounded-full border px-3 text-[13px] font-semibold transition-all duration-150 ${
+                                            statusFilter === option.id
+                                                ? 'border-strong bg-subtle text-primary'
+                                                : 'border-subtle bg-base text-secondary hover:bg-subtle hover:text-primary'
+                                        }`}
+                                    >
+                                        {option.label}
+                                    </button>
+                                ))}
+                                <span className="rounded-full bg-subtle px-3 py-1 text-[13px] font-semibold text-primary">
+                                    {filteredItems.length} results
+                                </span>
+                            </div>
                         </div>
 
                         <div className="rounded-2xl border border-white/20 bg-white/80 backdrop-blur-xl shadow-xl overflow-hidden">
