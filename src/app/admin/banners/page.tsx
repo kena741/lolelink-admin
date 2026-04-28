@@ -7,7 +7,6 @@ import { ArrowLeft, RefreshCw, Plus, Edit, Trash2, X, Upload } from 'lucide-reac
 import Link from 'next/link';
 import { fetchBanners, createBanner, updateBanner, deleteBanner } from '@/features/banner/bannerSlice';
 import { supabase } from '@/lib/supabaseClient';
-import Image from 'next/image';
 
 const BannersPage = () => {
     const dispatch = useAppDispatch();
@@ -261,12 +260,11 @@ const BannersPage = () => {
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         {banner.image ? (
-                                                            <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-200">
-                                                                <Image
+                                                            <div className="w-20 h-16 rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
+                                                                <img
                                                                     src={banner.image}
                                                                     alt={banner.bannerName || 'Banner'}
-                                                                    fill
-                                                                    className="object-cover"
+                                                                    className="h-full w-full object-contain"
                                                                 />
                                                             </div>
                                                         ) : (
@@ -340,12 +338,11 @@ const BannersPage = () => {
                                     </label>
                                     <div className="space-y-3">
                                         {imagePreview && (
-                                            <div className="relative w-full h-48 rounded-lg overflow-hidden border border-gray-200">
-                                                <Image
+                                            <div className="relative w-full h-48 rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
+                                                <img
                                                     src={imagePreview}
                                                     alt="Preview"
-                                                    fill
-                                                    className="object-contain"
+                                                    className="h-full w-full object-contain"
                                                 />
                                             </div>
                                         )}

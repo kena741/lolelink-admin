@@ -1,5 +1,4 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { supabase } from '@/lib/supabaseClient';
 
 export interface Banner {
     id: number;
@@ -44,13 +43,11 @@ export const fetchBanners = createAsyncThunk<
     'banner/fetchBanners',
     async (_, { rejectWithValue }) => {
         try {
-            const { data, error } = await supabase
-                .from('banner')
-                .select('*')
-                .order('created_at', { ascending: false });
-
-            if (error) throw error;
-            return normalizeRows(data as BannerRow[]);
+            const response = await fetch('/api/banners');
+            const payload = (await response.json()) as { data?: BannerRow[]; error?: string };
+            if (!response.ok)
+                throw new Error(payload.error || 'Failed to fetch banners');
+            return normalizeRows(payload.data ?? []);
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to fetch banners';
             return rejectWithValue(msg);
@@ -66,17 +63,17 @@ export const createBanner = createAsyncThunk<
     'banner/createBanner',
     async (bannerData, { rejectWithValue }) => {
         try {
-            const { data, error } = await supabase
-                .from('banner')
-                .insert({
-                    bannerName: bannerData.bannerName,
-                    image: bannerData.image,
-                })
-                .select()
-                .single();
-
-            if (error) throw error;
-            return normalizeRows([data as BannerRow])[0];
+            const response = await fetch('/api/banners', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(bannerData),
+            });
+            const payload = (await response.json()) as { data?: BannerRow; error?: string };
+            if (!response.ok || !payload.data)
+                throw new Error(payload.error || 'Failed to create banner');
+            return normalizeRows([payload.data])[0];
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to create banner';
             return rejectWithValue(msg);
@@ -92,15 +89,17 @@ export const updateBanner = createAsyncThunk<
     'banner/updateBanner',
     async ({ id, ...updates }, { rejectWithValue }) => {
         try {
-            const { data, error } = await supabase
-                .from('banner')
-                .update(updates)
-                .eq('id', id)
-                .select()
-                .single();
-
-            if (error) throw error;
-            return normalizeRows([data as BannerRow])[0];
+            const response = await fetch('/api/banners', {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ id, ...updates }),
+            });
+            const payload = (await response.json()) as { data?: BannerRow; error?: string };
+            if (!response.ok || !payload.data)
+                throw new Error(payload.error || 'Failed to update banner');
+            return normalizeRows([payload.data])[0];
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to update banner';
             return rejectWithValue(msg);
@@ -116,12 +115,16 @@ export const deleteBanner = createAsyncThunk<
     'banner/deleteBanner',
     async (id, { rejectWithValue }) => {
         try {
-            const { error } = await supabase
-                .from('banner')
-                .delete()
-                .eq('id', id);
-
-            if (error) throw error;
+            const response = await fetch('/api/banners', {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ id }),
+            });
+            const payload = (await response.json()) as { ok?: boolean; error?: string };
+            if (!response.ok || !payload.ok)
+                throw new Error(payload.error || 'Failed to delete banner');
             return id;
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to delete banner';
