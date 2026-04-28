@@ -59,6 +59,7 @@ const worksSubItems = [
 // Customers Section
 const customersSubItems = [
     { href: '/admin/customers', label: 'Customers', icon: Users },
+    { href: '/admin/customers/job-requests', label: 'Job Requests', icon: FileText },
 ];
 
 // System Management Section
@@ -182,7 +183,9 @@ const Sidebar = () => {
                             </div>
                             <ul className="space-y-1">
                                 {customersSubItems.map(({ href, label, icon: Icon }) => {
-                                    const active = pathname === href;
+                                    const active = href === '/admin/customers'
+                                        ? pathname === '/admin/customers'
+                                        : pathname === href;
                                     return (
                                         <li key={href}>
                                             <Link
