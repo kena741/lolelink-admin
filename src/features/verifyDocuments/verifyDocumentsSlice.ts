@@ -52,6 +52,52 @@ const normalizeRows = (rows: VerifyDocumentRow[] | null | undefined): VerifyDocu
         createdAt: row.createdAt,
     }));
 
+async function fetchSubCategoryIdsForDocumentIds(documentIds: string[]): Promise<string[]> {
+    const unique = [...new Set(documentIds.filter(Boolean))];
+    if (unique.length === 0) return [];
+
+    const { data: links, error } = await supabase
+        .from('sub_category_documents')
+        .select('subCategoryId')
+        .in('documentId', unique);
+
+    if (error) throw error;
+
+    const ids = new Set<string>();
+    for (const row of links ?? []) {
+        const subId = (row as { subCategoryId: string | null }).subCategoryId;
+        if (subId) ids.add(subId);
+    }
+    return [...ids];
+}
+
+async function mergeProviderVerifiedSubcategoryIds(providerId: string, newIds: string[]): Promise<void> {
+    const uniqueNew = [...new Set(newIds.filter(Boolean))];
+    if (uniqueNew.length === 0) return;
+
+    const { data: row, error: selectError } = await supabase
+        .from('provider')
+        .select('verified_subcategory_ids')
+        .eq('id', providerId)
+        .single();
+
+    if (selectError) throw selectError;
+
+    const existingRaw = row as { verified_subcategory_ids: string[] | null } | null;
+    const existing = Array.isArray(existingRaw?.verified_subcategory_ids)
+        ? existingRaw.verified_subcategory_ids
+        : [];
+
+    const merged = [...new Set([...existing, ...uniqueNew])];
+
+    const { error: updateError } = await supabase
+        .from('provider')
+        .update({ verified_subcategory_ids: merged })
+        .eq('id', providerId);
+
+    if (updateError) throw updateError;
+}
+
 export const fetchVerifyDocuments = createAsyncThunk<
     VerifyDocument[],
     void,
@@ -154,7 +200,23 @@ export const verifyDocument = createAsyncThunk<
                 .single();
 
             if (error) throw error;
-            return normalizeRows([data as VerifyDocumentRow])[0];
+            const row = data as VerifyDocumentRow;
+
+            try {
+                const subIds = row.documentId
+                    ? await fetchSubCategoryIdsForDocumentIds([row.documentId])
+                    : [];
+                await mergeProviderVerifiedSubcategoryIds(row.providerId, subIds);
+            } catch (providerErr) {
+                await supabase.from('verify_documents').update({ isVerify: null }).eq('id', id);
+                const msg =
+                    providerErr instanceof Error
+                        ? providerErr.message
+                        : 'Failed to update provider verified subcategories';
+                return rejectWithValue(msg);
+            }
+
+            return normalizeRows([row])[0];
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to verify document';
             return rejectWithValue(msg);
@@ -202,7 +264,27 @@ export const approveAllDocuments = createAsyncThunk<
                 .select();
 
             if (error) throw error;
-            return normalizeRows(data as VerifyDocumentRow[]);
+            const rows = (data ?? []) as VerifyDocumentRow[];
+            const rowIds = rows.map((r) => r.id);
+
+            try {
+                const docIds = [
+                    ...new Set(rows.map((r) => r.documentId).filter((did): did is string => Boolean(did))),
+                ];
+                const subIds = await fetchSubCategoryIdsForDocumentIds(docIds);
+                await mergeProviderVerifiedSubcategoryIds(providerId, subIds);
+            } catch (providerErr) {
+                if (rowIds.length > 0) {
+                    await supabase.from('verify_documents').update({ isVerify: null }).in('id', rowIds);
+                }
+                const msg =
+                    providerErr instanceof Error
+                        ? providerErr.message
+                        : 'Failed to update provider verified subcategories';
+                return rejectWithValue(msg);
+            }
+
+            return normalizeRows(rows);
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to approve all documents';
             return rejectWithValue(msg);

@@ -44,6 +44,7 @@ export interface Provider {
     activation_paid?: boolean;
     activation_paid_at?: string;
     activation_tx_ref?: string;
+    verified_subcategory_ids?: string[];
 }
 
 export interface ProviderState {
