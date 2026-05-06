@@ -158,7 +158,7 @@ export default function MarketingDeferredSections() {
       description:
         "View assigned tasks, complete jobs on-site, and upload proof of completion while tracking progress on the go.",
       playStoreUrl: "https://play.google.com/store/apps/details?id=com.zemen.handyman",
-      appStoreUrl: "https://apps.apple.com/app/zemen-provider/id6763142218",
+      appStoreUrl: "https://apps.apple.com/us/app/zemen-handyman/id6765632136",
     },
   ];
 

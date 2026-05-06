@@ -316,7 +316,7 @@ export default function Home() {
                     Handyman App
                   </a>
                   <a
-                    href="https://apps.apple.com/app/zemen-provider/id6763142218"
+                    href="https://apps.apple.com/us/app/zemen-handyman/id6765632136"
                     target="_blank"
                     rel="noreferrer"
                     className="hero-app-btn hero-app-btn--outline"
