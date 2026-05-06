@@ -144,7 +144,7 @@ export default function MarketingDeferredSections() {
       description:
         "Find trusted services, book in minutes, and approve completed work with a clear and secure customer flow.",
       playStoreUrl: "https://play.google.com/store/apps/details?id=com.zemen.service",
-      appStoreUrl: "https://apps.apple.com/app/zemen-provider/id6763142218",
+      appStoreUrl: "https://apps.apple.com/us/app/zemen-service/id6763512421",
     },
     {
       name: "Zemen Provider",

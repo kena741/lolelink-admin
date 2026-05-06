@@ -137,7 +137,7 @@ export default function SoftwareProductProfilePage() {
               Customer Play Store
             </a>
             <a
-              href="https://apps.apple.com/app/zemen-provider/id6763142218"
+              href="https://apps.apple.com/us/app/zemen-service/id6763512421"
               target="_blank"
               rel="noreferrer"
               className="inline-flex h-[40px] items-center justify-center rounded-md border border-[#027a3b] bg-white px-6 font-[family-name:var(--font-outfit),sans-serif] text-[14px] font-semibold text-[#027a3b] transition-colors hover:bg-[#eef5e8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#027a3b] focus-visible:ring-offset-2"

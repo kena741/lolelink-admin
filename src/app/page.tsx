@@ -243,7 +243,7 @@ export default function Home() {
                   Customer App
                 </a>
                 <a
-                  href="https://apps.apple.com/app/zemen-provider/id6763142218"
+                  href="https://apps.apple.com/us/app/zemen-service/id6763512421"
                   target="_blank"
                   rel="noreferrer"
                   className="hero-app-btn hero-app-btn--outline"
