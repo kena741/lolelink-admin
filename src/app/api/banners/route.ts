@@ -7,6 +7,7 @@ interface BannerRow {
     id: number;
     bannerName?: string;
     image?: string;
+    link?: string;
     created_at?: string;
 }
 
@@ -14,6 +15,7 @@ interface BannerMutationBody {
     id?: number;
     bannerName?: string;
     image?: string;
+    link?: string;
 }
 
 export async function GET() {
@@ -36,11 +38,12 @@ export async function POST(request: Request) {
         const body = (await request.json()) as BannerMutationBody;
         const bannerName = (body.bannerName ?? '').trim();
         const image = (body.image ?? '').trim();
+        const link = (body.link ?? '').trim();
         if (!bannerName || !image)
             return NextResponse.json({ error: 'bannerName and image are required' }, { status: 400 });
         const { data, error } = await supabaseAdmin
             .from('banner')
-            .insert({ bannerName, image })
+            .insert({ bannerName, image, link })
             .select()
             .single();
         if (error)
@@ -62,6 +65,8 @@ export async function PATCH(request: Request) {
             updates.bannerName = body.bannerName.trim();
         if (typeof body.image === 'string')
             updates.image = body.image.trim();
+        if (typeof body.link === 'string')
+            updates.link = body.link.trim();
         const { data, error } = await supabaseAdmin
             .from('banner')
             .update(updates)

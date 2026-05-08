@@ -16,6 +16,7 @@ const BannersPage = () => {
     const [formData, setFormData] = useState({
         bannerName: '',
         image: '',
+        link: '',
     });
     const [uploading, setUploading] = useState(false);
     const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -31,6 +32,7 @@ const BannersPage = () => {
             setFormData({
                 bannerName: banner.bannerName || '',
                 image: banner.image || '',
+                link: banner.link || '',
             });
             setImagePreview(banner.image || null);
         } else {
@@ -38,6 +40,7 @@ const BannersPage = () => {
             setFormData({
                 bannerName: '',
                 image: '',
+                link: '',
             });
             setImagePreview(null);
         }
@@ -50,6 +53,7 @@ const BannersPage = () => {
         setFormData({
             bannerName: '',
             image: '',
+            link: '',
         });
         setImagePreview(null);
     };
@@ -120,11 +124,13 @@ const BannersPage = () => {
                     id: editingBanner.id,
                     bannerName: formData.bannerName,
                     image: formData.image,
+                    link: formData.link,
                 })).unwrap();
             } else {
                 await dispatch(createBanner({
                     bannerName: formData.bannerName,
                     image: formData.image,
+                    link: formData.link,
                 })).unwrap();
             }
             dispatch(fetchBanners());
@@ -226,6 +232,9 @@ const BannersPage = () => {
                                                 Image
                                             </th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Link
+                                            </th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                 Created At
                                             </th>
                                             <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -236,13 +245,13 @@ const BannersPage = () => {
                                     <tbody className="bg-white divide-y divide-gray-200">
                                         {loading && banners.length === 0 ? (
                                             <tr>
-                                                <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                                                <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                                                     Loading banners...
                                                 </td>
                                             </tr>
                                         ) : banners.length === 0 ? (
                                             <tr>
-                                                <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                                                <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                                                     No banners found
                                                 </td>
                                             </tr>
@@ -269,6 +278,20 @@ const BannersPage = () => {
                                                             </div>
                                                         ) : (
                                                             <span className="text-gray-400 text-sm">No image</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-sm text-gray-600">
+                                                        {banner.link ? (
+                                                            <a
+                                                                href={banner.link}
+                                                                target="_blank"
+                                                                rel="noreferrer"
+                                                                className="text-indigo-600 hover:text-indigo-900 break-all"
+                                                            >
+                                                                {banner.link}
+                                                            </a>
+                                                        ) : (
+                                                            '-'
                                                         )}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
@@ -369,6 +392,18 @@ const BannersPage = () => {
                                             <p className="text-sm text-gray-600">Image URL: {formData.image.substring(0, 50)}...</p>
                                         )}
                                     </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Link
+                                    </label>
+                                    <input
+                                        type="url"
+                                        value={formData.link}
+                                        onChange={(e) => setFormData({ ...formData, link: e.target.value })}
+                                        className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                                        placeholder="https://example.com"
+                                    />
                                 </div>
                             </div>
                             <div className="flex items-center justify-end gap-3 mt-6 pt-6 border-t border-gray-200">
