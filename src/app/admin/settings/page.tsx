@@ -357,6 +357,23 @@ const SettingsPage = () => {
                                             <span className="text-sm font-medium text-gray-700">Extra Charge GST</span>
                                         </label>
                                     </div>
+                                    <div className="md:col-span-2">
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">About app</label>
+                                        <p className="text-sm text-gray-500 mb-2">
+                                            Short description or HTML for the in-app About screen. Stored in{' '}
+                                            <code className="rounded bg-gray-100 px-1.5 py-0.5 text-xs">policy</code>{' '}
+                                            (<code className="rounded bg-gray-100 px-1.5 py-0.5 text-xs">aboutApp</code>).
+                                        </p>
+                                        <textarea
+                                            value={policySettings.aboutApp || ''}
+                                            onChange={(e) =>
+                                                setPolicySettings({ ...policySettings, aboutApp: e.target.value })
+                                            }
+                                            rows={6}
+                                            className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                                            placeholder="Describe the app for users, or paste HTML if the client renders it."
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -432,14 +449,6 @@ const SettingsPage = () => {
                                     <h2 className="text-xl font-bold text-gray-900">Policy Settings</h2>
                                 </div>
                                 <div className="space-y-6">
-                                    <div>
-                                        <HTMLEditor
-                                            label="About App"
-                                            value={policySettings.aboutApp || ''}
-                                            onChange={(html) => setPolicySettings({ ...policySettings, aboutApp: html })}
-                                            placeholder="Enter HTML code for about app..."
-                                        />
-                                    </div>
                                     <div>
                                         <HTMLEditor
                                             label="Privacy Policy"

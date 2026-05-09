@@ -504,6 +504,8 @@ export const updateSettings = createAsyncThunk<
                     throw constantError;
             }
 
+            let languageUpserts: { id: string; code: string; name: string; active: boolean }[] = [];
+            let languageInserts: { code: string; name: string; active: boolean }[] = [];
             if (updates.languageSettings !== undefined) {
                 const normalizedLanguages = updates.languageSettings
                     .map((language) => ({
@@ -514,7 +516,7 @@ export const updateSettings = createAsyncThunk<
                     }))
                     .filter((language) => language.code.length > 0 && language.name.length > 0);
 
-                const existingLanguages = normalizedLanguages
+                languageUpserts = normalizedLanguages
                     .filter((language) => Boolean(language.id))
                     .map((language) => ({
                         id: language.id as string,
@@ -523,41 +525,35 @@ export const updateSettings = createAsyncThunk<
                         active: language.active,
                     }));
 
-                const newLanguages = normalizedLanguages
+                languageInserts = normalizedLanguages
                     .filter((language) => !language.id)
                     .map((language) => ({
                         code: language.code,
                         name: language.name,
                         active: language.active,
                     }));
-
-                if (existingLanguages.length > 0) {
-                    const { error: languageUpdateError } = await supabase
-                        .from('languages')
-                        .upsert(existingLanguages, { onConflict: 'id' });
-                    if (languageUpdateError)
-                        throw languageUpdateError;
-                }
-
-                if (newLanguages.length > 0) {
-                    const { error: languageInsertError } = await supabase
-                        .from('languages')
-                        .insert(newLanguages);
-                    if (languageInsertError)
-                        throw languageInsertError;
-                }
             }
 
-            if (updates.languageDeletedIds && updates.languageDeletedIds.length > 0) {
-                const languageDeletedIds = updates.languageDeletedIds.filter((id) => id.trim().length > 0);
-                if (languageDeletedIds.length > 0) {
-                    const { error: languageDeleteError } = await supabase
-                        .from('languages')
-                        .delete()
-                        .in('id', languageDeletedIds);
-                    if (languageDeleteError)
-                        throw languageDeleteError;
-                }
+            const languageDeleteIds =
+                updates.languageDeletedIds?.filter((id) => id.trim().length > 0) ?? [];
+
+            if (
+                languageUpserts.length > 0 ||
+                languageInserts.length > 0 ||
+                languageDeleteIds.length > 0
+            ) {
+                const response = await fetch('/api/settings/languages', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        upserts: languageUpserts.length > 0 ? languageUpserts : undefined,
+                        inserts: languageInserts.length > 0 ? languageInserts : undefined,
+                        deleteIds: languageDeleteIds.length > 0 ? languageDeleteIds : undefined,
+                    }),
+                });
+                const payload = (await response.json()) as { ok?: boolean; error?: string };
+                if (!response.ok || !payload.ok)
+                    throw new Error(payload.error || 'Failed to update languages');
             }
 
             const hasRootSettingsFields = Object.keys(updateData).length > 0;
