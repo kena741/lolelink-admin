@@ -37,6 +37,9 @@ interface CustomerListState {
     loading: boolean;
     error: string | null;
     success: boolean;
+    convertingId: string | null;
+    convertError: string | null;
+    convertSuccess: boolean;
 }
 
 const initialState: CustomerListState = {
@@ -44,6 +47,9 @@ const initialState: CustomerListState = {
     loading: false,
     error: null,
     success: false,
+    convertingId: null,
+    convertError: null,
+    convertSuccess: false,
 };
 
 export const addCustomer = createAsyncThunk(
@@ -215,6 +221,30 @@ export const fetchAllCustomers = createAsyncThunk(
     }
 );
 
+export const convertToProvider = createAsyncThunk<
+    { providerId: string },
+    string,
+    { rejectValue: string }
+>(
+    "customer/convertToProvider",
+    async (customerId, { rejectWithValue }) => {
+        try {
+            const res = await fetch("/api/convert-to-provider", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ customerId }),
+            });
+            const result = await res.json();
+            if (!res.ok) {
+                return rejectWithValue(result.error || "Failed to convert customer");
+            }
+            return { providerId: result.data.id as string };
+        } catch {
+            return rejectWithValue("Network error while converting customer");
+        }
+    }
+);
+
 const customerSlice = createSlice({
     name: "customer",
     initialState,
@@ -223,6 +253,11 @@ const customerSlice = createSlice({
             state.loading = false;
             state.error = null;
             state.success = false;
+        },
+        resetConvertState: (state) => {
+            state.convertingId = null;
+            state.convertError = null;
+            state.convertSuccess = false;
         },
     },
     extraReducers: (builder) => {
@@ -276,9 +311,29 @@ const customerSlice = createSlice({
             .addCase(addCustomerWithFunction.rejected, (state, action) => {
                 state.loading = false;
                 state.error = action.payload as string;
+            })
+            .addCase(convertToProvider.pending, (state, action) => {
+                state.convertingId = action.meta.arg;
+                state.convertError = null;
+                state.convertSuccess = false;
+            })
+            .addCase(convertToProvider.fulfilled, (state, action) => {
+                state.convertingId = null;
+                state.convertSuccess = true;
+                const idx = state.customers.findIndex((c) => c.id === action.meta.arg);
+                if (idx !== -1) {
+                    state.customers[idx] = {
+                        ...state.customers[idx],
+                        provider_id: action.payload.providerId,
+                    };
+                }
+            })
+            .addCase(convertToProvider.rejected, (state, action) => {
+                state.convertingId = null;
+                state.convertError = action.payload as string;
             });
     },
 });
 
-export const { resetCustomerState } = customerSlice.actions;
+export const { resetCustomerState, resetConvertState } = customerSlice.actions;
 export default customerSlice.reducer;

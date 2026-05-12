@@ -42,6 +42,7 @@ const ProvidersPage = () => {
     const [query, setQuery] = useState<string>("");
     const [viewMode, setViewMode] = useState<ViewMode>("grid");
     const [currentPage, setCurrentPage] = useState(1);
+    const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
 
     const toggleSort = (key: SortKey) => {
         setSortBy((prev) => (prev === key ? prev : key));
@@ -332,12 +333,13 @@ const ProvidersPage = () => {
                                             <div className="relative z-10">
                                                 <div className="flex items-start justify-between mb-4">
                                                     <div className="flex items-center gap-4">
-                                                        {src ? (
+                                                        {src && !failedImages.has(p.id) ? (
                                                             // eslint-disable-next-line @next/next/no-img-element
                                                             <img
                                                                 src={src}
                                                                 alt={label}
                                                                 className="h-16 w-16 rounded-xl object-cover ring-2 ring-white/50 shadow-lg group-hover:ring-indigo-300 transition-all"
+                                                                onError={() => setFailedImages((prev) => new Set(prev).add(p.id))}
                                                             />
                                                         ) : (
                                                             <div className="h-16 w-16 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white ring-2 ring-white/50 shadow-lg grid place-items-center text-xl font-bold">
@@ -354,7 +356,7 @@ const ProvidersPage = () => {
                                                                     ? "bg-emerald-100 text-emerald-700"
                                                                     : "bg-amber-100 text-amber-700"
                                                             }`}>
-                                                                {p.activation_paid ? "Activation Paid" : "Activation Pending"}
+                                                                {p.activation_paid ? "Activation Paid" : "Activation Fee Pending"}
                                                             </span>
                                                         </div>
                                                     </div>
@@ -465,12 +467,13 @@ const ProvidersPage = () => {
                                                             {startIdx + idx + 1}
                                                         </TableCell>
                                                         <TableCell>
-                                                            {src ? (
+                                                            {src && !failedImages.has(p.id) ? (
                                                                 // eslint-disable-next-line @next/next/no-img-element
                                                                 <img 
                                                                     src={src} 
                                                                     alt={label} 
-                                                                    className="h-12 w-12 rounded-xl object-cover ring-2 ring-white/50 shadow-md" 
+                                                                    className="h-12 w-12 rounded-xl object-cover ring-2 ring-white/50 shadow-md"
+                                                                    onError={() => setFailedImages((prev) => new Set(prev).add(p.id))}
                                                                 />
                                                             ) : (
                                                                 <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white ring-2 ring-white/50 shadow-md grid place-items-center text-sm font-bold">
@@ -496,7 +499,7 @@ const ProvidersPage = () => {
                                                                             ? "bg-emerald-100 text-emerald-700"
                                                                             : "bg-amber-100 text-amber-700"
                                                                     }`}>
-                                                                        {p.activation_paid ? "Activation Paid" : "Activation Pending"}
+                                                                        {p.activation_paid ? "Activation Paid" : "Activation Fee Pending"}
                                                                     </span>
                                                                 </div>
                                                             ) : (
@@ -511,7 +514,7 @@ const ProvidersPage = () => {
                                                                             ? "bg-emerald-100 text-emerald-700"
                                                                             : "bg-amber-100 text-amber-700"
                                                                     }`}>
-                                                                        {p.activation_paid ? "Activation Paid" : "Activation Pending"}
+                                                                        {p.activation_paid ? "Activation Paid" : "Activation Fee Pending"}
                                                                     </span>
                                                                 </div>
                                                             )}

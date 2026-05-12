@@ -311,7 +311,7 @@ export default function ProviderDetailPage() {
                                                         ? 'bg-emerald-100 text-emerald-700'
                                                         : 'bg-amber-100 text-amber-700'
                                                 }`}>
-                                                    {provider.activation_paid ? 'Activation Paid' : 'Activation Pending'}
+                                                    {provider.activation_paid ? 'Activation Paid' : 'Activation Fee Pending'}
                                                 </span>
                                             </div>
                                             <p className="text-gray-600">{provider.email || '—'} · {provider.phoneNumber || provider.phone || '—'}</p>

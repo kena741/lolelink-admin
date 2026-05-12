@@ -1,20 +1,23 @@
 "use client";
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import Sidebar from '@/components/Sidebar';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { fetchAllCustomers } from '@/features/customer/customerSlice';
-import { ChevronLeft, ChevronRight, Download, Search, Users } from 'lucide-react';
+import { fetchAllCustomers, convertToProvider, resetConvertState } from '@/features/customer/customerSlice';
+import { ChevronLeft, ChevronRight, Download, Search, Users, ArrowRightLeft, CheckCircle2, Loader2, ExternalLink } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AuthGuard from '@/components/AuthGuard';
+import Link from 'next/link';
 import * as XLSX from 'xlsx';
 
 const PAGE_SIZE = 20;
 
 export default function CustomersPage() {
     const dispatch = useAppDispatch();
-    const { customers, loading, error } = useAppSelector((s) => s.customer);
+    const { customers, loading, error, convertingId, convertError } = useAppSelector((s) => s.customer);
     const [query, setQuery] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
+    const [confirmCustomerId, setConfirmCustomerId] = useState<string | null>(null);
+    const [convertedProviderId, setConvertedProviderId] = useState<string | null>(null);
 
     useEffect(() => {
         dispatch(fetchAllCustomers());
@@ -23,6 +26,19 @@ export default function CustomersPage() {
     useEffect(() => {
         setCurrentPage(1);
     }, [query]);
+
+    const handleConvert = useCallback(async (customerId: string) => {
+        setConfirmCustomerId(null);
+        const result = await dispatch(convertToProvider(customerId));
+        if (convertToProvider.fulfilled.match(result)) {
+            setConvertedProviderId(result.payload.providerId);
+        }
+    }, [dispatch]);
+
+    const dismissConvertResult = useCallback(() => {
+        setConvertedProviderId(null);
+        dispatch(resetConvertState());
+    }, [dispatch]);
 
     const filtered = useMemo(() => {
         const sorted = [...customers].sort((a, b) => {
@@ -155,6 +171,7 @@ export default function CustomersPage() {
                                         <TableHead className="font-semibold text-gray-700">Address</TableHead>
                                         <TableHead className="font-semibold text-gray-700">Created</TableHead>
                                         <TableHead className="font-semibold text-gray-700">Last Request</TableHead>
+                                        <TableHead className="font-semibold text-gray-700 text-right">Actions</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -229,11 +246,39 @@ export default function CustomersPage() {
                                             <TableCell>
                                                 <span className="text-sm text-gray-600">{c.last_request_at ? new Date(c.last_request_at).toLocaleString() : '—'}</span>
                                             </TableCell>
+                                            <TableCell className="text-right">
+                                                {c.provider_id ? (
+                                                    <Link
+                                                        href={`/admin/providers/${c.provider_id}`}
+                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-semibold hover:bg-emerald-100 transition-colors"
+                                                    >
+                                                        <CheckCircle2 className="h-3.5 w-3.5" />
+                                                        Provider
+                                                        <ExternalLink className="h-3 w-3" />
+                                                    </Link>
+                                                ) : (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setConfirmCustomerId(c.id ?? null);
+                                                        }}
+                                                        disabled={convertingId === c.id}
+                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-semibold hover:bg-indigo-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    >
+                                                        {convertingId === c.id ? (
+                                                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                        ) : (
+                                                            <ArrowRightLeft className="h-3.5 w-3.5" />
+                                                        )}
+                                                        {convertingId === c.id ? 'Converting...' : 'To Provider'}
+                                                    </button>
+                                                )}
+                                            </TableCell>
                                         </TableRow>
                                     ))}
                                     {filtered.length === 0 && !loading && (
                                         <TableRow>
-                                            <TableCell className="px-4 py-12 text-center text-gray-500" colSpan={10}>
+                                            <TableCell className="px-4 py-12 text-center text-gray-500" colSpan={11}>
                                                 <div className="flex flex-col items-center gap-3">
                                                     <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
                                                         <Users className="h-8 w-8 text-gray-400" />
@@ -276,6 +321,104 @@ export default function CustomersPage() {
                             </div>
                         )}
                     </div>
+                    {confirmCustomerId && (
+                        <div
+                            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+                            onClick={() => setConfirmCustomerId(null)}
+                        >
+                            <div
+                                className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <h3 className="text-lg font-bold text-gray-900 mb-2">Convert to Provider</h3>
+                                <p className="text-sm text-gray-600 mb-1">
+                                    This will create a provider account for{' '}
+                                    <span className="font-semibold text-gray-900">
+                                        {(() => {
+                                            const cust = customers.find((c) => c.id === confirmCustomerId);
+                                            return cust ? `${cust.first_name ?? ''} ${cust.last_name ?? ''}`.trim() || 'this customer' : 'this customer';
+                                        })()}
+                                    </span>.
+                                </p>
+                                <p className="text-sm text-gray-500 mb-6">
+                                    The customer will be able to log in as a provider using their existing credentials. This action cannot be undone.
+                                </p>
+                                <div className="flex items-center gap-3 justify-end">
+                                    <button
+                                        onClick={() => setConfirmCustomerId(null)}
+                                        className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={() => handleConvert(confirmCustomerId)}
+                                        className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition-colors"
+                                    >
+                                        Convert
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {convertedProviderId && (
+                        <div
+                            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+                            onClick={dismissConvertResult}
+                        >
+                            <div
+                                className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 text-center"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-4">
+                                    <CheckCircle2 className="h-6 w-6 text-emerald-600" />
+                                </div>
+                                <h3 className="text-lg font-bold text-gray-900 mb-2">Provider Created</h3>
+                                <p className="text-sm text-gray-600 mb-6">
+                                    The customer has been successfully converted to a provider account.
+                                </p>
+                                <div className="flex items-center gap-3 justify-center">
+                                    <button
+                                        onClick={dismissConvertResult}
+                                        className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                                    >
+                                        Close
+                                    </button>
+                                    <Link
+                                        href={`/admin/providers/${convertedProviderId}`}
+                                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition-colors"
+                                    >
+                                        View Provider
+                                        <ExternalLink className="h-3.5 w-3.5" />
+                                    </Link>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {convertError && !convertedProviderId && (
+                        <div
+                            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+                            onClick={() => dispatch(resetConvertState())}
+                        >
+                            <div
+                                className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 text-center"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+                                    <ArrowRightLeft className="h-6 w-6 text-red-600" />
+                                </div>
+                                <h3 className="text-lg font-bold text-gray-900 mb-2">Conversion Failed</h3>
+                                <p className="text-sm text-red-600 mb-6">{convertError}</p>
+                                <button
+                                    onClick={() => dispatch(resetConvertState())}
+                                    className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </main>
             </div>
         </AuthGuard>
