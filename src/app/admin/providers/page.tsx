@@ -7,7 +7,10 @@ import { fetchProviders, fetchServiceCountsByProvider } from "../../../features/
 import type { Provider } from "@/features/provider/providerSlice";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
-    ChevronsUpDown, 
+    ChevronLeft,
+    ChevronRight,
+    ChevronsUpDown,
+    Download,
     RefreshCw, 
     Search, 
     Briefcase, 
@@ -23,6 +26,9 @@ import {
     Zap
 } from "lucide-react";
 import AuthGuard from "@/components/AuthGuard";
+import * as XLSX from "xlsx";
+
+const PAGE_SIZE = 20;
 
 const ProvidersPage = () => {
     const dispatch = useAppDispatch();
@@ -35,6 +41,7 @@ const ProvidersPage = () => {
     const [sortDir, setSortDir] = useState<SortDir>("desc");
     const [query, setQuery] = useState<string>("");
     const [viewMode, setViewMode] = useState<ViewMode>("grid");
+    const [currentPage, setCurrentPage] = useState(1);
 
     const toggleSort = (key: SortKey) => {
         setSortBy((prev) => (prev === key ? prev : key));
@@ -94,6 +101,22 @@ const ProvidersPage = () => {
         });
     }, [sortedProviders, query]);
 
+    function exportToXlsx() {
+        const rows = filtered.map((p) => ({
+            'Full Name': [p.firstName ?? p.first_name, p.lastName ?? p.last_name].filter(Boolean).join(' ') || p.name || '',
+            'Phone': p.phoneNumber ?? p.phone ?? '',
+        }));
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Providers');
+        XLSX.writeFile(wb, `providers_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    }
+
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    const safePage = Math.min(currentPage, totalPages);
+    const startIdx = (safePage - 1) * PAGE_SIZE;
+    const paginated = filtered.slice(startIdx, startIdx + PAGE_SIZE);
+
     const getInitials = (p: Provider) => {
         const first = (p.firstName ?? p.first_name ?? "").toString();
         const last = (p.lastName ?? p.last_name ?? "").toString();
@@ -107,6 +130,10 @@ const ProvidersPage = () => {
         dispatch(fetchProviders());
         dispatch(fetchServiceCountsByProvider());
     }, [dispatch]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [query]);
 
     // Calculate statistics
     const stats = useMemo(() => {
@@ -239,6 +266,14 @@ const ProvidersPage = () => {
                                 />
                             </div>
                             <div className="flex items-center gap-3">
+                                <button
+                                    onClick={exportToXlsx}
+                                    disabled={filtered.length === 0}
+                                    className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/80 backdrop-blur-xl px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-lg transition-all hover:bg-white hover:shadow-xl disabled:opacity-40 disabled:cursor-not-allowed"
+                                >
+                                    <Download className="h-4 w-4" />
+                                    Export XLSX
+                                </button>
                                 <div className="flex items-center gap-2 rounded-xl bg-white/80 backdrop-blur-xl border border-white/20 p-1 shadow-lg">
                                     <button
                                         onClick={() => setViewMode("grid")}
@@ -279,7 +314,7 @@ const ProvidersPage = () => {
                         {/* Grid View */}
                         {viewMode === "grid" && (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {filtered.map((p) => {
+                                {paginated.map((p) => {
                                     const src = p.profileImage || p.profile_image || p.avatar_url;
                                     const first = p.firstName ?? p.first_name;
                                     const last = p.lastName ?? p.last_name;
@@ -360,7 +395,7 @@ const ProvidersPage = () => {
                                         </Link>
                                     );
                                 })}
-                                {filtered.length === 0 && !loading && (
+                                {paginated.length === 0 && !loading && (
                                     <div className="col-span-full rounded-2xl bg-white/80 backdrop-blur-xl border border-white/20 p-12 text-center">
                                         <div className="mx-auto w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
                                             <Search className="h-8 w-8 text-gray-400" />
@@ -379,6 +414,7 @@ const ProvidersPage = () => {
                                     <Table>
                                         <TableHeader>
                                             <TableRow className="bg-gradient-to-r from-indigo-50/50 to-purple-50/50 border-b border-white/20">
+                                                <TableHead className="font-semibold text-gray-700 w-[60px]">#</TableHead>
                                                 <TableHead className="font-semibold text-gray-700">Provider</TableHead>
                                                 <TableHead className="font-semibold text-gray-700">
                                                     <button 
@@ -412,7 +448,7 @@ const ProvidersPage = () => {
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            {filtered.map((p) => {
+                                            {paginated.map((p, idx) => {
                                                 const src = p.profileImage || p.profile_image || p.avatar_url;
                                                 const first = p.firstName ?? p.first_name;
                                                 const last = p.lastName ?? p.last_name;
@@ -425,6 +461,9 @@ const ProvidersPage = () => {
                                                         key={p.id} 
                                                         className="hover:bg-gradient-to-r hover:from-indigo-50/30 hover:to-purple-50/30 transition-all border-b border-white/20"
                                                     >
+                                                        <TableCell className="text-sm font-medium text-gray-500">
+                                                            {startIdx + idx + 1}
+                                                        </TableCell>
                                                         <TableCell>
                                                             {src ? (
                                                                 // eslint-disable-next-line @next/next/no-img-element
@@ -507,9 +546,9 @@ const ProvidersPage = () => {
                                                     </TableRow>
                                                 );
                                             })}
-                                            {filtered.length === 0 && !loading && (
+                                            {paginated.length === 0 && !loading && (
                                                 <TableRow>
-                                                    <TableCell className="px-4 py-12 text-center text-gray-500" colSpan={6}>
+                                                    <TableCell className="px-4 py-12 text-center text-gray-500" colSpan={7}>
                                                         <div className="flex flex-col items-center gap-3">
                                                             <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
                                                                 <Search className="h-8 w-8 text-gray-400" />
@@ -522,6 +561,34 @@ const ProvidersPage = () => {
                                             )}
                                         </TableBody>
                                     </Table>
+                                </div>
+                            </div>
+                        )}
+
+                        {filtered.length > 0 && (
+                            <div className="mt-4 flex items-center justify-between rounded-xl border border-white/20 bg-white/80 backdrop-blur-xl px-6 py-3 shadow-lg">
+                                <p className="text-sm text-gray-600">
+                                    Showing <span className="font-semibold text-gray-900">{startIdx + 1}</span>–<span className="font-semibold text-gray-900">{Math.min(startIdx + PAGE_SIZE, filtered.length)}</span> of{' '}
+                                    <span className="font-semibold text-gray-900">{filtered.length}</span>
+                                </p>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        disabled={safePage <= 1}
+                                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                                    >
+                                        <ChevronLeft className="h-4 w-4" />
+                                    </button>
+                                    <span className="min-w-[80px] text-center text-sm font-medium text-gray-700">
+                                        Page {safePage} of {totalPages}
+                                    </span>
+                                    <button
+                                        disabled={safePage >= totalPages}
+                                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                                    >
+                                        <ChevronRight className="h-4 w-4" />
+                                    </button>
                                 </div>
                             </div>
                         )}

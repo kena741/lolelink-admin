@@ -12,12 +12,16 @@ import {
     Clock,
     User,
     Mail,
+    Phone,
     FileText,
+    MessageSquare,
     Eye
 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { fetchVerifyDocuments, verifyDocument, rejectDocument, approveAllDocuments } from '@/features/verifyDocuments/verifyDocumentsSlice';
+import { supabase } from '@/lib/supabaseClient';
+import { sendSms, buildRecipient } from '@/lib/sms';
 
 const VerifyDocumentsPage = () => {
     const dispatch = useAppDispatch();
@@ -26,16 +30,77 @@ const VerifyDocumentsPage = () => {
     const [processingProviderId, setProcessingProviderId] = useState<string | null>(null);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [selectedDocument, setSelectedDocument] = useState<typeof documents[0] | null>(null);
+    const [providerPhone, setProviderPhone] = useState<string | null>(null);
 
     useEffect(() => {
         dispatch(fetchVerifyDocuments());
     }, [dispatch]);
 
+    function getApproveMessage(providerName?: string, docName?: string) {
+        const name = providerName || '';
+        return docName
+            ? `ሰላም ${name}! ከዘመን ፕሮቫይደር ሰለተመዘገቡ እናመሰግናለን። የእርስዎ ሰነድ "${docName}" ተገምግሞ ጸድቋል። አሁን በዘመን ፕሮቫይደር መተግበሪያ ላይ አገልግሎት መስጠት ይችላሉ። መልካም ስራ!`
+            : `ሰላም ${name}! ከዘመን ፕሮቫይደር ሰለተመዘገቡ እናመሰግናለን። ሰነዶችዎ ተገምግመው ጸድቀዋል። አሁን በዘመን ፕሮቫይደር መተግበሪያ ላይ አገልግሎት መስጠት ይችላሉ። መልካም ስራ!`;
+    }
+
+    function getApproveAllMessage(providerName?: string) {
+        const name = providerName || '';
+        return `ሰላም ${name}! ከዘመን ሰለተመዘገቡ ፕሮቫይደር እናመሰግናለን። ሁሉም ሰነዶችዎ ተገምግመው ጸድቀዋል። አሁን በዘመን ፕሮቫይደር መተግበሪያ ላይ አገልግሎት መስጠት ይችላሉ። መልካም ስራ!`;
+    }
+
+    function getRejectMessage(providerName?: string) {
+        const name = providerName || '';
+        return `ሰላም ${name}! ለዘመን አገልግሎት ሰጪነት ያቀረቡት ጥያቄ ውድቅ ተደርጓል እባክዎ ትክክለኛ ሰነድ ያስገቡ ወይም በዚህ ስልክ 0941024355 ደውለው ይጠይቁ:: ለትብብርዎ እናመሰግናለን!!`;
+    }
+
+    async function fetchProviderPhone(providerId: string): Promise<string> {
+        try {
+            const { data } = await supabase
+                .from('provider')
+                .select('*')
+                .eq('id', providerId)
+                .single();
+
+            if (!data) return '';
+            const row = data as Record<string, unknown>;
+            const phone = (row.phoneNumber ?? row.phone ?? row.mobile_number ?? '') as string;
+            const code = (row.countryCode ?? row.country_code ?? '') as string;
+            return buildRecipient(phone, code);
+        } catch {
+            return '';
+        }
+    }
+
+    async function notifyProviderViaSms(providerId: string, message: string) {
+        try {
+            const recipient = await fetchProviderPhone(providerId);
+            if (recipient) {
+                const result = await sendSms(recipient, message);
+                if (!result.success) console.error('SMS failed:', result.error);
+            } else {
+                console.error('SMS skipped: no phone number for provider', providerId);
+            }
+        } catch (err) {
+            console.error('SMS notification failed:', err);
+        }
+    }
+
+    async function openDocumentDetail(doc: typeof documents[0]) {
+        setSelectedDocument(doc);
+        setProviderPhone(null);
+        const phone = await fetchProviderPhone(doc.providerId);
+        setProviderPhone(phone);
+    }
+
     const handleVerify = async (id: string) => {
         setProcessingId(id);
         try {
-            await dispatch(verifyDocument(id)).unwrap();
+            const result = await dispatch(verifyDocument(id)).unwrap();
             dispatch(fetchVerifyDocuments());
+            await notifyProviderViaSms(
+                result.providerId,
+                getApproveMessage(result.providerName, result.documentName)
+            );
         } catch (err) {
             console.error('Failed to verify document:', err);
         } finally {
@@ -46,8 +111,12 @@ const VerifyDocumentsPage = () => {
     const handleReject = async (id: string) => {
         setProcessingId(id);
         try {
-            await dispatch(rejectDocument(id)).unwrap();
+            const result = await dispatch(rejectDocument(id)).unwrap();
             dispatch(fetchVerifyDocuments());
+            await notifyProviderViaSms(
+                result.providerId,
+                getRejectMessage(result.providerName)
+            );
         } catch (err) {
             console.error('Failed to reject document:', err);
         } finally {
@@ -55,11 +124,12 @@ const VerifyDocumentsPage = () => {
         }
     };
 
-    const handleApproveAll = async (providerId: string) => {
+    const handleApproveAll = async (providerId: string, providerName?: string) => {
         setProcessingProviderId(providerId);
         try {
             await dispatch(approveAllDocuments(providerId)).unwrap();
             dispatch(fetchVerifyDocuments());
+            await notifyProviderViaSms(providerId, getApproveAllMessage(providerName));
         } catch (err) {
             console.error('Failed to approve all documents:', err);
         } finally {
@@ -248,7 +318,7 @@ const VerifyDocumentsPage = () => {
                                                         </div>
                                                         {pendingDocs.length > 0 && (
                                                             <button
-                                                                onClick={() => handleApproveAll(group.providerId)}
+                                                                onClick={() => handleApproveAll(group.providerId, group.providerName)}
                                                                 disabled={isProcessingAll}
                                                                 className="px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600 text-white text-sm font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                                                             >
@@ -288,7 +358,7 @@ const VerifyDocumentsPage = () => {
                                                                     return (
                                                                         <div
                                                                             key={doc.id}
-                                                                            onClick={() => setSelectedDocument(doc)}
+                                                                            onClick={() => openDocumentDetail(doc)}
                                                                             className="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-all group"
                                                                         >
                                                                             <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -484,6 +554,39 @@ const VerifyDocumentsPage = () => {
                                                     >
                                                         <Eye className="h-5 w-5 text-gray-700" />
                                                     </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* SMS Preview */}
+                                    {selectedDocument.isVerify === null && (
+                                        <div className="space-y-3">
+                                            <div className="flex items-center gap-2 text-sm">
+                                                <Phone className="h-4 w-4 text-gray-400" />
+                                                <span className="font-medium text-gray-700">ስልክ:</span>
+                                                <span className="text-gray-700">
+                                                    {providerPhone === null
+                                                        ? 'Loading...'
+                                                        : providerPhone || 'ስልክ ቁጥር አልተገኘም'}
+                                                </span>
+                                            </div>
+                                            <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 space-y-2">
+                                                <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700">
+                                                    <MessageSquare className="h-4 w-4" />
+                                                    ሲጸድቅ የሚላከው SMS
+                                                </div>
+                                                <div className="rounded-md bg-white border border-emerald-100 px-3 py-2 text-sm text-gray-800">
+                                                    {getApproveMessage(selectedDocument.providerName, selectedDocument.documentName)}
+                                                </div>
+                                            </div>
+                                            <div className="rounded-lg border border-red-200 bg-red-50/50 p-4 space-y-2">
+                                                <div className="flex items-center gap-2 text-sm font-semibold text-red-700">
+                                                    <MessageSquare className="h-4 w-4" />
+                                                    ሲከለከል የሚላከው SMS
+                                                </div>
+                                                <div className="rounded-md bg-white border border-red-100 px-3 py-2 text-sm text-gray-800">
+                                                    {getRejectMessage(selectedDocument.providerName)}
                                                 </div>
                                             </div>
                                         </div>
