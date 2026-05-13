@@ -278,6 +278,110 @@ export const updateProvider = createAsyncThunk<
     }
 );
 
+interface ActivationPaymentResponse {
+    status: string;
+    mode?: string;
+    checkout_url?: string;
+    provider_id: string;
+    provider_name: string;
+    activation_paid_at?: string;
+    tx_ref: string;
+    fee_amount: string;
+    note?: string | null;
+    error?: string;
+}
+
+export const initiateActivationPayment = createAsyncThunk<
+    { checkout_url: string; tx_ref: string },
+    { providerId: string },
+    { rejectValue: string }
+>(
+    "provider/initiateActivationPayment",
+    async ({ providerId }, { rejectWithValue }) => {
+        const response = await fetch('/api/provider/activate-payment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ providerId, mode: 'chapa' }),
+        });
+        const payload = (await response.json()) as ActivationPaymentResponse;
+        if (!response.ok || payload.status !== 'success' || !payload.checkout_url) {
+            return rejectWithValue(payload.error || 'Failed to initialize Chapa checkout');
+        }
+        return { checkout_url: payload.checkout_url, tx_ref: payload.tx_ref };
+    }
+);
+
+interface ActivationVerifyResponse {
+    status: string;
+    already_paid?: boolean;
+    chapa_status?: string;
+    message?: string;
+    provider_id: string;
+    activation_paid_at?: string;
+    error?: string;
+}
+
+export const verifyActivationPayment = createAsyncThunk<
+    Provider,
+    { providerId: string },
+    { rejectValue: string }
+>(
+    "provider/verifyActivationPayment",
+    async ({ providerId }, { rejectWithValue }) => {
+        const response = await fetch('/api/provider/activate-payment/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ providerId }),
+        });
+        const payload = (await response.json()) as ActivationVerifyResponse;
+        if (!response.ok) {
+            return rejectWithValue(payload.error || 'Verification failed');
+        }
+        if (payload.status === 'pending') {
+            return rejectWithValue(payload.message || 'Payment not yet confirmed by Chapa');
+        }
+        const { data, error } = await supabase
+            .from("provider")
+            .select("*")
+            .eq("id", providerId)
+            .single();
+        if (error || !data) return rejectWithValue(error?.message || 'Failed to reload provider');
+        type ProviderRow = Provider & { created_at?: string };
+        const row = data as ProviderRow;
+        const { created_at, ...rest } = row ?? {};
+        return { ...rest, createdAt: row?.createdAt ?? created_at } as Provider;
+    }
+);
+
+export const markActivationPaid = createAsyncThunk<
+    Provider,
+    { providerId: string; txRef?: string; note?: string },
+    { rejectValue: string }
+>(
+    "provider/markActivationPaid",
+    async ({ providerId, txRef, note }, { rejectWithValue }) => {
+        const response = await fetch('/api/provider/activate-payment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ providerId, mode: 'manual', txRef, note }),
+        });
+        const payload = (await response.json()) as ActivationPaymentResponse;
+        if (!response.ok || payload.status !== 'success') {
+            return rejectWithValue(payload.error || 'Failed to mark activation as paid');
+        }
+        const { data, error } = await supabase
+            .from("provider")
+            .select("*")
+            .eq("id", providerId)
+            .single();
+        if (error || !data) return rejectWithValue(error?.message || 'Failed to reload provider');
+        type ProviderRow = Provider & { created_at?: string };
+        const row = data as ProviderRow;
+        const { created_at, ...rest } = row ?? {};
+        return { ...rest, createdAt: row?.createdAt ?? created_at } as Provider;
+    }
+);
+
 export const createService = createAsyncThunk<
     Service,
     { provider_id: string; values: Partial<Service> },
@@ -399,9 +503,17 @@ const providerSlice = createSlice({
                 state.serviceCounts = action.payload;
             })
             .addCase(updateProvider.fulfilled, (state, action: PayloadAction<Provider>) => {
-                // update selected
                 state.selected = action.payload;
-                // update in list if present
+                const idx = state.providers.findIndex(p => p.id === action.payload.id);
+                if (idx !== -1) state.providers[idx] = action.payload;
+            })
+            .addCase(verifyActivationPayment.fulfilled, (state, action: PayloadAction<Provider>) => {
+                state.selected = action.payload;
+                const idx = state.providers.findIndex(p => p.id === action.payload.id);
+                if (idx !== -1) state.providers[idx] = action.payload;
+            })
+            .addCase(markActivationPaid.fulfilled, (state, action: PayloadAction<Provider>) => {
+                state.selected = action.payload;
                 const idx = state.providers.findIndex(p => p.id === action.payload.id);
                 if (idx !== -1) state.providers[idx] = action.payload;
             })

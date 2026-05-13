@@ -1,0 +1,296 @@
+import { NextResponse } from 'next/server';
+import { supabaseAdmin } from '@/lib/supabaseAdmin';
+
+export const runtime = 'nodejs';
+
+interface ActivatePaymentBody {
+    providerId: string;
+    mode: 'chapa' | 'manual';
+    txRef?: string;
+    note?: string;
+}
+
+interface ProviderRow {
+    id: string;
+    email?: string;
+    firstName?: string;
+    lastName?: string;
+    name?: string;
+    activation_paid?: boolean;
+    activation_paid_at?: string;
+    activation_tx_ref?: string;
+}
+
+interface AppSettingsRow {
+    id: string;
+    data: unknown;
+}
+
+interface ChapaConfig {
+    enable?: boolean;
+    isActive?: boolean | number;
+    isSandbox?: boolean;
+    publicKey?: string;
+    secretKey?: string;
+}
+
+function parseObjectValue(value: unknown): Record<string, unknown> {
+    if (!value) return {};
+    if (typeof value === 'string') {
+        try {
+            return (JSON.parse(value) as Record<string, unknown>) ?? {};
+        } catch {
+            return {};
+        }
+    }
+    if (typeof value === 'object') return value as Record<string, unknown>;
+    return {};
+}
+
+function resolveChapaConfig(settingsData: unknown): ChapaConfig {
+    const root = parseObjectValue(settingsData);
+    const maybeChapa = root.chapa;
+    if (!maybeChapa || typeof maybeChapa !== 'object') return {};
+    return maybeChapa as ChapaConfig;
+}
+
+function normalizeBoolean(value: unknown): boolean {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return value === 1;
+    return false;
+}
+
+async function insertNotification(params: {
+    title: string;
+    description: string;
+    type: string;
+    provider_id: string;
+}): Promise<void> {
+    const { title, description, type, provider_id } = params;
+    const { data: existing } = await supabaseAdmin
+        .from('notification')
+        .select('id')
+        .eq('type', type)
+        .eq('provider_id', provider_id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+    if (existing) return;
+    await supabaseAdmin.from('notification').insert({
+        title,
+        description,
+        type,
+        provider_id,
+        is_read: false,
+    });
+}
+
+async function loadProviderAndFee(providerId: string) {
+    const { data: providerData, error: providerError } = await supabaseAdmin
+        .from('provider')
+        .select('*')
+        .eq('id', providerId)
+        .single();
+
+    if (providerError || !providerData) {
+        return {
+            error: providerError?.message || 'Provider not found',
+            status: 404,
+        } as const;
+    }
+
+    const raw = providerData as Record<string, unknown>;
+    const provider: ProviderRow = {
+        id: raw.id as string,
+        email: (raw.email as string) || undefined,
+        firstName: (raw.firstName as string) || (raw.first_name as string) || undefined,
+        lastName: (raw.lastName as string) || (raw.last_name as string) || undefined,
+        name: (raw.name as string) || undefined,
+        activation_paid: (raw.activation_paid as boolean) || false,
+        activation_paid_at: (raw.activation_paid_at as string) || undefined,
+        activation_tx_ref: (raw.activation_tx_ref as string) || undefined,
+    };
+
+    if (provider.activation_paid) {
+        return { error: 'Activation fee already paid', status: 409, activation_paid_at: provider.activation_paid_at } as const;
+    }
+
+    const { data: constantRow } = await supabaseAdmin
+        .from('app_settings')
+        .select('id, data')
+        .eq('id', 'constant')
+        .maybeSingle();
+
+    const constants = parseObjectValue((constantRow as AppSettingsRow | null)?.data);
+    const feeAmount = typeof constants.provider_activation_account_activation_fee_amount === 'string'
+        ? constants.provider_activation_account_activation_fee_amount
+        : '0';
+
+    const providerName = [provider.firstName, provider.lastName].filter(Boolean).join(' ') || provider.name || 'Provider';
+
+    return { provider, feeAmount, providerName } as const;
+}
+
+async function handleChapaCheckout(provider: ProviderRow, feeAmount: string, providerName: string, requestUrl: string) {
+    const { data: paymentRow } = await supabaseAdmin
+        .from('app_settings')
+        .select('id, data')
+        .eq('id', 'payment')
+        .maybeSingle();
+
+    const chapaConfig = resolveChapaConfig((paymentRow as AppSettingsRow | null)?.data);
+    const isChapaEnabled = normalizeBoolean(chapaConfig.enable) && normalizeBoolean(chapaConfig.isActive ?? true);
+
+    if (!isChapaEnabled) {
+        return NextResponse.json({ error: 'Chapa is disabled in app settings' }, { status: 400 });
+    }
+
+    const chapaSecretKey = (chapaConfig.secretKey || process.env.CHAPA_SECRET_KEY || '').trim();
+    if (!chapaSecretKey) {
+        return NextResponse.json({ error: 'Missing Chapa secret key' }, { status: 500 });
+    }
+
+    const origin = new URL(requestUrl).origin;
+    const appBaseUrl = (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || origin).trim();
+    const txRef = `act-${provider.id.replace(/-/g, '').slice(0, 12)}-${Date.now()}`.slice(0, 50);
+
+    const numericAmount = parseFloat(feeAmount);
+    if (isNaN(numericAmount) || numericAmount <= 0) {
+        return NextResponse.json({ error: 'Invalid activation fee amount configured' }, { status: 400 });
+    }
+
+    const chapaPayload = {
+        amount: numericAmount.toString(),
+        currency: 'ETB',
+        email: provider.email || 'admin@platform.com',
+        first_name: provider.firstName || providerName,
+        last_name: provider.lastName || '',
+        tx_ref: txRef,
+        callback_url: `${appBaseUrl}/api/provider/activate-payment/webhook`,
+        return_url: `${appBaseUrl}/admin/providers/${provider.id}`,
+        'customization[title]': 'Provider Activation Fee',
+        'customization[description]': `Activation fee for ${providerName}`,
+    };
+
+    const chapaResponse = await fetch('https://api.chapa.co/v1/transaction/initialize', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${chapaSecretKey}`,
+        },
+        body: JSON.stringify(chapaPayload),
+    });
+
+    const chapaData = (await chapaResponse.json()) as {
+        status?: string;
+        message?: string;
+        data?: { checkout_url?: string };
+    };
+
+    if (!chapaResponse.ok || chapaData.status !== 'success') {
+        return NextResponse.json(
+            { error: chapaData.message || 'Failed to initialize Chapa checkout', details: chapaData },
+            { status: 400 }
+        );
+    }
+
+    await supabaseAdmin
+        .from('provider')
+        .update({ activation_tx_ref: txRef })
+        .eq('id', provider.id);
+
+    return NextResponse.json({
+        status: 'success',
+        mode: 'chapa',
+        checkout_url: chapaData.data?.checkout_url,
+        tx_ref: txRef,
+        provider_id: provider.id,
+        provider_name: providerName,
+        fee_amount: feeAmount,
+    });
+}
+
+async function handleManualMark(provider: ProviderRow, feeAmount: string, providerName: string, txRef?: string, note?: string) {
+    const now = new Date().toISOString();
+    const ref = (txRef || '').trim() || `manual-${provider.id.slice(0, 8)}-${Date.now()}`;
+
+    const { error: updateError } = await supabaseAdmin
+        .from('provider')
+        .update({
+            activation_paid: true,
+            activation_paid_at: now,
+            activation_tx_ref: ref,
+        })
+        .eq('id', provider.id);
+
+    if (updateError) {
+        return NextResponse.json({ error: 'Failed to update provider activation status' }, { status: 500 });
+    }
+
+    const { error: walletError } = await supabaseAdmin.from('wallet_transaction').insert({
+        amount: feeAmount,
+        createdDate: now,
+        isCredit: true,
+        note: `Activation payment top up (manual)${note ? ` - ${note}` : ''}`,
+        paymentType: 'manual',
+        transactionId: ref,
+        type: 'provider',
+        userId: provider.id,
+    });
+
+    if (walletError) {
+        return NextResponse.json({
+            status: 'partial',
+            message: `Provider activated but wallet transaction failed: ${walletError.message}`,
+            provider_id: provider.id,
+            wallet_error: walletError.message,
+        });
+    }
+
+    await insertNotification({
+        title: 'Account Activated',
+        description: `Your activation fee of ETB ${feeAmount} has been confirmed. Your account is now active.`,
+        type: 'activation_payment_confirmed',
+        provider_id: provider.id,
+    });
+
+    return NextResponse.json({
+        status: 'success',
+        mode: 'manual',
+        provider_id: provider.id,
+        provider_name: providerName,
+        activation_paid_at: now,
+        tx_ref: ref,
+        fee_amount: feeAmount,
+        note: note || null,
+    });
+}
+
+export async function POST(request: Request) {
+    try {
+        const body = (await request.json()) as ActivatePaymentBody;
+
+        if (!body.providerId) {
+            return NextResponse.json({ error: 'providerId is required' }, { status: 400 });
+        }
+
+        const result = await loadProviderAndFee(body.providerId);
+        if ('error' in result) {
+            return NextResponse.json(
+                { error: result.error, ...(result.activation_paid_at ? { activation_paid_at: result.activation_paid_at } : {}) },
+                { status: result.status }
+            );
+        }
+
+        const { provider, feeAmount, providerName } = result;
+
+        if (body.mode === 'chapa') {
+            return handleChapaCheckout(provider, feeAmount, providerName, request.url);
+        }
+
+        return handleManualMark(provider, feeAmount, providerName, body.txRef, body.note);
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unexpected error';
+        return NextResponse.json({ error: message }, { status: 500 });
+    }
+}

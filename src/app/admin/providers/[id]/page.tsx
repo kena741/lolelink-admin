@@ -14,7 +14,9 @@ import { approveServicesByProvider } from '@/features/service/approveServicesSli
 import { fetchVerifyDocuments } from '@/features/verifyDocuments/verifyDocumentsSlice';
 import { fetchPayoutRequests } from '@/features/payout/payoutSlice';
 import { fetchHandymen, updateHandyman, deleteHandyman, type Handyman } from '@/features/handyman/handymanSlice';
-import { Pencil, Trash2, FileText, DollarSign, Wrench, Clock, Briefcase, History } from 'lucide-react';
+import { Pencil, Trash2, FileText, DollarSign, Wrench, Clock, Briefcase, History, CreditCard } from 'lucide-react';
+import { ActivationPaymentModal } from '@/components/ActivationPaymentModal';
+import { fetchSettings } from '@/features/settings/settingsSlice';
 import { Button } from '@/components/ui/button';
 import type { RootState } from '@/store/store';
 import { Input } from '@/components/ui/input';
@@ -52,6 +54,7 @@ export default function ProviderDetailPage() {
     });
     const [deletingHandymanId, setDeletingHandymanId] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<'services' | 'documents' | 'withdrawals' | 'handyman'>('services');
+    const [activationModalOpen, setActivationModalOpen] = useState(false);
 
     useEffect(() => {
         if (!id) return;
@@ -60,6 +63,7 @@ export default function ProviderDetailPage() {
         dispatch(fetchVerifyDocuments());
         dispatch(fetchPayoutRequests());
         dispatch(fetchHandymen());
+        dispatch(fetchSettings());
         return () => {
             dispatch(clearSelected());
             dispatch(clearServices());
@@ -313,6 +317,16 @@ export default function ProviderDetailPage() {
                                                 }`}>
                                                     {provider.activation_paid ? 'Activation Paid' : 'Activation Fee Pending'}
                                                 </span>
+                                                {!provider.activation_paid && (
+                                                    <Button
+                                                        size="sm"
+                                                        onClick={() => setActivationModalOpen(true)}
+                                                        className="gap-1.5"
+                                                    >
+                                                        <CreditCard className="h-4 w-4" />
+                                                        Pay Activation Fee
+                                                    </Button>
+                                                )}
                                             </div>
                                             <p className="text-gray-600">{provider.email || '—'} · {provider.phoneNumber || provider.phone || '—'}</p>
                                             <p className="text-gray-600">{provider.address || '—'}</p>
@@ -1003,6 +1017,14 @@ export default function ProviderDetailPage() {
                                     </Button>
                                 </DialogFooter>
                             </Dialog>
+                            {provider && (
+                                <ActivationPaymentModal
+                                    open={activationModalOpen}
+                                    onClose={() => setActivationModalOpen(false)}
+                                    providerId={provider.id}
+                                    providerName={displayName}
+                                />
+                            )}
                         </>
                     )}
                 </main>

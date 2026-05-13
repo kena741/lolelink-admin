@@ -26,6 +26,8 @@ import {
     Zap
 } from "lucide-react";
 import AuthGuard from "@/components/AuthGuard";
+import { ActivationPaymentModal } from "@/components/ActivationPaymentModal";
+import { fetchSettings } from "@/features/settings/settingsSlice";
 import * as XLSX from "xlsx";
 
 const PAGE_SIZE = 20;
@@ -43,6 +45,7 @@ const ProvidersPage = () => {
     const [viewMode, setViewMode] = useState<ViewMode>("grid");
     const [currentPage, setCurrentPage] = useState(1);
     const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
+    const [activationTarget, setActivationTarget] = useState<{ id: string; name: string } | null>(null);
 
     const toggleSort = (key: SortKey) => {
         setSortBy((prev) => (prev === key ? prev : key));
@@ -130,6 +133,7 @@ const ProvidersPage = () => {
     useEffect(() => {
         dispatch(fetchProviders());
         dispatch(fetchServiceCountsByProvider());
+        dispatch(fetchSettings());
     }, [dispatch]);
 
     useEffect(() => {
@@ -351,13 +355,30 @@ const ProvidersPage = () => {
                                                                 {label}
                                                             </h3>
                                                             <p className="text-sm text-gray-600 mt-1">{p.email ?? "—"}</p>
-                                                            <span className={`mt-2 inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
-                                                                p.activation_paid
-                                                                    ? "bg-emerald-100 text-emerald-700"
-                                                                    : "bg-amber-100 text-amber-700"
-                                                            }`}>
-                                                                {p.activation_paid ? "Activation Paid" : "Activation Fee Pending"}
-                                                            </span>
+                                                            <div className="mt-2 flex items-center gap-2">
+                                                                <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+                                                                    p.activation_paid
+                                                                        ? "bg-emerald-100 text-emerald-700"
+                                                                        : "bg-amber-100 text-amber-700"
+                                                                }`}>
+                                                                    {p.activation_paid ? "Activation Paid" : "Activation Fee Pending"}
+                                                                </span>
+                                                                {!p.activation_paid && (
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.preventDefault();
+                                                                            e.stopPropagation();
+                                                                            const first = p.firstName ?? p.first_name;
+                                                                            const last = p.lastName ?? p.last_name;
+                                                                            const name = [first, last].filter(Boolean).join(" ") || p.name || "Provider";
+                                                                            setActivationTarget({ id: p.id, name });
+                                                                        }}
+                                                                        className="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-200 transition-colors"
+                                                                    >
+                                                                        Pay
+                                                                    </button>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -494,13 +515,27 @@ const ProvidersPage = () => {
                                                                         <Mail className="h-3 w-3" />
                                                                         {p.email ?? ""}
                                                                     </span>
-                                                                    <span className={`mt-1 inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                                                                        p.activation_paid
-                                                                            ? "bg-emerald-100 text-emerald-700"
-                                                                            : "bg-amber-100 text-amber-700"
-                                                                    }`}>
-                                                                        {p.activation_paid ? "Activation Paid" : "Activation Fee Pending"}
-                                                                    </span>
+                                                                    <div className="mt-1 flex items-center gap-1.5">
+                                                                        <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                                                                            p.activation_paid
+                                                                                ? "bg-emerald-100 text-emerald-700"
+                                                                                : "bg-amber-100 text-amber-700"
+                                                                        }`}>
+                                                                            {p.activation_paid ? "Activation Paid" : "Activation Fee Pending"}
+                                                                        </span>
+                                                                        {!p.activation_paid && (
+                                                                            <button
+                                                                                onClick={(e) => {
+                                                                                    e.preventDefault();
+                                                                                    e.stopPropagation();
+                                                                                    setActivationTarget({ id: p.id, name: label });
+                                                                                }}
+                                                                                className="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-200 transition-colors"
+                                                                            >
+                                                                                Pay
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
                                                                 </div>
                                                             ) : (
                                                                 <div className="flex flex-col">
@@ -509,13 +544,23 @@ const ProvidersPage = () => {
                                                                         <Mail className="h-3 w-3" />
                                                                         {p.email ?? ""}
                                                                     </span>
-                                                                    <span className={`mt-1 inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                                                                        p.activation_paid
-                                                                            ? "bg-emerald-100 text-emerald-700"
-                                                                            : "bg-amber-100 text-amber-700"
-                                                                    }`}>
-                                                                        {p.activation_paid ? "Activation Paid" : "Activation Fee Pending"}
-                                                                    </span>
+                                                                    <div className="mt-1 flex items-center gap-1.5">
+                                                                        <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                                                                            p.activation_paid
+                                                                                ? "bg-emerald-100 text-emerald-700"
+                                                                                : "bg-amber-100 text-amber-700"
+                                                                        }`}>
+                                                                            {p.activation_paid ? "Activation Paid" : "Activation Fee Pending"}
+                                                                        </span>
+                                                                        {!p.activation_paid && (
+                                                                            <button
+                                                                                onClick={() => setActivationTarget({ id: p.id, name: label })}
+                                                                                className="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-200 transition-colors"
+                                                                            >
+                                                                                Pay
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
                                                                 </div>
                                                             )}
                                                         </TableCell>
@@ -596,6 +641,15 @@ const ProvidersPage = () => {
                             </div>
                         )}
                     </div>
+
+                    {activationTarget && (
+                        <ActivationPaymentModal
+                            open={!!activationTarget}
+                            onClose={() => setActivationTarget(null)}
+                            providerId={activationTarget.id}
+                            providerName={activationTarget.name}
+                        />
+                    )}
                 </main>
             </div>
         </AuthGuard>

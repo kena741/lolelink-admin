@@ -1,5 +1,4 @@
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { supabase } from '@/lib/supabaseClient';
 
 export interface WalletTransaction {
     id: string;
@@ -57,13 +56,12 @@ export const fetchWalletTransactions = createAsyncThunk<
     { rejectValue: string }
 >('walletTransaction/fetchWalletTransactions', async (_, { rejectWithValue }) => {
     try {
-        const { data, error } = await supabase
-            .from('wallet_transaction')
-            .select('*')
-            .order('createdDate', { ascending: false });
-
-        if (error) throw error;
-        return normalizeRows(data as WalletTransactionRow[]);
+        const response = await fetch('/api/wallet-transactions');
+        const payload = (await response.json()) as { data?: WalletTransactionRow[]; error?: string };
+        if (!response.ok || payload.error) {
+            throw new Error(payload.error || 'Failed to fetch wallet transactions');
+        }
+        return normalizeRows(payload.data);
     } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : 'Failed to fetch wallet transactions';
         return rejectWithValue(msg);

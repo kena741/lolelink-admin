@@ -1,0 +1,211 @@
+import { NextResponse } from 'next/server';
+import { supabaseAdmin } from '@/lib/supabaseAdmin';
+
+export const runtime = 'nodejs';
+
+interface VerifyBody {
+    providerId: string;
+}
+
+interface ChapaConfig {
+    enable?: boolean;
+    isActive?: boolean | number;
+    secretKey?: string;
+}
+
+function parseObjectValue(value: unknown): Record<string, unknown> {
+    if (!value) return {};
+    if (typeof value === 'string') {
+        try {
+            return (JSON.parse(value) as Record<string, unknown>) ?? {};
+        } catch {
+            return {};
+        }
+    }
+    if (typeof value === 'object') return value as Record<string, unknown>;
+    return {};
+}
+
+function resolveChapaConfig(settingsData: unknown): ChapaConfig {
+    const root = parseObjectValue(settingsData);
+    const maybeChapa = root.chapa;
+    if (!maybeChapa || typeof maybeChapa !== 'object') return {};
+    return maybeChapa as ChapaConfig;
+}
+
+function normalizeBoolean(value: unknown): boolean {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return value === 1;
+    return false;
+}
+
+export async function POST(request: Request) {
+    try {
+        const body = (await request.json()) as VerifyBody;
+
+        if (!body.providerId) {
+            return NextResponse.json({ error: 'providerId is required' }, { status: 400 });
+        }
+
+        const { data: providerRaw } = await supabaseAdmin
+            .from('provider')
+            .select('*')
+            .eq('id', body.providerId)
+            .single();
+
+        if (!providerRaw) {
+            return NextResponse.json({ error: 'Provider not found' }, { status: 404 });
+        }
+
+        const provider = providerRaw as Record<string, unknown>;
+        const txRef = (provider.activation_tx_ref as string) || '';
+
+        if (!txRef) {
+            return NextResponse.json({ error: 'No activation payment has been initiated for this provider' }, { status: 400 });
+        }
+
+        const { data: existingWalletTx } = await supabaseAdmin
+            .from('wallet_transaction')
+            .select('id')
+            .eq('transactionId', txRef)
+            .maybeSingle();
+
+        if (provider.activation_paid && existingWalletTx) {
+            return NextResponse.json({
+                status: 'success',
+                already_paid: true,
+                provider_id: body.providerId,
+                activation_paid_at: provider.activation_paid_at,
+            });
+        }
+
+        const { data: paymentRow } = await supabaseAdmin
+            .from('app_settings')
+            .select('id, data')
+            .eq('id', 'payment')
+            .maybeSingle();
+
+        const chapaConfig = resolveChapaConfig((paymentRow as { data: unknown } | null)?.data);
+        const chapaSecretKey = (chapaConfig.secretKey || process.env.CHAPA_SECRET_KEY || '').trim();
+
+        if (!chapaSecretKey) {
+            return NextResponse.json({ error: 'Missing Chapa secret key' }, { status: 500 });
+        }
+
+        const verifyResponse = await fetch(`https://api.chapa.co/v1/transaction/verify/${txRef}`, {
+            method: 'GET',
+            headers: { Authorization: `Bearer ${chapaSecretKey}` },
+        });
+
+        const verifyData = (await verifyResponse.json()) as {
+            status?: string;
+            message?: string;
+            data?: {
+                status?: string;
+                amount?: number;
+                currency?: string;
+                tx_ref?: string;
+                reference?: string;
+                first_name?: string;
+                last_name?: string;
+            };
+        };
+
+        if (!verifyResponse.ok) {
+            return NextResponse.json({
+                error: verifyData.message || 'Failed to verify with Chapa',
+                details: verifyData,
+            }, { status: 400 });
+        }
+
+        const txStatus = (verifyData.data?.status || '').toLowerCase();
+        const isSuccess = ['success', 'successful', 'completed', 'paid'].includes(txStatus);
+
+        if (!isSuccess) {
+            return NextResponse.json({
+                status: 'pending',
+                chapa_status: txStatus || 'unknown',
+                message: `Payment not yet confirmed. Chapa status: ${txStatus || 'unknown'}`,
+                provider_id: body.providerId,
+            });
+        }
+
+        const now = new Date().toISOString();
+
+        if (!provider.activation_paid) {
+            const { error: updateError } = await supabaseAdmin
+                .from('provider')
+                .update({
+                    activation_paid: true,
+                    activation_paid_at: now,
+                })
+                .eq('id', body.providerId);
+
+            if (updateError) {
+                return NextResponse.json({ error: 'Failed to update provider' }, { status: 500 });
+            }
+        }
+
+        const { data: constantRow } = await supabaseAdmin
+            .from('app_settings')
+            .select('id, data')
+            .eq('id', 'constant')
+            .maybeSingle();
+
+        const constants = parseObjectValue((constantRow as { data: unknown } | null)?.data);
+        const feeAmount = typeof constants.provider_activation_account_activation_fee_amount === 'string'
+            ? constants.provider_activation_account_activation_fee_amount
+            : verifyData.data?.amount?.toString() || '0';
+
+        const { error: walletError } = await supabaseAdmin.from('wallet_transaction').insert({
+            amount: feeAmount,
+            createdDate: now,
+            isCredit: true,
+            note: 'Activation payment top up (Chapa)',
+            paymentType: 'chapa',
+            transactionId: txRef,
+            type: 'provider',
+            userId: body.providerId,
+        });
+
+        if (walletError) {
+            return NextResponse.json({
+                status: 'partial',
+                message: `Provider activated but wallet transaction failed: ${walletError.message}`,
+                provider_id: body.providerId,
+                activation_paid_at: now,
+                wallet_error: walletError.message,
+            });
+        }
+
+        const { data: existingNotif } = await supabaseAdmin
+            .from('notification')
+            .select('id')
+            .eq('type', 'activation_payment_confirmed')
+            .eq('provider_id', body.providerId)
+            .limit(1)
+            .maybeSingle();
+
+        if (!existingNotif) {
+            await supabaseAdmin.from('notification').insert({
+                title: 'Account Activated',
+                description: `Your activation fee of ETB ${feeAmount} has been confirmed. Your account is now active.`,
+                type: 'activation_payment_confirmed',
+                provider_id: body.providerId,
+                is_read: false,
+            });
+        }
+
+        return NextResponse.json({
+            status: 'success',
+            provider_id: body.providerId,
+            activation_paid_at: now,
+            tx_ref: txRef,
+            fee_amount: feeAmount,
+            chapa_reference: verifyData.data?.reference,
+        });
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unexpected verify error';
+        return NextResponse.json({ error: message }, { status: 500 });
+    }
+}
