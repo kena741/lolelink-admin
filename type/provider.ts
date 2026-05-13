@@ -42,4 +42,5 @@ export interface ProviderSchema {
   activation_paid?: boolean;
   activation_paid_at?: string;
   activation_tx_ref?: string;
+  archived_at?: string | null;
 }

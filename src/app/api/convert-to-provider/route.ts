@@ -9,12 +9,12 @@ interface CustomerRow {
     last_name?: string;
     email?: string;
     mobile_number?: string;
+    phoneNumber?: string;
     phone?: string;
     country_code?: string;
     avatar?: string;
     address?: string;
     password?: string;
-    provider_id?: string;
 }
 
 interface ConvertRequestBody {
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
             );
         }
 
-        const phoneNumber = c.mobile_number || c.phone || '';
+        const phoneNumber = c.phoneNumber || c.mobile_number || c.phone || '';
         const slug = [c.first_name, c.last_name]
             .filter(Boolean)
             .join('-')
@@ -99,10 +99,18 @@ export async function POST(request: Request) {
             );
         }
 
-        await supabaseAdmin
+        const { error: deleteCustomerError } = await supabaseAdmin
             .from('customer')
-            .update({ provider_id: c.id })
+            .delete()
             .eq('id', customerId);
+
+        if (deleteCustomerError) {
+            await supabaseAdmin.from('provider').delete().eq('id', customerId);
+            return NextResponse.json(
+                { error: deleteCustomerError.message || 'Failed to remove customer record; provider creation was rolled back.' },
+                { status: 500 }
+            );
+        }
 
         return NextResponse.json({ data: provider });
     } catch (error: unknown) {

@@ -2,22 +2,39 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import Sidebar from '@/components/Sidebar';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { fetchAllCustomers, convertToProvider, resetConvertState } from '@/features/customer/customerSlice';
-import { ChevronLeft, ChevronRight, Download, Search, Users, ArrowRightLeft, CheckCircle2, Loader2, ExternalLink } from 'lucide-react';
+import { fetchAllCustomers, convertToProvider, resetConvertState, archiveCustomer, restoreCustomer, deleteCustomer } from '@/features/customer/customerSlice';
+import { ChevronLeft, ChevronRight, Download, Search, Users, ArrowRightLeft, CheckCircle2, Loader2, Archive, ArchiveRestore, Trash2, MoreVertical, ExternalLink } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Button } from '@/components/ui/button';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import AuthGuard from '@/components/AuthGuard';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
 
 const PAGE_SIZE = 20;
 
+function customerIsArchived(c: { archived_at?: string | null; archivedAt?: string | null }): boolean {
+    const v = c.archived_at ?? c.archivedAt;
+    return typeof v === 'string' && v.length > 0;
+}
+
 export default function CustomersPage() {
     const dispatch = useAppDispatch();
     const { customers, loading, error, convertingId, convertError } = useAppSelector((s) => s.customer);
     const [query, setQuery] = useState('');
+    const [showArchived, setShowArchived] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const [confirmCustomerId, setConfirmCustomerId] = useState<string | null>(null);
     const [convertedProviderId, setConvertedProviderId] = useState<string | null>(null);
+    const [actionBusyId, setActionBusyId] = useState<string | null>(null);
+    const [actionError, setActionError] = useState<string | null>(null);
+    const [pendingDeleteCustomerId, setPendingDeleteCustomerId] = useState<string | null>(null);
 
     useEffect(() => {
         dispatch(fetchAllCustomers());
@@ -25,7 +42,7 @@ export default function CustomersPage() {
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [query]);
+    }, [query, showArchived]);
 
     const handleConvert = useCallback(async (customerId: string) => {
         setConfirmCustomerId(null);
@@ -40,8 +57,47 @@ export default function CustomersPage() {
         dispatch(resetConvertState());
     }, [dispatch]);
 
+    const handleArchiveCustomer = useCallback(
+        async (customerId: string) => {
+            setActionError(null);
+            setActionBusyId(customerId);
+            const result = await dispatch(archiveCustomer(customerId));
+            setActionBusyId(null);
+            if (archiveCustomer.rejected.match(result)) {
+                setActionError(result.payload || 'Archive failed');
+            }
+        },
+        [dispatch]
+    );
+
+    const handleRestoreCustomer = useCallback(
+        async (customerId: string) => {
+            setActionError(null);
+            setActionBusyId(customerId);
+            const result = await dispatch(restoreCustomer(customerId));
+            setActionBusyId(null);
+            if (restoreCustomer.rejected.match(result)) {
+                setActionError(result.payload || 'Restore failed');
+            }
+        },
+        [dispatch]
+    );
+
+    const handleDeleteCustomer = useCallback(async () => {
+        if (!pendingDeleteCustomerId) return;
+        setActionError(null);
+        setActionBusyId(pendingDeleteCustomerId);
+        const result = await dispatch(deleteCustomer(pendingDeleteCustomerId));
+        setActionBusyId(null);
+        setPendingDeleteCustomerId(null);
+        if (deleteCustomer.rejected.match(result)) {
+            setActionError(result.payload || 'Delete failed');
+        }
+    }, [dispatch, pendingDeleteCustomerId]);
+
     const filtered = useMemo(() => {
-        const sorted = [...customers].sort((a, b) => {
+        const visible = customers.filter((c) => showArchived || !customerIsArchived(c));
+        const sorted = [...visible].sort((a, b) => {
             const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
             const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
             return bTime - aTime;
@@ -52,7 +108,7 @@ export default function CustomersPage() {
         return sorted.filter((c) => {
             const name = `${c.first_name ?? ''} ${c.last_name ?? ''}`.toLowerCase();
             const email = (c.email ?? '').toLowerCase();
-            const phone = ((c.mobile_number || c.phone) ?? '').toLowerCase();
+            const phone = ((c.phoneNumber ?? c.mobile_number ?? c.phone) ?? '').toLowerCase();
             const address = (() => {
                 const defaultAddress = c.default_address;
                 if (typeof defaultAddress === 'string') {
@@ -75,12 +131,12 @@ export default function CustomersPage() {
             })();
             return name.includes(q) || email.includes(q) || phone.includes(q) || address.includes(q);
         });
-    }, [customers, query]);
+    }, [customers, query, showArchived]);
 
     function exportToXlsx() {
         const rows = filtered.map((c) => ({
             'Full Name': [c.first_name, c.last_name].filter(Boolean).join(' '),
-            'Phone': c.mobile_number || c.phone || '',
+            'Phone': c.phoneNumber ?? c.mobile_number ?? c.phone ?? '',
         }));
         const ws = XLSX.utils.json_to_sheet(rows);
         const wb = XLSX.utils.book_new();
@@ -88,10 +144,13 @@ export default function CustomersPage() {
         XLSX.writeFile(wb, `customers_${new Date().toISOString().slice(0, 10)}.xlsx`);
     }
 
-    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    const totalPages = filtered.length > 0 ? Math.ceil(filtered.length / PAGE_SIZE) : 1;
     const safePage = Math.min(currentPage, totalPages);
     const startIdx = (safePage - 1) * PAGE_SIZE;
     const paginated = filtered.slice(startIdx, startIdx + PAGE_SIZE);
+    useEffect(() => {
+        if (currentPage > totalPages) setCurrentPage(totalPages);
+    }, [currentPage, totalPages]);
 
     return (
         <AuthGuard>
@@ -135,15 +194,34 @@ export default function CustomersPage() {
                                     />
                                 </div>
                             </div>
-                            <button
-                                onClick={exportToXlsx}
-                                disabled={filtered.length === 0}
-                                className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/80 backdrop-blur-xl px-4 py-3 text-sm font-semibold text-gray-700 shadow-lg transition-all hover:bg-white hover:shadow-xl disabled:opacity-40 disabled:cursor-not-allowed"
-                            >
-                                <Download className="h-4 w-4" />
-                                Export XLSX
-                            </button>
+                            <div className="flex flex-wrap items-center gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowArchived((v) => !v)}
+                                    className={`inline-flex h-[40px] items-center rounded-md border px-3 text-sm font-semibold transition-colors ${
+                                        showArchived
+                                            ? 'border-indigo-300 bg-indigo-50 text-indigo-800'
+                                            : 'border-gray-200 bg-white/80 text-gray-700 hover:bg-white'
+                                    }`}
+                                >
+                                    {showArchived ? 'Showing archived' : 'Show archived'}
+                                </button>
+                                <button
+                                    onClick={exportToXlsx}
+                                    disabled={filtered.length === 0}
+                                    className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/80 backdrop-blur-xl px-4 py-3 text-sm font-semibold text-gray-700 shadow-lg transition-all hover:bg-white hover:shadow-xl disabled:opacity-40 disabled:cursor-not-allowed"
+                                >
+                                    <Download className="h-4 w-4" />
+                                    Export XLSX
+                                </button>
+                            </div>
                         </div>
+
+                        {actionError && (
+                            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                                {actionError}
+                            </div>
+                        )}
 
                         {loading && (
                             <div className="mb-4 text-sm text-gray-600 flex items-center gap-2">
@@ -175,8 +253,11 @@ export default function CustomersPage() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {paginated.map((c, idx) => (
-                                        <TableRow key={c.id} className="hover:bg-gradient-to-r hover:from-indigo-50/30 hover:to-purple-50/30 transition-all border-b border-white/20">
+                                    {paginated.map((c, idx) => {
+                                        const archived = customerIsArchived(c);
+                                        const rowBusy = actionBusyId === c.id;
+                                        return (
+                                        <TableRow key={c.id} className={`hover:bg-gradient-to-r hover:from-indigo-50/30 hover:to-purple-50/30 transition-all border-b border-white/20 ${archived ? 'opacity-75' : ''}`}>
                                             <TableCell className="text-sm font-medium text-gray-500">
                                                 {startIdx + idx + 1}
                                             </TableCell>
@@ -188,7 +269,7 @@ export default function CustomersPage() {
                                             </TableCell>
                                             <TableCell className="text-gray-700">{c.email || '—'}</TableCell>
                                             <TableCell className="text-gray-700">
-                                                {c.mobile_number || c.phone || '—'}
+                                                {c.phoneNumber ?? c.mobile_number ?? c.phone ?? '—'}
                                             </TableCell>
                                             <TableCell className="text-gray-700">
                                                 <span className="capitalize">{c.gender || '—'}</span>
@@ -247,35 +328,106 @@ export default function CustomersPage() {
                                                 <span className="text-sm text-gray-600">{c.last_request_at ? new Date(c.last_request_at).toLocaleString() : '—'}</span>
                                             </TableCell>
                                             <TableCell className="text-right">
-                                                {c.provider_id ? (
-                                                    <Link
-                                                        href={`/admin/providers/${c.provider_id}`}
-                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-semibold hover:bg-emerald-100 transition-colors"
-                                                    >
-                                                        <CheckCircle2 className="h-3.5 w-3.5" />
-                                                        Provider
-                                                        <ExternalLink className="h-3 w-3" />
-                                                    </Link>
-                                                ) : (
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setConfirmCustomerId(c.id ?? null);
-                                                        }}
-                                                        disabled={convertingId === c.id}
-                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-semibold hover:bg-indigo-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                                    >
-                                                        {convertingId === c.id ? (
-                                                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                                        ) : (
-                                                            <ArrowRightLeft className="h-3.5 w-3.5" />
-                                                        )}
-                                                        {convertingId === c.id ? 'Converting...' : 'To Provider'}
-                                                    </button>
-                                                )}
+                                                <div className="flex items-center justify-end gap-2">
+                                                    {archived ? (
+                                                        <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                                                            Archived
+                                                        </span>
+                                                    ) : null}
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild>
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-9 w-9 text-gray-600 hover:text-gray-900"
+                                                                aria-label="Row actions"
+                                                            >
+                                                                <MoreVertical className="h-4 w-4" />
+                                                            </Button>
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent align="end" className="w-52">
+                                                            {c.provider_id ? (
+                                                                <DropdownMenuItem asChild>
+                                                                    <Link
+                                                                        href={`/admin/providers/${c.provider_id}`}
+                                                                        className="flex cursor-pointer items-center gap-2"
+                                                                    >
+                                                                        <CheckCircle2 className="h-4 w-4 shrink-0" />
+                                                                        Open provider
+                                                                    </Link>
+                                                                </DropdownMenuItem>
+                                                            ) : c.id ? (
+                                                                <DropdownMenuItem
+                                                                    disabled={convertingId === c.id || rowBusy}
+                                                                    onSelect={() => {
+                                                                        if (!c.id) return;
+                                                                        setConfirmCustomerId(c.id);
+                                                                    }}
+                                                                >
+                                                                    <span className="flex items-center gap-2">
+                                                                        {convertingId === c.id ? (
+                                                                            <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+                                                                        ) : (
+                                                                            <ArrowRightLeft className="h-4 w-4 shrink-0" />
+                                                                        )}
+                                                                        Convert to provider
+                                                                    </span>
+                                                                </DropdownMenuItem>
+                                                            ) : null}
+                                                            {!archived && c.id ? (
+                                                                <DropdownMenuItem
+                                                                    disabled={rowBusy}
+                                                                    onSelect={() => {
+                                                                        if (!c.id) return;
+                                                                        void handleArchiveCustomer(c.id);
+                                                                    }}
+                                                                >
+                                                                    <span className="flex items-center gap-2">
+                                                                        <Archive className="h-4 w-4 shrink-0" />
+                                                                        Archive
+                                                                    </span>
+                                                                </DropdownMenuItem>
+                                                            ) : null}
+                                                            {archived && c.id ? (
+                                                                <DropdownMenuItem
+                                                                    disabled={rowBusy}
+                                                                    onSelect={() => {
+                                                                        if (!c.id) return;
+                                                                        void handleRestoreCustomer(c.id);
+                                                                    }}
+                                                                >
+                                                                    <span className="flex items-center gap-2">
+                                                                        <ArchiveRestore className="h-4 w-4 shrink-0" />
+                                                                        Restore
+                                                                    </span>
+                                                                </DropdownMenuItem>
+                                                            ) : null}
+                                                            {c.id ? (
+                                                                <>
+                                                                    <DropdownMenuSeparator />
+                                                                    <DropdownMenuItem
+                                                                        variant="destructive"
+                                                                        disabled={rowBusy}
+                                                                        onSelect={() => {
+                                                                            if (!c.id) return;
+                                                                            setPendingDeleteCustomerId(c.id);
+                                                                        }}
+                                                                    >
+                                                                        <span className="flex items-center gap-2">
+                                                                            <Trash2 className="h-4 w-4 shrink-0" />
+                                                                            Delete
+                                                                        </span>
+                                                                    </DropdownMenuItem>
+                                                                </>
+                                                            ) : null}
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
+                                                </div>
                                             </TableCell>
                                         </TableRow>
-                                    ))}
+                                        );
+                                    })}
                                     {filtered.length === 0 && !loading && (
                                         <TableRow>
                                             <TableCell className="px-4 py-12 text-center text-gray-500" colSpan={11}>
@@ -321,6 +473,45 @@ export default function CustomersPage() {
                             </div>
                         )}
                     </div>
+                    {pendingDeleteCustomerId && (
+                        <div
+                            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+                            onClick={() => !actionBusyId && setPendingDeleteCustomerId(null)}
+                        >
+                            <div
+                                className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <h3 className="text-lg font-bold text-gray-900 mb-2">Delete customer</h3>
+                                <p className="text-sm text-gray-600 mb-6">
+                                    Permanently remove this customer from the database. This cannot be undone. Related rows may block deletion until they are removed or updated.
+                                </p>
+                                <div className="flex items-center gap-3 justify-end">
+                                    <button
+                                        type="button"
+                                        onClick={() => setPendingDeleteCustomerId(null)}
+                                        disabled={Boolean(actionBusyId)}
+                                        className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => void handleDeleteCustomer()}
+                                        disabled={Boolean(actionBusyId)}
+                                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition-colors disabled:opacity-50"
+                                    >
+                                        {actionBusyId === pendingDeleteCustomerId ? (
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                            <Trash2 className="h-4 w-4" />
+                                        )}
+                                        Delete
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                     {confirmCustomerId && (
                         <div
                             className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
@@ -341,7 +532,7 @@ export default function CustomersPage() {
                                     </span>.
                                 </p>
                                 <p className="text-sm text-gray-500 mb-6">
-                                    The customer will be able to log in as a provider using their existing credentials. This action cannot be undone.
+                                    A provider profile will be created with the same account id. The customer row will be removed from the customer table. They can sign in as a provider with their existing credentials. This cannot be undone.
                                 </p>
                                 <div className="flex items-center gap-3 justify-end">
                                     <button
@@ -375,7 +566,7 @@ export default function CustomersPage() {
                                 </div>
                                 <h3 className="text-lg font-bold text-gray-900 mb-2">Provider Created</h3>
                                 <p className="text-sm text-gray-600 mb-6">
-                                    The customer has been successfully converted to a provider account.
+                                    The provider account is ready. The customer record has been removed from the customer list.
                                 </p>
                                 <div className="flex items-center gap-3 justify-center">
                                     <button

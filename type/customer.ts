@@ -14,6 +14,7 @@ export interface CustomerSchema {
   ip_address?: string;
   country_code?: string;
   mobile_number?: string;
+  phoneNumber?: string;
   phone?: string;
   avatar?: string;
   created_at?: string;
@@ -28,4 +29,5 @@ export interface CustomerSchema {
   updated_by_admin?: string;
   provider_id?: string;
   address?: string;
+  archived_at?: string | null;
 }

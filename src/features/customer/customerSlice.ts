@@ -10,6 +10,7 @@ export interface Customer {
     ip_address?: string;
     country_code?: string;
     mobile_number?: string;
+    phoneNumber?: string;
     phone?: string; // Legacy field, use mobile_number
     avatar?: string;
     created_at?: string;
@@ -30,6 +31,7 @@ export interface Customer {
     provider_id?: string; // Optional, may not be present
     address?: string; // Legacy field, use default_address
     last_request_at?: string | null; // Computed field, not from DB
+    archived_at?: string | null;
 }
 
 interface CustomerListState {
@@ -131,6 +133,13 @@ export const fetchCustomersByProviderId = createAsyncThunk(
             return (customers as Customer[]).map((c) => ({ ...c, last_request_at: null }));
         }
 
+        const { data: providers, error: providerError } = await supabase
+            .from("provider")
+            .select("id")
+            .in("id", customerIds);
+
+        if (providerError) return rejectWithValue(providerError.message);
+
         const { data: bookings, error: bookingError } = await supabase
             .from("booked_service")
             .select("customer_id, createdAt")
@@ -146,6 +155,10 @@ export const fetchCustomersByProviderId = createAsyncThunk(
                 lastRequestMap[b.customer_id] = b.createdAt;
             }
         });
+        const providerIdSet = new Set(
+            ((providers as Array<{ id: string }> | null | undefined) ?? [])
+                .map((provider) => provider.id)
+        );
 
         const enriched = (customers as Customer[]).map((c) => {
             // Parse default_address if it's a JSON string
@@ -161,6 +174,8 @@ export const fetchCustomersByProviderId = createAsyncThunk(
             
             return {
                 ...c,
+                provider_id: c.provider_id || (c.id && providerIdSet.has(c.id) ? c.id : undefined),
+                archived_at: c.archived_at ?? (c as { archivedAt?: string | null }).archivedAt ?? null,
                 default_address: defaultAddress,
                 last_request_at: (c.id && lastRequestMap[c.id]) || null,
             };
@@ -182,6 +197,13 @@ export const fetchAllCustomers = createAsyncThunk(
             return (customers as Customer[]).map((c) => ({ ...c, last_request_at: null }));
         }
 
+        const { data: providers, error: providerError } = await supabase
+            .from("provider")
+            .select("id")
+            .in("id", customerIds);
+
+        if (providerError) return rejectWithValue(providerError.message);
+
         const { data: bookings, error: bookingError } = await supabase
             .from("booked_service")
             .select("customer_id, createdAt")
@@ -197,6 +219,10 @@ export const fetchAllCustomers = createAsyncThunk(
                 lastRequestMap[b.customer_id] = b.createdAt;
             }
         });
+        const providerIdSet = new Set(
+            ((providers as Array<{ id: string }> | null | undefined) ?? [])
+                .map((provider) => provider.id)
+        );
 
         const enriched = (customers as Customer[]).map((c) => {
             // Parse default_address if it's a JSON string
@@ -212,6 +238,8 @@ export const fetchAllCustomers = createAsyncThunk(
             
             return {
                 ...c,
+                provider_id: c.provider_id || (c.id && providerIdSet.has(c.id) ? c.id : undefined),
+                archived_at: c.archived_at ?? (c as { archivedAt?: string | null }).archivedAt ?? null,
                 default_address: defaultAddress,
                 last_request_at: (c.id && lastRequestMap[c.id]) || null,
             };
@@ -241,6 +269,62 @@ export const convertToProvider = createAsyncThunk<
             return { providerId: result.data.id as string };
         } catch {
             return rejectWithValue("Network error while converting customer");
+        }
+    }
+);
+
+export const archiveCustomer = createAsyncThunk<
+    { customerId: string; archived_at: string },
+    string,
+    { rejectValue: string }
+>("customer/archiveCustomer", async (customerId, { rejectWithValue }) => {
+    try {
+        const res = await fetch(`/api/admin/customers/${encodeURIComponent(customerId)}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "archive" }),
+        });
+        const result = (await res.json()) as { archived_at?: string; error?: string };
+        if (!res.ok || !result.archived_at) {
+            return rejectWithValue(result.error || "Failed to archive customer");
+        }
+        return { customerId, archived_at: result.archived_at };
+    } catch {
+        return rejectWithValue("Network error while archiving customer");
+    }
+});
+
+export const restoreCustomer = createAsyncThunk<
+    { customerId: string },
+    string,
+    { rejectValue: string }
+>("customer/restoreCustomer", async (customerId, { rejectWithValue }) => {
+    try {
+        const res = await fetch(`/api/admin/customers/${encodeURIComponent(customerId)}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "restore" }),
+        });
+        const result = (await res.json()) as { error?: string };
+        if (!res.ok) return rejectWithValue(result.error || "Failed to restore customer");
+        return { customerId };
+    } catch {
+        return rejectWithValue("Network error while restoring customer");
+    }
+});
+
+export const deleteCustomer = createAsyncThunk<string, string, { rejectValue: string }>(
+    "customer/deleteCustomer",
+    async (customerId, { rejectWithValue }) => {
+        try {
+            const res = await fetch(`/api/admin/customers/${encodeURIComponent(customerId)}`, {
+                method: "DELETE",
+            });
+            const result = (await res.json()) as { error?: string };
+            if (!res.ok) return rejectWithValue(result.error || "Failed to delete customer");
+            return customerId;
+        } catch {
+            return rejectWithValue("Network error while deleting customer");
         }
     }
 );
@@ -320,17 +404,30 @@ const customerSlice = createSlice({
             .addCase(convertToProvider.fulfilled, (state, action) => {
                 state.convertingId = null;
                 state.convertSuccess = true;
-                const idx = state.customers.findIndex((c) => c.id === action.meta.arg);
-                if (idx !== -1) {
-                    state.customers[idx] = {
-                        ...state.customers[idx],
-                        provider_id: action.payload.providerId,
-                    };
-                }
+                const convertedId = action.meta.arg;
+                state.customers = state.customers.filter((c) => c.id !== convertedId);
             })
             .addCase(convertToProvider.rejected, (state, action) => {
                 state.convertingId = null;
                 state.convertError = action.payload as string;
+            })
+            .addCase(archiveCustomer.fulfilled, (state, action) => {
+                const { customerId, archived_at } = action.payload;
+                const idx = state.customers.findIndex((c) => c.id === customerId);
+                if (idx !== -1) {
+                    state.customers[idx] = { ...state.customers[idx], archived_at };
+                }
+            })
+            .addCase(restoreCustomer.fulfilled, (state, action) => {
+                const { customerId } = action.payload;
+                const idx = state.customers.findIndex((c) => c.id === customerId);
+                if (idx !== -1) {
+                    state.customers[idx] = { ...state.customers[idx], archived_at: null };
+                }
+            })
+            .addCase(deleteCustomer.fulfilled, (state, action) => {
+                const id = action.payload;
+                state.customers = state.customers.filter((c) => c.id !== id);
             });
     },
 });

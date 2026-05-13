@@ -25,6 +25,8 @@ interface JobRequestRow {
     bidList?: JobRequestBid[] | null;
     price?: string | null;
     customerId?: string | null;
+    customerDisplayName?: string | null;
+    customerDisplayPhone?: string | null;
     description?: string | null;
     title?: string | null;
     status?: string | null;
@@ -106,9 +108,13 @@ const JobRequestsPage = () => {
                 return false;
             if (!normalized) return true;
             const serviceName = item.serviceModelList?.[0]?.serviceName || '';
+            const customerName = (item.customerDisplayName || '').toLowerCase();
+            const customerPhone = (item.customerDisplayPhone || '').toLowerCase();
             return (item.title || '').toLowerCase().includes(normalized)
                 || (item.description || '').toLowerCase().includes(normalized)
                 || (item.customerId || '').toLowerCase().includes(normalized)
+                || customerName.includes(normalized)
+                || customerPhone.includes(normalized)
                 || serviceName.toLowerCase().includes(normalized);
         });
     }, [items, query, statusFilter]);
@@ -159,7 +165,7 @@ const JobRequestsPage = () => {
                                 <input
                                     value={query}
                                     onChange={(event) => setQuery(event.target.value)}
-                                    placeholder="Search title, description, customer ID, service..."
+                                    placeholder="Search title, description, customer, phone, service..."
                                     className="w-full rounded-full border border-subtle bg-base py-2 pl-10 pr-10 text-sm text-primary shadow-[0_1px_3px_rgba(0,0,0,0.06)] focus:outline-none focus:ring-2 focus:ring-accent-info"
                                 />
                                 {query ? (
@@ -237,7 +243,14 @@ const JobRequestsPage = () => {
                                                         <p className="font-semibold text-gray-900">{item.title || 'Untitled'}</p>
                                                         <p className="mt-1 text-xs">{item.description || 'No description'}</p>
                                                     </TableCell>
-                                                    <TableCell className="text-gray-700">{item.customerId || '—'}</TableCell>
+                                                    <TableCell className="text-gray-700">
+                                                        <div className="font-medium text-gray-900">
+                                                            {item.customerDisplayName?.trim() || '—'}
+                                                        </div>
+                                                        <div className="mt-0.5 text-sm text-gray-600">
+                                                            {item.customerDisplayPhone?.trim() || '—'}
+                                                        </div>
+                                                    </TableCell>
                                                     <TableCell className="text-gray-700">{item.serviceModelList?.[0]?.serviceName || '—'}</TableCell>
                                                     <TableCell className="text-gray-700">{item.price || '—'}</TableCell>
                                                     <TableCell className="text-gray-700">{bidsCount}</TableCell>

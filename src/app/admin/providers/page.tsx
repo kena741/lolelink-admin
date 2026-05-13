@@ -1,11 +1,19 @@
 "use client";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import Link from "next/link";
 import Sidebar from "../../../components/Sidebar";
 import { useAppDispatch, useAppSelector } from "../../../store/hooks";
-import { fetchProviders, fetchServiceCountsByProvider } from "../../../features/provider/providerSlice";
+import { fetchProviders, fetchServiceCountsByProvider, archiveProvider, restoreProvider, deleteProvider } from "../../../features/provider/providerSlice";
 import type { Provider } from "@/features/provider/providerSlice";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { 
     ChevronLeft,
     ChevronRight,
@@ -23,7 +31,12 @@ import {
     Calendar,
     ArrowUpRight,
     TrendingUp,
-    Zap
+    Zap,
+    Archive,
+    ArchiveRestore,
+    Trash2,
+    Loader2,
+    MoreVertical,
 } from "lucide-react";
 import AuthGuard from "@/components/AuthGuard";
 import { ActivationPaymentModal } from "@/components/ActivationPaymentModal";
@@ -31,6 +44,11 @@ import { fetchSettings } from "@/features/settings/settingsSlice";
 import * as XLSX from "xlsx";
 
 const PAGE_SIZE = 20;
+
+function providerIsArchived(p: { archived_at?: string | null; archivedAt?: string | null }): boolean {
+    const v = p.archived_at ?? p.archivedAt;
+    return typeof v === "string" && v.length > 0;
+}
 
 const ProvidersPage = () => {
     const dispatch = useAppDispatch();
@@ -46,6 +64,10 @@ const ProvidersPage = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
     const [activationTarget, setActivationTarget] = useState<{ id: string; name: string } | null>(null);
+    const [showArchived, setShowArchived] = useState(false);
+    const [actionBusyId, setActionBusyId] = useState<string | null>(null);
+    const [actionError, setActionError] = useState<string | null>(null);
+    const [pendingDeleteProviderId, setPendingDeleteProviderId] = useState<string | null>(null);
 
     const toggleSort = (key: SortKey) => {
         setSortBy((prev) => (prev === key ? prev : key));
@@ -59,8 +81,13 @@ const ProvidersPage = () => {
         return (full || p.name || "").toString().toLowerCase();
     };
 
+    const activeProviders = useMemo(
+        () => providers.filter((p) => showArchived || !providerIsArchived(p)),
+        [providers, showArchived]
+    );
+
     const sortedProviders = useMemo(() => {
-        const arr = [...providers];
+        const arr = [...activeProviders];
         arr.sort((a, b) => {
             let aVal: string | number = 0;
             let bVal: string | number = 0;
@@ -91,7 +118,7 @@ const ProvidersPage = () => {
             return sortDir === "asc" ? aStr.localeCompare(bStr) : bStr.localeCompare(aStr);
         });
         return arr;
-    }, [providers, sortBy, sortDir, serviceCounts]);
+    }, [activeProviders, sortBy, sortDir, serviceCounts]);
 
     const filtered = useMemo(() => {
         if (!query.trim()) return sortedProviders;
@@ -116,10 +143,14 @@ const ProvidersPage = () => {
         XLSX.writeFile(wb, `providers_${new Date().toISOString().slice(0, 10)}.xlsx`);
     }
 
-    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    const totalPages = filtered.length > 0 ? Math.ceil(filtered.length / PAGE_SIZE) : 1;
     const safePage = Math.min(currentPage, totalPages);
     const startIdx = (safePage - 1) * PAGE_SIZE;
     const paginated = filtered.slice(startIdx, startIdx + PAGE_SIZE);
+
+    useEffect(() => {
+        if (currentPage > totalPages) setCurrentPage(totalPages);
+    }, [currentPage, totalPages]);
 
     const getInitials = (p: Provider) => {
         const first = (p.firstName ?? p.first_name ?? "").toString();
@@ -136,9 +167,47 @@ const ProvidersPage = () => {
         dispatch(fetchSettings());
     }, [dispatch]);
 
+    const handleArchiveProvider = useCallback(
+        async (providerId: string) => {
+            setActionError(null);
+            setActionBusyId(providerId);
+            const result = await dispatch(archiveProvider(providerId));
+            setActionBusyId(null);
+            if (archiveProvider.rejected.match(result)) {
+                setActionError(result.payload || "Archive failed");
+            }
+        },
+        [dispatch]
+    );
+
+    const handleRestoreProvider = useCallback(
+        async (providerId: string) => {
+            setActionError(null);
+            setActionBusyId(providerId);
+            const result = await dispatch(restoreProvider(providerId));
+            setActionBusyId(null);
+            if (restoreProvider.rejected.match(result)) {
+                setActionError(result.payload || "Restore failed");
+            }
+        },
+        [dispatch]
+    );
+
+    const handleDeleteProvider = useCallback(async () => {
+        if (!pendingDeleteProviderId) return;
+        setActionError(null);
+        setActionBusyId(pendingDeleteProviderId);
+        const result = await dispatch(deleteProvider(pendingDeleteProviderId));
+        setActionBusyId(null);
+        setPendingDeleteProviderId(null);
+        if (deleteProvider.rejected.match(result)) {
+            setActionError(result.payload || "Delete failed");
+        }
+    }, [dispatch, pendingDeleteProviderId]);
+
     useEffect(() => {
         setCurrentPage(1);
-    }, [query]);
+    }, [query, showArchived]);
 
     // Calculate statistics
     const stats = useMemo(() => {
@@ -270,7 +339,18 @@ const ProvidersPage = () => {
                                     className="w-full rounded-xl border border-white/20 bg-white/80 backdrop-blur-xl py-3 pl-11 pr-4 text-sm text-gray-900 placeholder:text-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200/50 shadow-lg transition-all"
                                 />
                             </div>
-                            <div className="flex items-center gap-3">
+                            <div className="flex flex-wrap items-center gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowArchived((v) => !v)}
+                                    className={`inline-flex h-[40px] items-center rounded-xl border px-3 text-sm font-semibold transition-colors ${
+                                        showArchived
+                                            ? "border-indigo-300 bg-indigo-50 text-indigo-800"
+                                            : "border-white/20 bg-white/80 text-gray-700 hover:bg-white"
+                                    }`}
+                                >
+                                    {showArchived ? "Showing archived" : "Show archived"}
+                                </button>
                                 <button
                                     onClick={exportToXlsx}
                                     disabled={filtered.length === 0}
@@ -304,6 +384,12 @@ const ProvidersPage = () => {
                             </div>
                         </div>
 
+                        {actionError && (
+                            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                                {actionError}
+                            </div>
+                        )}
+
                         {loading && (
                             <div className="mb-4 text-sm text-gray-600 flex items-center gap-2">
                                 <RefreshCw className="h-4 w-4 animate-spin" />
@@ -326,13 +412,18 @@ const ProvidersPage = () => {
                                     const full = [first, last].filter(Boolean).join(" ");
                                     const label = full || p.name || "Unknown Provider";
                                     const serviceCount = p.id ? (serviceCounts[p.id] ?? 0) : 0;
+                                    const archived = providerIsArchived(p);
+                                    const rowBusy = actionBusyId === p.id;
 
                                     return (
-                                        <Link
+                                        <div
                                             key={p.id}
-                                            href={p.id ? `/admin/providers/${p.id}` : "#"}
-                                            className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-white/80 to-white/40 backdrop-blur-xl border border-white/20 p-6 shadow-xl transition-all duration-300 hover:shadow-2xl hover:scale-[1.02] hover:border-white/40"
+                                            className={`relative overflow-hidden rounded-2xl bg-gradient-to-br from-white/80 to-white/40 backdrop-blur-xl border border-white/20 shadow-xl transition-all duration-300 hover:shadow-2xl hover:scale-[1.02] hover:border-white/40 ${archived ? "opacity-75" : ""}`}
                                         >
+                                            <Link
+                                                href={p.id ? `/admin/providers/${p.id}` : "#"}
+                                                className="group relative block overflow-hidden p-6"
+                                            >
                                             <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                                             <div className="relative z-10">
                                                 <div className="flex items-start justify-between mb-4">
@@ -355,6 +446,11 @@ const ProvidersPage = () => {
                                                                 {label}
                                                             </h3>
                                                             <p className="text-sm text-gray-600 mt-1">{p.email ?? "—"}</p>
+                                                            {archived ? (
+                                                                <span className="mt-2 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                                                                    Archived
+                                                                </span>
+                                                            ) : null}
                                                             <div className="mt-2 flex items-center gap-2">
                                                                 <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
                                                                     p.activation_paid
@@ -365,6 +461,7 @@ const ProvidersPage = () => {
                                                                 </span>
                                                                 {!p.activation_paid && (
                                                                     <button
+                                                                        type="button"
                                                                         onClick={(e) => {
                                                                             e.preventDefault();
                                                                             e.stopPropagation();
@@ -415,7 +512,74 @@ const ProvidersPage = () => {
                                                     </div>
                                                 </div>
                                             </div>
-                                        </Link>
+                                            </Link>
+                                            <div className="flex items-center justify-end border-t border-gray-200/50 bg-white/50 px-3 py-2">
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-9 w-9 text-gray-600 hover:text-gray-900"
+                                                            aria-label="Provider actions"
+                                                        >
+                                                            <MoreVertical className="h-4 w-4" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end" className="w-48">
+                                                        {p.id ? (
+                                                            <DropdownMenuItem asChild>
+                                                                <Link href={`/admin/providers/${p.id}`} className="flex cursor-pointer items-center gap-2">
+                                                                    <ArrowUpRight className="h-4 w-4 shrink-0" />
+                                                                    Open profile
+                                                                </Link>
+                                                            </DropdownMenuItem>
+                                                        ) : null}
+                                                        {!archived && p.id ? (
+                                                            <DropdownMenuItem
+                                                                disabled={rowBusy}
+                                                                onSelect={() => {
+                                                                    void handleArchiveProvider(p.id);
+                                                                }}
+                                                            >
+                                                                <span className="flex items-center gap-2">
+                                                                    {rowBusy ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" /> : <Archive className="h-4 w-4 shrink-0" />}
+                                                                    Archive
+                                                                </span>
+                                                            </DropdownMenuItem>
+                                                        ) : null}
+                                                        {archived && p.id ? (
+                                                            <DropdownMenuItem
+                                                                disabled={rowBusy}
+                                                                onSelect={() => {
+                                                                    void handleRestoreProvider(p.id);
+                                                                }}
+                                                            >
+                                                                <span className="flex items-center gap-2">
+                                                                    {rowBusy ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" /> : <ArchiveRestore className="h-4 w-4 shrink-0" />}
+                                                                    Restore
+                                                                </span>
+                                                            </DropdownMenuItem>
+                                                        ) : null}
+                                                        {p.id ? (
+                                                            <>
+                                                                <DropdownMenuSeparator />
+                                                                <DropdownMenuItem
+                                                                    variant="destructive"
+                                                                    disabled={rowBusy}
+                                                                    onSelect={() => setPendingDeleteProviderId(p.id)}
+                                                                >
+                                                                    <span className="flex items-center gap-2">
+                                                                        <Trash2 className="h-4 w-4 shrink-0" />
+                                                                        Delete
+                                                                    </span>
+                                                                </DropdownMenuItem>
+                                                            </>
+                                                        ) : null}
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            </div>
+                                        </div>
                                     );
                                 })}
                                 {paginated.length === 0 && !loading && (
@@ -468,6 +632,7 @@ const ProvidersPage = () => {
                                                         <ChevronsUpDown className="h-4 w-4 opacity-60" />
                                                     </button>
                                                 </TableHead>
+                                                <TableHead className="font-semibold text-gray-700 text-right">Actions</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -478,11 +643,13 @@ const ProvidersPage = () => {
                                                 const full = [first, last].filter(Boolean).join(" ");
                                                 const label = full || p.name || "—";
                                                 const serviceCount = p.id ? (serviceCounts[p.id] ?? 0) : 0;
+                                                const archived = providerIsArchived(p);
+                                                const rowBusy = actionBusyId === p.id;
 
                                                 return (
                                                     <TableRow 
                                                         key={p.id} 
-                                                        className="hover:bg-gradient-to-r hover:from-indigo-50/30 hover:to-purple-50/30 transition-all border-b border-white/20"
+                                                        className={`hover:bg-gradient-to-r hover:from-indigo-50/30 hover:to-purple-50/30 transition-all border-b border-white/20 ${archived ? "opacity-75" : ""}`}
                                                     >
                                                         <TableCell className="text-sm font-medium text-gray-500">
                                                             {startIdx + idx + 1}
@@ -502,15 +669,16 @@ const ProvidersPage = () => {
                                                                 </div>
                                                             )}
                                                         </TableCell>
-                                                        <TableCell className="font-medium">
-                                                            {p.id ? (
-                                                                <div className="flex flex-col">
-                                                                    <Link 
-                                                                        href={`/admin/providers/${p.id}`} 
-                                                                        className="text-indigo-700 hover:text-indigo-900 hover:underline font-semibold transition-colors"
-                                                                    >
-                                                                        {label}
-                                                                    </Link>
+                                                        <TableCell>
+                                                            <div className="flex flex-col gap-1">
+                                                                {p.id ? (
+                                                                    <div className="flex flex-col">
+                                                                        <Link 
+                                                                            href={`/admin/providers/${p.id}`} 
+                                                                            className="text-indigo-700 hover:text-indigo-900 hover:underline font-semibold transition-colors"
+                                                                        >
+                                                                            {label}
+                                                                        </Link>
                                                                     <span className="text-xs text-gray-500 mt-1 flex items-center gap-1">
                                                                         <Mail className="h-3 w-3" />
                                                                         {p.email ?? ""}
@@ -563,6 +731,7 @@ const ProvidersPage = () => {
                                                                     </div>
                                                                 </div>
                                                             )}
+                                                            </div>
                                                         </TableCell>
                                                         <TableCell>
                                                             <div className="flex items-center gap-2 text-sm text-gray-700">
@@ -591,12 +760,85 @@ const ProvidersPage = () => {
                                                                 {p.createdAt ? new Date(p.createdAt).toLocaleDateString() : "—"}
                                                             </div>
                                                         </TableCell>
+                                                        <TableCell className="text-right">
+                                                            <div className="flex items-center justify-end gap-2">
+                                                                {archived ? (
+                                                                    <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                                                                        Archived
+                                                                    </span>
+                                                                ) : null}
+                                                                <DropdownMenu>
+                                                                    <DropdownMenuTrigger asChild>
+                                                                        <Button
+                                                                            type="button"
+                                                                            variant="ghost"
+                                                                            size="icon"
+                                                                            className="h-9 w-9 text-gray-600 hover:text-gray-900"
+                                                                            aria-label="Row actions"
+                                                                        >
+                                                                            <MoreVertical className="h-4 w-4" />
+                                                                        </Button>
+                                                                    </DropdownMenuTrigger>
+                                                                    <DropdownMenuContent align="end" className="w-48">
+                                                                        {p.id ? (
+                                                                            <DropdownMenuItem asChild>
+                                                                                <Link href={`/admin/providers/${p.id}`} className="flex cursor-pointer items-center gap-2">
+                                                                                    <ArrowUpRight className="h-4 w-4 shrink-0" />
+                                                                                    Open profile
+                                                                                </Link>
+                                                                            </DropdownMenuItem>
+                                                                        ) : null}
+                                                                        {!archived && p.id ? (
+                                                                            <DropdownMenuItem
+                                                                                disabled={rowBusy}
+                                                                                onSelect={() => {
+                                                                                    void handleArchiveProvider(p.id);
+                                                                                }}
+                                                                            >
+                                                                                <span className="flex items-center gap-2">
+                                                                                    {rowBusy ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" /> : <Archive className="h-4 w-4 shrink-0" />}
+                                                                                    Archive
+                                                                                </span>
+                                                                            </DropdownMenuItem>
+                                                                        ) : null}
+                                                                        {archived && p.id ? (
+                                                                            <DropdownMenuItem
+                                                                                disabled={rowBusy}
+                                                                                onSelect={() => {
+                                                                                    void handleRestoreProvider(p.id);
+                                                                                }}
+                                                                            >
+                                                                                <span className="flex items-center gap-2">
+                                                                                    {rowBusy ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" /> : <ArchiveRestore className="h-4 w-4 shrink-0" />}
+                                                                                    Restore
+                                                                                </span>
+                                                                            </DropdownMenuItem>
+                                                                        ) : null}
+                                                                        {p.id ? (
+                                                                            <>
+                                                                                <DropdownMenuSeparator />
+                                                                                <DropdownMenuItem
+                                                                                    variant="destructive"
+                                                                                    disabled={rowBusy}
+                                                                                    onSelect={() => setPendingDeleteProviderId(p.id)}
+                                                                                >
+                                                                                    <span className="flex items-center gap-2">
+                                                                                        <Trash2 className="h-4 w-4 shrink-0" />
+                                                                                        Delete
+                                                                                    </span>
+                                                                                </DropdownMenuItem>
+                                                                            </>
+                                                                        ) : null}
+                                                                    </DropdownMenuContent>
+                                                                </DropdownMenu>
+                                                            </div>
+                                                        </TableCell>
                                                     </TableRow>
                                                 );
                                             })}
                                             {paginated.length === 0 && !loading && (
                                                 <TableRow>
-                                                    <TableCell className="px-4 py-12 text-center text-gray-500" colSpan={7}>
+                                                    <TableCell className="px-4 py-12 text-center text-gray-500" colSpan={8}>
                                                         <div className="flex flex-col items-center gap-3">
                                                             <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
                                                                 <Search className="h-8 w-8 text-gray-400" />
@@ -641,6 +883,46 @@ const ProvidersPage = () => {
                             </div>
                         )}
                     </div>
+
+                    {pendingDeleteProviderId && (
+                        <div
+                            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+                            onClick={() => !actionBusyId && setPendingDeleteProviderId(null)}
+                        >
+                            <div
+                                className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <h3 className="text-lg font-bold text-gray-900 mb-2">Delete provider</h3>
+                                <p className="text-sm text-gray-600 mb-6">
+                                    Permanently remove this provider. This cannot be undone. Foreign keys (services, bookings, etc.) may block deletion until related data is removed.
+                                </p>
+                                <div className="flex items-center gap-3 justify-end">
+                                    <button
+                                        type="button"
+                                        onClick={() => setPendingDeleteProviderId(null)}
+                                        disabled={Boolean(actionBusyId)}
+                                        className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => void handleDeleteProvider()}
+                                        disabled={Boolean(actionBusyId)}
+                                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition-colors disabled:opacity-50"
+                                    >
+                                        {actionBusyId === pendingDeleteProviderId ? (
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                            <Trash2 className="h-4 w-4" />
+                                        )}
+                                        Delete
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {activationTarget && (
                         <ActivationPaymentModal

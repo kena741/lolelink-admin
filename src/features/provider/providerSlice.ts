@@ -45,6 +45,7 @@ export interface Provider {
     activation_paid_at?: string;
     activation_tx_ref?: string;
     verified_subcategory_ids?: string[];
+    archived_at?: string | null;
 }
 
 export interface ProviderState {
@@ -107,9 +108,14 @@ export const fetchProviders = createAsyncThunk(
         // Normalize snake_case -> camelCase for createdAt
         const normalized: Provider[] = ((data as ProviderRow[] | null) ?? []).map((p) => {
             const { created_at, ...rest } = p;
+            const row = rest as Record<string, unknown>;
+            const archived_at =
+                (typeof row.archived_at === "string" ? row.archived_at : null)
+                ?? (typeof row.archivedAt === "string" ? row.archivedAt : null);
             return {
                 ...rest,
                 createdAt: created_at ?? p.createdAt,
+                archived_at,
             } as Provider;
         });
         return normalized;
@@ -382,6 +388,62 @@ export const markActivationPaid = createAsyncThunk<
     }
 );
 
+export const archiveProvider = createAsyncThunk<
+    { providerId: string; archived_at: string },
+    string,
+    { rejectValue: string }
+>("provider/archiveProvider", async (providerId, { rejectWithValue }) => {
+    try {
+        const res = await fetch(`/api/admin/providers/${encodeURIComponent(providerId)}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "archive" }),
+        });
+        const result = (await res.json()) as { archived_at?: string; error?: string };
+        if (!res.ok || !result.archived_at) {
+            return rejectWithValue(result.error || "Failed to archive provider");
+        }
+        return { providerId, archived_at: result.archived_at };
+    } catch {
+        return rejectWithValue("Network error while archiving provider");
+    }
+});
+
+export const restoreProvider = createAsyncThunk<
+    { providerId: string },
+    string,
+    { rejectValue: string }
+>("provider/restoreProvider", async (providerId, { rejectWithValue }) => {
+    try {
+        const res = await fetch(`/api/admin/providers/${encodeURIComponent(providerId)}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "restore" }),
+        });
+        const result = (await res.json()) as { error?: string };
+        if (!res.ok) return rejectWithValue(result.error || "Failed to restore provider");
+        return { providerId };
+    } catch {
+        return rejectWithValue("Network error while restoring provider");
+    }
+});
+
+export const deleteProvider = createAsyncThunk<string, string, { rejectValue: string }>(
+    "provider/deleteProvider",
+    async (providerId, { rejectWithValue }) => {
+        try {
+            const res = await fetch(`/api/admin/providers/${encodeURIComponent(providerId)}`, {
+                method: "DELETE",
+            });
+            const result = (await res.json()) as { error?: string };
+            if (!res.ok) return rejectWithValue(result.error || "Failed to delete provider");
+            return providerId;
+        } catch {
+            return rejectWithValue("Network error while deleting provider");
+        }
+    }
+);
+
 export const createService = createAsyncThunk<
     Service,
     { provider_id: string; values: Partial<Service> },
@@ -523,6 +585,35 @@ const providerSlice = createSlice({
             .addCase(updateService.fulfilled, (state, action: PayloadAction<Service>) => {
                 const i = state.services.findIndex(s => s.id === action.payload.id);
                 if (i !== -1) state.services[i] = action.payload;
+            })
+            .addCase(archiveProvider.fulfilled, (state, action) => {
+                const { providerId, archived_at } = action.payload;
+                const idx = state.providers.findIndex((p) => p.id === providerId);
+                if (idx !== -1) {
+                    state.providers[idx] = { ...state.providers[idx], archived_at };
+                }
+                if (state.selected?.id === providerId) {
+                    state.selected = { ...state.selected, archived_at };
+                }
+            })
+            .addCase(restoreProvider.fulfilled, (state, action) => {
+                const { providerId } = action.payload;
+                const idx = state.providers.findIndex((p) => p.id === providerId);
+                if (idx !== -1) {
+                    state.providers[idx] = { ...state.providers[idx], archived_at: null };
+                }
+                if (state.selected?.id === providerId) {
+                    state.selected = { ...state.selected, archived_at: null };
+                }
+            })
+            .addCase(deleteProvider.fulfilled, (state, action) => {
+                const id = action.payload;
+                state.providers = state.providers.filter((p) => p.id !== id);
+                state.serviceCounts = { ...state.serviceCounts };
+                delete state.serviceCounts[id];
+                if (state.selected?.id === id) {
+                    state.selected = null;
+                }
             });
     },
 });
