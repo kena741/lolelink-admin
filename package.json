@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "notify-zero-services": "tsx scripts/notify-zero-service-providers.ts"
+    "notify-zero-services": "tsx scripts/notify-zero-service-providers.ts",
+    "list-fayda-status": "tsx scripts/list-fayda-verification-status.ts"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",

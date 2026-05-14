@@ -1,28 +1,8 @@
-import { readFileSync, existsSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 import { sendSms, buildRecipient } from '../src/lib/sms';
-
-function loadEnvLocal(): void {
-    const p = resolve(process.cwd(), '.env.local');
-    if (!existsSync(p)) return;
-    const raw = readFileSync(p, 'utf8');
-    for (const line of raw.split('\n')) {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith('#')) continue;
-        const eq = trimmed.indexOf('=');
-        if (eq === -1) continue;
-        const key = trimmed.slice(0, eq).trim();
-        let val = trimmed.slice(eq + 1).trim();
-        if (
-            (val.startsWith('"') && val.endsWith('"')) ||
-            (val.startsWith("'") && val.endsWith("'"))
-        ) {
-            val = val.slice(1, -1);
-        }
-        if (process.env[key] === undefined) process.env[key] = val;
-    }
-}
+import { fetchNationalIdDocumentIds, fetchVerifiedFaydaProviderIds } from './lib/fayda-documents';
+import { loadEnvLocal } from './lib/load-env-local';
+import { fetchServiceCountsByProvider } from './lib/service-counts-by-provider';
 
 interface ProviderRow {
     id: string;
@@ -49,77 +29,6 @@ function providerName(p: ProviderRow): string {
 function isArchived(p: ProviderRow): boolean {
     const v = p.archived_at ?? p.archivedAt;
     return typeof v === 'string' && v.length > 0;
-}
-
-function isNationalIdDocumentName(name: string | null | undefined): boolean {
-    const n = (name ?? '').toLowerCase();
-    if (!n) return false;
-    if (n.includes('fayda')) return true;
-    if (n.includes('national id') || n.includes('national-id') || n.includes('nationalid')) return true;
-    return false;
-}
-
-async function nationalIdDocumentIds(supabase: SupabaseClient): Promise<string[]> {
-    const { data, error } = await supabase.from('documents').select('id, name');
-    if (error || !data) {
-        if (error) console.error('Failed to load documents for National ID filter:', error.message);
-        return [];
-    }
-    const ids: string[] = [];
-    for (const row of data as { id: string; name?: string | null }[]) {
-        if (row.id && isNationalIdDocumentName(row.name)) ids.push(row.id);
-    }
-    return ids;
-}
-
-async function providerIdsWithVerifiedNationalId(
-    supabase: SupabaseClient,
-    documentIds: string[]
-): Promise<Set<string>> {
-    const out = new Set<string>();
-    if (documentIds.length === 0) return out;
-    const pageSize = 1000;
-    let from = 0;
-    for (;;) {
-        const { data, error } = await supabase
-            .from('verify_documents')
-            .select('providerId')
-            .in('documentId', documentIds)
-            .eq('isVerify', true)
-            .range(from, from + pageSize - 1);
-        if (error) {
-            console.error('Failed to load verified National ID rows:', error.message);
-            return out;
-        }
-        const rows = data as { providerId?: string | null }[] | null;
-        if (!rows?.length) break;
-        for (const r of rows) {
-            const id = r.providerId;
-            if (id) out.add(id);
-        }
-        if (rows.length < pageSize) break;
-        from += pageSize;
-    }
-    return out;
-}
-
-async function serviceCountsByProvider(supabase: SupabaseClient): Promise<Map<string, number>> {
-    const map = new Map<string, number>();
-    const bump = (rows: { provider_id?: string | null }[] | null) => {
-        for (const r of rows ?? []) {
-            const id = r.provider_id;
-            if (!id) continue;
-            map.set(id, (map.get(id) ?? 0) + 1);
-        }
-    };
-    const { data: a, error: e1 } = await supabase.from('service').select('provider_id');
-    if (!e1 && a) {
-        bump(a as { provider_id?: string | null }[]);
-        return map;
-    }
-    const { data: b } = await supabase.from('services').select('provider_id');
-    bump(b as { provider_id?: string | null }[]);
-    return map;
 }
 
 function parseArgValue(prefix: string): string | undefined {
@@ -166,12 +75,12 @@ async function main(): Promise<void> {
         process.exit(1);
     }
 
-    const counts = await serviceCountsByProvider(supabase);
+    const counts = await fetchServiceCountsByProvider(supabase);
     const rows = (providers as ProviderRow[]).filter((p) => !isArchived(p));
     const zeroCandidatesAll = rows.filter((p) => (counts.get(p.id) ?? 0) === 0);
 
-    const nationalDocIds = await nationalIdDocumentIds(supabase);
-    const verifiedNationalId = await providerIdsWithVerifiedNationalId(supabase, nationalDocIds);
+    const nationalDocIds = await fetchNationalIdDocumentIds(supabase);
+    const verifiedNationalId = await fetchVerifiedFaydaProviderIds(supabase, nationalDocIds);
     if (nationalDocIds.length === 0) {
         console.warn(
             'No documents row matched National ID / Fayda name; no provider will be eligible. Check documents.name in Supabase.'
