@@ -1,6 +1,6 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { sendSms, buildRecipient } from '../src/lib/sms';
 
 function loadEnvLocal(): void {
@@ -51,9 +51,59 @@ function isArchived(p: ProviderRow): boolean {
     return typeof v === 'string' && v.length > 0;
 }
 
-async function serviceCountsByProvider(
-    supabase: ReturnType<typeof createClient>
-): Promise<Map<string, number>> {
+function isNationalIdDocumentName(name: string | null | undefined): boolean {
+    const n = (name ?? '').toLowerCase();
+    if (!n) return false;
+    if (n.includes('fayda')) return true;
+    if (n.includes('national id') || n.includes('national-id') || n.includes('nationalid')) return true;
+    return false;
+}
+
+async function nationalIdDocumentIds(supabase: SupabaseClient): Promise<string[]> {
+    const { data, error } = await supabase.from('documents').select('id, name');
+    if (error || !data) {
+        if (error) console.error('Failed to load documents for National ID filter:', error.message);
+        return [];
+    }
+    const ids: string[] = [];
+    for (const row of data as { id: string; name?: string | null }[]) {
+        if (row.id && isNationalIdDocumentName(row.name)) ids.push(row.id);
+    }
+    return ids;
+}
+
+async function providerIdsWithVerifiedNationalId(
+    supabase: SupabaseClient,
+    documentIds: string[]
+): Promise<Set<string>> {
+    const out = new Set<string>();
+    if (documentIds.length === 0) return out;
+    const pageSize = 1000;
+    let from = 0;
+    for (;;) {
+        const { data, error } = await supabase
+            .from('verify_documents')
+            .select('providerId')
+            .in('documentId', documentIds)
+            .eq('isVerify', true)
+            .range(from, from + pageSize - 1);
+        if (error) {
+            console.error('Failed to load verified National ID rows:', error.message);
+            return out;
+        }
+        const rows = data as { providerId?: string | null }[] | null;
+        if (!rows?.length) break;
+        for (const r of rows) {
+            const id = r.providerId;
+            if (id) out.add(id);
+        }
+        if (rows.length < pageSize) break;
+        from += pageSize;
+    }
+    return out;
+}
+
+async function serviceCountsByProvider(supabase: SupabaseClient): Promise<Map<string, number>> {
     const map = new Map<string, number>();
     const bump = (rows: { provider_id?: string | null }[] | null) => {
         for (const r of rows ?? []) {
@@ -118,6 +168,15 @@ async function main(): Promise<void> {
 
     const counts = await serviceCountsByProvider(supabase);
     const rows = (providers as ProviderRow[]).filter((p) => !isArchived(p));
+    const zeroCandidatesAll = rows.filter((p) => (counts.get(p.id) ?? 0) === 0);
+
+    const nationalDocIds = await nationalIdDocumentIds(supabase);
+    const verifiedNationalId = await providerIdsWithVerifiedNationalId(supabase, nationalDocIds);
+    if (nationalDocIds.length === 0) {
+        console.warn(
+            'No documents row matched National ID / Fayda name; no provider will be eligible. Check documents.name in Supabase.'
+        );
+    }
 
     let zeroService: ProviderRow[];
 
@@ -139,14 +198,22 @@ async function main(): Promise<void> {
             );
             process.exit(1);
         }
+        if (!verifiedNationalId.has(p.id)) {
+            console.error(
+                'Provider National ID is not verified (no approved verify_documents row for a National ID / Fayda document type). Not sending SMS.'
+            );
+            process.exit(1);
+        }
         zeroService = [p];
     } else {
-        zeroService = rows.filter((p) => (counts.get(p.id) ?? 0) === 0);
+        zeroService = zeroCandidatesAll.filter((p) => verifiedNationalId.has(p.id));
     }
 
     console.log(`Providers (non-archived): ${rows.length}`);
+    console.log(`National-ID document types matched: ${nationalDocIds.length}`);
     if (!onlyProviderId) {
-        console.log(`With 0 services: ${zeroService.length}`);
+        console.log(`With 0 services: ${zeroCandidatesAll.length}`);
+        console.log(`Eligible (0 services + verified National ID): ${zeroService.length}`);
     } else {
         const p = zeroService[0];
         const n = counts.get(p.id) ?? 0;
