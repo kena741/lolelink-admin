@@ -50,6 +50,27 @@ export async function DELETE(_request: Request, context: { params: Promise<Route
         const id = await getIdFromParams(context.params);
         if (!id) return NextResponse.json({ error: 'Invalid customer id' }, { status: 400 });
 
+        const { data: customerRow, error: customerFetchError } = await supabaseAdmin
+            .from('customer')
+            .select('customer_id')
+            .eq('id', id)
+            .maybeSingle();
+
+        if (customerFetchError) return NextResponse.json({ error: customerFetchError.message }, { status: 500 });
+
+        const refIds = [id];
+        const externalId = customerRow?.customer_id;
+        if (typeof externalId === 'string' && externalId.trim().length > 0) refIds.push(externalId.trim());
+        const uniqueRefIds = [...new Set(refIds)];
+
+        for (const refId of uniqueRefIds) {
+            const { error: jobRequestError } = await supabaseAdmin
+                .from('job_request')
+                .delete()
+                .eq('customerId', refId);
+            if (jobRequestError) return NextResponse.json({ error: jobRequestError.message }, { status: 500 });
+        }
+
         const { error } = await supabaseAdmin.from('customer').delete().eq('id', id);
         if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

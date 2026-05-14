@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import Sidebar from '@/components/Sidebar';
 import AuthGuard from '@/components/AuthGuard';
@@ -15,13 +15,17 @@ import {
     Phone,
     FileText,
     MessageSquare,
-    Eye
+    Eye,
+    Search,
 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { fetchVerifyDocuments, verifyDocument, rejectDocument, approveAllDocuments } from '@/features/verifyDocuments/verifyDocumentsSlice';
 import { supabase } from '@/lib/supabaseClient';
 import { sendSms, buildRecipient } from '@/lib/sms';
+import { cn } from '@/lib/utils';
+
+type StatusFilter = 'all' | 'pending' | 'approved' | 'rejected';
 
 const VerifyDocumentsPage = () => {
     const dispatch = useAppDispatch();
@@ -31,6 +35,9 @@ const VerifyDocumentsPage = () => {
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [selectedDocument, setSelectedDocument] = useState<typeof documents[0] | null>(null);
     const [providerPhone, setProviderPhone] = useState<string | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+    const [subCategoryFilter, setSubCategoryFilter] = useState<string>('all');
 
     useEffect(() => {
         dispatch(fetchVerifyDocuments());
@@ -137,22 +144,75 @@ const VerifyDocumentsPage = () => {
         }
     };
 
-    // Group documents by provider
-    const documentsByProvider = documents.reduce((acc, doc) => {
-        const key = doc.providerId || 'unknown';
-        if (!acc[key]) {
-            acc[key] = {
-                providerId: doc.providerId,
-                providerName: doc.providerName || 'Unknown Provider',
-                providerEmail: doc.providerEmail,
-                documents: [],
-            };
-        }
-        acc[key].documents.push(doc);
-        return acc;
-    }, {} as Record<string, { providerId: string; providerName: string; providerEmail?: string; documents: typeof documents }>);
+    const subCategoryOptions = useMemo(() => {
+        const names = new Set<string>();
+        documents.forEach((doc) => {
+            names.add(doc.subCategoryName || 'Uncategorized');
+        });
+        return [...names].sort((a, b) => a.localeCompare(b));
+    }, [documents]);
 
-    const providerGroups = Object.values(documentsByProvider);
+    useEffect(() => {
+        if (subCategoryFilter !== 'all' && !subCategoryOptions.includes(subCategoryFilter)) {
+            setSubCategoryFilter('all');
+        }
+    }, [subCategoryFilter, subCategoryOptions]);
+
+    const filteredDocuments = useMemo(() => {
+        let list = documents;
+        if (statusFilter === 'pending') {
+            list = list.filter((doc) => doc.isVerify === null);
+        } else if (statusFilter === 'approved') {
+            list = list.filter((doc) => doc.isVerify === true);
+        } else if (statusFilter === 'rejected') {
+            list = list.filter((doc) => doc.isVerify === false);
+        }
+        if (subCategoryFilter !== 'all') {
+            list = list.filter((doc) => (doc.subCategoryName || 'Uncategorized') === subCategoryFilter);
+        }
+        const q = searchQuery.trim().toLowerCase();
+        if (q) {
+            list = list.filter((doc) => {
+                const blob = [
+                    doc.providerName,
+                    doc.providerEmail,
+                    doc.documentName,
+                    doc.subCategoryName,
+                    doc.documentId,
+                    doc.providerId,
+                ]
+                    .filter(Boolean)
+                    .join(' ')
+                    .toLowerCase();
+                return blob.includes(q);
+            });
+        }
+        return list;
+    }, [documents, statusFilter, subCategoryFilter, searchQuery]);
+
+    const documentsByProvider = useMemo(() => {
+        return filteredDocuments.reduce(
+            (acc, doc) => {
+                const key = doc.providerId || 'unknown';
+                if (!acc[key]) {
+                    acc[key] = {
+                        providerId: doc.providerId,
+                        providerName: doc.providerName || 'Unknown Provider',
+                        providerEmail: doc.providerEmail,
+                        documents: [] as typeof documents,
+                    };
+                }
+                acc[key].documents.push(doc);
+                return acc;
+            },
+            {} as Record<string, { providerId: string; providerName: string; providerEmail?: string; documents: typeof documents }>
+        );
+    }, [filteredDocuments, documents]);
+
+    const providerGroups = useMemo(() => Object.values(documentsByProvider), [documentsByProvider]);
+
+    const hasActiveFilters =
+        searchQuery.trim().length > 0 || statusFilter !== 'all' || subCategoryFilter !== 'all';
 
     const formatDate = (dateString?: string) => {
         if (!dateString) return '—';
@@ -166,10 +226,10 @@ const VerifyDocumentsPage = () => {
         });
     };
 
-    const pendingDocuments = documents.filter(doc => doc.isVerify === null);
-    const verifiedDocuments = documents.filter(doc => doc.isVerify === true);
-    const rejectedDocuments = documents.filter(doc => doc.isVerify === false);
-    const totalDocuments = documents.length;
+    const pendingDocuments = filteredDocuments.filter((doc) => doc.isVerify === null);
+    const verifiedDocuments = filteredDocuments.filter((doc) => doc.isVerify === true);
+    const rejectedDocuments = filteredDocuments.filter((doc) => doc.isVerify === false);
+    const totalDocuments = filteredDocuments.length;
 
     return (
         <AuthGuard>
@@ -217,7 +277,7 @@ const VerifyDocumentsPage = () => {
 
                     <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
                         {/* Minimal Statistics */}
-                        <section className="mb-6 flex items-center gap-6 text-sm">
+                        <section className="mb-4 flex flex-wrap items-center gap-6 text-sm">
                             <div className="flex items-center gap-2">
                                 <Clock className="h-4 w-4 text-amber-600" />
                                 <span className="text-gray-700">
@@ -242,7 +302,80 @@ const VerifyDocumentsPage = () => {
                                     <span className="font-semibold">{totalDocuments}</span> Total
                                 </span>
                             </div>
+                            {hasActiveFilters ? (
+                                <span className="text-xs text-gray-500 sm:ml-auto">
+                                    Filtered · {documents.length} in database
+                                </span>
+                            ) : null}
                         </section>
+
+                        <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end">
+                            <div className="relative w-full max-w-md flex-1">
+                                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                                <input
+                                    type="search"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Search provider, email, document, category…"
+                                    className="w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-10 pr-4 text-sm text-gray-900 placeholder:text-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200/50"
+                                />
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                                {(
+                                    [
+                                        { value: 'all' as const, label: 'All' },
+                                        { value: 'pending' as const, label: 'Pending' },
+                                        { value: 'approved' as const, label: 'Approved' },
+                                        { value: 'rejected' as const, label: 'Rejected' },
+                                    ] as const
+                                ).map(({ value, label }) => (
+                                    <button
+                                        key={value}
+                                        type="button"
+                                        onClick={() => setStatusFilter(value)}
+                                        className={cn(
+                                            'inline-flex h-9 items-center rounded-lg px-3 text-sm font-medium transition-colors',
+                                            statusFilter === value
+                                                ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white'
+                                                : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50',
+                                        )}
+                                    >
+                                        {label}
+                                    </button>
+                                ))}
+                            </div>
+                            <div className="flex w-full min-w-[200px] max-w-xs flex-col gap-1 lg:w-auto">
+                                <label htmlFor="verify-doc-subcat" className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                    Category
+                                </label>
+                                <select
+                                    id="verify-doc-subcat"
+                                    value={subCategoryFilter}
+                                    onChange={(e) => setSubCategoryFilter(e.target.value)}
+                                    className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200/50"
+                                >
+                                    <option value="all">All categories</option>
+                                    {subCategoryOptions.map((name) => (
+                                        <option key={name} value={name}>
+                                            {name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            {hasActiveFilters ? (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSearchQuery('');
+                                        setStatusFilter('all');
+                                        setSubCategoryFilter('all');
+                                    }}
+                                    className="h-9 rounded-lg px-3 text-sm font-semibold text-indigo-700 hover:bg-indigo-50 lg:ml-auto"
+                                >
+                                    Clear filters
+                                </button>
+                            ) : null}
+                        </div>
 
                         {/* Documents Grid */}
                         {loading && (
@@ -263,8 +396,16 @@ const VerifyDocumentsPage = () => {
                                 {providerGroups.length === 0 ? (
                                     <div className="rounded-2xl bg-white/80 backdrop-blur-xl border border-white/20 p-12 text-center">
                                         <FileCheck className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                                        <p className="text-lg font-semibold text-gray-900 mb-2">No documents found</p>
-                                        <p className="text-sm text-gray-600">All documents have been processed</p>
+                                        <p className="text-lg font-semibold text-gray-900 mb-2">
+                                            {documents.length === 0 ? 'No documents found' : 'No matching documents'}
+                                        </p>
+                                        <p className="text-sm text-gray-600">
+                                            {documents.length === 0
+                                                ? 'When providers submit documents they will appear here.'
+                                                : hasActiveFilters
+                                                  ? 'Try changing or clearing filters.'
+                                                  : 'All documents have been processed.'}
+                                        </p>
                                     </div>
                                 ) : (
                                     providerGroups.map((group) => {

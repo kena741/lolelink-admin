@@ -15,6 +15,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { 
+    ChevronDown,
     ChevronLeft,
     ChevronRight,
     ChevronsUpDown,
@@ -32,15 +33,20 @@ import {
     ArrowUpRight,
     TrendingUp,
     Zap,
+    BadgeCheck,
     Archive,
     ArchiveRestore,
     Trash2,
     Loader2,
     MoreVertical,
+    Filter,
+    RotateCcw,
+    X,
 } from "lucide-react";
 import AuthGuard from "@/components/AuthGuard";
 import { ActivationPaymentModal } from "@/components/ActivationPaymentModal";
 import { fetchSettings } from "@/features/settings/settingsSlice";
+import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 
 const PAGE_SIZE = 20;
@@ -48,6 +54,68 @@ const PAGE_SIZE = 20;
 function providerIsArchived(p: { archived_at?: string | null; archivedAt?: string | null }): boolean {
     const v = p.archived_at ?? p.archivedAt;
     return typeof v === "string" && v.length > 0;
+}
+
+function providerActivationPaid(p: Provider): boolean {
+    const at = p.activation_paid_at;
+    if (typeof at === "string" && at.length > 0) return true;
+    const v = p.activation_paid;
+    if (v === true) return true;
+    if (v === false || v === null || v === undefined) return false;
+    if (typeof v === "string") return v === "true" || v === "t" || v === "1";
+    if (typeof v === "number") return v === 1;
+    return Boolean(v);
+}
+
+function providerAccountActive(p: Provider): boolean {
+    return p.active !== false;
+}
+
+interface SegmentOption<V extends string> {
+    value: V;
+    label: string;
+}
+
+interface SegmentGroupProps<V extends string> {
+    label: string;
+    value: V;
+    options: SegmentOption<V>[];
+    onChange: (next: V) => void;
+}
+
+function SegmentGroup<V extends string>({ label, value, options, onChange }: SegmentGroupProps<V>) {
+    return (
+        <div className="flex flex-col gap-2.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">{label}</span>
+            <div
+                className="flex flex-wrap gap-1.5"
+                role="radiogroup"
+                aria-label={label}
+            >
+                {options.map((opt) => {
+                    const selected = value === opt.value;
+                    return (
+                        <button
+                            key={opt.value}
+                            type="button"
+                            role="radio"
+                            aria-checked={selected}
+                            onClick={() => onChange(opt.value)}
+                            className={cn(
+                                "inline-flex h-9 min-h-[36px] shrink-0 items-center justify-center rounded-lg px-3 text-sm font-medium transition-all duration-200",
+                                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white/80",
+                                selected
+                                    ? "bg-gradient-to-r from-indigo-500 to-purple-600 text-white"
+                                    : "border border-gray-200/90 bg-white/90 text-gray-700 hover:border-indigo-200 hover:bg-white hover:text-gray-900"
+                            )}
+                        >
+                            {opt.label}
+                        </button>
+                    );
+                })}
+            </div>
+        </div>
+    );
 }
 
 const ProvidersPage = () => {
@@ -64,10 +132,34 @@ const ProvidersPage = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
     const [activationTarget, setActivationTarget] = useState<{ id: string; name: string } | null>(null);
-    const [showArchived, setShowArchived] = useState(false);
+    type ArchiveVisibility = "active_only" | "all" | "archived_only";
+    type ActivationFilter = "all" | "paid" | "unpaid";
+    type ServicesFilter = "all" | "with_services" | "no_services";
+    type AccountFilter = "all" | "active" | "inactive";
+    const [archiveVisibility, setArchiveVisibility] = useState<ArchiveVisibility>("active_only");
+    const [activationFilter, setActivationFilter] = useState<ActivationFilter>("all");
+    const [servicesFilter, setServicesFilter] = useState<ServicesFilter>("all");
+    const [accountFilter, setAccountFilter] = useState<AccountFilter>("all");
     const [actionBusyId, setActionBusyId] = useState<string | null>(null);
     const [actionError, setActionError] = useState<string | null>(null);
     const [pendingDeleteProviderId, setPendingDeleteProviderId] = useState<string | null>(null);
+    const [filtersPanelOpen, setFiltersPanelOpen] = useState(false);
+
+    const nonDefaultFilterCount = useMemo(() => {
+        let n = 0;
+        if (archiveVisibility !== "active_only") n += 1;
+        if (activationFilter !== "all") n += 1;
+        if (servicesFilter !== "all") n += 1;
+        if (accountFilter !== "all") n += 1;
+        return n;
+    }, [archiveVisibility, activationFilter, servicesFilter, accountFilter]);
+
+    const resetFilters = useCallback(() => {
+        setArchiveVisibility("active_only");
+        setActivationFilter("all");
+        setServicesFilter("all");
+        setAccountFilter("all");
+    }, []);
 
     const toggleSort = (key: SortKey) => {
         setSortBy((prev) => (prev === key ? prev : key));
@@ -81,13 +173,25 @@ const ProvidersPage = () => {
         return (full || p.name || "").toString().toLowerCase();
     };
 
-    const activeProviders = useMemo(
-        () => providers.filter((p) => showArchived || !providerIsArchived(p)),
-        [providers, showArchived]
-    );
+    const attributeFilteredProviders = useMemo(() => {
+        return providers.filter((p) => {
+            const archived = providerIsArchived(p);
+            if (archiveVisibility === "active_only" && archived) return false;
+            if (archiveVisibility === "archived_only" && !archived) return false;
+            if (activationFilter === "paid" && !providerActivationPaid(p)) return false;
+            if (activationFilter === "unpaid" && providerActivationPaid(p)) return false;
+            const svc = p.id ? serviceCounts[p.id] ?? 0 : 0;
+            if (servicesFilter === "with_services" && svc < 1) return false;
+            if (servicesFilter === "no_services" && svc > 0) return false;
+            const ac = providerAccountActive(p);
+            if (accountFilter === "active" && !ac) return false;
+            if (accountFilter === "inactive" && ac) return false;
+            return true;
+        });
+    }, [providers, archiveVisibility, activationFilter, servicesFilter, accountFilter, serviceCounts]);
 
     const sortedProviders = useMemo(() => {
-        const arr = [...activeProviders];
+        const arr = [...attributeFilteredProviders];
         arr.sort((a, b) => {
             let aVal: string | number = 0;
             let bVal: string | number = 0;
@@ -118,7 +222,7 @@ const ProvidersPage = () => {
             return sortDir === "asc" ? aStr.localeCompare(bStr) : bStr.localeCompare(aStr);
         });
         return arr;
-    }, [activeProviders, sortBy, sortDir, serviceCounts]);
+    }, [attributeFilteredProviders, sortBy, sortDir, serviceCounts]);
 
     const filtered = useMemo(() => {
         if (!query.trim()) return sortedProviders;
@@ -136,6 +240,10 @@ const ProvidersPage = () => {
         const rows = filtered.map((p) => ({
             'Full Name': [p.firstName ?? p.first_name, p.lastName ?? p.last_name].filter(Boolean).join(' ') || p.name || '',
             'Phone': p.phoneNumber ?? p.phone ?? '',
+            'Email': p.email ?? '',
+            'Activation paid': providerActivationPaid(p) ? 'Yes' : 'No',
+            'Services': p.id ? (serviceCounts[p.id] ?? 0) : 0,
+            'Archived': providerIsArchived(p) ? 'Yes' : 'No',
         }));
         const ws = XLSX.utils.json_to_sheet(rows);
         const wb = XLSX.utils.book_new();
@@ -207,7 +315,7 @@ const ProvidersPage = () => {
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [query, showArchived]);
+    }, [query, archiveVisibility, activationFilter, servicesFilter, accountFilter]);
 
     // Calculate statistics
     const stats = useMemo(() => {
@@ -215,12 +323,16 @@ const ProvidersPage = () => {
         const avgServicesPerProvider = providers.length > 0 ? totalServices / providers.length : 0;
         const providersWithServices = Object.keys(serviceCounts).length;
         
+        const nonArchived = providers.filter((p) => !providerIsArchived(p));
+        const activationPaidCount = nonArchived.filter((p) => providerActivationPaid(p)).length;
+
         return {
             totalProviders: providers.length,
             totalServices,
             avgServicesPerProvider: Math.round(avgServicesPerProvider * 10) / 10,
             providersWithServices,
-            providersWithoutServices: providers.length - providersWithServices
+            providersWithoutServices: providers.length - providersWithServices,
+            activationPaidCount,
         };
     }, [providers, serviceCounts]);
 
@@ -247,10 +359,24 @@ const ProvidersPage = () => {
                                         Manage and review all providers on the platform
                                     </p>
                                 </div>
-                                <div className="flex items-center gap-3">
+                                <div className="flex flex-wrap items-center justify-end gap-3">
                                     <div className="rounded-xl border border-primary-foreground/15 bg-card/15 px-4 py-2 backdrop-blur-md">
                                         <div className="text-sm text-primary-foreground/80">Total Providers</div>
                                         <div className="text-2xl font-bold text-primary-foreground">{stats.totalProviders}</div>
+                                    </div>
+                                    <div className="flex items-center gap-3 rounded-xl border border-primary-foreground/15 bg-card/15 px-4 py-2 backdrop-blur-md">
+                                        <div
+                                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg shadow-md ring-1 ring-black/20"
+                                            style={{ backgroundColor: "#134e4a" }}
+                                        >
+                                            <BadgeCheck className="h-5 w-5 text-white" strokeWidth={2.5} aria-hidden />
+                                        </div>
+                                        <div>
+                                            <div className="text-sm text-primary-foreground/80">Activation paid</div>
+                                            <div className="text-2xl font-bold text-primary-foreground">
+                                                {loading ? "—" : stats.activationPaidCount}
+                                            </div>
+                                        </div>
                                     </div>
                                     <button
                                         onClick={() => { dispatch(fetchProviders()); dispatch(fetchServiceCountsByProvider()); }}
@@ -266,7 +392,7 @@ const ProvidersPage = () => {
 
                     <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
                         {/* Statistics Cards */}
-                        <section className="mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <section className="mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
                             <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-white/80 to-white/40 backdrop-blur-xl border border-white/20 p-6 shadow-xl transition-all duration-300 hover:shadow-2xl hover:scale-[1.02]">
                                 <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                                 <div className="relative z-10">
@@ -326,62 +452,231 @@ const ProvidersPage = () => {
                                     </p>
                                 </div>
                             </div>
-                        </section>
 
-                        {/* Search and View Toggle */}
-                        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                            <div className="relative flex-1 max-w-md">
-                                <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-                                <input
-                                    value={query}
-                                    onChange={(e) => setQuery(e.target.value)}
-                                    placeholder="Search providers by name, email, phone, address..."
-                                    className="w-full rounded-xl border border-white/20 bg-white/80 backdrop-blur-xl py-3 pl-11 pr-4 text-sm text-gray-900 placeholder:text-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200/50 shadow-lg transition-all"
-                                />
-                            </div>
-                            <div className="flex flex-wrap items-center gap-3">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowArchived((v) => !v)}
-                                    className={`inline-flex h-[40px] items-center rounded-xl border px-3 text-sm font-semibold transition-colors ${
-                                        showArchived
-                                            ? "border-indigo-300 bg-indigo-50 text-indigo-800"
-                                            : "border-white/20 bg-white/80 text-gray-700 hover:bg-white"
-                                    }`}
-                                >
-                                    {showArchived ? "Showing archived" : "Show archived"}
-                                </button>
-                                <button
-                                    onClick={exportToXlsx}
-                                    disabled={filtered.length === 0}
-                                    className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/80 backdrop-blur-xl px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-lg transition-all hover:bg-white hover:shadow-xl disabled:opacity-40 disabled:cursor-not-allowed"
-                                >
-                                    <Download className="h-4 w-4" />
-                                    Export XLSX
-                                </button>
-                                <div className="flex items-center gap-2 rounded-xl bg-white/80 backdrop-blur-xl border border-white/20 p-1 shadow-lg">
-                                    <button
-                                        onClick={() => setViewMode("grid")}
-                                        className={`p-2 rounded-lg transition-all ${
-                                            viewMode === "grid"
-                                                ? "bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg"
-                                                : "text-gray-600 hover:text-gray-900"
-                                        }`}
-                                    >
-                                        <Grid3x3 className="h-5 w-5" />
-                                    </button>
-                                    <button
-                                        onClick={() => setViewMode("table")}
-                                        className={`p-2 rounded-lg transition-all ${
-                                            viewMode === "table"
-                                                ? "bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg"
-                                                : "text-gray-600 hover:text-gray-900"
-                                        }`}
-                                    >
-                                        <List className="h-5 w-5" />
-                                    </button>
+                            <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-white/80 to-white/40 backdrop-blur-xl border border-white/20 p-6 shadow-xl transition-all duration-300 hover:shadow-2xl hover:scale-[1.02]">
+                                <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 to-teal-600/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                                <div className="relative z-10">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div
+                                            className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl shadow-lg ring-1 ring-teal-950/25"
+                                            style={{ backgroundColor: "#115e59" }}
+                                        >
+                                            <BadgeCheck className="h-6 w-6 text-white" strokeWidth={2.5} aria-hidden />
+                                        </div>
+                                    </div>
+                                    <p className="text-sm font-medium text-gray-600 mb-1">Activation paid</p>
+                                    <p className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+                                        {loading ? <span className="inline-block h-8 w-24 animate-pulse rounded bg-gray-200" /> : stats.activationPaidCount}
+                                    </p>
                                 </div>
                             </div>
+                        </section>
+
+                        {/* Search and filters */}
+                        <div className="mb-6 flex flex-col gap-5">
+                            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="relative w-full max-w-md flex-1">
+                                    <Search className="pointer-events-none absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+                                    <input
+                                        value={query}
+                                        onChange={(e) => setQuery(e.target.value)}
+                                        placeholder="Search name, email, phone, address…"
+                                        className={cn(
+                                            "w-full rounded-xl border border-white/20 bg-white/80 py-3 pl-12 text-sm text-gray-900 shadow-lg backdrop-blur-xl placeholder:text-gray-500 transition-all",
+                                            "focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200/50",
+                                            query.trim() ? "pr-12" : "pr-5"
+                                        )}
+                                    />
+                                    {query.trim() ? (
+                                        <button
+                                            type="button"
+                                            aria-label="Clear search"
+                                            onClick={() => setQuery("")}
+                                            className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2"
+                                        >
+                                            <X className="h-4 w-4" />
+                                        </button>
+                                    ) : null}
+                                </div>
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setFiltersPanelOpen((open) => !open)}
+                                        aria-expanded={filtersPanelOpen}
+                                        aria-controls="providers-filters-panel"
+                                        id="providers-filters-trigger"
+                                        className={cn(
+                                            "inline-flex h-10 items-center gap-2 rounded-xl px-5 text-sm font-semibold backdrop-blur-xl transition-all",
+                                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2",
+                                            filtersPanelOpen
+                                                ? "bg-indigo-50/95 text-indigo-900"
+                                                : "bg-white/80 text-gray-800 hover:bg-white"
+                                        )}
+                                    >
+                                        <Filter className="h-4 w-4 shrink-0" />
+                                        <span>Filters</span>
+                                        {nonDefaultFilterCount > 0 ? (
+                                            <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-indigo-600 px-1.5 text-[11px] font-bold text-white tabular-nums">
+                                                {nonDefaultFilterCount}
+                                            </span>
+                                        ) : null}
+                                        <ChevronDown
+                                            className={cn(
+                                                "h-4 w-4 shrink-0 text-gray-500 transition-transform duration-200",
+                                                filtersPanelOpen && "rotate-180 text-indigo-700"
+                                            )}
+                                            aria-hidden
+                                        />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={exportToXlsx}
+                                        disabled={filtered.length === 0}
+                                        className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/20 bg-white/80 px-4 text-sm font-semibold text-gray-700 shadow-lg backdrop-blur-xl transition-all hover:bg-white hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-40"
+                                    >
+                                        <Download className="h-4 w-4 shrink-0" />
+                                        Export XLSX
+                                    </button>
+                                    <div className="flex h-10 items-center gap-0.5 rounded-xl border border-white/20 bg-white/80 p-1 shadow-lg backdrop-blur-xl">
+                                        <button
+                                            type="button"
+                                            aria-pressed={viewMode === "grid"}
+                                            onClick={() => setViewMode("grid")}
+                                            className={cn(
+                                                "rounded-lg p-2 transition-all",
+                                                viewMode === "grid"
+                                                    ? "bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-md"
+                                                    : "text-gray-600 hover:bg-gray-100/80 hover:text-gray-900"
+                                            )}
+                                        >
+                                            <Grid3x3 className="h-5 w-5" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            aria-pressed={viewMode === "table"}
+                                            onClick={() => setViewMode("table")}
+                                            className={cn(
+                                                "rounded-lg p-2 transition-all",
+                                                viewMode === "table"
+                                                    ? "bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-md"
+                                                    : "text-gray-600 hover:bg-gray-100/80 hover:text-gray-900"
+                                            )}
+                                        >
+                                            <List className="h-5 w-5" />
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {filtersPanelOpen ? (
+                            <div
+                                id="providers-filters-panel"
+                                role="region"
+                                aria-labelledby="providers-filters-trigger"
+                                className="relative overflow-hidden rounded-2xl border border-white/25 bg-white/75 px-6 py-5 backdrop-blur-xl sm:px-8 sm:py-6"
+                            >
+                                <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-indigo-500/[0.06] via-transparent to-purple-500/[0.07]" />
+                                <div className="relative">
+                                    <div className="mb-5 flex flex-wrap items-start justify-between gap-4 border-b border-gray-200/60 pb-4">
+                                        <div className="flex min-w-0 items-start gap-3">
+                                            <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
+                                                <Filter className="h-[18px] w-[18px]" />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <h2 className="text-base font-semibold text-gray-900">Filters</h2>
+                                                    {nonDefaultFilterCount > 0 ? (
+                                                        <span className="inline-flex items-center rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-bold tabular-nums text-indigo-800">
+                                                            {nonDefaultFilterCount} active
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-xs font-medium text-gray-400">Defaults</span>
+                                                    )}
+                                                </div>
+                                                <p className="mt-0.5 text-sm text-gray-500">
+                                                    Showing <span className="font-semibold text-gray-700">{filtered.length}</span> of{" "}
+                                                    <span className="font-semibold text-gray-700">{attributeFilteredProviders.length}</span>
+                                                    {query.trim() ? (
+                                                        <>
+                                                            {" "}
+                                                            <span className="text-gray-400">(after search)</span>
+                                                        </>
+                                                    ) : null}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={resetFilters}
+                                                disabled={nonDefaultFilterCount === 0}
+                                                className={cn(
+                                                    "inline-flex h-10 shrink-0 items-center gap-2 rounded-xl px-5 text-sm font-semibold transition-all",
+                                                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2",
+                                                    nonDefaultFilterCount > 0
+                                                        ? "bg-indigo-50/90 text-indigo-900 hover:bg-indigo-100/90"
+                                                        : "cursor-not-allowed bg-gray-50/80 text-gray-400"
+                                                )}
+                                            >
+                                                <RotateCcw className={cn("h-4 w-4 shrink-0", nonDefaultFilterCount === 0 && "opacity-50")} />
+                                                Reset
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setFiltersPanelOpen(false)}
+                                                className="inline-flex h-10 min-w-10 shrink-0 items-center justify-center rounded-xl border border-gray-200/90 bg-white/90 px-3 text-gray-700 transition-all hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2"
+                                                aria-label="Close filters"
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
+                                        <SegmentGroup
+                                            label="Archive"
+                                            value={archiveVisibility}
+                                            onChange={setArchiveVisibility}
+                                            options={[
+                                                { value: "active_only", label: "Active" },
+                                                { value: "all", label: "All" },
+                                                { value: "archived_only", label: "Archived" },
+                                            ]}
+                                        />
+                                        <SegmentGroup
+                                            label="Activation"
+                                            value={activationFilter}
+                                            onChange={setActivationFilter}
+                                            options={[
+                                                { value: "all", label: "All" },
+                                                { value: "paid", label: "Paid" },
+                                                { value: "unpaid", label: "Unpaid" },
+                                            ]}
+                                        />
+                                        <SegmentGroup
+                                            label="Services"
+                                            value={servicesFilter}
+                                            onChange={setServicesFilter}
+                                            options={[
+                                                { value: "all", label: "All" },
+                                                { value: "with_services", label: "Has listings" },
+                                                { value: "no_services", label: "None" },
+                                            ]}
+                                        />
+                                        <SegmentGroup
+                                            label="Account"
+                                            value={accountFilter}
+                                            onChange={setAccountFilter}
+                                            options={[
+                                                { value: "all", label: "All" },
+                                                { value: "active", label: "Active" },
+                                                { value: "inactive", label: "Inactive" },
+                                            ]}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                            ) : null}
                         </div>
 
                         {actionError && (
@@ -453,13 +748,13 @@ const ProvidersPage = () => {
                                                             ) : null}
                                                             <div className="mt-2 flex items-center gap-2">
                                                                 <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
-                                                                    p.activation_paid
+                                                                    providerActivationPaid(p)
                                                                         ? "bg-emerald-100 text-emerald-700"
                                                                         : "bg-amber-100 text-amber-700"
                                                                 }`}>
-                                                                    {p.activation_paid ? "Activation Paid" : "Activation Fee Pending"}
+                                                                    {providerActivationPaid(p) ? "Activation Paid" : "Activation Fee Pending"}
                                                                 </span>
-                                                                {!p.activation_paid && (
+                                                                {!providerActivationPaid(p) && (
                                                                     <button
                                                                         type="button"
                                                                         onClick={(e) => {
@@ -588,7 +883,7 @@ const ProvidersPage = () => {
                                             <Search className="h-8 w-8 text-gray-400" />
                                         </div>
                                         <p className="text-lg font-semibold text-gray-900 mb-2">No providers found</p>
-                                        <p className="text-sm text-gray-600">Try adjusting your search criteria</p>
+                                        <p className="text-sm text-gray-600">Try adjusting your search or filters</p>
                                     </div>
                                 )}
                             </div>
@@ -685,13 +980,13 @@ const ProvidersPage = () => {
                                                                     </span>
                                                                     <div className="mt-1 flex items-center gap-1.5">
                                                                         <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                                                                            p.activation_paid
+                                                                            providerActivationPaid(p)
                                                                                 ? "bg-emerald-100 text-emerald-700"
                                                                                 : "bg-amber-100 text-amber-700"
                                                                         }`}>
-                                                                            {p.activation_paid ? "Activation Paid" : "Activation Fee Pending"}
+                                                                            {providerActivationPaid(p) ? "Activation Paid" : "Activation Fee Pending"}
                                                                         </span>
-                                                                        {!p.activation_paid && (
+                                                                        {!providerActivationPaid(p) && (
                                                                             <button
                                                                                 onClick={(e) => {
                                                                                     e.preventDefault();
@@ -714,13 +1009,13 @@ const ProvidersPage = () => {
                                                                     </span>
                                                                     <div className="mt-1 flex items-center gap-1.5">
                                                                         <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                                                                            p.activation_paid
+                                                                            providerActivationPaid(p)
                                                                                 ? "bg-emerald-100 text-emerald-700"
                                                                                 : "bg-amber-100 text-amber-700"
                                                                         }`}>
-                                                                            {p.activation_paid ? "Activation Paid" : "Activation Fee Pending"}
+                                                                            {providerActivationPaid(p) ? "Activation Paid" : "Activation Fee Pending"}
                                                                         </span>
-                                                                        {!p.activation_paid && (
+                                                                        {!providerActivationPaid(p) && (
                                                                             <button
                                                                                 onClick={() => setActivationTarget({ id: p.id, name: label })}
                                                                                 className="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-200 transition-colors"
@@ -844,7 +1139,7 @@ const ProvidersPage = () => {
                                                                 <Search className="h-8 w-8 text-gray-400" />
                                                             </div>
                                                             <p className="text-lg font-semibold text-gray-900">No providers found</p>
-                                                            <p className="text-sm text-gray-600">Try adjusting your search criteria</p>
+                                                            <p className="text-sm text-gray-600">Try adjusting your search or filters</p>
                                                         </div>
                                                     </TableCell>
                                                 </TableRow>
