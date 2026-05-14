@@ -86,7 +86,7 @@ async function main(): Promise<void> {
 
     const messageTemplate =
         process.env.ZERO_SERVICES_SMS_MESSAGE ??
-        'Hello {{name}}! Please open the Lolelink provider app and add at least one service so customers can find you. Thank you!';
+        'ሰላም {{name}}! ከዘመን ፕሮቫይደር ሰለተመዘገቡ እናመሰግናለን። በዘመን ፕሮቫይደር መተግበሪያ ላይ እስካሁን አገልግሎት አልጨመሩም። እባክዎ አገልግሎትዎን ያስገቡ፤ ደንበኞች እርስዎን ሲፈልጉ ያገኙዎታል። ጥያቄ ካለዎት በዚህ ስልክ 0941024355 ደውለው ይጠይቁ:: ለትብብርዎ እናመሰግናለን!! መልካም ስራ!';
 
     const dryRun = process.argv.includes('--dry-run');
     const forceSingle = process.argv.includes('--force');
