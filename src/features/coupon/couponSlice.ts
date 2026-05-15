@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { supabase } from '@/lib/supabaseClient';
+import { getSupabase } from '@/lib/supabaseClient';
 
 export interface Coupon {
     id: number;
@@ -62,7 +62,7 @@ export const fetchCoupons = createAsyncThunk<
     'coupon/fetchCoupons',
     async (_, { rejectWithValue }) => {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await getSupabase()
                 .from('coupon')
                 .select('*')
                 .order('created_at', { ascending: false });
@@ -93,7 +93,7 @@ export const createCoupon = createAsyncThunk<
     'coupon/createCoupon',
     async (couponData, { rejectWithValue }) => {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await getSupabase()
                 .from('coupon')
                 .insert({
                     title: couponData.title,
@@ -135,7 +135,7 @@ export const updateCoupon = createAsyncThunk<
     'coupon/updateCoupon',
     async ({ id, ...updates }, { rejectWithValue }) => {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await getSupabase()
                 .from('coupon')
                 .update(updates)
                 .eq('id', id)
@@ -159,7 +159,7 @@ export const deleteCoupon = createAsyncThunk<
     'coupon/deleteCoupon',
     async (id, { rejectWithValue }) => {
         try {
-            const { error } = await supabase
+            const { error } = await getSupabase()
                 .from('coupon')
                 .delete()
                 .eq('id', id);

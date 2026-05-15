@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
 
@@ -65,6 +65,7 @@ function pickPreferred(methods: ProviderPaymentMethodRow[]): ProviderPaymentMeth
 }
 
 export async function POST(request: Request) {
+        const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const body = (await request.json()) as RequestBody;
         const providerIds = (body.providerIds || []).map(normalizeText).filter(Boolean);

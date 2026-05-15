@@ -1,5 +1,5 @@
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { supabase } from '@/lib/supabaseClient';
+import { getSupabase } from '@/lib/supabaseClient';
 
 export interface Payment {
     id: string;
@@ -134,7 +134,7 @@ export const fetchPayments = createAsyncThunk<
     { rejectValue: string }
 >('payments/fetchPayments', async (_, { rejectWithValue }) => {
     try {
-        const { data, error } = await supabase
+        const { data, error } = await getSupabase()
             .from('booked_service')
             .select('*')
             .order('createdAt', { ascending: false });
@@ -175,7 +175,7 @@ export const updatePayment = createAsyncThunk<
         if (payload.paidAt !== undefined) updateData.paid_at = payload.paidAt;
         if (payload.escrowReleasedAt !== undefined) updateData.escrow_released_at = payload.escrowReleasedAt;
 
-        const { data, error } = await supabase
+        const { data, error } = await getSupabase()
             .from('booked_service')
             .update(updateData)
             .eq('id', id)

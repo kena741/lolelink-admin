@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { supabase } from '@/lib/supabaseClient';
+import { getSupabase } from '@/lib/supabaseClient';
 
 export interface Document {
     id: string;
@@ -44,7 +44,7 @@ export const fetchDocuments = createAsyncThunk<
     'document/fetchDocuments',
     async (_, { rejectWithValue }) => {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await getSupabase()
                 .from('documents')
                 .select('*')
                 .order('name', { ascending: true });
@@ -66,7 +66,7 @@ export const createDocument = createAsyncThunk<
     'document/createDocument',
     async (documentData, { rejectWithValue }) => {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await getSupabase()
                 .from('documents')
                 .insert({
                     name: documentData.name,
@@ -93,7 +93,7 @@ export const updateDocument = createAsyncThunk<
     'document/updateDocument',
     async ({ id, ...updates }, { rejectWithValue }) => {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await getSupabase()
                 .from('documents')
                 .update(updates)
                 .eq('id', id)
@@ -117,7 +117,7 @@ export const deleteDocument = createAsyncThunk<
     'document/deleteDocument',
     async (id, { rejectWithValue }) => {
         try {
-            const { error } = await supabase
+            const { error } = await getSupabase()
                 .from('documents')
                 .delete()
                 .eq('id', id);

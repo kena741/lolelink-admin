@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { supabase } from '@/lib/supabaseClient';
+import { getSupabase } from '@/lib/supabaseClient';
 
 export interface Category {
     id: string;
@@ -47,7 +47,7 @@ export const fetchCategories = createAsyncThunk<
     'category/fetchCategories',
     async (_, { rejectWithValue }) => {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await getSupabase()
                 .from('category')
                 .select('*')
                 .order('categoryName', { ascending: true });
@@ -69,7 +69,7 @@ export const createCategory = createAsyncThunk<
     'category/createCategory',
     async ({ categoryName, image, active = true, description }, { rejectWithValue }) => {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await getSupabase()
                 .from('category')
                 .insert({ categoryName, image, active, description })
                 .select()
@@ -92,7 +92,7 @@ export const updateCategory = createAsyncThunk<
     'category/updateCategory',
     async ({ id, ...updates }, { rejectWithValue }) => {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await getSupabase()
                 .from('category')
                 .update(updates)
                 .eq('id', id)
@@ -116,7 +116,7 @@ export const deleteCategory = createAsyncThunk<
     'category/deleteCategory',
     async (id, { rejectWithValue }) => {
         try {
-            const { error } = await supabase
+            const { error } = await getSupabase()
                 .from('category')
                 .delete()
                 .eq('id', id);

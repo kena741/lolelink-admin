@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
 
@@ -59,7 +59,8 @@ function customerDisplayPhone(customer: CustomerLookupRow | undefined): string {
     return '';
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+    const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const { data, error } = await supabaseAdmin
             .from('job_request')
@@ -124,6 +125,7 @@ interface UpdateJobRequestBody {
 }
 
 export async function PATCH(request: Request) {
+    const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const body = (await request.json()) as UpdateJobRequestBody;
         const id = (body.id || '').trim();

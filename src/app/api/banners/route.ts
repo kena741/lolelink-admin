@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
 
@@ -18,7 +18,8 @@ interface BannerMutationBody {
     link?: string;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+    const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const { data, error } = await supabaseAdmin
             .from('banner')
@@ -34,6 +35,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+    const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const body = (await request.json()) as BannerMutationBody;
         const bannerName = (body.bannerName ?? '').trim();
@@ -56,6 +58,7 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+    const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const body = (await request.json()) as BannerMutationBody;
         if (!body.id)
@@ -83,6 +86,7 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+    const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const body = (await request.json()) as BannerMutationBody;
         if (!body.id)

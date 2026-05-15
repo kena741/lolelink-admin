@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabaseClient';
+import { getSupabase } from '@/lib/supabaseClient';
 
 /**
  * Uploads files to Supabase Storage and returns their public URLs.
@@ -10,11 +10,11 @@ export async function uploadFilesToSupabase(files: File[], folderPath: string): 
   const urls: string[] = [];
   for (const file of files) {
     const filePath = `${folderPath}/${Date.now()}_${file.name}`;
-    const { error } = await supabase.storage
+    const { error } = await getSupabase().storage
       .from('betegnabucket')
       .upload(filePath, file, { cacheControl: '3600', upsert: false });
     if (error) throw new Error(error.message);
-    const { data: publicUrlData } = supabase.storage.from('betegnabucket').getPublicUrl(filePath);
+    const { data: publicUrlData } = getSupabase().storage.from('betegnabucket').getPublicUrl(filePath);
     if (!publicUrlData?.publicUrl) throw new Error('Failed to get public URL');
     urls.push(publicUrlData.publicUrl);
   }

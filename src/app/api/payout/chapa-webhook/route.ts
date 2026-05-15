@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
 
@@ -40,14 +41,17 @@ function mapWithdrawalStatus(status: string): 'completed' | 'rejected' | 'approv
     return 'approved';
 }
 
-async function insertNotificationIfMissing(params: {
+async function insertNotificationIfMissing(
+    admin: SupabaseClient,
+    params: {
     title: string;
     description: string;
     type: string;
     action_url?: string;
-}): Promise<void> {
+}
+): Promise<void> {
     const { title, description, type, action_url } = params;
-    const { data: existing } = await supabaseAdmin
+    const { data: existing } = await admin
         .from('notification')
         .select('id')
         .eq('type', type)
@@ -56,7 +60,7 @@ async function insertNotificationIfMissing(params: {
         .limit(1)
         .maybeSingle();
     if (existing) return;
-    await supabaseAdmin.from('notification').insert({
+    await admin.from('notification').insert({
         title,
         description,
         type,
@@ -66,6 +70,7 @@ async function insertNotificationIfMissing(params: {
 }
 
 export async function POST(request: Request) {
+    const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const payload = (await request.json()) as ChapaWebhookPayload;
         const reference = resolveReference(payload);
@@ -102,7 +107,7 @@ export async function POST(request: Request) {
         if (updateError)
             return NextResponse.json({ error: updateError.message || 'Failed to update withdrawal status from webhook' }, { status: 500 });
 
-        await insertNotificationIfMissing({
+        await insertNotificationIfMissing(supabaseAdmin, {
             title: `Payout ${nextStatus}`,
             description: `Chapa transfer ${nextStatus}. reference=${reference}`,
             type: `payout_${nextStatus}`,

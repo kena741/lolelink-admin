@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { supabase } from '@/lib/supabaseClient';
+import { getSupabase } from '@/lib/supabaseClient';
 
 export interface VerifyDocument {
     id: string;
@@ -56,7 +56,7 @@ async function fetchSubCategoryIdsForDocumentIds(documentIds: string[]): Promise
     const unique = [...new Set(documentIds.filter(Boolean))];
     if (unique.length === 0) return [];
 
-    const { data: links, error } = await supabase
+    const { data: links, error } = await getSupabase()
         .from('sub_category_documents')
         .select('subCategoryId')
         .in('documentId', unique);
@@ -75,7 +75,7 @@ async function mergeProviderVerifiedSubcategoryIds(providerId: string, newIds: s
     const uniqueNew = [...new Set(newIds.filter(Boolean))];
     if (uniqueNew.length === 0) return;
 
-    const { data: row, error: selectError } = await supabase
+    const { data: row, error: selectError } = await getSupabase()
         .from('provider')
         .select('verified_subcategory_ids')
         .eq('id', providerId)
@@ -90,7 +90,7 @@ async function mergeProviderVerifiedSubcategoryIds(providerId: string, newIds: s
 
     const merged = [...new Set([...existing, ...uniqueNew])];
 
-    const { error: updateError } = await supabase
+    const { error: updateError } = await getSupabase()
         .from('provider')
         .update({ verified_subcategory_ids: merged })
         .eq('id', providerId);
@@ -106,7 +106,7 @@ export const fetchVerifyDocuments = createAsyncThunk<
     'verifyDocuments/fetchVerifyDocuments',
     async (_, { rejectWithValue }) => {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await getSupabase()
                 .from('verify_documents')
                 .select('*')
                 .order('createdAt', { ascending: false });
@@ -119,7 +119,7 @@ export const fetchVerifyDocuments = createAsyncThunk<
             const documentToSubCategoryName: Record<string, string> = {};
             
             if (documentIds.length > 0) {
-                const { data: documents, error: docError } = await supabase
+                const { data: documents, error: docError } = await getSupabase()
                     .from('documents')
                     .select('id, name')
                     .in('id', documentIds);
@@ -131,7 +131,7 @@ export const fetchVerifyDocuments = createAsyncThunk<
                 }
 
                 // Fetch subcategory names via junction table
-                const { data: links, error: linkError } = await supabase
+                const { data: links, error: linkError } = await getSupabase()
                     .from('sub_category_documents')
                     .select('documentId, subCategoryId')
                     .in('documentId', documentIds);
@@ -149,7 +149,7 @@ export const fetchVerifyDocuments = createAsyncThunk<
                 ];
 
                 if (subCategoryIds.length > 0) {
-                    const { data: subCategories, error: subError } = await supabase
+                    const { data: subCategories, error: subError } = await getSupabase()
                         .from('sub_category')
                         .select('id, subCategoryName')
                         .in('id', subCategoryIds);
@@ -192,7 +192,7 @@ export const verifyDocument = createAsyncThunk<
     'verifyDocuments/verifyDocument',
     async (id, { rejectWithValue }) => {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await getSupabase()
                 .from('verify_documents')
                 .update({ isVerify: true })
                 .eq('id', id)
@@ -208,7 +208,7 @@ export const verifyDocument = createAsyncThunk<
                     : [];
                 await mergeProviderVerifiedSubcategoryIds(row.providerId, subIds);
             } catch (providerErr) {
-                await supabase.from('verify_documents').update({ isVerify: null }).eq('id', id);
+                await getSupabase().from('verify_documents').update({ isVerify: null }).eq('id', id);
                 const msg =
                     providerErr instanceof Error
                         ? providerErr.message
@@ -232,7 +232,7 @@ export const rejectDocument = createAsyncThunk<
     'verifyDocuments/rejectDocument',
     async (id, { rejectWithValue }) => {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await getSupabase()
                 .from('verify_documents')
                 .update({ isVerify: false })
                 .eq('id', id)
@@ -256,7 +256,7 @@ export const approveAllDocuments = createAsyncThunk<
     'verifyDocuments/approveAllDocuments',
     async (providerId, { rejectWithValue }) => {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await getSupabase()
                 .from('verify_documents')
                 .update({ isVerify: true })
                 .eq('providerId', providerId)
@@ -275,7 +275,7 @@ export const approveAllDocuments = createAsyncThunk<
                 await mergeProviderVerifiedSubcategoryIds(providerId, subIds);
             } catch (providerErr) {
                 if (rowIds.length > 0) {
-                    await supabase.from('verify_documents').update({ isVerify: null }).in('id', rowIds);
+                    await getSupabase().from('verify_documents').update({ isVerify: null }).in('id', rowIds);
                 }
                 const msg =
                     providerErr instanceof Error

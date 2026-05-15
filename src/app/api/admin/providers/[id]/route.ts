@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
 
@@ -25,6 +25,7 @@ function columnHintMessage(raw: string): string {
 }
 
 export async function PATCH(request: Request, context: { params: Promise<RouteParams> }) {
+    const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const id = await getIdFromParams(context.params);
         if (!id) return NextResponse.json({ error: 'Invalid provider id' }, { status: 400 });
@@ -45,7 +46,8 @@ export async function PATCH(request: Request, context: { params: Promise<RoutePa
     }
 }
 
-export async function DELETE(_request: Request, context: { params: Promise<RouteParams> }) {
+export async function DELETE(request: Request, context: { params: Promise<RouteParams> }) {
+    const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const id = await getIdFromParams(context.params);
         if (!id) return NextResponse.json({ error: 'Invalid provider id' }, { status: 400 });

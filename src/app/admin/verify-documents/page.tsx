@@ -21,7 +21,7 @@ import {
 import Link from 'next/link';
 import Image from 'next/image';
 import { fetchVerifyDocuments, verifyDocument, rejectDocument, approveAllDocuments } from '@/features/verifyDocuments/verifyDocumentsSlice';
-import { supabase } from '@/lib/supabaseClient';
+import { getSupabase } from '@/lib/supabaseClient';
 import { sendSms, buildRecipient } from '@/lib/sms';
 import { cn } from '@/lib/utils';
 
@@ -62,7 +62,7 @@ const VerifyDocumentsPage = () => {
 
     async function fetchProviderPhone(providerId: string): Promise<string> {
         try {
-            const { data } = await supabase
+            const { data } = await getSupabase()
                 .from('provider')
                 .select('*')
                 .eq('id', providerId)

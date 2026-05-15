@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
 
@@ -30,6 +30,7 @@ function isNumericText(value: string): boolean {
 }
 
 export async function POST(request: Request) {
+        const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const body = (await request.json()) as RequestBody;
         const providerID = normalizeText(body.providerID);

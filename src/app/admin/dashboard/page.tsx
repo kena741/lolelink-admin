@@ -1,7 +1,7 @@
 'use client';
 import React, { Suspense, useCallback, useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { supabase } from '@/lib/supabaseClient';
+import { getSupabase } from '@/lib/supabaseClient';
 import { fetchProviders, ProviderState } from '@/features/provider/providerSlice';
 import { AppDispatch } from '@/store/store';
 import Sidebar from '@/components/Sidebar';
@@ -184,7 +184,7 @@ function DashboardContent() {
             setCountsLoading(true);
             
             // Fetch bookings with full data for analytics
-            const { data: bookings, error: bookingsError } = await supabase
+            const { data: bookings, error: bookingsError } = await getSupabase()
                 .from('booked_service')
                 .select('*')
                 .order('createdAt', { ascending: false });
@@ -208,7 +208,7 @@ function DashboardContent() {
                 const totalCompletedGrossAmount = rangedCompletedPaidBookings.reduce((sum, booking) => {
                     return sum + getBookingGrossAmount(booking);
                 }, 0);
-                const { data: walletRows, error: walletRowsError } = await supabase
+                const { data: walletRows, error: walletRowsError } = await getSupabase()
                     .from('wallet_transaction')
                     .select('amount, isCredit, note, transactionId, createdDate');
                 const rangedWalletRows = !walletRowsError && walletRows
@@ -322,10 +322,10 @@ function DashboardContent() {
                 });
             }
 
-            const { data: withdrawalRows, error: withdrawalError } = await supabase
+            const { data: withdrawalRows, error: withdrawalError } = await getSupabase()
                 .from('withdrawal_history')
                 .select('id, providerId, paymentStatus, adminNote, paymentDate, createdDate');
-            const { data: paymentMethodRows, error: paymentMethodError } = await supabase
+            const { data: paymentMethodRows, error: paymentMethodError } = await getSupabase()
                 .from('provider_payment_methods')
                 .select('providerID, is_active');
 
@@ -403,7 +403,7 @@ function DashboardContent() {
             }
 
             // Count customers
-            const { count: custCount } = await supabase
+            const { count: custCount } = await getSupabase()
                 .from('customer')
                 .select('*', { count: 'exact', head: true });
             setCustomerCount(custCount ?? 0);

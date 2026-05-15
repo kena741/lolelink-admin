@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
+import { getSupabase } from "@/lib/supabaseClient";
 import { ALLOWED_EMAIL } from "@/lib/authConfig";
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -15,15 +15,15 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         const check = async () => {
             try {
                 // Use local session first (fast, avoids network on cold start)
-                const { data: sess } = await supabase.auth.getSession();
+                const { data: sess } = await getSupabase().auth.getSession();
                 const email = sess.session?.user?.email;
                 if (!email) {
                     // Transient race after login: wait briefly and re-check once
                     await new Promise((r) => setTimeout(r, 150));
-                    const { data: retry } = await supabase.auth.getSession();
+                    const { data: retry } = await getSupabase().auth.getSession();
                     const again = retry.session?.user?.email;
                     if (!again) {
-                        await supabase.auth.signOut();
+                        await getSupabase().auth.signOut();
                         if (mounted && !didNavigate.current) {
                             didNavigate.current = true;
                             router.replace("/login?error=auth&next=" + encodeURIComponent(pathname || "/admin/dashboard"));
@@ -35,7 +35,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                 const ok = !!email && email.toLowerCase() === ALLOWED_EMAIL.toLowerCase();
                 if (!ok) {
                     // If not allowed, ensure signed out and go to login
-                    await supabase.auth.signOut();
+                    await getSupabase().auth.signOut();
                     if (mounted && !didNavigate.current) {
                         didNavigate.current = true;
                         router.replace(
@@ -61,7 +61,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         };
         check();
 
-        const { data: sub } = supabase.auth.onAuthStateChange(() => {
+        const { data: sub } = getSupabase().auth.onAuthStateChange(() => {
             // Re-run check on auth changes
             check();
         });

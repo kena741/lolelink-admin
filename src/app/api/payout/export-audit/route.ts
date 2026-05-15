@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
 
@@ -35,6 +35,7 @@ function toCsvField(value: unknown): string {
 }
 
 export async function GET(request: Request) {
+        const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const url = new URL(request.url);
         const segment = normalizeText(url.searchParams.get('segment')).toLowerCase();

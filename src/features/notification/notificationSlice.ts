@@ -1,5 +1,5 @@
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { supabase } from '@/lib/supabaseClient';
+import { getSupabase } from '@/lib/supabaseClient';
 
 export interface NotificationItem {
     id: string;
@@ -52,7 +52,7 @@ export const fetchNotifications = createAsyncThunk<
     { rejectValue: string }
 >('notification/fetchNotifications', async (_, { rejectWithValue }) => {
     try {
-        const { data, error } = await supabase
+        const { data, error } = await getSupabase()
             .from('notification')
             .select('*')
             .order('created_at', { ascending: false })
@@ -73,7 +73,7 @@ export const markNotificationRead = createAsyncThunk<
 >('notification/markNotificationRead', async ({ id }, { rejectWithValue }) => {
     try {
         const readAt = new Date().toISOString();
-        const { error } = await supabase
+        const { error } = await getSupabase()
             .from('notification')
             .update({ is_read: true, read_at: readAt })
             .eq('id', id);
@@ -92,7 +92,7 @@ export const markAllNotificationsRead = createAsyncThunk<
 >('notification/markAllNotificationsRead', async (_, { rejectWithValue }) => {
     try {
         const readAt = new Date().toISOString();
-        const { error } = await supabase
+        const { error } = await getSupabase()
             .from('notification')
             .update({ is_read: true, read_at: readAt })
             .eq('is_read', false);
@@ -110,7 +110,7 @@ export const deleteNotification = createAsyncThunk<
     { rejectValue: string }
 >('notification/deleteNotification', async ({ id }, { rejectWithValue }) => {
     try {
-        const { error } = await supabase
+        const { error } = await getSupabase()
             .from('notification')
             .delete()
             .eq('id', id);
@@ -129,7 +129,7 @@ export const deleteNotificationsBulk = createAsyncThunk<
 >('notification/deleteNotificationsBulk', async ({ ids }, { rejectWithValue }) => {
     try {
         if (ids.length === 0) return { ids: [] };
-        const { error } = await supabase
+        const { error } = await getSupabase()
             .from('notification')
             .delete()
             .in('id', ids);

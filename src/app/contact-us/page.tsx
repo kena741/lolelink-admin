@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getSupabaseAdmin, getServerSupabaseTarget } from "@/lib/supabaseAdmin";
 
 import { LandingFooter } from "../_components/landing/LandingFooter";
 import { DEFAULT_CONTACT_US } from "@/features/settings/contactDefaults";
@@ -29,6 +29,8 @@ function parseContactUsData(value: unknown): Partial<typeof DEFAULT_CONTACT_US> 
 
 async function getContactUsValues(): Promise<typeof DEFAULT_CONTACT_US> {
   try {
+    const target = await getServerSupabaseTarget();
+    const supabaseAdmin = getSupabaseAdmin(target);
     const { data } = await supabaseAdmin
       .from("app_settings")
       .select("data")

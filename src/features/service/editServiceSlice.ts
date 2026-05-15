@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction, createAsyncThunk } from '@reduxjs/toolkit';
-import { supabase } from '@/lib/supabaseClient';
+import { getSupabase } from '@/lib/supabaseClient';
 import { uploadFilesToSupabase } from '@/lib/upload';
 
 // Minimal shapes to satisfy usage; replace with your canonical types if available
@@ -81,7 +81,7 @@ export const updateService = createAsyncThunk<ServiceModel, UpdateServiceArgs, {
             const { id, videoFile, removeVideo, ...rest } = args;
             if (!id) throw new Error('Service ID is required');
 
-            const { data: original, error: fetchError } = await supabase
+            const { data: original, error: fetchError } = await getSupabase()
                 .from('service')
                 .select('*')
                 .eq('id', id)
@@ -143,7 +143,7 @@ export const updateService = createAsyncThunk<ServiceModel, UpdateServiceArgs, {
                 return original as ServiceModel;
             }
 
-            const { data, error } = await supabase
+            const { data, error } = await getSupabase()
                 .from('service')
                 .update(serviceData)
                 .eq('id', id)

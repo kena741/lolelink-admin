@@ -1,4 +1,4 @@
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getSupabaseAdmin, getServerSupabaseTarget } from "@/lib/supabaseAdmin";
 
 interface AppSettingsRow {
   id: string;
@@ -27,6 +27,8 @@ function toPolicyValue(value: unknown): string {
 }
 
 export async function getPublicPolicies(): Promise<PolicyContent> {
+  const target = await getServerSupabaseTarget();
+  const supabaseAdmin = getSupabaseAdmin(target);
   const { data, error } = await supabaseAdmin
     .from("app_settings")
     .select("id, data")

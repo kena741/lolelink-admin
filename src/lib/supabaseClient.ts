@@ -1,19 +1,22 @@
 "use client";
+
 import { createBrowserClient } from '@supabase/ssr';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import {
+    getClientSupabaseTarget,
+    getPublicSupabaseConfig,
+    type SupabaseTarget,
+} from '@/lib/supabase-env';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const browserClients = new Map<SupabaseTarget, SupabaseClient>();
 
-const missing: string[] = [];
-if (!supabaseUrl) missing.push("NEXT_PUBLIC_SUPABASE_URL");
-if (!supabaseAnonKey) missing.push("NEXT_PUBLIC_SUPABASE_ANON_KEY");
-if (missing.length > 0) {
-    throw new Error(
-        `Supabase client requires: ${missing.join(", ")}. Add them to .env.local (see .env.example). ` +
-        "Values: https://supabase.com/dashboard/project/_/settings/api"
-    );
+export function getSupabase(): SupabaseClient {
+    const target = getClientSupabaseTarget();
+    const cached = browserClients.get(target);
+    if (cached) return cached;
+
+    const config = getPublicSupabaseConfig(target);
+    const client = createBrowserClient(config.url, config.anonKey);
+    browserClients.set(target, client);
+    return client;
 }
-
-const url = supabaseUrl as string;
-const key = supabaseAnonKey as string;
-export const supabase = createBrowserClient(url, key);

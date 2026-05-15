@@ -1,5 +1,9 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
-import { supabase } from "@/lib/supabaseClient";
+import { getSupabase } from "@/lib/supabaseClient";
+import {
+    getClientSupabaseTarget,
+    getEdgeFunctionsBaseUrl,
+} from "@/lib/supabase-env";
 
 export interface Customer {
     id?: string;
@@ -57,7 +61,7 @@ const initialState: CustomerListState = {
 export const addCustomer = createAsyncThunk(
     "customer/addCustomer",
     async (customer: Customer, { rejectWithValue }) => {
-        const { error } = await supabase.from("customer").insert(customer);
+        const { error } = await getSupabase().from("customer").insert(customer);
         if (error) return rejectWithValue(error.message);
         return true;
     }
@@ -83,13 +87,14 @@ export const addCustomerWithFunction = createAsyncThunk(
         },
         { rejectWithValue }
     ) => {
-        const sessionRes = await supabase.auth.getSession();
+        const sessionRes = await getSupabase().auth.getSession();
         const token = sessionRes.data.session?.access_token;
         if (!token) return rejectWithValue("User not authenticated");
 
         const password = Math.random().toString(36).slice(-8);
 
-        const res = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/add_customer`, {
+        const edgeBase = getEdgeFunctionsBaseUrl(getClientSupabaseTarget());
+        const res = await fetch(`${edgeBase}/add_customer`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -119,7 +124,7 @@ export const addCustomerWithFunction = createAsyncThunk(
 export const fetchCustomersByProviderId = createAsyncThunk(
     "customer/fetchCustomersByProviderId",
     async (provider_id: string, { rejectWithValue }) => {
-        const { data: customers, error: customerError } = await supabase
+        const { data: customers, error: customerError } = await getSupabase()
             .from("customer")
             .select("*")
             .eq("provider_id", provider_id);
@@ -133,14 +138,14 @@ export const fetchCustomersByProviderId = createAsyncThunk(
             return (customers as Customer[]).map((c) => ({ ...c, last_request_at: null }));
         }
 
-        const { data: providers, error: providerError } = await supabase
+        const { data: providers, error: providerError } = await getSupabase()
             .from("provider")
             .select("id")
             .in("id", customerIds);
 
         if (providerError) return rejectWithValue(providerError.message);
 
-        const { data: bookings, error: bookingError } = await supabase
+        const { data: bookings, error: bookingError } = await getSupabase()
             .from("booked_service")
             .select("customer_id, createdAt")
             .in("customer_id", customerIds);
@@ -188,7 +193,7 @@ export const fetchCustomersByProviderId = createAsyncThunk(
 export const fetchAllCustomers = createAsyncThunk(
     "customer/fetchAllCustomers",
     async (_, { rejectWithValue }) => {
-        const { data: customers, error } = await supabase.from("customer").select("*");
+        const { data: customers, error } = await getSupabase().from("customer").select("*");
         if (error) return rejectWithValue(error.message);
         if (!customers || customers.length === 0) return [] as Customer[];
 
@@ -197,14 +202,14 @@ export const fetchAllCustomers = createAsyncThunk(
             return (customers as Customer[]).map((c) => ({ ...c, last_request_at: null }));
         }
 
-        const { data: providers, error: providerError } = await supabase
+        const { data: providers, error: providerError } = await getSupabase()
             .from("provider")
             .select("id")
             .in("id", customerIds);
 
         if (providerError) return rejectWithValue(providerError.message);
 
-        const { data: bookings, error: bookingError } = await supabase
+        const { data: bookings, error: bookingError } = await getSupabase()
             .from("booked_service")
             .select("customer_id, createdAt")
             .in("customer_id", customerIds);

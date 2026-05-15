@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { supabase } from '@/lib/supabaseClient';
+import { getSupabase } from '@/lib/supabaseClient';
 
 export interface AppSettings {
     appColor?: string;
@@ -367,12 +367,12 @@ export const fetchSettings = createAsyncThunk<
     'settings/fetchSettings',
     async (_, { rejectWithValue }) => {
         try {
-            const { data: rows, error } = await supabase
+            const { data: rows, error } = await getSupabase()
                 .from('app_settings')
                 .select('id, data');
             if (error)
                 throw error;
-            const { data: languageRows, error: languageError } = await supabase
+            const { data: languageRows, error: languageError } = await getSupabase()
                 .from('languages')
                 .select('id, code, name, active');
             if (languageError)
@@ -409,7 +409,7 @@ export const updateSettings = createAsyncThunk<
 
             if (updates.paymentSettings) {
                 const normalizedPaymentSettings = normalizePaymentSettingsForStorage(updates.paymentSettings);
-                const { data: existingPaymentSetting } = await supabase
+                const { data: existingPaymentSetting } = await getSupabase()
                     .from('app_settings')
                     .select('id, data')
                     .eq('id', 'payment')
@@ -424,7 +424,7 @@ export const updateSettings = createAsyncThunk<
                     ...(normalizedPaymentSettings?.flutterWave ? { flutterWave: normalizedPaymentSettings.flutterWave } : {}),
                 };
 
-                const { error: paymentError } = await supabase
+                const { error: paymentError } = await getSupabase()
                     .from('app_settings')
                     .upsert({ id: 'payment', data: nextPaymentData }, { onConflict: 'id' });
 
@@ -439,14 +439,14 @@ export const updateSettings = createAsyncThunk<
                     Object.entries(updates.policySettings).filter(([, v]) => v !== undefined)
                 ) as PolicySettings;
                 if (Object.keys(definedPolicyPatch).length > 0) {
-                    const { data: existingPolicy } = await supabase
+                    const { data: existingPolicy } = await getSupabase()
                         .from('app_settings')
                         .select('id, data')
                         .eq('id', 'policy')
                         .maybeSingle();
                     const policyData = parseObjectValue(existingPolicy?.data);
                     const nextPolicyData = { ...policyData, ...definedPolicyPatch };
-                    const { error: policyError } = await supabase
+                    const { error: policyError } = await getSupabase()
                         .from('app_settings')
                         .upsert({ id: 'policy', data: nextPolicyData }, { onConflict: 'id' });
                     if (policyError)
@@ -455,13 +455,13 @@ export const updateSettings = createAsyncThunk<
             }
 
             if (updates.contactUs && Object.keys(updates.contactUs).length > 0) {
-                const { data: existing } = await supabase
+                const { data: existing } = await getSupabase()
                     .from('app_settings')
                     .select('id, data')
                     .eq('id', 'contact_us')
                     .maybeSingle();
                 const merged = { ...parseObjectValue(existing?.data), ...updates.contactUs };
-                const { error: contactError } = await supabase
+                const { error: contactError } = await getSupabase()
                     .from('app_settings')
                     .upsert({ id: 'contact_us', data: merged }, { onConflict: 'id' });
                 if (contactError)
@@ -469,13 +469,13 @@ export const updateSettings = createAsyncThunk<
             }
 
             if (updates.adminCommission && Object.keys(updates.adminCommission).length > 0) {
-                const { data: existing } = await supabase
+                const { data: existing } = await getSupabase()
                     .from('app_settings')
                     .select('id, data')
                     .eq('id', 'admin_commission')
                     .maybeSingle();
                 const merged = { ...parseObjectValue(existing?.data), ...updates.adminCommission };
-                const { error: commissionError } = await supabase
+                const { error: commissionError } = await getSupabase()
                     .from('app_settings')
                     .upsert({ id: 'admin_commission', data: merged }, { onConflict: 'id' });
                 if (commissionError)
@@ -483,7 +483,7 @@ export const updateSettings = createAsyncThunk<
             }
 
             if (updates.statusOptions !== undefined) {
-                const { error: statusError } = await supabase
+                const { error: statusError } = await getSupabase()
                     .from('app_settings')
                     .upsert({ id: 'status', data: updates.statusOptions }, { onConflict: 'id' });
                 if (statusError)
@@ -491,13 +491,13 @@ export const updateSettings = createAsyncThunk<
             }
 
             if (updates.constants && Object.keys(updates.constants).length > 0) {
-                const { data: existing } = await supabase
+                const { data: existing } = await getSupabase()
                     .from('app_settings')
                     .select('id, data')
                     .eq('id', 'constant')
                     .maybeSingle();
                 const merged = { ...parseObjectValue(existing?.data), ...updates.constants };
-                const { error: constantError } = await supabase
+                const { error: constantError } = await getSupabase()
                     .from('app_settings')
                     .upsert({ id: 'constant', data: merged }, { onConflict: 'id' });
                 if (constantError)
@@ -558,7 +558,7 @@ export const updateSettings = createAsyncThunk<
 
             const hasRootSettingsFields = Object.keys(updateData).length > 0;
             if (hasRootSettingsFields) {
-                const { data: existingRootSettingsData } = await supabase
+                const { data: existingRootSettingsData } = await getSupabase()
                     .from('app_settings')
                     .select('id, data')
                     .eq('id', 'settings')
@@ -568,7 +568,7 @@ export const updateSettings = createAsyncThunk<
                     ...existingRootData,
                     ...updateData,
                 };
-                const { error: rootSettingsError } = await supabase
+                const { error: rootSettingsError } = await getSupabase()
                     .from('app_settings')
                     .upsert({ id: 'settings', data: nextRootData }, { onConflict: 'id' });
                 if (rootSettingsError) {
@@ -578,12 +578,12 @@ export const updateSettings = createAsyncThunk<
 
             }
 
-            const { data: allRows, error: reloadError } = await supabase
+            const { data: allRows, error: reloadError } = await getSupabase()
                 .from('app_settings')
                 .select('id, data');
             if (reloadError)
                 throw reloadError;
-            const { data: updatedLanguageRows, error: reloadLanguageError } = await supabase
+            const { data: updatedLanguageRows, error: reloadLanguageError } = await getSupabase()
                 .from('languages')
                 .select('id, code, name, active');
             if (reloadLanguageError)

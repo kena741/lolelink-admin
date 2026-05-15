@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { supabase } from '@/lib/supabaseClient';
+import { getSupabase } from '@/lib/supabaseClient';
 
 export interface SubCategory {
     id: string;
@@ -48,7 +48,7 @@ export const fetchSubCategories = createAsyncThunk<
     'subcategory/fetchSubCategories',
     async (_, { rejectWithValue }) => {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await getSupabase()
                 .from('sub_category')
                 .select(`
                     *,
@@ -77,7 +77,7 @@ export const fetchSubCategoryDocumentIds = createAsyncThunk<
     'subcategory/fetchSubCategoryDocumentIds',
     async (subCategoryId, { rejectWithValue }) => {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await getSupabase()
                 .from(JUNCTION_TABLE)
                 .select('documentId')
                 .eq('subCategoryId', subCategoryId);
@@ -99,7 +99,7 @@ export const fetchAllSubCategoryDocumentIds = createAsyncThunk<
     'subcategory/fetchAllSubCategoryDocumentIds',
     async (_, { rejectWithValue }) => {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await getSupabase()
                 .from(JUNCTION_TABLE)
                 .select('id, subCategoryId, documentId');
 
@@ -127,7 +127,7 @@ export const createSubCategory = createAsyncThunk<
     'subcategory/createSubCategory',
     async ({ subCategoryName, categoryId, documentIds }, { rejectWithValue }) => {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await getSupabase()
                 .from('sub_category')
                 .insert({ subCategoryName, categoryId })
                 .select(`
@@ -141,7 +141,7 @@ export const createSubCategory = createAsyncThunk<
             if (error) throw error;
             const subCategory = normalizeRows([data as SubCategoryRow])[0];
             if (subCategory.id && documentIds?.length) {
-                const { error: junctionError } = await supabase
+                const { error: junctionError } = await getSupabase()
                     .from(JUNCTION_TABLE)
                     .insert(documentIds.map((documentId) => ({ subCategoryId: subCategory.id, documentId })));
                 if (junctionError) throw junctionError;
@@ -162,7 +162,7 @@ export const updateSubCategory = createAsyncThunk<
     'subcategory/updateSubCategory',
     async ({ id, documentIds, ...updates }, { rejectWithValue }) => {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await getSupabase()
                 .from('sub_category')
                 .update(updates)
                 .eq('id', id)
@@ -176,9 +176,9 @@ export const updateSubCategory = createAsyncThunk<
 
             if (error) throw error;
             if (documentIds !== undefined) {
-                await supabase.from(JUNCTION_TABLE).delete().eq('subCategoryId', id);
+                await getSupabase().from(JUNCTION_TABLE).delete().eq('subCategoryId', id);
                 if (documentIds.length) {
-                    const { error: junctionError } = await supabase
+                    const { error: junctionError } = await getSupabase()
                         .from(JUNCTION_TABLE)
                         .insert(documentIds.map((documentId) => ({ subCategoryId: id, documentId })));
                     if (junctionError) throw junctionError;
@@ -200,8 +200,8 @@ export const deleteSubCategory = createAsyncThunk<
     'subcategory/deleteSubCategory',
     async (id, { rejectWithValue }) => {
         try {
-            await supabase.from(JUNCTION_TABLE).delete().eq('subCategoryId', id);
-            const { error } = await supabase
+            await getSupabase().from(JUNCTION_TABLE).delete().eq('subCategoryId', id);
+            const { error } = await getSupabase()
                 .from('sub_category')
                 .delete()
                 .eq('id', id);

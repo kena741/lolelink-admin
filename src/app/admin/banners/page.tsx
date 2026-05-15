@@ -6,7 +6,7 @@ import AuthGuard from '@/components/AuthGuard';
 import { ArrowLeft, RefreshCw, Plus, Edit, Trash2, X, Upload } from 'lucide-react';
 import Link from 'next/link';
 import { fetchBanners, createBanner, updateBanner, deleteBanner } from '@/features/banner/bannerSlice';
-import { supabase } from '@/lib/supabaseClient';
+import { getSupabase } from '@/lib/supabaseClient';
 
 const BannersPage = () => {
     const dispatch = useAppDispatch();
@@ -87,14 +87,14 @@ const BannersPage = () => {
             const fileExt = file.name.split('.').pop();
             const fileName = `banners/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
             
-            const { error: uploadError } = await supabase.storage
+            const { error: uploadError } = await getSupabase().storage
                 .from('betegnabucket')
                 .upload(fileName, file, { cacheControl: '3600', upsert: false });
 
             if (uploadError) throw uploadError;
 
             // Get public URL
-            const { data: publicUrlData } = supabase.storage
+            const { data: publicUrlData } = getSupabase().storage
                 .from('betegnabucket')
                 .getPublicUrl(fileName);
 

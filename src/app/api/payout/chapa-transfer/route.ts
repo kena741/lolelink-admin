@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
 
@@ -198,15 +199,18 @@ function isDigitsOnly(value: string): boolean {
     return /^\d+$/.test(value);
 }
 
-async function insertNotificationIfMissing(params: {
+async function insertNotificationIfMissing(
+    admin: SupabaseClient,
+    params: {
     title: string;
     description: string;
     type: string;
     provider_id?: string;
     action_url?: string;
-}): Promise<void> {
+}
+): Promise<void> {
     const { title, description, type, provider_id, action_url } = params;
-    const { data: existing } = await supabaseAdmin
+    const { data: existing } = await admin
         .from('notification')
         .select('id')
         .eq('type', type)
@@ -215,7 +219,7 @@ async function insertNotificationIfMissing(params: {
         .limit(1)
         .maybeSingle();
     if (existing) return;
-    await supabaseAdmin.from('notification').insert({
+    await admin.from('notification').insert({
         title,
         description,
         type,
@@ -225,11 +229,14 @@ async function insertNotificationIfMissing(params: {
     });
 }
 
-async function getProviderDefaultPaymentMethod(providerId: string): Promise<ProviderPaymentMethodRow | null> {
+async function getProviderDefaultPaymentMethod(
+    admin: SupabaseClient,
+    providerId: string
+): Promise<ProviderPaymentMethodRow | null> {
     const normalizedProviderId = normalizeText(providerId);
     if (!normalizedProviderId) return null;
 
-    const { data: defaultActive, error: defaultActiveError } = await supabaseAdmin
+    const { data: defaultActive, error: defaultActiveError } = await admin
         .from('provider_payment_methods')
         .select('*')
         .eq('providerID', normalizedProviderId)
@@ -240,7 +247,7 @@ async function getProviderDefaultPaymentMethod(providerId: string): Promise<Prov
     if (!defaultActiveError && defaultActive)
         return defaultActive as ProviderPaymentMethodRow;
 
-    const { data: anyActive, error: anyActiveError } = await supabaseAdmin
+    const { data: anyActive, error: anyActiveError } = await admin
         .from('provider_payment_methods')
         .select('*')
         .eq('providerID', normalizedProviderId)
@@ -255,6 +262,7 @@ async function getProviderDefaultPaymentMethod(providerId: string): Promise<Prov
 }
 
 export async function POST(request: Request) {
+    const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const { data: paymentSettingsData } = await supabaseAdmin
             .from('app_settings')
@@ -297,7 +305,7 @@ export async function POST(request: Request) {
                 { status: 400 }
             );
 
-        const paymentMethod = await getProviderDefaultPaymentMethod(withdrawal.providerId);
+        const paymentMethod = await getProviderDefaultPaymentMethod(supabaseAdmin, withdrawal.providerId);
         if (!paymentMethod)
             return NextResponse.json(
                 {
@@ -404,7 +412,7 @@ export async function POST(request: Request) {
         if (updateError)
             return NextResponse.json({ error: 'Failed to update withdrawal record' }, { status: 500 });
 
-        await insertNotificationIfMissing({
+        await insertNotificationIfMissing(supabaseAdmin, {
             title: 'Payout transfer initiated',
             description: `Transfer initiated for withdrawal ${withdrawal.id}. reference=${transferReference}`,
             type: 'payout_transfer_initiated',

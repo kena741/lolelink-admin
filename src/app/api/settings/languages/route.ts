@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
 
@@ -23,6 +23,7 @@ interface LanguagesBody {
 }
 
 export async function POST(request: Request) {
+        const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const body = (await request.json()) as LanguagesBody;
 

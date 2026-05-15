@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
 
@@ -15,6 +15,7 @@ function sanitize(value: string | undefined): string {
 }
 
 export async function POST(request: Request) {
+    const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const body = (await request.json()) as ContactMessageBody;
         const name = sanitize(body.name);
@@ -44,7 +45,8 @@ export async function POST(request: Request) {
     }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+    const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const { data, error } = await supabaseAdmin
             .from('contact_messages')

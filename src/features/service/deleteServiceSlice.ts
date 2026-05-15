@@ -1,5 +1,5 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
-import { supabase } from '@/lib/supabaseClient';
+import { getSupabase } from '@/lib/supabaseClient';
 
 interface DeleteServiceState {
     loading: boolean;
@@ -18,7 +18,7 @@ export const deleteService = createAsyncThunk<string, string, { rejectValue: str
     async (serviceId, thunkAPI) => {
         try {
             // 1. Check if the service exists
-            const { data: found, error: fetchError } = await supabase
+            const { data: found, error: fetchError } = await getSupabase()
                 .from('service')
                 .select('*')
                 .eq('id', serviceId)
@@ -30,7 +30,7 @@ export const deleteService = createAsyncThunk<string, string, { rejectValue: str
             }
 
             // 2. Check for references in booked_service
-            const { data: bookings, error: bookingsError } = await supabase
+            const { data: bookings, error: bookingsError } = await getSupabase()
                 .from('booked_service')
                 .select('id')
                 .eq('service_id', serviceId);
@@ -43,7 +43,7 @@ export const deleteService = createAsyncThunk<string, string, { rejectValue: str
 
             if (isReferenced) {
                 // 3a. Soft delete instead (e.g., mark as archived)
-                const { error: softDeleteError } = await supabase
+                const { error: softDeleteError } = await getSupabase()
                     .from('service')
                     .update({ isArchived: true })
                     .eq('id', serviceId);
@@ -55,7 +55,7 @@ export const deleteService = createAsyncThunk<string, string, { rejectValue: str
                 return serviceId;
             } else {
                 // 3b. Safe to delete normally
-                const { error: deleteError } = await supabase
+                const { error: deleteError } = await getSupabase()
                     .from('service')
                     .delete()
                     .eq('id', serviceId);

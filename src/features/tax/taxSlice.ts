@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { supabase } from '@/lib/supabaseClient';
+import { getSupabase } from '@/lib/supabaseClient';
 
 export interface CountryTax {
     id: number;
@@ -56,7 +56,7 @@ export const fetchTaxes = createAsyncThunk<
     'tax/fetchTaxes',
     async (_, { rejectWithValue }) => {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await getSupabase()
                 .from('country_tax')
                 .select('*')
                 .order('created_at', { ascending: false });
@@ -78,7 +78,7 @@ export const createTax = createAsyncThunk<
     'tax/createTax',
     async (taxData, { rejectWithValue }) => {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await getSupabase()
                 .from('country_tax')
                 .insert({
                     country: taxData.country,
@@ -107,7 +107,7 @@ export const updateTax = createAsyncThunk<
     'tax/updateTax',
     async ({ id, ...updates }, { rejectWithValue }) => {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await getSupabase()
                 .from('country_tax')
                 .update(updates)
                 .eq('id', id)
@@ -131,7 +131,7 @@ export const deleteTax = createAsyncThunk<
     'tax/deleteTax',
     async (id, { rejectWithValue }) => {
         try {
-            const { error } = await supabase
+            const { error } = await getSupabase()
                 .from('country_tax')
                 .delete()
                 .eq('id', id);

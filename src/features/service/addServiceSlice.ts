@@ -1,5 +1,5 @@
 import { createSlice as createModalSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { supabase } from '@/lib/supabaseClient';
+import { getSupabase } from '@/lib/supabaseClient';
 import { uploadFilesToSupabase } from '@/lib/upload';
 
 // Optional: import from a central service model if it exists
@@ -68,7 +68,7 @@ export const addService = createAsyncThunk(
         video: videoUrl,
       };
       // Insert into Supabase 'service' table
-      const { error } = await supabase.from('service').insert([serviceToSave]);
+      const { error } = await getSupabase().from('service').insert([serviceToSave]);
       if (error) {
         return thunkAPI.rejectWithValue(error.message);
       }

@@ -1,5 +1,5 @@
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { supabase } from '@/lib/supabaseClient';
+import { getSupabase } from '@/lib/supabaseClient';
 
 export interface BookedService {
     id: string;
@@ -66,7 +66,7 @@ export const fetchProviderBookings = createAsyncThunk<
     async ({ statuses } = {}, { rejectWithValue }) => {
         try {
             // Fetch across all providers (no provider_id filter)
-            let query = supabase.from('booked_service').select('*');
+            let query = getSupabase().from('booked_service').select('*');
             console.log('query:', query)
             if (statuses && statuses.length) {
                 query = query.in('status', statuses);
@@ -89,7 +89,7 @@ export const fetchAllBookings = createAsyncThunk<
     'bookedService/fetchAllBookings',
     async (args, { rejectWithValue }) => {
         try {
-            let query = supabase.from('booked_service').select('*');
+            let query = getSupabase().from('booked_service').select('*');
             console.log('query:', query)
             const statuses = args?.statuses;
             if (statuses && statuses.length) {
@@ -113,7 +113,7 @@ export const fetchBookingById = createAsyncThunk<
     'bookedService/fetchBookingById',
     async (id, { rejectWithValue }) => {
         try {
-            const { data, error } = await supabase.from('booked_service').select('*').eq('id', id).single();
+            const { data, error } = await getSupabase().from('booked_service').select('*').eq('id', id).single();
             if (error) throw error;
             return data as BookedService;
         } catch (e: unknown) {

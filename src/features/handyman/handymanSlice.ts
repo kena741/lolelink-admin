@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { supabase } from '@/lib/supabaseClient';
+import { getSupabase } from '@/lib/supabaseClient';
 
 export interface Handyman {
     id: string;
@@ -95,7 +95,7 @@ export const fetchHandymen = createAsyncThunk<
     'handyman/fetchHandymen',
     async (_, { rejectWithValue }) => {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await getSupabase()
                 .from('handyman')
                 .select('*')
                 .order('createdAt', { ascending: false });
@@ -117,7 +117,7 @@ export const createHandyman = createAsyncThunk<
     'handyman/createHandyman',
     async (handymanData, { rejectWithValue }) => {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await getSupabase()
                 .from('handyman')
                 .insert({
                     firstName: handymanData.firstName,
@@ -181,7 +181,7 @@ export const updateHandyman = createAsyncThunk<
             if (updates.subCategoryId !== undefined) updateData.subCategoryld = updates.subCategoryId;
             if (updates.slug !== undefined) updateData.slug = updates.slug;
 
-            const { data, error } = await supabase
+            const { data, error } = await getSupabase()
                 .from('handyman')
                 .update(updateData)
                 .eq('id', id)
@@ -205,7 +205,7 @@ export const deleteHandyman = createAsyncThunk<
     'handyman/deleteHandyman',
     async (id, { rejectWithValue }) => {
         try {
-            const { error } = await supabase
+            const { error } = await getSupabase()
                 .from('handyman')
                 .delete()
                 .eq('id', id);

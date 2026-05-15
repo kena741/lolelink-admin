@@ -1,7 +1,7 @@
 "use client";
 import React, { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
+import { getSupabase } from "@/lib/supabaseClient";
 import { ALLOWED_EMAIL } from "@/lib/authConfig";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +16,7 @@ function LoginContent() {
 
     useEffect(() => {
         // If already logged in and allowed, go to next (local session check)
-        supabase.auth.getSession().then(({ data }) => {
+        getSupabase().auth.getSession().then(({ data }) => {
             const e = data.session?.user?.email?.toLowerCase();
             if (e && e === ALLOWED_EMAIL.toLowerCase()) {
                 const next = params.get("next") || "/admin/dashboard";
@@ -49,13 +49,13 @@ function LoginContent() {
         }
         setLoading(true);
         try {
-            const { data, error } = await supabase.auth.signInWithPassword({ email: trimmed, password });
+            const { data, error } = await getSupabase().auth.signInWithPassword({ email: trimmed, password });
             if (error) throw error;
             if (!data.session) throw new Error("Login failed. No session returned.");
             // Ensure the session is persisted before navigating, to avoid guard races
             let attempts = 0;
             while (attempts < 20) { // up to ~2s
-                const { data: s } = await supabase.auth.getSession();
+                const { data: s } = await getSupabase().auth.getSession();
                 if (s.session) break;
                 await new Promise((r) => setTimeout(r, 100));
                 attempts++;

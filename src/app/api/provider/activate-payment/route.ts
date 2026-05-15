@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
 
@@ -60,14 +61,17 @@ function normalizeBoolean(value: unknown): boolean {
     return false;
 }
 
-async function insertNotification(params: {
+async function insertNotification(
+    admin: SupabaseClient,
+    params: {
     title: string;
     description: string;
     type: string;
     provider_id: string;
-}): Promise<void> {
+}
+): Promise<void> {
     const { title, description, type, provider_id } = params;
-    const { data: existing } = await supabaseAdmin
+    const { data: existing } = await admin
         .from('notification')
         .select('id')
         .eq('type', type)
@@ -76,7 +80,7 @@ async function insertNotification(params: {
         .limit(1)
         .maybeSingle();
     if (existing) return;
-    await supabaseAdmin.from('notification').insert({
+    await admin.from('notification').insert({
         title,
         description,
         type,
@@ -85,8 +89,8 @@ async function insertNotification(params: {
     });
 }
 
-async function loadProviderAndFee(providerId: string) {
-    const { data: providerData, error: providerError } = await supabaseAdmin
+async function loadProviderAndFee(admin: SupabaseClient, providerId: string) {
+    const { data: providerData, error: providerError } = await admin
         .from('provider')
         .select('*')
         .eq('id', providerId)
@@ -115,7 +119,7 @@ async function loadProviderAndFee(providerId: string) {
         return { error: 'Activation fee already paid', status: 409, activation_paid_at: provider.activation_paid_at } as const;
     }
 
-    const { data: constantRow } = await supabaseAdmin
+    const { data: constantRow } = await admin
         .from('app_settings')
         .select('id, data')
         .eq('id', 'constant')
@@ -131,8 +135,14 @@ async function loadProviderAndFee(providerId: string) {
     return { provider, feeAmount, providerName } as const;
 }
 
-async function handleChapaCheckout(provider: ProviderRow, feeAmount: string, providerName: string, requestUrl: string) {
-    const { data: paymentRow } = await supabaseAdmin
+async function handleChapaCheckout(
+    admin: SupabaseClient,
+    provider: ProviderRow,
+    feeAmount: string,
+    providerName: string,
+    requestUrl: string
+) {
+    const { data: paymentRow } = await admin
         .from('app_settings')
         .select('id, data')
         .eq('id', 'payment')
@@ -194,7 +204,7 @@ async function handleChapaCheckout(provider: ProviderRow, feeAmount: string, pro
         );
     }
 
-    await supabaseAdmin
+    await admin
         .from('provider')
         .update({ activation_tx_ref: txRef })
         .eq('id', provider.id);
@@ -210,11 +220,18 @@ async function handleChapaCheckout(provider: ProviderRow, feeAmount: string, pro
     });
 }
 
-async function handleManualMark(provider: ProviderRow, feeAmount: string, providerName: string, txRef?: string, note?: string) {
+async function handleManualMark(
+    admin: SupabaseClient,
+    provider: ProviderRow,
+    feeAmount: string,
+    providerName: string,
+    txRef?: string,
+    note?: string
+) {
     const now = new Date().toISOString();
     const ref = (txRef || '').trim() || `manual-${provider.id.slice(0, 8)}-${Date.now()}`;
 
-    const { error: updateError } = await supabaseAdmin
+    const { error: updateError } = await admin
         .from('provider')
         .update({
             activation_paid: true,
@@ -227,7 +244,7 @@ async function handleManualMark(provider: ProviderRow, feeAmount: string, provid
         return NextResponse.json({ error: 'Failed to update provider activation status' }, { status: 500 });
     }
 
-    const { error: walletError } = await supabaseAdmin.from('wallet_transaction').insert({
+    const { error: walletError } = await admin.from('wallet_transaction').insert({
         amount: feeAmount,
         createdDate: now,
         isCredit: true,
@@ -247,7 +264,7 @@ async function handleManualMark(provider: ProviderRow, feeAmount: string, provid
         });
     }
 
-    await insertNotification({
+    await insertNotification(admin, {
         title: 'Account Activated',
         description: `Your activation fee of ETB ${feeAmount} has been confirmed. Your account is now active.`,
         type: 'activation_payment_confirmed',
@@ -267,6 +284,7 @@ async function handleManualMark(provider: ProviderRow, feeAmount: string, provid
 }
 
 export async function POST(request: Request) {
+    const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const body = (await request.json()) as ActivatePaymentBody;
 
@@ -274,7 +292,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'providerId is required' }, { status: 400 });
         }
 
-        const result = await loadProviderAndFee(body.providerId);
+        const result = await loadProviderAndFee(supabaseAdmin, body.providerId);
         if ('error' in result) {
             return NextResponse.json(
                 { error: result.error, ...(result.activation_paid_at ? { activation_paid_at: result.activation_paid_at } : {}) },
@@ -285,10 +303,10 @@ export async function POST(request: Request) {
         const { provider, feeAmount, providerName } = result;
 
         if (body.mode === 'chapa') {
-            return handleChapaCheckout(provider, feeAmount, providerName, request.url);
+            return handleChapaCheckout(supabaseAdmin, provider, feeAmount, providerName, request.url);
         }
 
-        return handleManualMark(provider, feeAmount, providerName, body.txRef, body.note);
+        return handleManualMark(supabaseAdmin, provider, feeAmount, providerName, body.txRef, body.note);
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unexpected error';
         return NextResponse.json({ error: message }, { status: 500 });

@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
-import { supabase } from "@/lib/supabaseClient";
+import { getSupabase } from "@/lib/supabaseClient";
 
 export interface Provider {
     id: string;
@@ -103,7 +103,7 @@ type ProviderRow = Omit<Provider, 'createdAt'> & { created_at?: string; createdA
 export const fetchProviders = createAsyncThunk(
     "provider/fetchProviders",
     async (_, { rejectWithValue }) => {
-        const { data, error } = await supabase.from("provider").select("*");
+        const { data, error } = await getSupabase().from("provider").select("*");
         if (error) return rejectWithValue(error.message);
         // Normalize snake_case -> camelCase for createdAt
         const normalized: Provider[] = ((data as ProviderRow[] | null) ?? []).map((p) => {
@@ -125,7 +125,7 @@ export const fetchProviders = createAsyncThunk(
 export const fetchProviderById = createAsyncThunk<Provider, string, { rejectValue: string }>(
     "provider/fetchProviderById",
     async (id, { rejectWithValue }) => {
-        const { data, error } = await supabase.from("provider").select("*").eq("id", id).single();
+        const { data, error } = await getSupabase().from("provider").select("*").eq("id", id).single();
         if (error) return rejectWithValue(error.message);
         type ProviderRow = Provider & { created_at?: string };
         const row = data as ProviderRow;
@@ -210,14 +210,14 @@ export const fetchProviderServices = createAsyncThunk<
     "provider/fetchProviderServices",
     async (providerId, { rejectWithValue }) => {
         // Try singular 'service' table first
-        let { data, error } = await supabase
+        let { data, error } = await getSupabase()
             .from("service")
             .select("*")
             .eq("provider_id", providerId);
 
         if (error) {
             // Fallback to plural 'services'
-            const fallback = await supabase
+            const fallback = await getSupabase()
                 .from("services")
                 .select("*")
                 .eq("provider_id", providerId);
@@ -238,7 +238,7 @@ export const fetchServiceCountsByProvider = createAsyncThunk<
     "provider/fetchServiceCountsByProvider",
     async (_, { rejectWithValue }) => {
         // Try singular table
-        const { data: counts1, error: e1 } = await supabase
+        const { data: counts1, error: e1 } = await getSupabase()
             .from("service")
             .select("provider_id, count:id", { count: "exact" });
 
@@ -246,7 +246,7 @@ export const fetchServiceCountsByProvider = createAsyncThunk<
         let err = e1;
 
         if (err) {
-            const { data: counts2, error: e2 } = await supabase
+            const { data: counts2, error: e2 } = await getSupabase()
                 .from("services")
                 .select("provider_id, count:id", { count: "exact" });
             countsData = counts2 as { provider_id: string; count: number }[] | null;
@@ -297,7 +297,7 @@ export const updateProvider = createAsyncThunk<
         if (Object.keys(payload).length === 0) {
             return rejectWithValue("No valid fields to update");
         }
-        const { data, error } = await supabase
+        const { data, error } = await getSupabase()
             .from("provider")
             .update(payload)
             .eq("id", id)
@@ -373,7 +373,7 @@ export const verifyActivationPayment = createAsyncThunk<
         if (payload.status === 'pending') {
             return rejectWithValue(payload.message || 'Payment not yet confirmed by Chapa');
         }
-        const { data, error } = await supabase
+        const { data, error } = await getSupabase()
             .from("provider")
             .select("*")
             .eq("id", providerId)
@@ -402,7 +402,7 @@ export const markActivationPaid = createAsyncThunk<
         if (!response.ok || payload.status !== 'success') {
             return rejectWithValue(payload.error || 'Failed to mark activation as paid');
         }
-        const { data, error } = await supabase
+        const { data, error } = await getSupabase()
             .from("provider")
             .select("*")
             .eq("id", providerId)
@@ -484,7 +484,7 @@ export const createService = createAsyncThunk<
             base.images = [values.serviceImage];
         }
         try {
-            const { data, error } = await supabase
+            const { data, error } = await getSupabase()
                 .from("service")
                 .insert(base)
                 .select("*")
@@ -492,7 +492,7 @@ export const createService = createAsyncThunk<
             if (error) throw error;
             return normalizeService([data as ServiceRow])[0];
     } catch {
-            const { data, error } = await supabase
+            const { data, error } = await getSupabase()
                 .from("services")
                 .insert(base)
                 .select("*")
@@ -515,7 +515,7 @@ export const updateService = createAsyncThunk<
             base.images = [values.serviceImage];
         }
         try {
-            const { data, error } = await supabase
+            const { data, error } = await getSupabase()
                 .from("service")
                 .update(base)
                 .eq("id", id)
@@ -524,7 +524,7 @@ export const updateService = createAsyncThunk<
             if (error) throw error;
             return normalizeService([data as ServiceRow])[0];
     } catch {
-            const { data, error } = await supabase
+            const { data, error } = await getSupabase()
                 .from("services")
                 .update(base)
                 .eq("id", id)

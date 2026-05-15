@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
 
@@ -21,6 +21,7 @@ function normalizeText(value: string | null | undefined): string {
 }
 
 export async function POST(request: Request) {
+        const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const body = (await request.json()) as RequestBody;
         const title = normalizeText(body.title);

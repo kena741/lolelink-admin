@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { supabase } from '@/lib/supabaseClient';
+import { getSupabase } from '@/lib/supabaseClient';
 
 export interface PayoutRequest {
     id: string;
@@ -226,7 +226,7 @@ export const fetchPayoutRequests = createAsyncThunk<
     async (_, { rejectWithValue }) => {
         try {
             // Fetch withdrawal history
-            const { data: withdrawalData, error: withdrawalError } = await supabase
+            const { data: withdrawalData, error: withdrawalError } = await getSupabase()
                 .from('withdrawal_history')
                 .select('*')
                 .order('createdDate', { ascending: false });
@@ -240,7 +240,7 @@ export const fetchPayoutRequests = createAsyncThunk<
             const providerMap: Record<string, string> = {};
             const bankMap: Record<string, PayoutRequest['bankDetails']> = {};
             if (providerIds.length > 0) {
-                const { data: providers, error: providerError } = await supabase
+                const { data: providers, error: providerError } = await getSupabase()
                     .from('provider')
                     .select('id, firstName, lastName')
                     .in('id', providerIds);
@@ -286,7 +286,7 @@ export const approvePayoutRequest = createAsyncThunk<
                 updateData.adminNote = adminNote;
             }
 
-            const { data, error } = await supabase
+            const { data, error } = await getSupabase()
                 .from('withdrawal_history')
                 .update(updateData)
                 .eq('id', id)
@@ -307,7 +307,7 @@ export const approvePayoutRequest = createAsyncThunk<
             const providerMap: Record<string, string> = {};
             const bankMap: Record<string, PayoutRequest['bankDetails']> = {};
             if (data.providerId) {
-                const { data: provider, error: providerError } = await supabase
+                const { data: provider, error: providerError } = await getSupabase()
                     .from('provider')
                     .select('id, firstName, lastName')
                     .eq('id', data.providerId)
@@ -320,7 +320,7 @@ export const approvePayoutRequest = createAsyncThunk<
                     providerMap[provider.id] = full || 'Unknown Provider';
                 }
 
-                const { data: bank, error: bankError } = await supabase
+                const { data: bank, error: bankError } = await getSupabase()
                     .from('provider_payment_methods')
                     .select('*')
                     .eq('providerID', data.providerId)
@@ -355,7 +355,7 @@ export const rejectPayoutRequest = createAsyncThunk<
                 updateData.adminNote = adminNote;
             }
 
-            const { data, error } = await supabase
+            const { data, error } = await getSupabase()
                 .from('withdrawal_history')
                 .update(updateData)
                 .eq('id', id)
@@ -376,7 +376,7 @@ export const rejectPayoutRequest = createAsyncThunk<
             const providerMap: Record<string, string> = {};
             const bankMap: Record<string, PayoutRequest['bankDetails']> = {};
             if (data.providerId) {
-                const { data: provider, error: providerError } = await supabase
+                const { data: provider, error: providerError } = await getSupabase()
                     .from('provider')
                     .select('id, firstName, lastName')
                     .eq('id', data.providerId)
@@ -389,7 +389,7 @@ export const rejectPayoutRequest = createAsyncThunk<
                     providerMap[provider.id] = full || 'Unknown Provider';
                 }
 
-                const { data: bank, error: bankError } = await supabase
+                const { data: bank, error: bankError } = await getSupabase()
                     .from('provider_payment_methods')
                     .select('*')
                     .eq('providerID', data.providerId)
@@ -424,7 +424,7 @@ export const completePayoutRequest = createAsyncThunk<
             if (adminNote)
                 updateData.adminNote = adminNote;
 
-            const { data, error } = await supabase
+            const { data, error } = await getSupabase()
                 .from('withdrawal_history')
                 .update(updateData)
                 .eq('id', id)
@@ -445,7 +445,7 @@ export const completePayoutRequest = createAsyncThunk<
             const providerMap: Record<string, string> = {};
             const bankMap: Record<string, PayoutRequest['bankDetails']> = {};
             if (data.providerId) {
-                const { data: provider, error: providerError } = await supabase
+                const { data: provider, error: providerError } = await getSupabase()
                     .from('provider')
                     .select('id, firstName, lastName')
                     .eq('id', data.providerId)
@@ -458,7 +458,7 @@ export const completePayoutRequest = createAsyncThunk<
                     providerMap[provider.id] = full || 'Unknown Provider';
                 }
 
-                const { data: bank, error: bankError } = await supabase
+                const { data: bank, error: bankError } = await getSupabase()
                     .from('provider_payment_methods')
                     .select('*')
                     .eq('providerID', data.providerId)
@@ -547,7 +547,7 @@ export const fetchBookingPayoutStatus = createAsyncThunk<
     async ({ bookingId }, { rejectWithValue }) => {
         try {
             const transactionId = `provider-payout:${bookingId}`;
-            const { data, error } = await supabase
+            const { data, error } = await getSupabase()
                 .from('wallet_transaction')
                 .select('id')
                 .eq('transactionId', transactionId)
@@ -574,7 +574,7 @@ export const processBookingPayout = createAsyncThunk<
     'payout/processBookingPayout',
     async ({ bookingId }, { rejectWithValue }) => {
         try {
-            const { data: bookingData, error: bookingError } = await supabase
+            const { data: bookingData, error: bookingError } = await getSupabase()
                 .from('booked_service')
                 .select('id, provider_id, totalAmount, price, paymentCompleted, payment_status, status')
                 .eq('id', bookingId)
@@ -604,7 +604,7 @@ export const processBookingPayout = createAsyncThunk<
             if (!booking.provider_id) return rejectWithValue('Provider is missing for this booking');
 
             const transactionId = `provider-payout:${bookingId}`;
-            const { data: existing, error: existingError } = await supabase
+            const { data: existing, error: existingError } = await getSupabase()
                 .from('wallet_transaction')
                 .select('id')
                 .eq('transactionId', transactionId)
@@ -619,7 +619,7 @@ export const processBookingPayout = createAsyncThunk<
             const payoutAmount = Number(booking.totalAmount ?? booking.price ?? 0);
             if (payoutAmount <= 0) return rejectWithValue('Invalid payout amount');
 
-            const { error: insertError } = await supabase.from('wallet_transaction').insert({
+            const { error: insertError } = await getSupabase().from('wallet_transaction').insert({
                 amount: payoutAmount.toFixed(2),
                 createdDate: new Date().toISOString(),
                 isCredit: true,

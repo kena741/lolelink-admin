@@ -1,5 +1,5 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
-import { supabase } from '@/lib/supabaseClient';
+import { getSupabase } from '@/lib/supabaseClient';
 
 interface ApproveServicesState {
     loading: boolean;
@@ -22,7 +22,7 @@ export const fetchServices = createAsyncThunk<unknown[], void, { rejectValue: st
     'service/fetchServices',
     async (_, thunkAPI) => {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await getSupabase()
                 .from('service')
                 .select('*')
                 .eq('status', true)
@@ -47,7 +47,7 @@ export const approveServicesByProvider = createAsyncThunk<number, string, { reje
             if (!providerId) return thunkAPI.rejectWithValue('Missing provider id');
 
             // fetch ids of services for this provider that are not archived and not already approved
-            const { data: services, error: fetchError } = await supabase
+            const { data: services, error: fetchError } = await getSupabase()
                 .from('service')
                 .select('id, approved')
                 .eq('provider_id', providerId)
@@ -64,7 +64,7 @@ export const approveServicesByProvider = createAsyncThunk<number, string, { reje
                 return 0; // nothing to update
             }
 
-            const { error: updateError } = await supabase
+            const { error: updateError } = await getSupabase()
                 .from('service')
                 .update({ approved: true })
                 .in('id', ids);
@@ -86,7 +86,7 @@ export const approveServiceById = createAsyncThunk<number, string, { rejectValue
         try {
             if (!serviceId) return thunkAPI.rejectWithValue('Missing service id');
 
-            const { error: updateError } = await supabase
+            const { error: updateError } = await getSupabase()
                 .from('service')
                 .update({ approved: true })
                 .eq('id', serviceId);
@@ -113,7 +113,7 @@ export const approveFeatureRequestById = createAsyncThunk<number, string, { reje
             };
 
             const tryUpdate = async (tableName: string) => {
-                const { error } = await supabase
+                const { error } = await getSupabase()
                     .from(tableName)
                     .update(payload)
                     .eq('id', serviceId);
@@ -146,7 +146,7 @@ export const rejectFeatureRequestById = createAsyncThunk<number, string, { rejec
             };
 
             const tryUpdate = async (tableName: string) => {
-                const { error } = await supabase
+                const { error } = await getSupabase()
                     .from(tableName)
                     .update(payload)
                     .eq('id', serviceId);
@@ -179,7 +179,7 @@ export const unfeatureServiceById = createAsyncThunk<number, string, { rejectVal
             };
 
             const tryUpdate = async (tableName: string) => {
-                const { error } = await supabase
+                const { error } = await getSupabase()
                     .from(tableName)
                     .update(payload)
                     .eq('id', serviceId);

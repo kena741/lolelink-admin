@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef } from 'react';
-import { supabase } from '@/lib/supabaseClient';
+import { getSupabase } from '@/lib/supabaseClient';
 import { useAppDispatch } from '@/store/hooks';
 import { fetchProviders } from '@/features/provider/providerSlice';
 import { fetchAllBookings } from '@/features/bookedService/bookedServiceSlice';
@@ -51,6 +51,7 @@ export function RealtimeDataSync() {
     );
 
     useEffect(() => {
+        const supabase = getSupabase();
         const channel = supabase
             .channel('admin-realtime-sync')
             .on(

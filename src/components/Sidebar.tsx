@@ -27,7 +27,8 @@ import {
     Moon,
     Sun
 } from 'lucide-react';
-import { supabase } from '@/lib/supabaseClient';
+import { getSupabase } from '@/lib/supabaseClient';
+import { SupabaseEnvSwitcher, SupabaseStagingBanner } from '@/components/SupabaseEnvSwitcher';
 import Image from 'next/image';
 
 // Provider Management Section
@@ -127,6 +128,7 @@ const Sidebar = () => {
                     />
                     <span className="text-base font-semibold text-sidebar-foreground">Zemen Service Admin</span>
                 </div>
+                <SupabaseStagingBanner />
                 <div className="px-6">
                     <div className="h-px w-full bg-gradient-to-r from-transparent via-sidebar-border to-transparent" />
                 </div>
@@ -394,6 +396,7 @@ const Sidebar = () => {
 
             {/* Footer */}
             <div className="mt-auto border-t border-sidebar-border px-6 py-4">
+                <SupabaseEnvSwitcher />
                 <button
                     onClick={toggleTheme}
                     className="mb-2 inline-flex w-full items-center justify-center gap-2 rounded-md border border-sidebar-border bg-sidebar-accent px-3 py-2 text-sm text-sidebar-accent-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground"
@@ -402,7 +405,7 @@ const Sidebar = () => {
                     {theme === 'dark' ? 'Dark mode' : 'Light mode'}
                 </button>
                 <button
-                    onClick={async () => { await supabase.auth.signOut(); location.href = '/login'; }}
+                    onClick={async () => { await getSupabase().auth.signOut(); location.href = '/login'; }}
                     className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-sidebar-border bg-sidebar-accent px-3 py-2 text-sm text-sidebar-accent-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground"
                 >
                     <LogOut className="h-4 w-4" />

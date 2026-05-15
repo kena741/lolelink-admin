@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
 
@@ -20,6 +20,7 @@ function isSuccessStatus(status: string | undefined): boolean {
 }
 
 export async function POST(request: Request) {
+        const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const body = (await request.json()) as ChapaWebhookPayload;
         const txRef = body.tx_ref || '';
