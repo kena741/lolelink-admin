@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "next lint",
     "notify-zero-services": "tsx scripts/notify-zero-service-providers.ts",
-    "list-fayda-status": "tsx scripts/list-fayda-verification-status.ts"
+    "list-fayda-status": "tsx scripts/list-fayda-verification-status.ts",
+    "notify-fayda-segment": "tsx scripts/notify-fayda-segment-sms.ts"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",

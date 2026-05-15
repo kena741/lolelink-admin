@@ -1,7 +1,15 @@
 import { createClient } from '@supabase/supabase-js';
 import { sendSms, buildRecipient } from '../src/lib/sms';
-import { DEFAULT_SMS_APPROVED_ZERO_SERVICES } from './lib/fayda-segment-sms-defaults';
-import { fetchNationalIdDocumentIds, fetchVerifiedFaydaProviderIds } from './lib/fayda-documents';
+import {
+    fetchFaydaStatusByProviderId,
+    fetchNationalIdDocumentIds,
+    type FaydaVerificationStatus,
+} from './lib/fayda-documents';
+import {
+    parseFaydaSmsSegment,
+    resolveFaydaSegmentMessageTemplate,
+    type FaydaSmsSegment,
+} from './lib/fayda-segment-sms-defaults';
 import { loadEnvLocal } from './lib/load-env-local';
 import { fetchServiceCountsByProvider } from './lib/service-counts-by-provider';
 
@@ -41,12 +49,40 @@ function parseArgValue(prefix: string): string | undefined {
     return v.length > 0 ? v : undefined;
 }
 
+function providerInSegment(
+    segment: FaydaSmsSegment,
+    faydaStatus: FaydaVerificationStatus,
+    serviceCount: number
+): boolean {
+    if (segment === 'approved-zero-services') {
+        return faydaStatus === 'verified' && serviceCount === 0;
+    }
+    return faydaStatus === segment;
+}
+
+function describeSegmentEligibility(
+    segment: FaydaSmsSegment,
+    faydaStatus: FaydaVerificationStatus,
+    serviceCount: number
+): string {
+    if (segment === 'approved-zero-services') {
+        return `Fayda status must be verified and service count must be 0 (current: ${faydaStatus}, services=${serviceCount})`;
+    }
+    return `Fayda status must be "${segment}" (current: ${faydaStatus})`;
+}
+
 async function main(): Promise<void> {
     loadEnvLocal();
 
-    const messageTemplate =
-        process.env.ZERO_SERVICES_SMS_MESSAGE ?? DEFAULT_SMS_APPROVED_ZERO_SERVICES;
+    const segment = parseFaydaSmsSegment(parseArgValue('--segment='));
+    if (!segment) {
+        console.error(
+            'Missing or invalid --segment=. Use: --segment=approved-zero-services|rejected|none|pending'
+        );
+        process.exit(1);
+    }
 
+    const messageTemplate = resolveFaydaSegmentMessageTemplate(segment);
     const dryRun = process.argv.includes('--dry-run');
     const forceSingle = process.argv.includes('--force');
     const onlyProviderId = parseArgValue('--provider-id=');
@@ -77,17 +113,16 @@ async function main(): Promise<void> {
 
     const counts = await fetchServiceCountsByProvider(supabase);
     const rows = (providers as ProviderRow[]).filter((p) => !isArchived(p));
-    const zeroCandidatesAll = rows.filter((p) => (counts.get(p.id) ?? 0) === 0);
-
     const nationalDocIds = await fetchNationalIdDocumentIds(supabase);
-    const verifiedNationalId = await fetchVerifiedFaydaProviderIds(supabase, nationalDocIds);
+    const faydaByProvider = await fetchFaydaStatusByProviderId(supabase, nationalDocIds);
+
     if (nationalDocIds.length === 0) {
         console.warn(
-            'No documents row matched National ID / Fayda name; no provider will be eligible. Check documents.name in Supabase.'
+            'No documents row matched National ID / Fayda name. Fayda status will be "none" for everyone. Check documents.name in Supabase.'
         );
     }
 
-    let zeroService: ProviderRow[];
+    let targets: ProviderRow[];
 
     if (onlyProviderId) {
         const p = rows.find((r) => r.id === onlyProviderId);
@@ -100,34 +135,45 @@ async function main(): Promise<void> {
             console.error('Provider is archived or not in active list:', onlyProviderId);
             process.exit(1);
         }
+        const faydaStatus = faydaByProvider.get(p.id) ?? 'none';
         const n = counts.get(p.id) ?? 0;
-        if (n > 0 && !forceSingle) {
+        const eligible = providerInSegment(segment, faydaStatus, n);
+        if (!eligible && !forceSingle) {
             console.error(
-                `Provider has ${n} service(s). Use --force to send this test SMS anyway, or pick a provider with 0 services.`
+                `Provider does not match segment "${segment}". ${describeSegmentEligibility(segment, faydaStatus, n)}. Use --force to send a test SMS anyway.`
             );
             process.exit(1);
         }
-        if (!verifiedNationalId.has(p.id)) {
-            console.error(
-                'Provider National ID is not verified (no approved verify_documents row for a National ID / Fayda document type). Not sending SMS.'
+        if (!eligible && forceSingle) {
+            console.warn(
+                `Warning: provider does not match segment "${segment}"; sending anyway (--force). ${describeSegmentEligibility(segment, faydaStatus, n)}`
             );
-            process.exit(1);
         }
-        zeroService = [p];
+        targets = [p];
     } else {
-        zeroService = zeroCandidatesAll.filter((p) => verifiedNationalId.has(p.id));
+        targets = rows.filter((p) => {
+            const faydaStatus = faydaByProvider.get(p.id) ?? 'none';
+            const n = counts.get(p.id) ?? 0;
+            return providerInSegment(segment, faydaStatus, n);
+        });
     }
 
+    const batchEligible = rows.filter((p) => {
+        const faydaStatus = faydaByProvider.get(p.id) ?? 'none';
+        const n = counts.get(p.id) ?? 0;
+        return providerInSegment(segment, faydaStatus, n);
+    }).length;
+
+    console.log(`Segment: ${segment}`);
     console.log(`Providers (non-archived): ${rows.length}`);
-    console.log(`National-ID document types matched: ${nationalDocIds.length}`);
     if (!onlyProviderId) {
-        console.log(`With 0 services: ${zeroCandidatesAll.length}`);
-        console.log(`Eligible (0 services + verified National ID): ${zeroService.length}`);
+        console.log(`Eligible for segment: ${batchEligible}`);
     } else {
-        const p = zeroService[0];
+        const p = targets[0];
+        const faydaStatus = faydaByProvider.get(p.id) ?? 'none';
         const n = counts.get(p.id) ?? 0;
         console.log(
-            `Single provider: ${p.id}  ${providerName(p)}  services=${n}${n > 0 && forceSingle ? ' (--force)' : ''}`
+            `Single provider: ${p.id}  ${providerName(p)}  fayda=${faydaStatus}  services=${n}${!providerInSegment(segment, faydaStatus, n) && forceSingle ? ' (--force)' : ''}`
         );
     }
     if (dryRun) console.log('Dry run — no SMS will be sent.\n');
@@ -138,7 +184,7 @@ async function main(): Promise<void> {
     let dryRunListed = 0;
     let smsAttempts = 0;
 
-    for (const p of zeroService) {
+    for (const p of targets) {
         const phone = buildRecipient(
             p.phoneNumber ?? p.phone,
             p.countryCode ?? p.country_code
