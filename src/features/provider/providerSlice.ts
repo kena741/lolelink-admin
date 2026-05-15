@@ -263,6 +263,29 @@ export const fetchServiceCountsByProvider = createAsyncThunk<
     }
 );
 
+const PROVIDER_UPDATE_KEYS = new Set([
+    "firstName",
+    "lastName",
+    "phoneNumber",
+    "address",
+    "location",
+    "banner",
+    "profileImage",
+    "profileBio",
+    "companyName",
+    "countryCode",
+]);
+
+function sanitizeProviderUpdates(updates: Partial<Provider>): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(updates)) {
+        if (PROVIDER_UPDATE_KEYS.has(key) && value !== undefined) {
+            out[key] = value;
+        }
+    }
+    return out;
+}
+
 export const updateProvider = createAsyncThunk<
     Provider,
     { id: string; updates: Partial<Provider> },
@@ -270,9 +293,13 @@ export const updateProvider = createAsyncThunk<
 >(
     "provider/updateProvider",
     async ({ id, updates }, { rejectWithValue }) => {
-    const { data, error } = await supabase
+        const payload = sanitizeProviderUpdates(updates);
+        if (Object.keys(payload).length === 0) {
+            return rejectWithValue("No valid fields to update");
+        }
+        const { data, error } = await supabase
             .from("provider")
-            .update(updates)
+            .update(payload)
             .eq("id", id)
             .select("*")
             .single();

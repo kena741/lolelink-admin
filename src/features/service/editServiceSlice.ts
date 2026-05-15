@@ -171,12 +171,16 @@ const editServiceSlice = createSlice({
             state.service = action.payload;
             state.coverIdx = 0;
             state.images = action.payload.serviceImage || [];
+            state.success = false;
+            state.error = null;
         },
         closeEditModal(state) {
             state.open = false;
             state.service = null;
             state.coverIdx = 0;
             state.images = [];
+            state.success = false;
+            state.error = null;
         },
         setCoverIdx(state, action: PayloadAction<number>) {
             state.coverIdx = action.payload;

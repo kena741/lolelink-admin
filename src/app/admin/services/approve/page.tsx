@@ -174,6 +174,7 @@ export default function ApproveServicesPage() {
                                             const maybeVideo = (row['video'] as string | null | undefined) ?? null;
                                             const mapped: ServiceModel = {
                                                 id: String(row['id'] ?? svc.id),
+                                                provider_id: String(row['provider_id'] ?? row['providerId'] ?? ''),
                                                 serviceName: String(row['serviceName'] ?? row['name'] ?? svc.serviceName ?? ''),
                                                 description: (row['description'] as string) ?? svc.description ?? '',
                                                 price: (row['price'] as unknown) as string | number ?? svc.price,
@@ -214,6 +215,7 @@ export default function ApproveServicesPage() {
                                             const maybeVideo = (row['video'] as string | null | undefined) ?? null;
                                             const mapped: ServiceModel = {
                                                 id: String(row['id'] ?? svc.id),
+                                                provider_id: String(row['provider_id'] ?? row['providerId'] ?? ''),
                                                 serviceName: String(row['serviceName'] ?? row['name'] ?? svc.serviceName ?? ''),
                                                 description: (row['description'] as string) ?? svc.description ?? '',
                                                 price: (row['price'] as unknown) as string | number ?? svc.price,
@@ -278,6 +280,7 @@ export default function ApproveServicesPage() {
                                             const maybeVideo = (row['video'] as string | null | undefined) ?? null;
                                             const mapped: ServiceModel = {
                                                 id: String(row['id'] ?? svc.id),
+                                                provider_id: String(row['provider_id'] ?? row['providerId'] ?? ''),
                                                 serviceName: String(row['serviceName'] ?? row['name'] ?? svc.serviceName ?? ''),
                                                 description: (row['description'] as string) ?? svc.description ?? '',
                                                 price: (row['price'] as unknown) as string | number ?? svc.price,
@@ -345,6 +348,7 @@ export default function ApproveServicesPage() {
                                             const maybeVideo = (row['video'] as string | null | undefined) ?? null;
                                             const mapped: ServiceModel = {
                                                 id: String(row['id'] ?? svc.id),
+                                                provider_id: String(row['provider_id'] ?? row['providerId'] ?? ''),
                                                 serviceName: String(row['serviceName'] ?? row['name'] ?? svc.serviceName ?? ''),
                                                 description: (row['description'] as string) ?? svc.description ?? '',
                                                 price: (row['price'] as unknown) as string | number ?? svc.price,

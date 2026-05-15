@@ -2,9 +2,25 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import type { ServiceModel } from "@/features/service/editServiceSlice";
 import { closeEditModal, setCoverIdx, setImages, updateService } from "@/features/service/editServiceSlice";
 import { fetchProviderServices } from "@/features/provider/providerSlice";
 import { uploadFilesToSupabase } from "@/lib/upload";
+
+const UUID_RE =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function resolveProviderIdForUpload(routeParam: unknown, service: ServiceModel | null): string {
+    if (!service) return "";
+    const r = typeof routeParam === "string" ? routeParam.trim() : "";
+    const fromRoute = UUID_RE.test(r) ? r : "";
+    const ext = service as ServiceModel & { providerId?: string };
+    const fromService =
+        (typeof ext.provider_id === "string" && ext.provider_id.trim()) ||
+        (typeof ext.providerId === "string" && ext.providerId.trim()) ||
+        "";
+    return fromService || fromRoute;
+}
 
 const toMinutesString = (val: string | number | undefined | null): string => {
     if (val == null) return "";
@@ -22,7 +38,6 @@ const toMinutesString = (val: string | number | undefined | null): string => {
 
 export default function EditServiceModal() {
     const params = useParams();
-    const providerId = (params?.id as string) || "";
     const dispatch = useAppDispatch();
     const { open, service, coverIdx, images, loading, error, success } = useAppSelector((s) => s.editService);
 
@@ -42,6 +57,7 @@ export default function EditServiceModal() {
     const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
     const [removeVideo, setRemoveVideo] = useState(false);
     const [pendingPreviews, setPendingPreviews] = useState<string[]>([]);
+    const [imageUploadError, setImageUploadError] = useState<string | null>(null);
 
     useEffect(() => {
         if (!service) return;
@@ -64,6 +80,7 @@ export default function EditServiceModal() {
         }
         setRemoveVideo(false);
         setVideoFile(null);
+        setImageUploadError(null);
         if (videoPreviewUrl) {
             URL.revokeObjectURL(videoPreviewUrl);
             setVideoPreviewUrl(null);
@@ -71,11 +88,13 @@ export default function EditServiceModal() {
     }, [service, videoPreviewUrl]);
 
     useEffect(() => {
-        if (success && providerId) {
-            dispatch(fetchProviderServices(providerId));
-            dispatch(closeEditModal());
+        if (!success || !service) return;
+        const pid = resolveProviderIdForUpload(params?.id, service);
+        if (pid) {
+            void dispatch(fetchProviderServices(pid));
         }
-    }, [success, providerId, dispatch]);
+        dispatch(closeEditModal());
+    }, [success, service, params?.id, dispatch]);
 
     useEffect(() => {
         return () => {
@@ -95,12 +114,22 @@ export default function EditServiceModal() {
     };
 
     const onImageFiles = async (files: FileList | null) => {
-        if (!files || files.length === 0 || !providerId) return;
+        if (!files || files.length === 0) return;
+        const uploadProviderId = resolveProviderIdForUpload(params?.id, service);
+        if (!uploadProviderId) {
+            setImageUploadError(
+                "Missing provider id for upload. Re-open this service from a provider page or ensure the service has provider_id."
+            );
+            return;
+        }
+        setImageUploadError(null);
         try {
-            // Show immediate local previews
             const locals = Array.from(files).map((f) => URL.createObjectURL(f));
             setPendingPreviews((prev) => [...locals, ...prev]);
-            const urls = await uploadFilesToSupabase(Array.from(files), `provider/${providerId}`);
+            const urls = await uploadFilesToSupabase(
+                Array.from(files),
+                `provider/${uploadProviderId}`
+            );
             const validUrls = (urls || []).filter(Boolean) as string[];
             if (validUrls.length > 0) {
                 const next = [...(images || [])];
@@ -108,16 +137,28 @@ export default function EditServiceModal() {
                 dispatch(setImages(next));
                 dispatch(setCoverIdx(0));
             }
-            // Clear local previews after successful upload
             setPendingPreviews((prev) => {
-                prev.forEach((u) => { try { URL.revokeObjectURL(u); } catch { } });
+                prev.forEach((u) => {
+                    try {
+                        URL.revokeObjectURL(u);
+                    } catch {
+                        /* ignore */
+                    }
+                });
                 return [];
             });
         } catch (e) {
+            const msg = e instanceof Error ? e.message : "Upload failed";
+            setImageUploadError(msg);
             console.warn("Image upload failed", e);
-            // On failure, still clear local previews
             setPendingPreviews((prev) => {
-                prev.forEach((u) => { try { URL.revokeObjectURL(u); } catch { } });
+                prev.forEach((u) => {
+                    try {
+                        URL.revokeObjectURL(u);
+                    } catch {
+                        /* ignore */
+                    }
+                });
                 return [];
             });
         }
@@ -217,6 +258,9 @@ export default function EditServiceModal() {
                     <button onClick={() => dispatch(closeEditModal())} aria-label="Close" className="p-1 rounded hover:bg-gray-100">✕</button>
                 </div>
                 {error && <div className="mt-2 text-sm text-red-600">{error}</div>}
+                {imageUploadError && (
+                    <div className="mt-2 text-sm text-red-600">{imageUploadError}</div>
+                )}
                 <div className="mt-6 space-y-6">
                     <div>
                         <label className="text-sm font-medium" htmlFor="svc-name">Service Name</label>
@@ -300,11 +344,21 @@ export default function EditServiceModal() {
                                             <button type="button" className="absolute top-2 right-2 rounded-full bg-white/90 px-2 py-1 text-xs border" onClick={() => onRemoveImage(idx)}>Remove</button>
                                         </div>
                                     ))}
-                                    <label className="cursor-pointer">
+                                    <label htmlFor="edit-service-image-upload" className="cursor-pointer">
                                         <div className="flex flex-col items-center justify-center w-full aspect-square border-2 border-dashed rounded-lg text-sm text-gray-600">
                                             Upload
                                         </div>
-                                        <input type="file" className="hidden" accept="image/*" multiple onChange={(e) => onImageFiles(e.target.files)} />
+                                        <input
+                                            id="edit-service-image-upload"
+                                            type="file"
+                                            className="sr-only"
+                                            accept="image/*"
+                                            multiple
+                                            onChange={(e) => {
+                                                void onImageFiles(e.target.files);
+                                                e.target.value = "";
+                                            }}
+                                        />
                                     </label>
                                 </div>
                             </div>

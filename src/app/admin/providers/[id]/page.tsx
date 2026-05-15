@@ -22,6 +22,9 @@ import type { RootState } from '@/store/store';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ProviderAddressPicker } from '@/components/ProviderAddressPicker';
+import { buildProviderUpdatesFromEditForm } from '@/lib/build-provider-updates';
+import { parseProviderLocation } from '@/lib/provider-location';
 import Image from 'next/image';
 
 export default function ProviderDetailPage() {
@@ -95,19 +98,26 @@ export default function ProviderDetailPage() {
 
     // Edit modal state
     const [open, setOpen] = useState(false);
+    const [saveError, setSaveError] = useState<string | null>(null);
+    const [saveLoading, setSaveLoading] = useState(false);
     const [form, setForm] = useState({
         name: '',
         phone: '',
         address: '',
+        latitude: null as number | null,
+        longitude: null as number | null,
         banner: '',
         avatar: '',
     });
     useEffect(() => {
         if (!provider) return;
+        const coords = parseProviderLocation(provider.location ?? null);
         setForm({
             name: (provider.name || `${provider.firstName ?? provider.first_name ?? ''} ${provider.lastName ?? provider.last_name ?? ''}`.trim()).trim(),
             phone: provider.phoneNumber || provider.phone || '',
             address: provider.address || '',
+            latitude: coords.latitude,
+            longitude: coords.longitude,
             banner: provider.banner || '',
             avatar: provider.profileImage || provider.profile_image || provider.avatar_url || '',
         });
@@ -119,22 +129,24 @@ export default function ProviderDetailPage() {
     };
 
     const onSave = async () => {
-        if (!provider) return;
-        const updates: Partial<import('@/features/provider/providerSlice').Provider> = {};
-        const nameVal = form.name.trim();
-        const phoneVal = form.phone.trim();
-        const addressVal = form.address.trim();
-        const bannerVal = form.banner.trim();
-        const avatarVal = form.avatar.trim();
-
-        if (nameVal) updates.name = nameVal;
-        if (phoneVal) updates.phone = phoneVal;
-        if (addressVal) updates.address = addressVal;
-        if (bannerVal) updates.banner = bannerVal;
-        if (avatarVal) updates.profile_image = avatarVal;
-
-        await dispatch(updateProvider({ id: provider.id, updates }));
-        setOpen(false);
+        if (!provider || !id) return;
+        setSaveError(null);
+        setSaveLoading(true);
+        try {
+            const updates = buildProviderUpdatesFromEditForm(form);
+            await dispatch(
+                updateProvider({
+                    id: provider.id,
+                    updates: updates as Partial<import('@/features/provider/providerSlice').Provider>,
+                })
+            ).unwrap();
+            await dispatch(fetchProviderById(id));
+            setOpen(false);
+        } catch (e) {
+            setSaveError(e instanceof Error ? e.message : 'Failed to save provider');
+        } finally {
+            setSaveLoading(false);
+        }
     };
 
     // Service add/edit modal state
@@ -181,6 +193,7 @@ export default function ProviderDetailPage() {
         const maybeVideo = (svc as unknown as { video?: string | null }).video;
         const mapped: import('@/features/service/editServiceSlice').ServiceModel = {
             id: svc.id,
+            provider_id: id,
             serviceName: svc.serviceName ?? svc.name ?? '',
             description: svc.description ?? '',
             price: svc.price,
@@ -696,10 +709,13 @@ export default function ProviderDetailPage() {
                                 </div>
                             </div>
                             {/* Edit dialog */}
-                            <Dialog open={open} onClose={() => setOpen(false)}>
+                            <Dialog open={open} onClose={() => { setOpen(false); setSaveError(null); }}>
                                 <DialogHeader>
                                     <DialogTitle>Edit Provider</DialogTitle>
                                 </DialogHeader>
+                                {saveError && (
+                                    <p className="mb-2 text-sm text-destructive">{saveError}</p>
+                                )}
                                 <div className="grid gap-4">
                                     <div className="grid gap-1.5">
                                         <Label htmlFor="name">Name</Label>
@@ -709,10 +725,22 @@ export default function ProviderDetailPage() {
                                         <Label htmlFor="phone">Phone</Label>
                                         <Input id="phone" name="phone" value={form.phone} onChange={onChange} placeholder="Phone number" />
                                     </div>
-                                    <div className="grid gap-1.5">
-                                        <Label htmlFor="address">Address</Label>
-                                        <Input id="address" name="address" value={form.address} onChange={onChange} placeholder="Street, City" />
-                                    </div>
+                                    <ProviderAddressPicker
+                                        id="address"
+                                        value={{
+                                            address: form.address,
+                                            latitude: form.latitude,
+                                            longitude: form.longitude,
+                                        }}
+                                        onChange={(next) =>
+                                            setForm((f) => ({
+                                                ...f,
+                                                address: next.address,
+                                                latitude: next.latitude,
+                                                longitude: next.longitude,
+                                            }))
+                                        }
+                                    />
                                     <div className="grid gap-1.5">
                                         <Label htmlFor="banner">Banner URL</Label>
                                         <Input id="banner" name="banner" value={form.banner} onChange={onChange} placeholder="https://..." />
@@ -726,8 +754,8 @@ export default function ProviderDetailPage() {
                                     </DialogDescription>
                                 </div>
                                 <DialogFooter>
-                                    <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
-                                    <Button onClick={onSave}>Save changes</Button>
+                                    <Button variant="ghost" onClick={() => { setOpen(false); setSaveError(null); }} disabled={saveLoading}>Cancel</Button>
+                                    <Button onClick={onSave} disabled={saveLoading}>{saveLoading ? 'Saving…' : 'Save changes'}</Button>
                                 </DialogFooter>
                             </Dialog>
 
