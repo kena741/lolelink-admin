@@ -1,4 +1,9 @@
-const SMS_ENDPOINT = 'https://betegna-ai.vercel.app/sms/send';
+const SMS_UPSTREAM = 'https://betegna-ai.vercel.app/sms/send';
+
+function getSmsEndpoint(): string {
+    if (typeof window !== 'undefined') return '/api/sms/send';
+    return SMS_UPSTREAM;
+}
 
 export function buildRecipient(phone?: string | null, countryCode?: string | null): string {
     let p = (phone ?? '').toString().trim();
@@ -21,7 +26,7 @@ export async function sendSms(
     if (!recipient) return { success: false, error: 'No recipient provided' };
 
     try {
-        const res = await fetch(SMS_ENDPOINT, {
+        const res = await fetch(getSmsEndpoint(), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ recipient, message, callback: '' }),
