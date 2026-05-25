@@ -2,7 +2,6 @@
 import React, { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getSupabase } from "@/lib/supabaseClient";
-import { ALLOWED_EMAIL } from "@/lib/authConfig";
 
 export const dynamic = "force-dynamic";
 
@@ -17,8 +16,7 @@ function LoginContent() {
     useEffect(() => {
         // If already logged in and allowed, go to next (local session check)
         getSupabase().auth.getSession().then(({ data }) => {
-            const e = data.session?.user?.email?.toLowerCase();
-            if (e && e === ALLOWED_EMAIL.toLowerCase()) {
+            if (data.session?.user) {
                 const next = params.get("next") || "/admin/dashboard";
                 router.replace(next);
             }
@@ -39,10 +37,6 @@ function LoginContent() {
         e.preventDefault();
         setError(null);
         const trimmed = email.trim().toLowerCase();
-        if (trimmed !== ALLOWED_EMAIL.toLowerCase()) {
-            setError("This account is not authorized.");
-            return;
-        }
         if (!password) {
             setError("Password is required.");
             return;
@@ -76,7 +70,7 @@ function LoginContent() {
                 <div className="mb-6 text-center">
                     <div className="mx-auto mb-3 h-10 w-10 rounded-lg bg-gradient-to-br from-indigo-600 via-purple-600 to-fuchsia-600" />
                     <h1 className="text-lg font-semibold text-gray-900">Admin Login</h1>
-                    <p className="mt-1 text-sm text-gray-600">Sign in with the authorized email and password.</p>
+                    <p className="mt-1 text-sm text-gray-600">Sign in with your admin email and password.</p>
                 </div>
                 <form onSubmit={onSubmit} className="space-y-4">
                     {error && (

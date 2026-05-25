@@ -2,7 +2,14 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { getSupabase } from "@/lib/supabaseClient";
-import { ALLOWED_EMAIL } from "@/lib/authConfig";
+
+async function getAuthenticatedUser() {
+    const { data: sess } = await getSupabase().auth.getSession();
+    if (sess.session?.user) return sess.session.user;
+    await new Promise((r) => setTimeout(r, 150));
+    const { data: retry } = await getSupabase().auth.getSession();
+    return retry.session?.user ?? null;
+}
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
     const router = useRouter();
@@ -14,41 +21,17 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         let mounted = true;
         const check = async () => {
             try {
-                // Use local session first (fast, avoids network on cold start)
-                const { data: sess } = await getSupabase().auth.getSession();
-                const email = sess.session?.user?.email;
-                if (!email) {
-                    // Transient race after login: wait briefly and re-check once
-                    await new Promise((r) => setTimeout(r, 150));
-                    const { data: retry } = await getSupabase().auth.getSession();
-                    const again = retry.session?.user?.email;
-                    if (!again) {
-                        await getSupabase().auth.signOut();
-                        if (mounted && !didNavigate.current) {
-                            didNavigate.current = true;
-                            router.replace("/login?error=auth&next=" + encodeURIComponent(pathname || "/admin/dashboard"));
-                        }
-                        return;
-                    }
-                }
-                // If there is a session, validate email
-                const ok = !!email && email.toLowerCase() === ALLOWED_EMAIL.toLowerCase();
-                if (!ok) {
-                    // If not allowed, ensure signed out and go to login
+                const user = await getAuthenticatedUser();
+                if (!user) {
                     await getSupabase().auth.signOut();
                     if (mounted && !didNavigate.current) {
                         didNavigate.current = true;
-                        router.replace(
-                            "/login?error=unauthorized&next=" + encodeURIComponent(pathname || "/admin/dashboard")
-                        );
+                        router.replace("/login?error=auth&next=" + encodeURIComponent(pathname || "/admin/dashboard"));
                     }
-                } else {
-                    // Authorized: stop checking immediately and render children
-                    if (mounted) setChecking(false);
                     return;
                 }
+                if (mounted) setChecking(false);
             } catch {
-                // If anything fails (e.g., env or client), push to login
                 if (mounted && !didNavigate.current) {
                     didNavigate.current = true;
                     router.replace(
@@ -62,7 +45,6 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         check();
 
         const { data: sub } = getSupabase().auth.onAuthStateChange(() => {
-            // Re-run check on auth changes
             check();
         });
         return () => {
@@ -71,7 +53,6 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         };
     }, [router, pathname]);
 
-    // Fallback: if for any reason checking lingers, force redirect after 6s
     useEffect(() => {
         if (!checking || didNavigate.current) return;
         const t = setTimeout(() => {
