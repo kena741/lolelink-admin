@@ -10,6 +10,8 @@ export interface WalletTransaction {
     transactionId: string;
     type: string;
     userId: string;
+    providerName: string;
+    providerPhone: string;
 }
 
 interface WalletTransactionRow {
@@ -22,6 +24,8 @@ interface WalletTransactionRow {
     transactionId?: string | null;
     type?: string | null;
     userId?: string | null;
+    providerName?: string | null;
+    providerPhone?: string | null;
 }
 
 interface WalletTransactionState {
@@ -47,6 +51,8 @@ function normalizeRows(rows: WalletTransactionRow[] | null | undefined): WalletT
         transactionId: row.transactionId ?? '',
         type: row.type ?? '',
         userId: row.userId ?? '',
+        providerName: row.providerName ?? '',
+        providerPhone: row.providerPhone ?? '',
     }));
 }
 

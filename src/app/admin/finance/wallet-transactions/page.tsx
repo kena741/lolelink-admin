@@ -53,6 +53,8 @@ const WalletTransactionsPage = () => {
             return (
                 item.transactionId.toLowerCase().includes(lowerQuery) ||
                 item.userId.toLowerCase().includes(lowerQuery) ||
+                item.providerName.toLowerCase().includes(lowerQuery) ||
+                item.providerPhone.toLowerCase().includes(lowerQuery) ||
                 item.type.toLowerCase().includes(lowerQuery) ||
                 item.paymentType.toLowerCase().includes(lowerQuery) ||
                 item.note.toLowerCase().includes(lowerQuery)
@@ -144,7 +146,7 @@ const WalletTransactionsPage = () => {
                             <input
                                 value={query}
                                 onChange={(event) => setQuery(event.target.value)}
-                                placeholder="Search transactionId, userId, type, paymentType, note..."
+                                placeholder="Search name, phone, transactionId, type, note..."
                                 className="w-full sm:w-[460px] rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                             />
                             <select
@@ -180,7 +182,8 @@ const WalletTransactionsPage = () => {
                                                 <TableHead className="font-semibold text-gray-700">Amount</TableHead>
                                                 <TableHead className="font-semibold text-gray-700">Type</TableHead>
                                                 <TableHead className="font-semibold text-gray-700">Payment Type</TableHead>
-                                                <TableHead className="font-semibold text-gray-700">Provider ID</TableHead>
+                                                <TableHead className="font-semibold text-gray-700">Name</TableHead>
+                                                <TableHead className="font-semibold text-gray-700">Phone</TableHead>
                                                 <TableHead className="font-semibold text-gray-700">Transaction ID</TableHead>
                                                 <TableHead className="font-semibold text-gray-700">Note</TableHead>
                                             </TableRow>
@@ -188,7 +191,7 @@ const WalletTransactionsPage = () => {
                                         <TableBody>
                                             {filteredItems.length === 0 ? (
                                                 <TableRow>
-                                                    <TableCell colSpan={8} className="px-4 py-12 text-center text-gray-500">
+                                                    <TableCell colSpan={9} className="px-4 py-12 text-center text-gray-500">
                                                         No wallet transactions found.
                                                     </TableCell>
                                                 </TableRow>
@@ -218,7 +221,12 @@ const WalletTransactionsPage = () => {
                                                             </TableCell>
                                                             <TableCell className="text-gray-700">{item.type || '—'}</TableCell>
                                                             <TableCell className="text-gray-700">{item.paymentType || '—'}</TableCell>
-                                                            <TableCell className="max-w-[180px] truncate text-gray-700">{item.userId || '—'}</TableCell>
+                                                            <TableCell className="max-w-[180px] truncate font-medium text-gray-900">
+                                                                {item.providerName || '—'}
+                                                            </TableCell>
+                                                            <TableCell className="max-w-[160px] truncate text-gray-700">
+                                                                {item.providerPhone || '—'}
+                                                            </TableCell>
                                                             <TableCell className="max-w-[220px] truncate text-gray-700">{item.transactionId || '—'}</TableCell>
                                                             <TableCell className="max-w-[260px] truncate text-gray-700">{item.note || '—'}</TableCell>
                                                         </TableRow>

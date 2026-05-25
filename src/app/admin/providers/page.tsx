@@ -320,8 +320,9 @@ const ProvidersPage = () => {
     // Calculate statistics
     const stats = useMemo(() => {
         const totalServices = Object.values(serviceCounts).reduce((sum, count) => sum + count, 0);
-        const avgServicesPerProvider = providers.length > 0 ? totalServices / providers.length : 0;
         const providersWithServices = Object.keys(serviceCounts).length;
+        const avgServicesPerProvider =
+            providersWithServices > 0 ? totalServices / providersWithServices : 0;
         
         const nonArchived = providers.filter((p) => !providerIsArchived(p));
         const activationPaidCount = nonArchived.filter((p) => providerActivationPaid(p)).length;
