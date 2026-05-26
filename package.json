@@ -11,7 +11,9 @@
     "lint": "next lint",
     "notify-zero-services": "tsx scripts/notify-zero-service-providers.ts",
     "list-fayda-status": "tsx scripts/list-fayda-verification-status.ts",
-    "notify-fayda-segment": "tsx scripts/notify-fayda-segment-sms.ts"
+    "notify-fayda-segment": "tsx scripts/notify-fayda-segment-sms.ts",
+    "notify-rejected-national-id": "tsx scripts/notify-rejected-national-id-sms.ts",
+    "reconcile-converted-wallet-credits": "tsx scripts/reconcile-converted-wallet-credits.ts"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",

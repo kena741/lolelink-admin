@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
+import { findPriorCustomerWalletTopUp } from '@/lib/wallet-transaction-activation';
 
 export const runtime = 'nodejs';
 
@@ -158,25 +159,41 @@ export async function POST(request: Request) {
             ? constants.provider_activation_account_activation_fee_amount
             : verifyData.data?.amount?.toString() || '0';
 
-        const { error: walletError } = await supabaseAdmin.from('wallet_transaction').insert({
-            amount: feeAmount,
-            createdDate: now,
-            isCredit: true,
-            note: 'Activation payment top up (Chapa)',
-            paymentType: 'chapa',
-            transactionId: txRef,
-            type: 'provider',
-            userId: body.providerId,
-        });
+        let walletSkipped = Boolean(existingWalletTx);
+        let walletSkippedReason: string | null = existingWalletTx ? 'existing_wallet_transaction' : null;
 
-        if (walletError) {
-            return NextResponse.json({
-                status: 'partial',
-                message: `Provider activated but wallet transaction failed: ${walletError.message}`,
-                provider_id: body.providerId,
-                activation_paid_at: now,
-                wallet_error: walletError.message,
-            });
+        if (!existingWalletTx) {
+            const priorTopUp = await findPriorCustomerWalletTopUp(supabaseAdmin, body.providerId);
+
+            if (priorTopUp) {
+                walletSkipped = true;
+                walletSkippedReason = 'prior_customer_top_up';
+                await supabaseAdmin
+                    .from('provider')
+                    .update({ activation_tx_ref: priorTopUp.transactionId })
+                    .eq('id', body.providerId);
+            } else {
+                const { error: walletError } = await supabaseAdmin.from('wallet_transaction').insert({
+                    amount: feeAmount,
+                    createdDate: now,
+                    isCredit: true,
+                    note: 'Activation payment top up (Chapa)',
+                    paymentType: 'chapa',
+                    transactionId: txRef,
+                    type: 'provider',
+                    userId: body.providerId,
+                });
+
+                if (walletError) {
+                    return NextResponse.json({
+                        status: 'partial',
+                        message: `Provider activated but wallet transaction failed: ${walletError.message}`,
+                        provider_id: body.providerId,
+                        activation_paid_at: now,
+                        wallet_error: walletError.message,
+                    });
+                }
+            }
         }
 
         const { data: existingNotif } = await supabaseAdmin
@@ -204,6 +221,8 @@ export async function POST(request: Request) {
             tx_ref: txRef,
             fee_amount: feeAmount,
             chapa_reference: verifyData.data?.reference,
+            wallet_skipped: walletSkipped,
+            wallet_skipped_reason: walletSkippedReason,
         });
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unexpected verify error';

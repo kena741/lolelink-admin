@@ -15,6 +15,7 @@ interface CustomerRow {
     avatar?: string;
     address?: string;
     password?: string;
+    wallet_amount?: number | null;
 }
 
 interface ConvertRequestBody {
@@ -69,6 +70,11 @@ export async function POST(request: Request) {
             .toLowerCase()
             .replace(/[^a-z0-9-]/g, '');
 
+        const walletAmount =
+            typeof c.wallet_amount === 'number' && Number.isFinite(c.wallet_amount)
+                ? c.wallet_amount.toFixed(2)
+                : undefined;
+
         const providerRow = {
             id: c.id,
             user_id: c.id,
@@ -85,6 +91,7 @@ export async function POST(request: Request) {
             active: true,
             activation_paid: false,
             verified_subcategory_ids: [],
+            ...(walletAmount !== undefined ? { walletAmount } : {}),
         };
 
         const { data: provider, error: insertError } = await supabaseAdmin
@@ -96,6 +103,20 @@ export async function POST(request: Request) {
         if (insertError) {
             return NextResponse.json(
                 { error: insertError.message || 'Failed to create provider' },
+                { status: 500 }
+            );
+        }
+
+        const { error: walletRetagError } = await supabaseAdmin
+            .from('wallet_transaction')
+            .update({ type: 'provider' })
+            .eq('userId', customerId)
+            .eq('type', 'customer');
+
+        if (walletRetagError) {
+            await supabaseAdmin.from('provider').delete().eq('id', customerId);
+            return NextResponse.json(
+                { error: walletRetagError.message || 'Failed to migrate customer wallet transactions' },
                 { status: 500 }
             );
         }

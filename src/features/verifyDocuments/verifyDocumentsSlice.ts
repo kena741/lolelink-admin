@@ -292,6 +292,50 @@ export const approveAllDocuments = createAsyncThunk<
     }
 );
 
+export const reapproveAllRejectedDocuments = createAsyncThunk<
+    VerifyDocument[],
+    string,
+    { rejectValue: string }
+>(
+    'verifyDocuments/reapproveAllRejectedDocuments',
+    async (providerId, { rejectWithValue }) => {
+        try {
+            const { data, error } = await getSupabase()
+                .from('verify_documents')
+                .update({ isVerify: true })
+                .eq('providerId', providerId)
+                .eq('isVerify', false)
+                .select();
+
+            if (error) throw error;
+            const rows = (data ?? []) as VerifyDocumentRow[];
+            const rowIds = rows.map((r) => r.id);
+
+            try {
+                const docIds = [
+                    ...new Set(rows.map((r) => r.documentId).filter((did): did is string => Boolean(did))),
+                ];
+                const subIds = await fetchSubCategoryIdsForDocumentIds(docIds);
+                await mergeProviderVerifiedSubcategoryIds(providerId, subIds);
+            } catch (providerErr) {
+                if (rowIds.length > 0) {
+                    await getSupabase().from('verify_documents').update({ isVerify: false }).in('id', rowIds);
+                }
+                const msg =
+                    providerErr instanceof Error
+                        ? providerErr.message
+                        : 'Failed to update provider verified subcategories';
+                return rejectWithValue(msg);
+            }
+
+            return normalizeRows(rows);
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : 'Failed to re-approve rejected documents';
+            return rejectWithValue(msg);
+        }
+    }
+);
+
 const verifyDocumentsSlice = createSlice({
     name: 'verifyDocuments',
     initialState,
@@ -356,6 +400,23 @@ const verifyDocumentsSlice = createSlice({
             .addCase(approveAllDocuments.rejected, (state, action) => {
                 state.loading = false;
                 state.error = (action.payload as string) || 'Failed to approve all documents';
+            })
+            .addCase(reapproveAllRejectedDocuments.pending, (state) => {
+                state.loading = true;
+                state.error = null;
+            })
+            .addCase(reapproveAllRejectedDocuments.fulfilled, (state, action: PayloadAction<VerifyDocument[]>) => {
+                state.loading = false;
+                action.payload.forEach((updatedDoc) => {
+                    const index = state.documents.findIndex((doc) => doc.id === updatedDoc.id);
+                    if (index !== -1) {
+                        state.documents[index] = updatedDoc;
+                    }
+                });
+            })
+            .addCase(reapproveAllRejectedDocuments.rejected, (state, action) => {
+                state.loading = false;
+                state.error = (action.payload as string) || 'Failed to re-approve rejected documents';
             });
     },
 });

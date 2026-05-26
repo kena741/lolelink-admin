@@ -99,9 +99,17 @@ export function ActivationPaymentModal({ open, onClose, providerId, providerName
                 return;
             }
 
+            if (rawData.wallet_skipped) {
+                addDebugLog('wallet_transaction SKIPPED', rawData);
+            }
+
             await dispatch(verifyActivationPayment({ providerId })).unwrap();
             addDebugLog('verifyActivationPayment SUCCESS (provider reloaded)', { providerId });
-            setSuccessMessage('Payment verified successfully! Provider account is now active.');
+            setSuccessMessage(
+                rawData.wallet_skipped
+                    ? 'Payment verified. Existing customer wallet top-up was used — no duplicate wallet credit was created.'
+                    : 'Payment verified successfully! Provider account is now active.'
+            );
             setTimeout(() => resetAndClose(), 2000);
         } catch (err: unknown) {
             addDebugLog('verifyActivationPayment ERROR', err);
@@ -138,8 +146,17 @@ export function ActivationPaymentModal({ open, onClose, providerId, providerName
                 return;
             }
 
+            if (rawData.wallet_skipped) {
+                addDebugLog('wallet_transaction SKIPPED', rawData);
+            }
+
             await dispatch(markActivationPaid({ providerId, txRef: txRef.trim() || undefined, note: note.trim() || undefined })).unwrap();
             addDebugLog('markActivationPaid SUCCESS', { providerId });
+            if (rawData.wallet_skipped) {
+                setSuccessMessage('Activation confirmed using existing customer wallet top-up. No duplicate wallet credit was created.');
+                setTimeout(() => resetAndClose(), 2000);
+                return;
+            }
             resetAndClose();
         } catch (err: unknown) {
             addDebugLog('markActivationPaid ERROR', err);

@@ -7,6 +7,12 @@ import Sidebar from '@/components/Sidebar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { fetchWalletTransactions } from '@/features/walletTransaction/walletTransactionSlice';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import {
+    buildUserIdsWithProviderActivation,
+    parseWalletAmount,
+    shouldExcludeFromAdjustedCredit,
+    type WalletTransactionMetricRow,
+} from '@/lib/wallet-transaction-metrics';
 
 function formatDate(value: string) {
     if (!value) return '—';
@@ -63,10 +69,29 @@ const WalletTransactionsPage = () => {
     }, [items, query, directionFilter]);
 
     const stats = useMemo(() => {
-        const credits = filteredItems.filter((item) => item.isCredit);
-        const debits = filteredItems.filter((item) => !item.isCredit);
-        const totalCredit = credits.reduce((sum, item) => sum + toAmount(item.amount), 0);
-        const totalDebit = debits.reduce((sum, item) => sum + toAmount(item.amount), 0);
+        const toMetricRow = (item: (typeof items)[number]): WalletTransactionMetricRow => ({
+            amount: item.amount,
+            isCredit: item.isCredit,
+            note: item.note,
+            transactionId: item.transactionId,
+            type: item.type,
+            userId: item.userId,
+            createdDate: item.createdDate,
+        });
+
+        const allRows = items.map(toMetricRow);
+        const filteredRows = filteredItems.map(toMetricRow);
+        const providerActivationUserIds = buildUserIdsWithProviderActivation(allRows);
+
+        const credits = filteredRows.filter((row) => row.isCredit === true);
+        const debits = filteredRows.filter((row) => row.isCredit !== true);
+
+        const totalCredit = credits.reduce((sum, row) => {
+            if (shouldExcludeFromAdjustedCredit(row, providerActivationUserIds)) return sum;
+            return sum + parseWalletAmount(row.amount);
+        }, 0);
+        const totalDebit = debits.reduce((sum, row) => sum + parseWalletAmount(row.amount), 0);
+
         return {
             total: filteredItems.length,
             creditCount: credits.length,
@@ -74,7 +99,7 @@ const WalletTransactionsPage = () => {
             totalCredit,
             totalDebit,
         };
-    }, [filteredItems]);
+    }, [filteredItems, items]);
 
     return (
         <AuthGuard>
@@ -119,7 +144,7 @@ const WalletTransactionsPage = () => {
                     </div>
 
                     <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
-                        <section className="mb-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-5">
+                        <section className="mb-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-6">
                             <div className="rounded-2xl border border-white/20 bg-gradient-to-br from-white/80 to-white/40 p-6 shadow-xl backdrop-blur-xl">
                                 <p className="mb-1 text-sm font-medium text-gray-600">Transactions</p>
                                 <p className="text-3xl font-bold text-gray-900">{loading ? '...' : stats.total}</p>
@@ -134,7 +159,9 @@ const WalletTransactionsPage = () => {
                             </div>
                             <div className="rounded-2xl border border-white/20 bg-gradient-to-br from-white/80 to-white/40 p-6 shadow-xl backdrop-blur-xl">
                                 <p className="mb-1 text-sm font-medium text-gray-600">Total Credit</p>
-                                <p className="text-xl font-bold text-emerald-700">{loading ? '...' : formatAmount(stats.totalCredit)}</p>
+                                <p className="text-xl font-bold text-emerald-700">
+                                    {loading ? '...' : formatAmount(stats.totalCredit)}
+                                </p>
                             </div>
                             <div className="rounded-2xl border border-white/20 bg-gradient-to-br from-white/80 to-white/40 p-6 shadow-xl backdrop-blur-xl">
                                 <p className="mb-1 text-sm font-medium text-gray-600">Total Debit</p>

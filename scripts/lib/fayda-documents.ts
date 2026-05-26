@@ -95,3 +95,15 @@ export async function fetchVerifiedFaydaProviderIds(
     }
     return set;
 }
+
+export async function fetchRejectedNationalIdProviderIds(
+    supabase: SupabaseClient,
+    documentIds: string[]
+): Promise<Set<string>> {
+    const byProvider = await fetchFaydaStatusByProviderId(supabase, documentIds);
+    const set = new Set<string>();
+    for (const [pid, st] of byProvider) {
+        if (st === 'rejected') set.add(pid);
+    }
+    return set;
+}

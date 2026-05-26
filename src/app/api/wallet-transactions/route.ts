@@ -5,6 +5,11 @@ export const runtime = 'nodejs';
 
 interface WalletTransactionRow {
     userId?: string | null;
+    type?: string | null;
+}
+
+function isCustomerTransactionType(type: string | undefined | null): boolean {
+    return typeof type === 'string' && type.trim().toLowerCase() === 'customer';
 }
 
 function providerDisplayName(raw: Record<string, unknown>): string {
@@ -25,6 +30,26 @@ function providerDisplayPhone(raw: Record<string, unknown>): string {
     return '';
 }
 
+function customerDisplayName(raw: Record<string, unknown>): string {
+    const first =
+        (typeof raw.first_name === 'string' && raw.first_name) ||
+        (typeof raw.firstName === 'string' && raw.firstName) ||
+        '';
+    const last =
+        (typeof raw.last_name === 'string' && raw.last_name) ||
+        (typeof raw.lastName === 'string' && raw.lastName) ||
+        '';
+    return [first, last].filter(Boolean).join(' ');
+}
+
+function customerDisplayPhone(raw: Record<string, unknown>): string {
+    const candidates = [raw.phoneNumber, raw.phone, raw.mobile_number, raw.mobileNumber];
+    for (const value of candidates) {
+        if (typeof value === 'string' && value.trim()) return value.trim();
+    }
+    return '';
+}
+
 export async function GET(request: Request) {
     const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
@@ -38,8 +63,22 @@ export async function GET(request: Request) {
         }
 
         const rows = (data ?? []) as WalletTransactionRow[];
+
         const providerIds = [
-            ...new Set(rows.map((row) => row.userId).filter((id): id is string => Boolean(id))),
+            ...new Set(
+                rows
+                    .filter((row) => !isCustomerTransactionType(row.type))
+                    .map((row) => row.userId)
+                    .filter((id): id is string => Boolean(id))
+            ),
+        ];
+        const customerIds = [
+            ...new Set(
+                rows
+                    .filter((row) => isCustomerTransactionType(row.type))
+                    .map((row) => row.userId)
+                    .filter((id): id is string => Boolean(id))
+            ),
         ];
 
         const providerById: Record<string, { name: string; phone: string }> = {};
@@ -63,8 +102,30 @@ export async function GET(request: Request) {
             });
         }
 
+        const customerById: Record<string, { name: string; phone: string }> = {};
+        if (customerIds.length > 0) {
+            const { data: customers, error: customerError } = await supabaseAdmin
+                .from('customer')
+                .select('*')
+                .in('id', customerIds);
+
+            if (customerError) {
+                return NextResponse.json({ error: customerError.message }, { status: 500 });
+            }
+
+            (customers as Record<string, unknown>[] | null)?.forEach((customer) => {
+                const id = typeof customer.id === 'string' ? customer.id : '';
+                if (!id) return;
+                customerById[id] = {
+                    name: customerDisplayName(customer),
+                    phone: customerDisplayPhone(customer),
+                };
+            });
+        }
+
         const enriched = rows.map((row) => {
-            const lookup = row.userId ? providerById[row.userId] : undefined;
+            const lookupMap = isCustomerTransactionType(row.type) ? customerById : providerById;
+            const lookup = row.userId ? lookupMap[row.userId] : undefined;
             return {
                 ...row,
                 providerName: lookup?.name ?? '',

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
+import { findPriorCustomerWalletTopUp } from '@/lib/wallet-transaction-activation';
 
 export const runtime = 'nodejs';
 
@@ -229,7 +230,9 @@ async function handleManualMark(
     note?: string
 ) {
     const now = new Date().toISOString();
-    const ref = (txRef || '').trim() || `manual-${provider.id.slice(0, 8)}-${Date.now()}`;
+    const priorTopUp = await findPriorCustomerWalletTopUp(admin, provider.id);
+    const ref = priorTopUp?.transactionId
+        ?? ((txRef || '').trim() || `manual-${provider.id.slice(0, 8)}-${Date.now()}`);
 
     const { error: updateError } = await admin
         .from('provider')
@@ -244,24 +247,28 @@ async function handleManualMark(
         return NextResponse.json({ error: 'Failed to update provider activation status' }, { status: 500 });
     }
 
-    const { error: walletError } = await admin.from('wallet_transaction').insert({
-        amount: feeAmount,
-        createdDate: now,
-        isCredit: true,
-        note: `Activation payment top up (manual)${note ? ` - ${note}` : ''}`,
-        paymentType: 'manual',
-        transactionId: ref,
-        type: 'provider',
-        userId: provider.id,
-    });
+    const walletSkipped = Boolean(priorTopUp);
 
-    if (walletError) {
-        return NextResponse.json({
-            status: 'partial',
-            message: `Provider activated but wallet transaction failed: ${walletError.message}`,
-            provider_id: provider.id,
-            wallet_error: walletError.message,
+    if (!walletSkipped) {
+        const { error: walletError } = await admin.from('wallet_transaction').insert({
+            amount: feeAmount,
+            createdDate: now,
+            isCredit: true,
+            note: `Activation payment top up (manual)${note ? ` - ${note}` : ''}`,
+            paymentType: 'manual',
+            transactionId: ref,
+            type: 'provider',
+            userId: provider.id,
         });
+
+        if (walletError) {
+            return NextResponse.json({
+                status: 'partial',
+                message: `Provider activated but wallet transaction failed: ${walletError.message}`,
+                provider_id: provider.id,
+                wallet_error: walletError.message,
+            });
+        }
     }
 
     await insertNotification(admin, {
@@ -280,6 +287,8 @@ async function handleManualMark(
         tx_ref: ref,
         fee_amount: feeAmount,
         note: note || null,
+        wallet_skipped: walletSkipped,
+        wallet_skipped_reason: walletSkipped ? 'prior_customer_top_up' : null,
     });
 }
 

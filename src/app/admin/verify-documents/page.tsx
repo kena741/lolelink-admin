@@ -17,10 +17,17 @@ import {
     MessageSquare,
     Eye,
     Search,
+    RotateCcw,
 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { fetchVerifyDocuments, verifyDocument, rejectDocument, approveAllDocuments } from '@/features/verifyDocuments/verifyDocumentsSlice';
+import {
+    fetchVerifyDocuments,
+    verifyDocument,
+    rejectDocument,
+    approveAllDocuments,
+    reapproveAllRejectedDocuments,
+} from '@/features/verifyDocuments/verifyDocumentsSlice';
 import { getSupabase } from '@/lib/supabaseClient';
 import { sendSms, buildRecipient } from '@/lib/sms';
 import { cn } from '@/lib/utils';
@@ -57,7 +64,7 @@ const VerifyDocumentsPage = () => {
 
     function getRejectMessage(providerName?: string) {
         const name = providerName || '';
-        return `ሰላም ${name}! ለዘመን አገልግሎት ሰጪነት ያቀረቡት ጥያቄ ውድቅ ተደርጓል እባክዎ ትክክለኛ ሰነድ ያስገቡ ወይም በዚህ ስልክ 0941024355 ደውለው ይጠይቁ:: ለትብብርዎ እናመሰግናለን!!`;
+        return `ሰላም ${name}! ለዘመን አገልግሎት ሰጪነት ያቀረቡት ጥያቄ ውድቅ ተደርጓል እባክዎ ትክክለኛ ሰነድ ያስገቡ ወይም በዚህ ስልክ 0951175959 ደውለው ይጠይቁ:: ለትብብርዎ እናመሰግናለን!!`;
     }
 
     async function fetchProviderPhone(providerId: string): Promise<string> {
@@ -99,14 +106,17 @@ const VerifyDocumentsPage = () => {
         setProviderPhone(phone);
     }
 
-    const handleVerify = async (id: string) => {
+    const handleVerify = async (id: string, docHint?: (typeof documents)[0]) => {
         setProcessingId(id);
         try {
             const result = await dispatch(verifyDocument(id)).unwrap();
             dispatch(fetchVerifyDocuments());
             await notifyProviderViaSms(
                 result.providerId,
-                getApproveMessage(result.providerName, result.documentName)
+                getApproveMessage(
+                    docHint?.providerName ?? result.providerName,
+                    docHint?.documentName ?? result.documentName
+                )
             );
         } catch (err) {
             console.error('Failed to verify document:', err);
@@ -139,6 +149,19 @@ const VerifyDocumentsPage = () => {
             await notifyProviderViaSms(providerId, getApproveAllMessage(providerName));
         } catch (err) {
             console.error('Failed to approve all documents:', err);
+        } finally {
+            setProcessingProviderId(null);
+        }
+    };
+
+    const handleReapproveAll = async (providerId: string, providerName?: string) => {
+        setProcessingProviderId(providerId);
+        try {
+            await dispatch(reapproveAllRejectedDocuments(providerId)).unwrap();
+            dispatch(fetchVerifyDocuments());
+            await notifyProviderViaSms(providerId, getApproveAllMessage(providerName));
+        } catch (err) {
+            console.error('Failed to re-approve rejected documents:', err);
         } finally {
             setProcessingProviderId(null);
         }
@@ -457,15 +480,27 @@ const VerifyDocumentsPage = () => {
                                                                 </span>
                                                             </div>
                                                         </div>
-                                                        {pendingDocs.length > 0 && (
-                                                            <button
-                                                                onClick={() => handleApproveAll(group.providerId, group.providerName)}
-                                                                disabled={isProcessingAll}
-                                                                className="px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600 text-white text-sm font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-                                                            >
-                                                                {isProcessingAll ? 'Processing...' : `Approve All (${pendingDocs.length})`}
-                                                            </button>
-                                                        )}
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            {pendingDocs.length > 0 && (
+                                                                <button
+                                                                    onClick={() => handleApproveAll(group.providerId, group.providerName)}
+                                                                    disabled={isProcessingAll}
+                                                                    className="px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600 text-white text-sm font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                                                                >
+                                                                    {isProcessingAll ? 'Processing...' : `Approve All (${pendingDocs.length})`}
+                                                                </button>
+                                                            )}
+                                                            {rejectedDocs.length > 0 && (
+                                                                <button
+                                                                    onClick={() => handleReapproveAll(group.providerId, group.providerName)}
+                                                                    disabled={isProcessingAll}
+                                                                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-emerald-300 bg-white text-emerald-700 text-sm font-semibold shadow-sm hover:bg-emerald-50 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                >
+                                                                    <RotateCcw className="h-4 w-4" />
+                                                                    {isProcessingAll ? 'Processing...' : `Re-approve Rejected (${rejectedDocs.length})`}
+                                                                </button>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </div>
 
@@ -733,12 +768,29 @@ const VerifyDocumentsPage = () => {
                                         </div>
                                     )}
 
+                                    {selectedDocument.isVerify === false && (
+                                        <div className="space-y-3">
+                                            <p className="text-sm text-gray-600">
+                                                Re-approve if this was rejected by mistake or the provider submitted an updated document.
+                                            </p>
+                                            <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 space-y-2">
+                                                <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700">
+                                                    <MessageSquare className="h-4 w-4" />
+                                                    ሲጸድቅ እንደገና የሚላከው SMS
+                                                </div>
+                                                <div className="rounded-md bg-white border border-emerald-100 px-3 py-2 text-sm text-gray-800">
+                                                    {getApproveMessage(selectedDocument.providerName, selectedDocument.documentName)}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {/* Actions */}
                                     {selectedDocument.isVerify === null && (
                                         <div className="flex items-center gap-3 pt-4 border-t border-gray-200">
                                             <button
                                                 onClick={() => {
-                                                    handleVerify(selectedDocument.id);
+                                                    handleVerify(selectedDocument.id, selectedDocument);
                                                     setSelectedDocument(null);
                                                 }}
                                                 disabled={processingId === selectedDocument.id}
@@ -755,6 +807,22 @@ const VerifyDocumentsPage = () => {
                                                 className="flex-1 px-4 py-2.5 rounded-lg bg-gradient-to-r from-red-500 to-rose-600 text-white font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                                             >
                                                 Reject Document
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {selectedDocument.isVerify === false && (
+                                        <div className="flex items-center gap-3 pt-4 border-t border-gray-200">
+                                            <button
+                                                onClick={() => {
+                                                    handleVerify(selectedDocument.id, selectedDocument);
+                                                    setSelectedDocument(null);
+                                                }}
+                                                disabled={processingId === selectedDocument.id}
+                                                className="inline-flex flex-1 items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                                            >
+                                                <RotateCcw className="h-4 w-4" />
+                                                {processingId === selectedDocument.id ? 'Processing...' : 'Re-approve Document'}
                                             </button>
                                         </div>
                                     )}

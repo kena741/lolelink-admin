@@ -26,10 +26,11 @@ import {
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { BookedService } from '@/features/bookedService/bookedServiceSlice';
+import { computeWalletMetrics, type WalletTransactionMetricRow } from '@/lib/wallet-transaction-metrics';
 
 interface AnalyticsData {
     totalRevenue: number;
-    totalTransaction: number;
+    totalCredit: number;
     totalNetFlow: number;
     totalTopUp: number;
     monthlyRevenue: number;
@@ -73,13 +74,7 @@ interface ProviderPaymentMethodLiteRow {
     is_active?: boolean | null;
 }
 
-interface WalletTransactionLiteRow {
-    amount?: string | number | null;
-    isCredit?: boolean | null;
-    note?: string | null;
-    transactionId?: string | null;
-    createdDate?: string | null;
-}
+interface WalletTransactionLiteRow extends WalletTransactionMetricRow {}
 
 
 type DashboardRange = 'today' | '7d' | '30d' | 'all';
@@ -124,7 +119,7 @@ function DashboardContent() {
     const [customerCount, setCustomerCount] = useState<number>(0);
     const [analytics, setAnalytics] = useState<AnalyticsData>({
         totalRevenue: 0,
-        totalTransaction: 0,
+        totalCredit: 0,
         totalNetFlow: 0,
         totalTopUp: 0,
         monthlyRevenue: 0,
@@ -210,33 +205,14 @@ function DashboardContent() {
                 }, 0);
                 const { data: walletRows, error: walletRowsError } = await getSupabase()
                     .from('wallet_transaction')
-                    .select('amount, isCredit, note, transactionId, createdDate');
+                    .select('amount, isCredit, note, transactionId, createdDate, type, userId');
                 const rangedWalletRows = !walletRowsError && walletRows
                     ? (walletRows as WalletTransactionLiteRow[]).filter((row) => isDateInRange(row.createdDate))
                     : [];
-                const totalTransaction = rangedWalletRows.reduce((sum, row) => {
-                    const amount = Number(row.amount ?? 0);
-                    return sum + (Number.isFinite(amount) ? Math.abs(amount) : 0);
-                }, 0);
-                const totalNetFlow = rangedWalletRows.reduce((sum, row) => {
-                    const amount = Number(row.amount ?? 0);
-                    if (!Number.isFinite(amount)) return sum;
-                    return row.isCredit === true ? sum + amount : sum - amount;
-                }, 0);
-                const totalTopUp = rangedWalletRows
-                    .filter((row) => {
-                        if (row.isCredit !== true) return false;
-                        const normalizedNote = (row.note ?? '').toLowerCase();
-                        const normalizedTransactionId = (row.transactionId ?? '').toLowerCase();
-                        return normalizedNote.includes('top up')
-                            || normalizedNote.includes('topup')
-                            || normalizedTransactionId.startsWith('wallet_')
-                            || normalizedTransactionId.startsWith('activation_');
-                    })
-                    .reduce((sum, row) => {
-                        const amount = Number(row.amount ?? 0);
-                        return sum + (Number.isFinite(amount) ? amount : 0);
-                    }, 0);
+                const walletMetrics = computeWalletMetrics(rangedWalletRows);
+                const totalCredit = walletMetrics.totalCreditAdjusted;
+                const totalNetFlow = walletMetrics.totalNetFlowAdjusted;
+                const totalTopUp = walletMetrics.totalTopUpAdjusted;
 
                 // Calculate monthly revenue (last 30 days)
                 const thirtyDaysAgo = new Date();
@@ -300,7 +276,7 @@ function DashboardContent() {
 
                 setAnalytics({
                     totalRevenue,
-                    totalTransaction,
+                    totalCredit,
                     totalNetFlow,
                     totalTopUp,
                     monthlyRevenue,
@@ -604,8 +580,8 @@ function DashboardContent() {
                         {/* Main Stats Grid */}
                         <section className="mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-6">
                             <StatCard
-                                title="Total Transaction"
-                                value={analytics.totalTransaction}
+                                title="Total Credit"
+                                value={analytics.totalCredit}
                                 isCurrency
                                 icon={DollarSign}
                                 gradient="bg-gradient-to-br from-emerald-500/20 to-teal-500/20"
