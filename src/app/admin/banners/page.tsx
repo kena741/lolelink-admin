@@ -5,6 +5,7 @@ import Sidebar from '@/components/Sidebar';
 import AuthGuard from '@/components/AuthGuard';
 import { ArrowLeft, RefreshCw, Plus, Edit, Trash2, X, Upload } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { fetchBanners, createBanner, updateBanner, deleteBanner } from '@/features/banner/bannerSlice';
 import { getSupabase } from '@/lib/supabaseClient';
 
@@ -269,11 +270,13 @@ const BannersPage = () => {
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         {banner.image ? (
-                                                            <div className="w-20 h-16 rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
-                                                                <img
+                                                            <div className="relative w-20 h-16 rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
+                                                                <Image
                                                                     src={banner.image}
                                                                     alt={banner.bannerName || 'Banner'}
-                                                                    className="h-full w-full object-contain"
+                                                                    fill
+                                                                    unoptimized
+                                                                    className="object-contain"
                                                                 />
                                                             </div>
                                                         ) : (
@@ -362,10 +365,12 @@ const BannersPage = () => {
                                     <div className="space-y-3">
                                         {imagePreview && (
                                             <div className="relative w-full h-48 rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
-                                                <img
+                                                <Image
                                                     src={imagePreview}
                                                     alt="Preview"
-                                                    className="h-full w-full object-contain"
+                                                    fill
+                                                    unoptimized
+                                                    className="object-contain"
                                                 />
                                             </div>
                                         )}

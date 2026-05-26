@@ -23,13 +23,6 @@ interface ChapaFormValues {
     secretKey: string;
 }
 
-interface FlutterWaveFormValues {
-    name: string;
-    isActive: boolean;
-    isSandBox: boolean;
-    publicKey: string;
-}
-
 interface ToastState {
     message: string;
     variant: 'success' | 'error';
@@ -50,13 +43,6 @@ const PaymentSettingsPage = () => {
         isSandbox: Boolean(paymentSettings.chapa?.isSandbox),
         publicKey: String(paymentSettings.chapa?.publicKey || ''),
         secretKey: String(paymentSettings.chapa?.secretKey || ''),
-    };
-
-    const flutterWaveValues: FlutterWaveFormValues = {
-        name: String(paymentSettings.flutterWave?.name || 'Flutter Wave'),
-        isActive: Boolean(paymentSettings.flutterWave?.isActive),
-        isSandBox: Boolean(paymentSettings.flutterWave?.isSandBox),
-        publicKey: String(paymentSettings.flutterWave?.publicKey || ''),
     };
 
     useEffect(() => {
@@ -93,10 +79,6 @@ const PaymentSettingsPage = () => {
 
     const updateChapaField = (key: keyof ChapaFormValues, value: string | boolean) => {
         updatePaymentSetting('chapa', key, value);
-    };
-
-    const updateFlutterWaveField = (key: keyof FlutterWaveFormValues, value: string | boolean) => {
-        updatePaymentSetting('flutterWave', key, value);
     };
 
     const handleSave = async () => {

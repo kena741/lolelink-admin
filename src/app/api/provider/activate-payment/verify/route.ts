@@ -34,12 +34,6 @@ function resolveChapaConfig(settingsData: unknown): ChapaConfig {
     return maybeChapa as ChapaConfig;
 }
 
-function normalizeBoolean(value: unknown): boolean {
-    if (typeof value === 'boolean') return value;
-    if (typeof value === 'number') return value === 1;
-    return false;
-}
-
 export async function POST(request: Request) {
         const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {

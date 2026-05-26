@@ -9,7 +9,6 @@ import AuthGuard from '@/components/AuthGuard';
 import { 
     Users, 
     CalendarCheck2, 
-    UserPlus, 
     Activity, 
     ArrowUpRight, 
     TrendingUp, 
@@ -74,7 +73,7 @@ interface ProviderPaymentMethodLiteRow {
     is_active?: boolean | null;
 }
 
-interface WalletTransactionLiteRow extends WalletTransactionMetricRow {}
+type WalletTransactionLiteRow = WalletTransactionMetricRow;
 
 
 type DashboardRange = 'today' | '7d' | '30d' | 'all';

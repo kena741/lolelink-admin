@@ -230,7 +230,7 @@ const VerifyDocumentsPage = () => {
             },
             {} as Record<string, { providerId: string; providerName: string; providerEmail?: string; documents: typeof documents }>
         );
-    }, [filteredDocuments, documents]);
+    }, [filteredDocuments]);
 
     const providerGroups = useMemo(() => Object.values(documentsByProvider), [documentsByProvider]);
 
