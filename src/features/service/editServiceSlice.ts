@@ -2,9 +2,75 @@ import { createSlice, PayloadAction, createAsyncThunk } from '@reduxjs/toolkit';
 import { getSupabase } from '@/lib/supabaseClient';
 import { uploadFilesToSupabase } from '@/lib/upload';
 
-// Minimal shapes to satisfy usage; replace with your canonical types if available
-export type SubCategoryModel = { id?: string; name?: string };
-export type CategoryModel = { id?: string; name?: string };
+export type SubCategoryModel = {
+    id?: string;
+    name?: string;
+    subCategoryName?: string;
+    categoryId?: string;
+};
+export type CategoryModel = {
+    id?: string;
+    name?: string;
+    categoryName?: string;
+    image?: string;
+    active?: boolean | null;
+};
+
+function readRecord(value: unknown): Record<string, unknown> | null {
+    return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null;
+}
+
+export function mapServiceRowToEditServiceModel(
+    row: Record<string, unknown>,
+    fallbackProviderId?: string
+): ServiceModel {
+    const categoryModel = readRecord(row.categoryModel);
+    const subCategoryModel = readRecord(row.subCategoryModel);
+    const categoryId =
+        (typeof row.categoryId === 'string' ? row.categoryId : '') ||
+        (typeof categoryModel?.id === 'string' ? categoryModel.id : '');
+    const subCategoryId =
+        (typeof row.subCategoryId === 'string' ? row.subCategoryId : '') ||
+        (typeof subCategoryModel?.id === 'string' ? subCategoryModel.id : '');
+
+    const imgs =
+        (row.images as string[] | undefined) ??
+        (Array.isArray(row.serviceImage)
+            ? (row.serviceImage as string[])
+            : row.serviceImage
+              ? [String(row.serviceImage)]
+              : row.image
+                ? [String(row.image)]
+                : undefined);
+
+    const provider_id =
+        (typeof row.provider_id === 'string' ? row.provider_id : '') ||
+        (typeof row.providerId === 'string' ? row.providerId : '') ||
+        fallbackProviderId ||
+        '';
+
+    return {
+        id: String(row.id ?? ''),
+        provider_id,
+        serviceName: String(row.serviceName ?? row.name ?? ''),
+        description: (row.description as string | null | undefined) ?? '',
+        price: row.price as string | number | undefined,
+        duration: row.duration as string | undefined,
+        serviceImage: imgs ?? [],
+        discount: row.discount as string | undefined,
+        type: row.type as string | undefined,
+        status: row.status as boolean | undefined,
+        prePayment: row.prePayment as boolean | undefined,
+        feature: row.feature as boolean | undefined,
+        serviceLocationMode: (row.serviceLocationMode as string | undefined) ?? 'onsite',
+        video: (row.video as string | null | undefined) ?? null,
+        approved: Boolean(row.approved),
+        categoryId: categoryId || undefined,
+        subCategoryId: subCategoryId || undefined,
+        categoryModel: categoryModel as CategoryModel | undefined,
+        subCategoryModel: subCategoryModel as SubCategoryModel | undefined,
+    };
+}
 export type ServiceModel = {
     id: string;
     provider_id?: string;

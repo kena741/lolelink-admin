@@ -4,7 +4,22 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Sidebar from "@/components/Sidebar";
 import AuthGuard from "@/components/AuthGuard";
-import { Bell, CheckCheck, Clock3 } from "lucide-react";
+import {
+    Bell,
+    CalendarCheck2,
+    CheckCheck,
+    CheckCircle2,
+    Clock3,
+    ExternalLink,
+    RefreshCw,
+    Search,
+    Trash2,
+    User,
+    Wallet,
+    X,
+    XCircle,
+    Zap,
+} from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { fetchAllBookings } from "@/features/bookedService/bookedServiceSlice";
 import { fetchProviders } from "@/features/provider/providerSlice";
@@ -17,11 +32,18 @@ import {
     deleteNotificationsBulk,
     NotificationItem,
 } from "@/features/notification/notificationSlice";
+import { cn } from "@/lib/utils";
 
 interface ReadFilterOption {
     id: "all" | "unread" | "read";
     label: string;
     count: number;
+}
+
+interface NotificationVisualMeta {
+    icon: React.ElementType;
+    accentClass: string;
+    badgeClass: string;
 }
 
 function getNotificationTypeLabel(value?: string | null): string {
@@ -33,42 +55,49 @@ function getNotificationTypeLabel(value?: string | null): string {
         .join(" ");
 }
 
-function getNotificationTypeColorClasses(value?: string | null): string {
-    const normalizedValue = (value ?? "").toLowerCase();
-    if (normalizedValue.includes("booking_request"))
-        return "border border-primary/30 bg-primary/10 text-foreground";
-    if (normalizedValue.includes("order"))
-        return "border border-border bg-secondary text-foreground";
-    if (normalizedValue.includes("booking_status"))
-        return "border border-ring/30 bg-accent text-foreground";
-    return "border border-border bg-accent text-foreground";
-}
+function getNotificationVisualMeta(notification: NotificationItem): NotificationVisualMeta {
+    const combined = `${notification.type ?? ""} ${notification.title ?? ""} ${notification.description ?? ""}`.toLowerCase();
 
-function getNotificationCardColorClasses(notification: NotificationItem): string {
-    const type = (notification.type ?? "").toLowerCase();
-    const title = (notification.title ?? "").toLowerCase();
-    const description = (notification.description ?? "").toLowerCase();
-    const combined = `${type} ${title} ${description}`;
-
-    if (/(reject|cancel|fail|error|decline)/.test(combined))
-        return notification.is_read
-            ? "border-destructive/35 bg-card"
-            : "border-destructive/45 bg-destructive/5";
-    if (/(accept|approved|complete|success|done)/.test(combined))
-        return notification.is_read
-            ? "border-primary/30 bg-card"
-            : "border-primary/40 bg-primary/5";
-    if (/(assign|request|new job|job started|ongoing)/.test(combined))
-        return notification.is_read
-            ? "border-ring/30 bg-card"
-            : "border-ring/40 bg-accent/70";
-    if (/(pending|review|hold|wait)/.test(combined))
-        return notification.is_read
-            ? "border-border bg-card"
-            : "border-border bg-secondary/60";
-    return notification.is_read
-        ? "border-border bg-card"
-        : "border-primary/30 bg-accent/60";
+    if (/(reject|cancel|fail|error|decline)/.test(combined)) {
+        return {
+            icon: XCircle,
+            accentClass: "border-l-destructive bg-destructive/5",
+            badgeClass: "border-destructive/30 bg-destructive/10 text-destructive",
+        };
+    }
+    if (/(payout|withdraw|payment|wallet|activation)/.test(combined)) {
+        return {
+            icon: Wallet,
+            accentClass: "border-l-primary bg-primary/5",
+            badgeClass: "border-primary/30 bg-primary/10 text-foreground",
+        };
+    }
+    if (/(accept|approved|complete|success|done)/.test(combined)) {
+        return {
+            icon: CheckCircle2,
+            accentClass: "border-l-emerald-500 bg-emerald-50/80 dark:bg-emerald-950/20",
+            badgeClass: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300",
+        };
+    }
+    if (/(booking|request|assign|job)/.test(combined)) {
+        return {
+            icon: CalendarCheck2,
+            accentClass: "border-l-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/20",
+            badgeClass: "border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300",
+        };
+    }
+    if (/(pending|review|hold|wait)/.test(combined)) {
+        return {
+            icon: Clock3,
+            accentClass: "border-l-amber-500 bg-amber-50/70 dark:bg-amber-950/20",
+            badgeClass: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
+        };
+    }
+    return {
+        icon: Bell,
+        accentClass: "border-l-border bg-card",
+        badgeClass: "border-border bg-secondary text-foreground",
+    };
 }
 
 function getNotificationMessage(notification: NotificationItem): string {
@@ -80,6 +109,29 @@ function formatDisplayName(first?: string, last?: string): string | null {
     const fullName = [first, last].filter(Boolean).join(" ").trim();
     if (fullName.length === 0) return null;
     return fullName;
+}
+
+function formatRelativeTime(value?: string | null): string {
+    if (!value) return "Unknown time";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "Unknown time";
+
+    const diffMs = Date.now() - date.getTime();
+    const diffMinutes = Math.floor(diffMs / 60000);
+    if (diffMinutes < 1) return "Just now";
+    if (diffMinutes < 60) return `${diffMinutes}m ago`;
+    const diffHours = Math.floor(diffMinutes / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays < 7) return `${diffDays}d ago`;
+
+    return date.toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+    });
 }
 
 function formatAdminMessage(baseMessage: string, customerName?: string | null, providerName?: string | null): string {
@@ -153,6 +205,10 @@ export default function NotificationsPage() {
         return map;
     }, [customers]);
 
+    const onRefresh = () => {
+        dispatch(fetchNotifications());
+    };
+
     const onMarkRead = async (notificationId: string) => {
         await dispatch(markNotificationRead({ id: notificationId }));
     };
@@ -221,97 +277,160 @@ export default function NotificationsPage() {
         [items.length, unreadCount, readCount]
     );
 
+    const hasActiveFilters = readFilter !== "all" || normalizedSearch.length > 0;
+
     return (
         <AuthGuard>
             <div className="flex min-h-screen bg-background">
                 <Sidebar />
                 <main className="ml-64 w-full min-h-screen">
-                    <div className="mx-auto max-w-[1100px] px-6 py-10">
-                        <div className="rounded-md border border-border bg-card p-[24px] shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-                            <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="relative isolate overflow-hidden bg-primary transition-colors dark:!bg-sidebar dark:border-b dark:border-sidebar-border">
+                        <div className="relative mx-auto max-w-7xl px-6 py-12 sm:py-16 lg:px-8">
+                            <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
                                 <div>
                                     <div className="mb-2 flex items-center gap-3">
-                                        <div className="inline-flex h-[40px] w-[40px] items-center justify-center rounded-md bg-accent text-foreground">
-                                            <Bell className="h-[24px] w-[24px]" />
+                                        <div className="rounded-lg bg-card/15 p-2 backdrop-blur-sm">
+                                            <Bell className="h-6 w-6 text-primary-foreground" />
                                         </div>
-                                        <h1 className="text-[24px] font-bold leading-[1.2] text-foreground sm:text-[32px]">
+                                        <h1 className="text-3xl font-bold tracking-tight text-primary-foreground drop-shadow-lg sm:text-4xl">
                                             Notifications
                                         </h1>
                                     </div>
-                                    <p className="text-[16px] font-medium leading-[1.3] text-muted-foreground">
+                                    <p className="max-w-2xl text-sm text-primary-foreground/90 sm:text-base">
                                         Track operational updates and respond quickly to new activity.
                                     </p>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <div className="rounded-md border border-border bg-secondary px-4 py-2">
-                                        <div className="text-[13px] font-semibold leading-[1.2] text-muted-foreground">Unread</div>
-                                        <div className="text-[20px] font-bold leading-[1.2] text-foreground">{unreadCount}</div>
-                                    </div>
-                                    <button
-                                        onClick={toggleSelectAllFiltered}
-                                        disabled={filteredItems.length === 0}
-                                        className="inline-flex h-[40px] items-center gap-2 rounded-md border border-border bg-background px-4 text-[14px] font-semibold leading-[1.2] text-foreground transition-all duration-150 hover:bg-secondary disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
-                                    >
-                                        {areAllFilteredSelected ? "Unselect all" : "Select all"}
-                                    </button>
-                                    <button
-                                        onClick={onDeleteSelected}
-                                        disabled={selectedIds.length === 0}
-                                        className="inline-flex h-[40px] items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 px-4 text-[14px] font-semibold leading-[1.2] text-destructive transition-all duration-150 hover:bg-destructive/20 disabled:cursor-not-allowed disabled:border-border disabled:bg-muted disabled:text-muted-foreground"
-                                    >
-                                        Delete selected ({selectedIds.length})
-                                    </button>
+                                <div className="flex flex-wrap items-center gap-2">
                                     <button
                                         onClick={onMarkAllRead}
-                                        disabled={unreadCount === 0}
-                                        className="inline-flex h-[40px] items-center gap-2 rounded-md bg-primary px-4 text-[14px] font-semibold leading-[1.2] text-primary-foreground transition-all duration-150 hover:bg-primary/90 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
+                                        disabled={unreadCount === 0 || loading}
+                                        className="inline-flex h-10 items-center gap-2 rounded-xl bg-card/15 px-4 text-sm font-semibold text-primary-foreground ring-2 ring-primary-foreground/20 backdrop-blur-md transition-all duration-200 hover:bg-card/25 disabled:cursor-not-allowed disabled:opacity-50"
                                     >
-                                        <CheckCheck className="h-[16px] w-[16px]" />
+                                        <CheckCheck className="h-4 w-4" />
                                         Mark all read
+                                    </button>
+                                    <button
+                                        onClick={onRefresh}
+                                        disabled={loading}
+                                        className="inline-flex h-10 items-center gap-2 rounded-xl bg-card/15 px-4 text-sm font-semibold text-primary-foreground ring-2 ring-primary-foreground/20 backdrop-blur-md transition-all duration-200 hover:bg-card/25 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+                                        Refresh
                                     </button>
                                 </div>
                             </div>
                         </div>
-                        <div className="sticky top-0 z-20 mt-6 rounded-md border border-border bg-card p-[16px] shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-                            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                                <input
-                                    value={searchValue}
-                                    onChange={(event) => setSearchValue(event.target.value)}
-                                    placeholder="Search notifications..."
-                                    className="h-[40px] w-full rounded-md border border-border bg-background px-4 text-[16px] font-medium leading-[1.3] text-foreground outline-none transition-all duration-150 placeholder:text-muted-foreground focus:ring-2 focus:ring-ring md:max-w-[420px]"
-                                />
-                                <div className="flex flex-wrap items-center gap-2">
-                                    {filterOptions.map((option) => (
+                    </div>
+
+                    <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+                        <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                            {filterOptions.map((option) => {
+                                const selected = readFilter === option.id;
+                                return (
+                                    <button
+                                        key={option.id}
+                                        type="button"
+                                        onClick={() => setReadFilter(option.id)}
+                                        className={cn(
+                                            "rounded-2xl border p-5 text-left shadow-sm transition-all duration-200",
+                                            selected
+                                                ? "border-indigo-300 bg-gradient-to-br from-indigo-50 to-white ring-2 ring-indigo-200 dark:border-indigo-700 dark:from-indigo-950/30 dark:to-card dark:ring-indigo-900"
+                                                : "border-border/80 bg-card hover:border-indigo-200 hover:shadow-md"
+                                        )}
+                                    >
+                                        <p className="text-sm font-medium text-muted-foreground">{option.label}</p>
+                                        <p className="mt-1 text-3xl font-bold text-foreground">{option.count}</p>
+                                    </button>
+                                );
+                            })}
+                        </section>
+
+                        <div className="mb-6 rounded-2xl border border-border/80 bg-card p-4 shadow-sm">
+                            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                                <div className="relative w-full lg:max-w-md">
+                                    <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                    <input
+                                        value={searchValue}
+                                        onChange={(event) => setSearchValue(event.target.value)}
+                                        placeholder="Search title, message, or type..."
+                                        className="h-10 w-full rounded-xl border border-border bg-background py-2 pl-11 pr-10 text-sm text-foreground outline-none transition-all duration-150 placeholder:text-muted-foreground focus:ring-2 focus:ring-indigo-200"
+                                    />
+                                    {searchValue.trim() && (
                                         <button
-                                            key={option.id}
-                                            onClick={() => setReadFilter(option.id)}
-                                            className={`h-[40px] rounded-full px-4 text-[14px] font-semibold leading-[1.2] transition-all duration-150 ${
-                                                readFilter === option.id
-                                                    ? "border border-border bg-secondary text-foreground shadow-[0_1px_3px_rgba(0,0,0,0.06)]"
-                                                    : "border border-border bg-background text-muted-foreground hover:bg-secondary hover:text-foreground"
-                                            }`}
+                                            type="button"
+                                            onClick={() => setSearchValue("")}
+                                            className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground"
+                                            aria-label="Clear search"
                                         >
-                                            {option.label} ({option.count})
+                                            <X className="h-4 w-4" />
                                         </button>
-                                    ))}
+                                    )}
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={toggleSelectAllFiltered}
+                                        disabled={filteredItems.length === 0}
+                                        className="inline-flex h-10 items-center rounded-xl border border-border bg-background px-4 text-sm font-semibold text-foreground transition-all duration-150 hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        {areAllFilteredSelected ? "Unselect all" : "Select all"}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={onDeleteSelected}
+                                        disabled={selectedIds.length === 0}
+                                        className="inline-flex h-10 items-center gap-2 rounded-xl border border-destructive/40 bg-destructive/10 px-4 text-sm font-semibold text-destructive transition-all duration-150 hover:bg-destructive/15 disabled:cursor-not-allowed disabled:border-border disabled:bg-muted disabled:text-muted-foreground"
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                        Delete ({selectedIds.length})
+                                    </button>
+                                    {hasActiveFilters && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setReadFilter("all");
+                                                setSearchValue("");
+                                            }}
+                                            className="inline-flex h-10 items-center rounded-xl border border-border bg-background px-4 text-sm font-semibold text-muted-foreground transition-all duration-150 hover:bg-secondary hover:text-foreground"
+                                        >
+                                            Clear filters
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         </div>
 
                         {loading && (
-                            <div className="mb-4 mt-6 flex items-center gap-2 text-[14px] font-medium leading-[1.2] text-muted-foreground">
-                                <div className="h-[16px] w-[16px] animate-spin rounded-full border-2 border-ring border-t-transparent" />
+                            <div className="mb-4 flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                                <RefreshCw className="h-4 w-4 animate-spin" />
                                 Loading notifications...
                             </div>
                         )}
 
                         {error && (
-                            <div className="mb-4 mt-6 rounded-md border border-border bg-card p-[16px] text-[14px] font-medium leading-[1.2] text-destructive">
+                            <div className="mb-4 rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm font-medium text-destructive">
                                 {error}
                             </div>
                         )}
 
-                        <div className="mt-6 space-y-4 pb-10">
+                        {!loading && filteredItems.length === 0 && (
+                            <div className="rounded-2xl border border-border/80 bg-card p-12 text-center shadow-sm">
+                                <div className="mx-auto mb-4 inline-flex h-14 w-14 items-center justify-center rounded-full bg-secondary">
+                                    <Bell className="h-7 w-7 text-muted-foreground" />
+                                </div>
+                                <h3 className="text-xl font-bold text-foreground">
+                                    {items.length === 0 ? "No notifications yet" : "No matching notifications"}
+                                </h3>
+                                <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+                                    {items.length === 0
+                                        ? "New app activities will appear here automatically."
+                                        : "Try a different search term or filter."}
+                                </p>
+                            </div>
+                        )}
+
+                        <div className="space-y-3 pb-10">
                             {filteredItems.map((item) => {
                                 const booking = item.booking_id ? bookingMap.get(item.booking_id) : undefined;
                                 const providerId = booking?.provider_id || item.provider_id || undefined;
@@ -327,92 +446,109 @@ export default function NotificationsPage() {
                                     formatDisplayName(booking?.firstName, booking?.lastName) ||
                                     null;
                                 const adminMessage = formatAdminMessage(getNotificationMessage(item), customerName, providerName);
+                                const visual = getNotificationVisualMeta(item);
+                                const Icon = visual.icon;
+                                const isSelected = selectedIds.includes(item.id);
+
                                 return (
-                                    <div
+                                    <article
                                         key={item.id}
-                                        className={`rounded-md border p-[24px] shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-all duration-150 ${getNotificationCardColorClasses(item)}`}
+                                        className={cn(
+                                            "overflow-hidden rounded-2xl border border-border/80 border-l-4 shadow-sm transition-all duration-200 hover:shadow-md",
+                                            visual.accentClass,
+                                            !item.is_read && "ring-1 ring-indigo-100 dark:ring-indigo-900/40",
+                                            isSelected && "ring-2 ring-indigo-300 dark:ring-indigo-700"
+                                        )}
                                     >
-                                        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                                            <div className="min-w-0">
-                                                <div className="mb-3">
-                                                    <label className="inline-flex items-center gap-2 text-[13px] font-semibold leading-[1.2] text-muted-foreground">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={selectedIds.includes(item.id)}
-                                                            onChange={() => toggleSelectOne(item.id)}
-                                                            className="h-4 w-4 rounded border-border accent-primary"
-                                                        />
-                                                        Select
-                                                    </label>
+                                        <div className="flex flex-col gap-4 p-5 lg:flex-row lg:items-start lg:justify-between">
+                                            <div className="flex min-w-0 flex-1 gap-4">
+                                                <div className="flex shrink-0 flex-col items-center gap-3">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isSelected}
+                                                        onChange={() => toggleSelectOne(item.id)}
+                                                        className="h-4 w-4 rounded border-border accent-indigo-600"
+                                                        aria-label={`Select notification ${item.title || item.id}`}
+                                                    />
+                                                    <div className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-background/80 shadow-sm">
+                                                        <Icon className="h-5 w-5 text-foreground" />
+                                                    </div>
                                                 </div>
-                                                <div className="mb-2 flex items-center gap-2">
-                                                    <span
-                                                        className={`inline-flex items-center rounded-full px-2.5 py-1 text-[13px] font-semibold leading-[1.2] ${getNotificationTypeColorClasses(
-                                                            item.type
-                                                        )}`}
-                                                    >
-                                                        {getNotificationTypeLabel(item.type)}
-                                                    </span>
-                                                    {!item.is_read && (
-                                                        <span className="inline-flex items-center rounded-full bg-primary/15 px-2.5 py-1 text-[13px] font-semibold leading-[1.2] text-foreground">
-                                                            New
+
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="mb-2 flex flex-wrap items-center gap-2">
+                                                        <span className={cn("inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold", visual.badgeClass)}>
+                                                            {getNotificationTypeLabel(item.type)}
                                                         </span>
+                                                        {!item.is_read && (
+                                                            <span className="inline-flex items-center rounded-full bg-indigo-600 px-2.5 py-1 text-xs font-semibold text-white">
+                                                                New
+                                                            </span>
+                                                        )}
+                                                        <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                                                            <Clock3 className="h-3.5 w-3.5" />
+                                                            {formatRelativeTime(item.created_at)}
+                                                        </span>
+                                                    </div>
+
+                                                    <h3 className="text-lg font-bold leading-snug text-foreground">
+                                                        {item.title || "System update"}
+                                                    </h3>
+                                                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                                                        {adminMessage}
+                                                    </p>
+
+                                                    {(customerName || providerName) && (
+                                                        <div className="mt-3 flex flex-wrap gap-2">
+                                                            {customerName && (
+                                                                <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/80 px-3 py-1 text-xs font-semibold text-foreground">
+                                                                    <User className="h-3.5 w-3.5 text-muted-foreground" />
+                                                                    {customerName}
+                                                                </span>
+                                                            )}
+                                                            {providerName && (
+                                                                <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/80 px-3 py-1 text-xs font-semibold text-foreground">
+                                                                    <Zap className="h-3.5 w-3.5 text-muted-foreground" />
+                                                                    {providerName}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     )}
                                                 </div>
-                                                <h3 className="truncate text-[18px] font-semibold leading-[1.2] text-foreground">
-                                                    {item.title || "System update"}
-                                                </h3>
-                                                <p className="mt-2 text-[16px] font-medium leading-[1.3] text-muted-foreground">
-                                                    {adminMessage}
-                                                </p>
-                                                <div className="mt-3 inline-flex items-center gap-1 text-[13px] font-semibold leading-[1.2] text-muted-foreground">
-                                                    <Clock3 className="h-[16px] w-[16px]" />
-                                                    {item.created_at ? new Date(item.created_at).toLocaleString() : "Unknown time"}
-                                                </div>
                                             </div>
-                                            <div className="flex items-center gap-2 md:pl-3">
+
+                                            <div className="flex shrink-0 flex-wrap items-center gap-2 lg:pl-2">
                                                 {!item.is_read && (
                                                     <button
+                                                        type="button"
                                                         onClick={() => onMarkRead(item.id)}
-                                                        className="inline-flex h-[40px] items-center rounded-md border border-border bg-background px-3 text-[14px] font-semibold leading-[1.2] text-foreground transition-all duration-150 hover:bg-secondary"
+                                                        className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-border bg-background px-3 text-sm font-semibold text-foreground transition-all duration-150 hover:bg-secondary"
                                                     >
+                                                        <CheckCheck className="h-4 w-4" />
                                                         Mark read
                                                     </button>
                                                 )}
                                                 <Link
                                                     href={item.action_url || "/admin/dashboard"}
-                                                    className="inline-flex h-[40px] items-center rounded-md bg-primary px-4 text-[14px] font-semibold leading-[1.2] text-primary-foreground transition-all duration-150 hover:bg-primary/90"
+                                                    className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white transition-all duration-150 hover:bg-indigo-700"
                                                 >
                                                     Open
+                                                    <ExternalLink className="h-4 w-4" />
                                                 </Link>
                                                 <button
+                                                    type="button"
                                                     onClick={() => onDeleteOne(item.id)}
-                                                    className="inline-flex h-[40px] items-center rounded-md border border-destructive/50 bg-destructive/10 px-4 text-[14px] font-semibold leading-[1.2] text-destructive transition-all duration-150 hover:bg-destructive/20"
+                                                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-destructive/40 bg-destructive/10 text-destructive transition-all duration-150 hover:bg-destructive/15"
+                                                    aria-label="Delete notification"
                                                 >
-                                                    Delete
+                                                    <Trash2 className="h-4 w-4" />
                                                 </button>
                                             </div>
                                         </div>
-                                    </div>
+                                    </article>
                                 );
                             })}
                         </div>
-
-                        {!loading && filteredItems.length === 0 && (
-                            <div className="rounded-md border border-border bg-card p-[32px] text-center shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-                                <div className="mx-auto mb-3 grid h-[48px] w-[48px] place-items-center rounded-full bg-secondary">
-                                    <Bell className="h-[24px] w-[24px] text-foreground" />
-                                </div>
-                                <h3 className="text-[20px] font-bold leading-[1.2] text-foreground">
-                                    {items.length === 0 ? "No notifications yet" : "No matching notifications"}
-                                </h3>
-                                <p className="mt-2 text-[16px] font-medium leading-[1.3] text-muted-foreground">
-                                    {items.length === 0
-                                        ? "New app activities will appear here automatically."
-                                        : "Try a different search term or filter."}
-                                </p>
-                            </div>
-                        )}
                     </div>
                 </main>
             </div>

@@ -5,6 +5,8 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import type { ServiceModel } from "@/features/service/editServiceSlice";
 import { closeEditModal, setCoverIdx, setImages, updateService } from "@/features/service/editServiceSlice";
 import { fetchProviderServices } from "@/features/provider/providerSlice";
+import { fetchCategories } from "@/features/category/categorySlice";
+import { fetchSubCategories } from "@/features/subcategory/subcategorySlice";
 import { uploadFilesToSupabase } from "@/lib/upload";
 
 const UUID_RE =
@@ -40,6 +42,8 @@ export default function EditServiceModal() {
     const params = useParams();
     const dispatch = useAppDispatch();
     const { open, service, coverIdx, images, loading, error, success } = useAppSelector((s) => s.editService);
+    const { categories } = useAppSelector((s) => s.category);
+    const { subCategories } = useAppSelector((s) => s.subcategory);
 
     const [form, setForm] = useState({
         serviceName: "",
@@ -50,6 +54,8 @@ export default function EditServiceModal() {
         description: "",
         serviceLocationMode: "onsite",
         approved: false,
+        categoryId: "",
+        subCategoryId: "",
     });
     const [mediaType, setMediaType] = useState<"images" | "video">("images");
     const [existingVideoUrl, setExistingVideoUrl] = useState<string | null>(null);
@@ -60,7 +66,15 @@ export default function EditServiceModal() {
     const [imageUploadError, setImageUploadError] = useState<string | null>(null);
 
     useEffect(() => {
+        if (!open) return;
+        dispatch(fetchCategories());
+        dispatch(fetchSubCategories());
+    }, [open, dispatch]);
+
+    useEffect(() => {
         if (!service) return;
+        const categoryModel = service.categoryModel as { id?: string } | undefined;
+        const subCategoryModel = service.subCategoryModel as { id?: string } | undefined;
         setForm({
             serviceName: service.serviceName || "",
             type: service.type || "Fixed",
@@ -70,6 +84,8 @@ export default function EditServiceModal() {
             description: service.description || "",
             serviceLocationMode: service.serviceLocationMode || "onsite",
             approved: !!service.approved,
+            categoryId: service.categoryId || categoryModel?.id || "",
+            subCategoryId: service.subCategoryId || subCategoryModel?.id || "",
         });
         if (service.video) {
             setMediaType("video");
@@ -107,6 +123,13 @@ export default function EditServiceModal() {
     }, [videoPreviewUrl, pendingPreviews]);
 
     if (!open || !service) return null;
+
+    const selectClassName =
+        "mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200";
+
+    const filteredSubCategories = form.categoryId
+        ? subCategories.filter((sub) => sub.categoryId === form.categoryId)
+        : [];
 
     const onChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -227,11 +250,17 @@ export default function EditServiceModal() {
             alert("Missing description");
             return;
         }
+        if (!form.categoryId || !form.subCategoryId) {
+            alert("Please select a category and subcategory");
+            return;
+        }
         const priceNum = Number(form.price);
         if (!Number.isFinite(priceNum) || priceNum <= 0) {
             alert("Invalid price");
             return;
         }
+        const selectedCategory = categories.find((cat) => cat.id === form.categoryId);
+        const selectedSubCategory = subCategories.find((sub) => sub.id === form.subCategoryId);
         const normalizedDuration = toMinutesString(form.duration);
         dispatch(updateService({
             id: service.id,
@@ -243,6 +272,19 @@ export default function EditServiceModal() {
             description: form.description,
             approved: !!form.approved,
             serviceLocationMode: form.serviceLocationMode,
+            categoryId: form.categoryId,
+            categoryModel: {
+                id: form.categoryId,
+                categoryName: selectedCategory?.categoryName ?? '',
+                image: selectedCategory?.image,
+                active: selectedCategory?.active ?? null,
+            },
+            subCategoryId: form.subCategoryId,
+            subCategoryModel: {
+                id: form.subCategoryId,
+                subCategoryName: selectedSubCategory?.subCategoryName ?? '',
+                categoryId: form.categoryId,
+            },
             serviceImage: images,
             videoFile: mediaType === 'video' ? (videoFile ?? undefined) : undefined,
             removeVideo: mediaType === 'video' ? (removeVideo ? true : undefined) : (existingVideoUrl ? true : undefined),
@@ -265,6 +307,52 @@ export default function EditServiceModal() {
                     <div>
                         <label className="text-sm font-medium" htmlFor="svc-name">Service Name</label>
                         <input id="svc-name" name="serviceName" value={form.serviceName} onChange={onChange} className="mt-1 w-full rounded-md border px-3 py-2 text-sm" />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-sm font-medium" htmlFor="edit-svc-category-id">Category</label>
+                            <select
+                                id="edit-svc-category-id"
+                                name="categoryId"
+                                value={form.categoryId}
+                                onChange={(e) => {
+                                    const nextCategoryId = e.target.value;
+                                    setForm((f) => ({
+                                        ...f,
+                                        categoryId: nextCategoryId,
+                                        subCategoryId: "",
+                                    }));
+                                }}
+                                className={selectClassName}
+                            >
+                                <option value="">Select a category</option>
+                                {categories.map((cat) => (
+                                    <option key={cat.id} value={cat.id}>
+                                        {cat.categoryName}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="text-sm font-medium" htmlFor="edit-svc-subcategory-id">Subcategory</label>
+                            <select
+                                id="edit-svc-subcategory-id"
+                                name="subCategoryId"
+                                value={form.subCategoryId}
+                                onChange={onChange}
+                                disabled={!form.categoryId}
+                                className={selectClassName}
+                            >
+                                <option value="">
+                                    {form.categoryId ? "Select a subcategory" : "Select a category first"}
+                                </option>
+                                {filteredSubCategories.map((sub) => (
+                                    <option key={sub.id} value={sub.id}>
+                                        {sub.subCategoryName}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div>

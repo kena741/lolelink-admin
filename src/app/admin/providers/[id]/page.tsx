@@ -7,13 +7,15 @@ import { useParams } from 'next/navigation';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { fetchProviderById, fetchProviderServices, clearSelected, clearServices, updateProvider } from '@/features/provider/providerSlice';
 import { addService, openAddServiceModal, closeAddServiceModal } from '@/features/service/addServiceSlice';
-import { openEditModal } from '@/features/service/editServiceSlice';
+import { mapServiceRowToEditServiceModel, openEditModal } from '@/features/service/editServiceSlice';
 import EditServiceModal from './EditServiceModal';
 import { deleteService as deleteServiceThunk } from '@/features/service/deleteServiceSlice';
 import { approveServicesByProvider } from '@/features/service/approveServicesSlice';
 import { fetchVerifyDocuments } from '@/features/verifyDocuments/verifyDocumentsSlice';
 import { fetchPayoutRequests } from '@/features/payout/payoutSlice';
 import { fetchHandymen, updateHandyman, deleteHandyman, type Handyman } from '@/features/handyman/handymanSlice';
+import { fetchCategories } from '@/features/category/categorySlice';
+import { fetchSubCategories } from '@/features/subcategory/subcategorySlice';
 import { Pencil, Trash2, FileText, DollarSign, Wrench, Clock, Briefcase, History, CreditCard } from 'lucide-react';
 import { ActivationPaymentModal } from '@/components/ActivationPaymentModal';
 import { fetchSettings } from '@/features/settings/settingsSlice';
@@ -38,6 +40,8 @@ export default function ProviderDetailPage() {
     const { documents } = useAppSelector((state) => state.verifyDocuments);
     const { requests: payoutRequests } = useAppSelector((state) => state.payout);
     const { handymen } = useAppSelector((state) => state.handyman);
+    const { categories } = useAppSelector((state) => state.category);
+    const { subCategories } = useAppSelector((state) => state.subcategory);
     
     const [selectedDocument, setSelectedDocument] = useState<string | null>(null);
     const [editingHandyman, setEditingHandyman] = useState<Handyman | null>(null);
@@ -48,8 +52,8 @@ export default function ProviderDetailPage() {
         phoneNumber: '',
         userName: '',
         userType: '',
-        category: '',
-        subCategory: '',
+        categoryId: '',
+        subCategoryId: '',
         address: '',
         countryCode: '',
         active: true,
@@ -66,6 +70,8 @@ export default function ProviderDetailPage() {
         dispatch(fetchVerifyDocuments());
         dispatch(fetchPayoutRequests());
         dispatch(fetchHandymen());
+        dispatch(fetchCategories());
+        dispatch(fetchSubCategories());
         dispatch(fetchSettings());
         return () => {
             dispatch(clearSelected());
@@ -157,8 +163,8 @@ export default function ProviderDetailPage() {
         imageUrl: '',
         price: '',
         address: '',
-        categoryName: '',
-        subCategoryName: '',
+        categoryId: '',
+        subCategoryId: '',
         discount: '',
         duration: '',
         prePayment: false,
@@ -174,7 +180,7 @@ export default function ProviderDetailPage() {
     // removed: local editVideo state (handled by EditServiceModal)
 
     const resetServiceForm = () => setServiceForm({
-        name: '', description: '', imageUrl: '', price: '', address: '', categoryName: '', subCategoryName: '', discount: '', duration: '', prePayment: false, feature: false, status: true, active: true, type: '', serviceLocationMode: 'onsite'
+        name: '', description: '', imageUrl: '', price: '', address: '', categoryId: '', subCategoryId: '', discount: '', duration: '', prePayment: false, feature: false, status: true, active: true, type: '', serviceLocationMode: 'onsite'
     });
 
     const openAddService = () => {
@@ -186,27 +192,10 @@ export default function ProviderDetailPage() {
     const openEditService = (svcId: string) => {
         const svc = services.find(s => s.id === svcId);
         if (!svc) return;
-        const imgs: string[] | undefined = svc.images
-            ?? (Array.isArray(svc.serviceImage)
-                ? svc.serviceImage
-                : (svc.serviceImage ? [svc.serviceImage] : (svc.image ? [svc.image] : undefined)));
-        const maybeVideo = (svc as unknown as { video?: string | null }).video;
-        const mapped: import('@/features/service/editServiceSlice').ServiceModel = {
-            id: svc.id,
-            provider_id: id,
-            serviceName: svc.serviceName ?? svc.name ?? '',
-            description: svc.description ?? '',
-            price: svc.price,
-            duration: svc.duration,
-            serviceImage: imgs ?? [],
-            discount: svc.discount,
-            type: svc.type,
-            status: svc.status,
-            prePayment: svc.prePayment,
-            feature: svc.feature,
-            serviceLocationMode: undefined,
-            video: maybeVideo ?? null,
-        };
+        const mapped = mapServiceRowToEditServiceModel(
+            svc as unknown as Record<string, unknown>,
+            id
+        );
         dispatch(openEditModal(mapped));
     };
     const onServiceChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -217,16 +206,43 @@ export default function ProviderDetailPage() {
             setServiceForm(f => ({ ...f, [name]: value }));
         }
     };
+    const categoryNameById = (categoryId: string) =>
+        categories.find((cat) => cat.id === categoryId)?.categoryName ?? '—';
+
+    const filteredSubCategoriesForService = serviceForm.categoryId
+        ? subCategories.filter((sub) => sub.categoryId === serviceForm.categoryId)
+        : [];
+
+    const filteredSubCategoriesForHandyman = handymanForm.categoryId
+        ? subCategories.filter((sub) => sub.categoryId === handymanForm.categoryId)
+        : [];
+
+    const selectClassName =
+        'w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200';
+
     const onCreateService = async () => {
         if (!id) return;
+        if (!serviceForm.categoryId || !serviceForm.subCategoryId) {
+            alert('Please select a category and subcategory');
+            return;
+        }
+        const selectedCategory = categories.find((cat) => cat.id === serviceForm.categoryId);
+        const selectedSubCategory = subCategories.find((sub) => sub.id === serviceForm.subCategoryId);
         const service = {
             serviceName: (serviceForm.name ?? '').toString().trim(),
             description: (serviceForm.description ?? '').toString().trim(),
             address: (serviceForm.address ?? '').toString().trim(),
-            categoryId: '',
-            categoryModel: { id: '', name: (serviceForm.categoryName ?? '').toString().trim() },
-            subCategoryId: '',
-            subCategoryModel: { id: '', name: (serviceForm.subCategoryName ?? '').toString().trim() },
+            categoryId: serviceForm.categoryId,
+            categoryModel: {
+                id: serviceForm.categoryId,
+                name: selectedCategory?.categoryName ?? '',
+            },
+            subCategoryId: serviceForm.subCategoryId,
+            subCategoryModel: {
+                id: serviceForm.subCategoryId,
+                name: selectedSubCategory?.subCategoryName ?? '',
+                categoryId: serviceForm.categoryId,
+            },
             price: (serviceForm.price ?? '').toString().trim(),
             discount: (serviceForm.discount ?? '').toString().trim() || undefined,
             provider_id: id,
@@ -653,7 +669,11 @@ export default function ProviderDetailPage() {
                                                                         ? `${handyman.countryCode} ${handyman.phoneNumber}`
                                                                         : handyman.phoneNumber || '—'}
                                                                 </td>
-                                                                <td className="px-6 py-4 text-sm text-gray-600">{handyman.category || '—'}</td>
+                                                                <td className="px-6 py-4 text-sm text-gray-600">
+                                                                    {handyman.categoryId
+                                                                        ? categoryNameById(handyman.categoryId)
+                                                                        : handyman.category || '—'}
+                                                                </td>
                                                                 <td className="px-6 py-4">
                                                                     <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
                                                                         handyman.active && handyman.isActive
@@ -670,6 +690,22 @@ export default function ProviderDetailPage() {
                                                                             variant="outline"
                                                                             onClick={() => {
                                                                                 setEditingHandyman(handyman);
+                                                                                const resolvedCategoryId =
+                                                                                    handyman.categoryId ||
+                                                                                    categories.find(
+                                                                                        (cat) =>
+                                                                                            cat.categoryName === handyman.category
+                                                                                    )?.id ||
+                                                                                    '';
+                                                                                const resolvedSubCategoryId =
+                                                                                    handyman.subCategoryId ||
+                                                                                    subCategories.find(
+                                                                                        (sub) =>
+                                                                                            sub.subCategoryName === handyman.subCategory &&
+                                                                                            (!resolvedCategoryId ||
+                                                                                                sub.categoryId === resolvedCategoryId)
+                                                                                    )?.id ||
+                                                                                    '';
                                                                                 setHandymanForm({
                                                                                     firstName: handyman.firstName || '',
                                                                                     lastName: handyman.lastName || '',
@@ -677,8 +713,8 @@ export default function ProviderDetailPage() {
                                                                                     phoneNumber: handyman.phoneNumber || '',
                                                                                     userName: handyman.userName || '',
                                                                                     userType: handyman.userType || '',
-                                                                                    category: handyman.category || '',
-                                                                                    subCategory: handyman.subCategory || '',
+                                                                                    categoryId: resolvedCategoryId,
+                                                                                    subCategoryId: resolvedSubCategoryId,
                                                                                     address: handyman.address || '',
                                                                                     countryCode: handyman.countryCode || '',
                                                                                     active: handyman.active ?? true,
@@ -787,12 +823,48 @@ export default function ProviderDetailPage() {
                                     </div>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div className="grid gap-1.5">
-                                            <Label htmlFor="svc-category-name">Category</Label>
-                                            <Input id="svc-category-name" name="categoryName" value={serviceForm.categoryName} onChange={onServiceChange} placeholder="e.g. Cleaning" />
+                                            <Label htmlFor="svc-category-id">Category</Label>
+                                            <select
+                                                id="svc-category-id"
+                                                name="categoryId"
+                                                value={serviceForm.categoryId}
+                                                onChange={(e) => {
+                                                    const nextCategoryId = e.target.value;
+                                                    setServiceForm((f) => ({
+                                                        ...f,
+                                                        categoryId: nextCategoryId,
+                                                        subCategoryId: '',
+                                                    }));
+                                                }}
+                                                className={selectClassName}
+                                            >
+                                                <option value="">Select a category</option>
+                                                {categories.map((cat) => (
+                                                    <option key={cat.id} value={cat.id}>
+                                                        {cat.categoryName}
+                                                    </option>
+                                                ))}
+                                            </select>
                                         </div>
                                         <div className="grid gap-1.5">
-                                            <Label htmlFor="svc-subcategory-name">Subcategory</Label>
-                                            <Input id="svc-subcategory-name" name="subCategoryName" value={serviceForm.subCategoryName} onChange={onServiceChange} placeholder="e.g. Home" />
+                                            <Label htmlFor="svc-subcategory-id">Subcategory</Label>
+                                            <select
+                                                id="svc-subcategory-id"
+                                                name="subCategoryId"
+                                                value={serviceForm.subCategoryId}
+                                                onChange={onServiceChange}
+                                                disabled={!serviceForm.categoryId}
+                                                className={selectClassName}
+                                            >
+                                                <option value="">
+                                                    {serviceForm.categoryId ? 'Select a subcategory' : 'Select a category first'}
+                                                </option>
+                                                {filteredSubCategoriesForService.map((sub) => (
+                                                    <option key={sub.id} value={sub.id}>
+                                                        {sub.subCategoryName}
+                                                    </option>
+                                                ))}
+                                            </select>
                                         </div>
                                     </div>
                                     <div className="grid gap-1.5">
@@ -956,20 +1028,51 @@ export default function ProviderDetailPage() {
                                         </div>
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
-                                                <Label htmlFor="hm-category">Category</Label>
-                                                <Input 
-                                                    id="hm-category" 
-                                                    value={handymanForm.category} 
-                                                    onChange={(e) => setHandymanForm({ ...handymanForm, category: e.target.value })} 
-                                                />
+                                                <Label htmlFor="hm-category-id">Category</Label>
+                                                <select
+                                                    id="hm-category-id"
+                                                    value={handymanForm.categoryId}
+                                                    onChange={(e) => {
+                                                        const nextCategoryId = e.target.value;
+                                                        setHandymanForm({
+                                                            ...handymanForm,
+                                                            categoryId: nextCategoryId,
+                                                            subCategoryId: '',
+                                                        });
+                                                    }}
+                                                    className={selectClassName}
+                                                >
+                                                    <option value="">Select a category</option>
+                                                    {categories.map((cat) => (
+                                                        <option key={cat.id} value={cat.id}>
+                                                            {cat.categoryName}
+                                                        </option>
+                                                    ))}
+                                                </select>
                                             </div>
                                             <div>
-                                                <Label htmlFor="hm-subCategory">Subcategory</Label>
-                                                <Input 
-                                                    id="hm-subCategory" 
-                                                    value={handymanForm.subCategory} 
-                                                    onChange={(e) => setHandymanForm({ ...handymanForm, subCategory: e.target.value })} 
-                                                />
+                                                <Label htmlFor="hm-subcategory-id">Subcategory</Label>
+                                                <select
+                                                    id="hm-subcategory-id"
+                                                    value={handymanForm.subCategoryId}
+                                                    onChange={(e) =>
+                                                        setHandymanForm({
+                                                            ...handymanForm,
+                                                            subCategoryId: e.target.value,
+                                                        })
+                                                    }
+                                                    disabled={!handymanForm.categoryId}
+                                                    className={selectClassName}
+                                                >
+                                                    <option value="">
+                                                        {handymanForm.categoryId ? 'Select a subcategory' : 'Select a category first'}
+                                                    </option>
+                                                    {filteredSubCategoriesForHandyman.map((sub) => (
+                                                        <option key={sub.id} value={sub.id}>
+                                                            {sub.subCategoryName}
+                                                        </option>
+                                                    ))}
+                                                </select>
                                             </div>
                                         </div>
                                         <div>
@@ -1002,6 +1105,10 @@ export default function ProviderDetailPage() {
                                     <DialogFooter>
                                         <Button variant="ghost" onClick={() => setEditingHandyman(null)}>Cancel</Button>
                                         <Button onClick={async () => {
+                                            if (!handymanForm.categoryId || !handymanForm.subCategoryId) {
+                                                alert('Please select a category and subcategory');
+                                                return;
+                                            }
                                             try {
                                                 await dispatch(updateHandyman({
                                                     id: editingHandyman.id,

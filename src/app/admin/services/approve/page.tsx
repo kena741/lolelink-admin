@@ -8,7 +8,7 @@ import { fetchServices, approveFeatureRequestById, rejectFeatureRequestById, unf
 import type { RootState } from '@/store/store';
 import ServiceCard from '@/components/ServiceCard';
 import type { ServiceModel } from '@/features/service/editServiceSlice';
-import { openEditModal } from '@/features/service/editServiceSlice';
+import { mapServiceRowToEditServiceModel, openEditModal } from '@/features/service/editServiceSlice';
 import EditServiceModal from '@/app/admin/providers/[id]/EditServiceModal';
 
 export default function ApproveServicesPage() {
@@ -166,30 +166,9 @@ export default function ApproveServicesPage() {
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {notApprovedServices.map((srv) => {
                                         const onView = (svc: ServiceModel) => {
-                                            // Map raw row to EditServiceSlice.ServiceModel shape similar to provider page
-                                            const row = svc as unknown as Record<string, unknown>;
-                                            const imgs = (row['images'] as string[] | undefined)
-                                                ?? (Array.isArray(row['serviceImage']) ? (row['serviceImage'] as string[]) : (row['serviceImage'] ? [String(row['serviceImage'])] : undefined))
-                                                ?? (row['image'] ? [String(row['image'])] : undefined);
-                                            const maybeVideo = (row['video'] as string | null | undefined) ?? null;
-                                            const mapped: ServiceModel = {
-                                                id: String(row['id'] ?? svc.id),
-                                                provider_id: String(row['provider_id'] ?? row['providerId'] ?? ''),
-                                                serviceName: String(row['serviceName'] ?? row['name'] ?? svc.serviceName ?? ''),
-                                                description: (row['description'] as string) ?? svc.description ?? '',
-                                                price: (row['price'] as unknown) as string | number ?? svc.price,
-                                                duration: (row['duration'] as string | undefined) ?? svc.duration,
-                                                serviceImage: imgs ?? (svc.serviceImage ?? []),
-                                                discount: (row['discount'] as string | undefined) ?? svc.discount,
-                                                type: (row['type'] as string | undefined) ?? svc.type,
-                                                status: (row['status'] as boolean | undefined) ?? svc.status,
-                                                prePayment: (row['prePayment'] as boolean | undefined) ?? svc.prePayment,
-                                                feature: (row['feature'] as boolean | undefined) ?? svc.feature,
-                                                serviceLocationMode: undefined,
-                                                video: maybeVideo,
-                                                approved: Boolean(row['approved'] ?? svc.approved),
-                                            } as ServiceModel;
-                                            dispatch(openEditModal(mapped));
+                                            dispatch(openEditModal(
+                                                mapServiceRowToEditServiceModel(svc as unknown as Record<string, unknown>)
+                                            ));
                                         };
                                         return <ServiceCard key={srv.id ?? JSON.stringify(srv)} service={srv} onView={onView} />;
                                     })}
@@ -207,30 +186,9 @@ export default function ApproveServicesPage() {
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {approvedServices.map((srv) => {
                                         const onView = (svc: ServiceModel) => {
-                                            // Map raw row to EditServiceSlice.ServiceModel shape similar to provider page
-                                            const row = svc as unknown as Record<string, unknown>;
-                                            const imgs = (row['images'] as string[] | undefined)
-                                                ?? (Array.isArray(row['serviceImage']) ? (row['serviceImage'] as string[]) : (row['serviceImage'] ? [String(row['serviceImage'])] : undefined))
-                                                ?? (row['image'] ? [String(row['image'])] : undefined);
-                                            const maybeVideo = (row['video'] as string | null | undefined) ?? null;
-                                            const mapped: ServiceModel = {
-                                                id: String(row['id'] ?? svc.id),
-                                                provider_id: String(row['provider_id'] ?? row['providerId'] ?? ''),
-                                                serviceName: String(row['serviceName'] ?? row['name'] ?? svc.serviceName ?? ''),
-                                                description: (row['description'] as string) ?? svc.description ?? '',
-                                                price: (row['price'] as unknown) as string | number ?? svc.price,
-                                                duration: (row['duration'] as string | undefined) ?? svc.duration,
-                                                serviceImage: imgs ?? (svc.serviceImage ?? []),
-                                                discount: (row['discount'] as string | undefined) ?? svc.discount,
-                                                type: (row['type'] as string | undefined) ?? svc.type,
-                                                status: (row['status'] as boolean | undefined) ?? svc.status,
-                                                prePayment: (row['prePayment'] as boolean | undefined) ?? svc.prePayment,
-                                                feature: (row['feature'] as boolean | undefined) ?? svc.feature,
-                                                serviceLocationMode: undefined,
-                                                video: maybeVideo,
-                                                approved: Boolean(row['approved'] ?? svc.approved),
-                                            } as ServiceModel;
-                                            dispatch(openEditModal(mapped));
+                                            dispatch(openEditModal(
+                                                mapServiceRowToEditServiceModel(svc as unknown as Record<string, unknown>)
+                                            ));
                                         };
                                         return <ServiceCard key={srv.id ?? JSON.stringify(srv)} service={srv} onView={onView} />;
                                     })}
@@ -273,29 +231,9 @@ export default function ApproveServicesPage() {
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {featureRequestedServices.map((srv) => {
                                         const onView = (svc: ServiceModel) => {
-                                            const row = svc as unknown as Record<string, unknown>;
-                                            const imgs = (row['images'] as string[] | undefined)
-                                                ?? (Array.isArray(row['serviceImage']) ? (row['serviceImage'] as string[]) : (row['serviceImage'] ? [String(row['serviceImage'])] : undefined))
-                                                ?? (row['image'] ? [String(row['image'])] : undefined);
-                                            const maybeVideo = (row['video'] as string | null | undefined) ?? null;
-                                            const mapped: ServiceModel = {
-                                                id: String(row['id'] ?? svc.id),
-                                                provider_id: String(row['provider_id'] ?? row['providerId'] ?? ''),
-                                                serviceName: String(row['serviceName'] ?? row['name'] ?? svc.serviceName ?? ''),
-                                                description: (row['description'] as string) ?? svc.description ?? '',
-                                                price: (row['price'] as unknown) as string | number ?? svc.price,
-                                                duration: (row['duration'] as string | undefined) ?? svc.duration,
-                                                serviceImage: imgs ?? (svc.serviceImage ?? []),
-                                                discount: (row['discount'] as string | undefined) ?? svc.discount,
-                                                type: (row['type'] as string | undefined) ?? svc.type,
-                                                status: (row['status'] as boolean | undefined) ?? svc.status,
-                                                prePayment: (row['prePayment'] as boolean | undefined) ?? svc.prePayment,
-                                                feature: (row['feature'] as boolean | undefined) ?? svc.feature,
-                                                serviceLocationMode: undefined,
-                                                video: maybeVideo,
-                                                approved: Boolean(row['approved'] ?? svc.approved),
-                                            } as ServiceModel;
-                                            dispatch(openEditModal(mapped));
+                                            dispatch(openEditModal(
+                                                mapServiceRowToEditServiceModel(svc as unknown as Record<string, unknown>)
+                                            ));
                                         };
 
                                         const onApprove = async (serviceId: string) => {
@@ -341,29 +279,9 @@ export default function ApproveServicesPage() {
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {featuredServices.map((srv) => {
                                         const onView = (svc: ServiceModel) => {
-                                            const row = svc as unknown as Record<string, unknown>;
-                                            const imgs = (row['images'] as string[] | undefined)
-                                                ?? (Array.isArray(row['serviceImage']) ? (row['serviceImage'] as string[]) : (row['serviceImage'] ? [String(row['serviceImage'])] : undefined))
-                                                ?? (row['image'] ? [String(row['image'])] : undefined);
-                                            const maybeVideo = (row['video'] as string | null | undefined) ?? null;
-                                            const mapped: ServiceModel = {
-                                                id: String(row['id'] ?? svc.id),
-                                                provider_id: String(row['provider_id'] ?? row['providerId'] ?? ''),
-                                                serviceName: String(row['serviceName'] ?? row['name'] ?? svc.serviceName ?? ''),
-                                                description: (row['description'] as string) ?? svc.description ?? '',
-                                                price: (row['price'] as unknown) as string | number ?? svc.price,
-                                                duration: (row['duration'] as string | undefined) ?? svc.duration,
-                                                serviceImage: imgs ?? (svc.serviceImage ?? []),
-                                                discount: (row['discount'] as string | undefined) ?? svc.discount,
-                                                type: (row['type'] as string | undefined) ?? svc.type,
-                                                status: (row['status'] as boolean | undefined) ?? svc.status,
-                                                prePayment: (row['prePayment'] as boolean | undefined) ?? svc.prePayment,
-                                                feature: (row['feature'] as boolean | undefined) ?? svc.feature,
-                                                serviceLocationMode: undefined,
-                                                video: maybeVideo,
-                                                approved: Boolean(row['approved'] ?? svc.approved),
-                                            } as ServiceModel;
-                                            dispatch(openEditModal(mapped));
+                                            dispatch(openEditModal(
+                                                mapServiceRowToEditServiceModel(svc as unknown as Record<string, unknown>)
+                                            ));
                                         };
 
                                         const onRemoveFeatured = async (serviceId: string) => {
