@@ -17,6 +17,21 @@ const initialState: ApproveServicesState = {
     services: [],
 };
 
+function resolveProviderName(raw: Record<string, unknown>): string {
+    const first =
+        (typeof raw.firstName === 'string' && raw.firstName) ||
+        (typeof raw.first_name === 'string' && raw.first_name) ||
+        '';
+    const last =
+        (typeof raw.lastName === 'string' && raw.lastName) ||
+        (typeof raw.last_name === 'string' && raw.last_name) ||
+        '';
+    const full = [first, last].filter(Boolean).join(' ').trim();
+    if (full) return full;
+    if (typeof raw.userName === 'string' && raw.userName.trim()) return raw.userName.trim();
+    return '';
+}
+
 // Fetch services (non-archived)
 export const fetchServices = createAsyncThunk<unknown[], void, { rejectValue: string }>(
     'service/fetchServices',
@@ -29,8 +44,40 @@ export const fetchServices = createAsyncThunk<unknown[], void, { rejectValue: st
                 .neq('isArchived', true);
 
             if (error) return thunkAPI.rejectWithValue(error.message || 'Failed to fetch services');
+            const rows = (data || []) as Array<Record<string, unknown>>;
 
-            return (data || []) as unknown[];
+            const providerIds = Array.from(
+                new Set(
+                    rows
+                        .map((r) => (typeof r.provider_id === 'string' ? r.provider_id : ''))
+                        .filter(Boolean)
+                )
+            );
+
+            if (providerIds.length === 0) return rows as unknown[];
+
+            const { data: providers, error: providerError } = await getSupabase()
+                .from('provider')
+                .select('id, firstName, lastName, userName')
+                .in('id', providerIds);
+
+            if (providerError) {
+                return thunkAPI.rejectWithValue(providerError.message || 'Failed to fetch providers');
+            }
+
+            const providerNameById = new Map<string, string>();
+            for (const p of (providers || []) as Array<Record<string, unknown>>) {
+                const id = typeof p.id === 'string' ? p.id : '';
+                if (!id) continue;
+                const name = resolveProviderName(p);
+                if (name) providerNameById.set(id, name);
+            }
+
+            return rows.map((r) => {
+                const pid = typeof r.provider_id === 'string' ? r.provider_id : '';
+                const providerName = pid ? providerNameById.get(pid) ?? '' : '';
+                return { ...r, providerName };
+            }) as unknown[];
         } catch (err) {
             const msg = err instanceof Error ? err.message : 'Unexpected error';
             return thunkAPI.rejectWithValue(msg);

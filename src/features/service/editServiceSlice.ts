@@ -48,10 +48,32 @@ export function mapServiceRowToEditServiceModel(
         (typeof row.providerId === 'string' ? row.providerId : '') ||
         fallbackProviderId ||
         '';
+    const provider = readRecord(row.provider);
+    const providerNameFromJoined =
+        [
+            typeof provider?.firstName === 'string' ? provider.firstName : '',
+            typeof provider?.lastName === 'string' ? provider.lastName : '',
+        ]
+            .filter(Boolean)
+            .join(' ')
+            .trim() ||
+        [
+            typeof provider?.first_name === 'string' ? provider.first_name : '',
+            typeof provider?.last_name === 'string' ? provider.last_name : '',
+        ]
+            .filter(Boolean)
+            .join(' ')
+            .trim() ||
+        (typeof provider?.userName === 'string' ? provider.userName : '');
+    const providerName =
+        (typeof row.providerName === 'string' ? row.providerName : '') ||
+        (typeof row.provider_name === 'string' ? row.provider_name : '') ||
+        providerNameFromJoined;
 
     return {
         id: String(row.id ?? ''),
         provider_id,
+        providerName: providerName || undefined,
         serviceName: String(row.serviceName ?? row.name ?? ''),
         description: (row.description as string | null | undefined) ?? '',
         price: row.price as string | number | undefined,
@@ -74,6 +96,7 @@ export function mapServiceRowToEditServiceModel(
 export type ServiceModel = {
     id: string;
     provider_id?: string;
+    providerName?: string;
     serviceName?: string;
     address?: string;
     categoryModel?: CategoryModel;

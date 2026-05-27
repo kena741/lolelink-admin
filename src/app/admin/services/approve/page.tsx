@@ -28,7 +28,13 @@ export default function ApproveServicesPage() {
         return normalizedServices.filter(s => {
             const name = (s.serviceName ?? '').toString().toLowerCase();
             const desc = (s.description ?? '').toString().toLowerCase();
-            return name.includes(q) || desc.includes(q) || (s.id ?? '').toString().toLowerCase().includes(q);
+            const providerName = (s.providerName ?? '').toString().toLowerCase();
+            return (
+                name.includes(q) ||
+                desc.includes(q) ||
+                providerName.includes(q) ||
+                (s.id ?? '').toString().toLowerCase().includes(q)
+            );
         });
     }, [normalizedServices, query]);
 

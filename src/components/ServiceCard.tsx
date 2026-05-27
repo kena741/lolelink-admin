@@ -122,6 +122,11 @@ const ServiceCard: React.FC<ServiceCardProps> = ({
                                     </span>
                                 )}
                             </div>
+                            {service.providerName && (
+                                <p className="mt-1 text-xs font-medium text-gray-500 truncate">
+                                    Provider: {service.providerName}
+                                </p>
+                            )}
                         </div>
                         <div className="text-right shrink-0">
                             <span className="font-bold whitespace-nowrap text-sky-600">
