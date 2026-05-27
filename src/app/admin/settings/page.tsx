@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import Sidebar from '@/components/Sidebar';
 import AuthGuard from '@/components/AuthGuard';
+import { getSupabase } from '@/lib/supabaseClient';
 import {
     Settings as SettingsIcon,
     ArrowLeft,
@@ -57,13 +58,59 @@ const SettingsPage = () => {
     const [languageSettings, setLanguageSettings] = useState<LanguageSettings>([]);
     const [languageDeletedIds, setLanguageDeletedIds] = useState<string[]>([]);
     const [showGoogleMapKey, setShowGoogleMapKey] = useState(false);
+    const [adminAccount, setAdminAccount] = useState<{
+        fullName: string;
+        email: string;
+        role: string;
+        isActive: boolean;
+    } | null>(null);
 
     useEffect(() => {
         dispatch(fetchSettings()).catch((err) => {
-            // Silently handle errors - settings will be empty and user can still use the form
             console.warn('Settings fetch error (this is OK if table doesn\'t exist yet):', err);
         });
     }, [dispatch]);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        async function loadAdminAccount() {
+            const supabase = getSupabase();
+            const { data: userData } = await supabase.auth.getUser();
+            const user = userData.user;
+            if (!user) {
+                if (isMounted)
+                    setAdminAccount(null);
+                return;
+            }
+
+            const { data: adminRow } = await supabase
+                .from('admin')
+                .select('full_name, role, is_active')
+                .eq('user_id', user.id)
+                .maybeSingle();
+
+            if (!isMounted)
+                return;
+
+            setAdminAccount({
+                fullName: (adminRow?.full_name as string | null) || 'N/A',
+                email: user.email || 'N/A',
+                role: (adminRow?.role as string | null) || 'N/A',
+                isActive: Boolean(adminRow?.is_active),
+            });
+        }
+
+        void loadAdminAccount();
+        const { data: authSub } = getSupabase().auth.onAuthStateChange(() => {
+            void loadAdminAccount();
+        });
+
+        return () => {
+            isMounted = false;
+            authSub.subscription.unsubscribe();
+        };
+    }, []);
 
     useEffect(() => {
         if (settings) {
@@ -201,6 +248,15 @@ const SettingsPage = () => {
                                         </Link>
                                         <span>/</span>
                                         <span className="text-primary-foreground font-semibold">Settings</span>
+                                    </div>
+                                </div>
+                                <div className="rounded-xl bg-card/15 p-4 backdrop-blur-sm ring-1 ring-primary-foreground/20 min-w-[260px]">
+                                    <p className="text-xs uppercase tracking-wide text-primary-foreground/80">Admin Account</p>
+                                    <p className="mt-1 text-base font-semibold text-primary-foreground">{adminAccount?.fullName || 'Loading...'}</p>
+                                    <div className="mt-2 space-y-1 text-xs text-primary-foreground/90">
+                                        <p>{adminAccount?.email || 'Loading...'}</p>
+                                        <p>Role: {adminAccount?.role || 'Loading...'}</p>
+                                        <p>Status: {adminAccount?.isActive ? 'Active' : 'Inactive'}</p>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3">

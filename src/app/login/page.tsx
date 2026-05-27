@@ -14,14 +14,6 @@ function LoginContent() {
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        // If already logged in and allowed, go to next (local session check)
-        getSupabase().auth.getSession().then(({ data }) => {
-            if (data.session?.user) {
-                const next = params.get("next") || "/admin/dashboard";
-                router.replace(next);
-            }
-        });
-        // Surface error reasons from redirects (unauthorized/auth/timeout)
         const err = params.get("error");
         if (err && !error) {
             const map: Record<string, string> = {
@@ -31,7 +23,7 @@ function LoginContent() {
             };
             setError(map[err] ?? "Please sign in to continue.");
         }
-    }, [router, params, error]);
+    }, [params, error]);
 
     const onSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -43,12 +35,12 @@ function LoginContent() {
         }
         setLoading(true);
         try {
+            await getSupabase().auth.signOut();
             const { data, error } = await getSupabase().auth.signInWithPassword({ email: trimmed, password });
             if (error) throw error;
             if (!data.session) throw new Error("Login failed. No session returned.");
-            // Ensure the session is persisted before navigating, to avoid guard races
             let attempts = 0;
-            while (attempts < 20) { // up to ~2s
+            while (attempts < 20) {
                 const { data: s } = await getSupabase().auth.getSession();
                 if (s.session) break;
                 await new Promise((r) => setTimeout(r, 100));

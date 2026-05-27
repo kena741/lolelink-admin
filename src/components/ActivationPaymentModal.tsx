@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { initiateActivationPayment, markActivationPaid, verifyActivationPayment } from '@/features/provider/providerSlice';
+import { getSupabase } from '@/lib/supabaseClient';
 
 interface ActivationPaymentModalProps {
     open: boolean;
@@ -37,6 +38,34 @@ export function ActivationPaymentModal({ open, onClose, providerId, providerName
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const [debugLogs, setDebugLogs] = useState<DebugLog[]>([]);
     const [showDebug, setShowDebug] = useState(true);
+    const [isFinanceAdmin, setIsFinanceAdmin] = useState(false);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        async function loadAdminRole() {
+            if (!open) return;
+            const { data: sessionData } = await getSupabase().auth.getSession();
+            const userId = sessionData.session?.user?.id;
+            if (!userId) {
+                if (isMounted) setIsFinanceAdmin(false);
+                return;
+            }
+
+            const { data } = await getSupabase()
+                .from('admin')
+                .select('role')
+                .eq('user_id', userId)
+                .maybeSingle();
+            if (!isMounted) return;
+            setIsFinanceAdmin(data?.role === 'finance_admin');
+        }
+
+        void loadAdminRole();
+        return () => {
+            isMounted = false;
+        };
+    }, [open]);
 
     const addDebugLog = (action: string, response: unknown) => {
         setDebugLogs((prev) => [
@@ -218,14 +247,16 @@ export function ActivationPaymentModal({ open, onClose, providerId, providerName
                     <Button onClick={handlePayViaChapa} disabled={loading} className="w-full">
                         {loading ? 'Initializing...' : 'Pay via Chapa'}
                     </Button>
-                    <Button
-                        variant="outline"
-                        onClick={() => { setError(null); setView('manual'); }}
-                        disabled={loading}
-                        className="w-full"
-                    >
-                        Mark as Paid Manually
-                    </Button>
+                    {isFinanceAdmin && (
+                        <Button
+                            variant="outline"
+                            onClick={() => { setError(null); setView('manual'); }}
+                            disabled={loading}
+                            className="w-full"
+                        >
+                            Mark as Paid Manually
+                        </Button>
+                    )}
                 </div>
             )}
 
