@@ -28,7 +28,7 @@ const DocumentsPage = () => {
             setEditingDocument(doc);
             setFormData({
                 name: doc.name || '',
-                active: doc.active ?? true,
+                active: doc.active === true,
                 description: doc.description || '',
             });
         } else {
@@ -74,7 +74,9 @@ const DocumentsPage = () => {
             dispatch(fetchDocuments());
             handleCloseModal();
         } catch (err) {
+            const message = err instanceof Error ? err.message : 'Failed to save document';
             console.error('Failed to save document:', err);
+            alert(message);
         }
     };
 
