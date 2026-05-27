@@ -796,10 +796,15 @@ export default function ProviderDetailPage() {
                             </Dialog>
 
                             {/* Add Service dialog */}
-                            <Dialog open={addOpen} onClose={() => dispatch(closeAddServiceModal())}>
-                                <DialogHeader>
+                            <Dialog
+                                open={addOpen}
+                                onClose={() => dispatch(closeAddServiceModal())}
+                                className="flex h-[min(440px,65vh)] max-w-2xl flex-col overflow-hidden p-0"
+                            >
+                                <DialogHeader className="mb-0 shrink-0 border-b border-subtle px-6 py-4">
                                     <DialogTitle>Add Service</DialogTitle>
                                 </DialogHeader>
+                                <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
                                 <div className="grid gap-4">
                                     <div className="grid gap-1.5">
                                         <Label htmlFor="svc-name">Service Name</Label>
@@ -917,7 +922,8 @@ export default function ProviderDetailPage() {
                                     </div>
                                     {addError && <div className="text-sm text-red-600">{addError}</div>}
                                 </div>
-                                <DialogFooter>
+                                </div>
+                                <DialogFooter className="mt-0 shrink-0 border-t border-subtle px-6 py-4">
                                     <Button variant="ghost" onClick={() => dispatch(closeAddServiceModal())}>Cancel</Button>
                                     <Button onClick={onCreateService} disabled={addLoading}>{addLoading ? 'Creating…' : 'Create'}</Button>
                                 </DialogFooter>
