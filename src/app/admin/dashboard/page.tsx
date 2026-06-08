@@ -209,7 +209,7 @@ function DashboardContent() {
                     ? (walletRows as WalletTransactionLiteRow[]).filter((row) => isDateInRange(row.createdDate))
                     : [];
                 const walletMetrics = computeWalletMetrics(rangedWalletRows);
-                const totalCredit = walletMetrics.totalCreditAdjusted;
+                const totalCredit = rangedWalletRows.length;
                 const totalNetFlow = walletMetrics.totalNetFlowAdjusted;
                 const totalTopUp = walletMetrics.totalTopUpAdjusted;
 
@@ -579,9 +579,8 @@ function DashboardContent() {
                         {/* Main Stats Grid */}
                         <section className="mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-6">
                             <StatCard
-                                title="Total Credit"
+                                title="Total Transactions"
                                 value={analytics.totalCredit}
-                                isCurrency
                                 icon={DollarSign}
                                 gradient="bg-gradient-to-br from-emerald-500/20 to-teal-500/20"
                                 iconBg="bg-gradient-to-br from-emerald-500 to-teal-600"

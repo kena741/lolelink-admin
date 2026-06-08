@@ -13,7 +13,8 @@
     "list-fayda-status": "tsx scripts/list-fayda-verification-status.ts",
     "notify-fayda-segment": "tsx scripts/notify-fayda-segment-sms.ts",
     "notify-rejected-national-id": "tsx scripts/notify-rejected-national-id-sms.ts",
-    "reconcile-converted-wallet-credits": "tsx scripts/reconcile-converted-wallet-credits.ts"
+    "reconcile-converted-wallet-credits": "tsx scripts/reconcile-converted-wallet-credits.ts",
+    "cleanup-storage-orphans": "tsx scripts/cleanup-storage-orphans.ts"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",

@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import Sidebar from '@/components/Sidebar';
 import AuthGuard from '@/components/AuthGuard';
+import { getDisplayImageUrl } from '@/lib/media-url';
 import { 
     Wrench, 
     ArrowLeft, 
@@ -257,12 +258,13 @@ const HandymanPage = () => {
                                                         </td>
                                                         <td className="px-6 py-4">
                                                             <div className="flex items-center gap-2">
-                                                                {handyman.profileImage ? (
+                                                                {getDisplayImageUrl(handyman.profileImage) ? (
                                                                     <Image
-                                                                        src={handyman.profileImage}
+                                                                        src={getDisplayImageUrl(handyman.profileImage)!}
                                                                         alt={`${handyman.firstName} ${handyman.lastName}`}
                                                                         width={32}
                                                                         height={32}
+                                                                        loading="lazy"
                                                                         className="w-8 h-8 rounded-full object-cover"
                                                                     />
                                                                 ) : (

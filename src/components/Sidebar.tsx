@@ -25,7 +25,10 @@ import {
     CheckSquare,
     MessageSquare,
     Moon,
-    Sun
+    Sun,
+    Shield,
+    UserCog,
+    Activity
 } from 'lucide-react';
 import { getSupabase } from '@/lib/supabaseClient';
 import { SupabaseEnvSwitcher, SupabaseStagingBanner } from '@/components/SupabaseEnvSwitcher';
@@ -373,6 +376,45 @@ const Sidebar = () => {
                                     >
                                         <Settings className={`h-4 w-4 ${pathname?.startsWith('/admin/settings') ? 'text-sidebar-primary-foreground' : 'text-muted-foreground group-hover:text-sidebar-foreground'}`} />
                                         <span>Global Settings</span>
+                                    </Link>
+                                </li>
+                                <li>
+                                    <Link
+                                        href="/admin/admins"
+                                        className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                                            pathname?.startsWith('/admin/admins')
+                                                ? 'bg-sidebar-primary text-sidebar-primary-foreground ring-1 ring-inset ring-sidebar-ring/40'
+                                                : 'text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent'
+                                        }`}
+                                    >
+                                        <UserCog className={`h-4 w-4 ${pathname?.startsWith('/admin/admins') ? 'text-sidebar-primary-foreground' : 'text-muted-foreground group-hover:text-sidebar-foreground'}`} />
+                                        <span>Admins</span>
+                                    </Link>
+                                </li>
+                                <li>
+                                    <Link
+                                        href="/admin/activity-logs"
+                                        className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                                            pathname?.startsWith('/admin/activity-logs')
+                                                ? 'bg-sidebar-primary text-sidebar-primary-foreground ring-1 ring-inset ring-sidebar-ring/40'
+                                                : 'text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent'
+                                        }`}
+                                    >
+                                        <Activity className={`h-4 w-4 ${pathname?.startsWith('/admin/activity-logs') ? 'text-sidebar-primary-foreground' : 'text-muted-foreground group-hover:text-sidebar-foreground'}`} />
+                                        <span>Activity Logs</span>
+                                    </Link>
+                                </li>
+                                <li>
+                                    <Link
+                                        href="/admin/roles"
+                                        className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                                            pathname?.startsWith('/admin/roles')
+                                                ? 'bg-sidebar-primary text-sidebar-primary-foreground ring-1 ring-inset ring-sidebar-ring/40'
+                                                : 'text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent'
+                                        }`}
+                                    >
+                                        <Shield className={`h-4 w-4 ${pathname?.startsWith('/admin/roles') ? 'text-sidebar-primary-foreground' : 'text-muted-foreground group-hover:text-sidebar-foreground'}`} />
+                                        <span>Roles</span>
                                     </Link>
                                 </li>
                                 <li>

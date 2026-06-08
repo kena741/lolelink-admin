@@ -44,7 +44,6 @@ const nextConfig: NextConfig = {
         : []),
       { protocol: "https", hostname: "rffptyqhqvzrpmyxlwwu.supabase.co", pathname: "/storage/v1/object/public/**" },
       { protocol: "https", hostname: "cdmgxbepfixfeumytkag.supabase.co", pathname: "/storage/v1/object/public/**" },
-      { protocol: "https", hostname: "firebasestorage.googleapis.com", pathname: "/**" },
     ],
   },
 };

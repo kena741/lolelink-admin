@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
+import { logAdminActivity } from '@/lib/admin-activity-log';
 
 export const runtime = 'nodejs';
 
@@ -39,6 +40,14 @@ export async function PATCH(request: Request, context: { params: Promise<RoutePa
         const { error } = await supabaseAdmin.from('provider').update({ archived_at }).eq('id', id);
         if (error) return NextResponse.json({ error: columnHintMessage(error.message) }, { status: 500 });
 
+        await logAdminActivity({
+            request,
+            action: action,
+            resource_type: 'provider',
+            resource_id: id,
+            summary: `${action === 'archive' ? 'Archived' : 'Restored'} provider ${id}`,
+        });
+
         return NextResponse.json({ ok: true, archived_at });
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unexpected error';
@@ -54,6 +63,14 @@ export async function DELETE(request: Request, context: { params: Promise<RouteP
 
         const { error } = await supabaseAdmin.from('provider').delete().eq('id', id);
         if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+        await logAdminActivity({
+            request,
+            action: 'delete',
+            resource_type: 'provider',
+            resource_id: id,
+            summary: `Deleted provider ${id}`,
+        });
 
         return NextResponse.json({ ok: true });
     } catch (error: unknown) {

@@ -5,6 +5,7 @@ import Sidebar from "../../../components/Sidebar";
 import { useAppDispatch, useAppSelector } from "../../../store/hooks";
 import { fetchProviders, fetchServiceCountsByProvider, archiveProvider, restoreProvider, deleteProvider } from "../../../features/provider/providerSlice";
 import type { Provider } from "@/features/provider/providerSlice";
+import { resolveProfileImageUrl } from "@/lib/media-url";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import {
@@ -702,7 +703,7 @@ const ProvidersPage = () => {
                         {viewMode === "grid" && (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 {paginated.map((p) => {
-                                    const src = p.profileImage || p.profile_image || p.avatar_url;
+                                    const src = resolveProfileImageUrl(p);
                                     const first = p.firstName ?? p.first_name;
                                     const last = p.lastName ?? p.last_name;
                                     const full = [first, last].filter(Boolean).join(" ");
@@ -933,7 +934,7 @@ const ProvidersPage = () => {
                                         </TableHeader>
                                         <TableBody>
                                             {paginated.map((p, idx) => {
-                                                const src = p.profileImage || p.profile_image || p.avatar_url;
+                                                const src = resolveProfileImageUrl(p);
                                                 const first = p.firstName ?? p.first_name;
                                                 const last = p.lastName ?? p.last_name;
                                                 const full = [first, last].filter(Boolean).join(" ");

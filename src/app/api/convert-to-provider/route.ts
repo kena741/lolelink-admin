@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getDisplayImageUrl } from '@/lib/media-url';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
@@ -84,7 +85,7 @@ export async function POST(request: Request) {
             phoneNumber,
             countryCode: c.country_code || '+251',
             address: c.address || '',
-            profileImage: c.avatar || '',
+            profileImage: getDisplayImageUrl(c.avatar) || '',
             password: c.password || '',
             slug,
             userType: 'Provider',

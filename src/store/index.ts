@@ -19,6 +19,9 @@ import couponReducer from '../features/coupon/couponSlice';
 import paymentsReducer from '../features/payments/paymentsSlice';
 import walletTransactionReducer from '../features/walletTransaction/walletTransactionSlice';
 import notificationReducer from '../features/notification/notificationSlice';
+import adminReducer from '../features/admin/adminSlice';
+import adminRoleReducer from '../features/admin/adminRoleSlice';
+import activityLogReducer from '../features/admin/activityLogSlice';
 
 const store = configureStore({
     reducer: {
@@ -42,6 +45,9 @@ const store = configureStore({
         payments: paymentsReducer,
         walletTransaction: walletTransactionReducer,
         notification: notificationReducer,
+        admin: adminReducer,
+        adminRole: adminRoleReducer,
+        activityLog: activityLogReducer,
     },
 });
 

@@ -1,4 +1,5 @@
 import { buildProviderLocationPayload } from '@/lib/provider-location';
+import { getDisplayImageUrl } from '@/lib/media-url';
 
 export interface ProviderEditFormValues {
     name: string;
@@ -47,7 +48,7 @@ export function buildProviderUpdatesFromEditForm(
         updates.banner = banner;
     }
 
-    const avatar = form.avatar.trim();
+    const avatar = getDisplayImageUrl(form.avatar.trim());
     if (avatar) {
         updates.profileImage = avatar;
     }

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
+import { logAdminActivity } from '@/lib/admin-activity-log';
 
 export const runtime = 'nodejs';
 
@@ -65,7 +66,16 @@ export async function POST(request: Request) {
             );
         }
 
-        return NextResponse.json({ data: data as DocumentRow });
+        const row = data as DocumentRow;
+        await logAdminActivity({
+            request,
+            action: 'create',
+            resource_type: 'document',
+            resource_id: row.id,
+            summary: `Created document type ${name}`,
+            metadata: { active: row.active, description: row.description },
+        });
+        return NextResponse.json({ data: row });
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unexpected error';
         return NextResponse.json({ error: message }, { status: 500 });
@@ -103,7 +113,16 @@ export async function PATCH(request: Request) {
             );
         }
 
-        return NextResponse.json({ data: data as DocumentRow });
+        const row = data as DocumentRow;
+        await logAdminActivity({
+            request,
+            action: 'update',
+            resource_type: 'document',
+            resource_id: body.id,
+            summary: `Updated document type ${row.name || body.id}`,
+            metadata: { ...updates },
+        });
+        return NextResponse.json({ data: row });
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unexpected error';
         return NextResponse.json({ error: message }, { status: 500 });
@@ -130,6 +149,13 @@ export async function DELETE(request: Request) {
             );
         }
 
+        await logAdminActivity({
+            request,
+            action: 'delete',
+            resource_type: 'document',
+            resource_id: body.id,
+            summary: `Deleted document type ${body.id}`,
+        });
         return NextResponse.json({ ok: true });
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unexpected error';

@@ -7,7 +7,7 @@ import { ArrowLeft, RefreshCw, Plus, Edit, Trash2, X, Upload } from 'lucide-reac
 import Link from 'next/link';
 import Image from 'next/image';
 import { fetchBanners, createBanner, updateBanner, deleteBanner } from '@/features/banner/bannerSlice';
-import { getSupabase } from '@/lib/supabaseClient';
+import { uploadFilesToSupabase } from '@/lib/upload';
 
 const BannersPage = () => {
     const dispatch = useAppDispatch();
@@ -84,26 +84,12 @@ const BannersPage = () => {
             };
             reader.readAsDataURL(file);
 
-            // Upload to Supabase Storage
-            const fileExt = file.name.split('.').pop();
-            const fileName = `banners/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-            
-            const { error: uploadError } = await getSupabase().storage
-                .from('betegnabucket')
-                .upload(fileName, file, { cacheControl: '3600', upsert: false });
-
-            if (uploadError) throw uploadError;
-
-            // Get public URL
-            const { data: publicUrlData } = getSupabase().storage
-                .from('betegnabucket')
-                .getPublicUrl(fileName);
-
-            if (!publicUrlData?.publicUrl) {
+            const urls = await uploadFilesToSupabase([file], 'banners');
+            if (!urls[0]) {
                 throw new Error('Failed to get public URL');
             }
 
-            setFormData({ ...formData, image: publicUrlData.publicUrl });
+            setFormData({ ...formData, image: urls[0] });
         } catch (err) {
             console.error('Failed to upload image:', err);
             alert('Failed to upload image. Please try again.');

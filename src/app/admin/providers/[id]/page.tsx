@@ -13,6 +13,7 @@ import { deleteService as deleteServiceThunk } from '@/features/service/deleteSe
 import { approveServicesByProvider } from '@/features/service/approveServicesSlice';
 import { fetchVerifyDocuments } from '@/features/verifyDocuments/verifyDocumentsSlice';
 import { fetchPayoutRequests } from '@/features/payout/payoutSlice';
+import { getDisplayImageUrl, resolveProfileImageUrl } from '@/lib/media-url';
 import { fetchHandymen, updateHandyman, deleteHandyman, type Handyman } from '@/features/handyman/handymanSlice';
 import { fetchCategories } from '@/features/category/categorySlice';
 import { fetchSubCategories } from '@/features/subcategory/subcategorySlice';
@@ -94,7 +95,7 @@ export default function ProviderDetailPage() {
         .reduce((sum, req) => sum + (typeof req.amount === 'string' ? parseFloat(req.amount) || 0 : req.amount || 0), 0);
 
     const bannerSrc = provider?.banner || undefined;
-    const profileSrc = provider?.profileImage || provider?.profile_image || provider?.avatar_url || undefined;
+    const profileSrc = resolveProfileImageUrl(provider) ?? undefined;
     const displayName = (() => {
         const first = provider?.firstName ?? provider?.first_name;
         const last = provider?.lastName ?? provider?.last_name;
@@ -125,7 +126,7 @@ export default function ProviderDetailPage() {
             latitude: coords.latitude,
             longitude: coords.longitude,
             banner: provider.banner || '',
-            avatar: provider.profileImage || provider.profile_image || provider.avatar_url || '',
+            avatar: resolveProfileImageUrl(provider) || '',
         });
     }, [provider]);
 
@@ -509,7 +510,7 @@ export default function ProviderDetailPage() {
                                                                     ?? s.image_url
                                                                     ?? undefined;
                                                                 return primary ? (
-                                                                    <Image src={primary} alt={s.serviceName || s.name || 'Service'} width={640} height={144} className="h-36 w-full object-cover" />
+                                                                    <Image src={primary} alt={s.serviceName || s.name || 'Service'} width={640} height={144} loading="lazy" className="h-36 w-full object-cover" />
                                                                 ) : (
                                                                     <div className="h-36 w-full bg-gray-200" />
                                                                 );
@@ -521,7 +522,7 @@ export default function ProviderDetailPage() {
                                                         {s.images && s.images.length > 1 && (
                                                             <div className="flex gap-2 mt-3">
                                                                 {s.images.slice(1, 5).map((img, idx) => (
-                                                                    <Image key={idx} src={img} alt={`thumb-${idx}`} width={40} height={40} className="h-10 w-10 rounded object-cover border" />
+                                                                    <Image key={idx} src={img} alt={`thumb-${idx}`} width={40} height={40} loading="lazy" className="h-10 w-10 rounded object-cover border" />
                                                                 ))}
                                                             </div>
                                                         )}
@@ -555,15 +556,16 @@ export default function ProviderDetailPage() {
                                                                 {doc.isVerify ? 'Verified' : 'Pending'}
                                                             </span>
                                                         </div>
-                                                        {doc.documentImage && (
+                                                        {getDisplayImageUrl(doc.documentImage) && (
                                                             <div className="mt-3 relative">
                                                                 <Image
-                                                                    src={doc.documentImage}
+                                                                    src={getDisplayImageUrl(doc.documentImage)!}
                                                                     alt={doc.documentName || 'Document'}
                                                                     width={640}
                                                                     height={128}
+                                                                    loading="lazy"
                                                                     className="w-full h-32 object-cover rounded cursor-pointer hover:opacity-80"
-                                                                    onClick={() => setSelectedDocument(doc.documentImage || null)}
+                                                                    onClick={() => setSelectedDocument(getDisplayImageUrl(doc.documentImage))}
                                                                 />
                                                             </div>
                                                         )}
@@ -651,8 +653,8 @@ export default function ProviderDetailPage() {
                                                             <tr key={handyman.id} className="hover:bg-gray-50">
                                                                 <td className="px-6 py-4">
                                                                     <div className="flex items-center gap-2">
-                                                                        {handyman.profileImage ? (
-                                                                            <Image src={handyman.profileImage} alt={`${handyman.firstName} ${handyman.lastName}`} width={32} height={32} className="w-8 h-8 rounded-full object-cover" />
+                                                                        {getDisplayImageUrl(handyman.profileImage) ? (
+                                                                            <Image src={getDisplayImageUrl(handyman.profileImage)!} alt={`${handyman.firstName} ${handyman.lastName}`} width={32} height={32} loading="lazy" className="w-8 h-8 rounded-full object-cover" />
                                                                         ) : (
                                                                             <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center">
                                                                                 <Wrench className="h-4 w-4 text-indigo-600" />

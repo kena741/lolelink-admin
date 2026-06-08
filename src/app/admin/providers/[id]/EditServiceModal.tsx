@@ -151,7 +151,7 @@ export default function EditServiceModal() {
             setPendingPreviews((prev) => [...locals, ...prev]);
             const urls = await uploadFilesToSupabase(
                 Array.from(files),
-                `provider/${uploadProviderId}`
+                `public/${uploadProviderId}`
             );
             const validUrls = (urls || []).filter(Boolean) as string[];
             if (validUrls.length > 0) {

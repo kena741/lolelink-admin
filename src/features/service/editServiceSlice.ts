@@ -1,6 +1,7 @@
 import { createSlice, PayloadAction, createAsyncThunk } from '@reduxjs/toolkit';
 import { getSupabase } from '@/lib/supabaseClient';
-import { uploadFilesToSupabase } from '@/lib/upload';
+import { getRemovedStorageUrls, getServiceImageUrls } from '@/lib/media-url';
+import { deleteStorageFilesFromUrls, uploadFilesToSupabase } from '@/lib/upload';
 
 export type SubCategoryModel = {
     id?: string;
@@ -184,11 +185,30 @@ export const updateService = createAsyncThunk<ServiceModel, UpdateServiceArgs, {
 
             let finalVideoUrl: string | null | undefined = (rest as ServiceModel).video ?? (original as ServiceModel)?.video ?? null;
 
+            const originalRecord = original as Record<string, unknown>;
+            const oldImages = getServiceImageUrls(originalRecord);
+            const oldVideo =
+                typeof (original as ServiceModel).video === 'string'
+                    ? (original as ServiceModel).video
+                    : null;
+
             if (removeVideo) {
                 finalVideoUrl = null;
             } else if (videoFile && providerId) {
                 const uploaded = await uploadFilesToSupabase([videoFile], `public/${providerId}/videos`);
                 finalVideoUrl = uploaded[0] || null;
+            }
+
+            const nextImages = Array.isArray(rest.serviceImage) ? rest.serviceImage : undefined;
+            if (nextImages) {
+                const removedImages = getRemovedStorageUrls(oldImages, nextImages);
+                if (removedImages.length > 0) {
+                    await deleteStorageFilesFromUrls(removedImages);
+                }
+            }
+
+            if (oldVideo && oldVideo !== finalVideoUrl) {
+                await deleteStorageFilesFromUrls([oldVideo]);
             }
 
             const s = rest as ServiceModel & { subCategoryModel?: SubCategoryModel };

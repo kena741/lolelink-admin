@@ -1,22 +1,41 @@
 import { getSupabase } from '@/lib/supabaseClient';
+import { compressImageFile } from '@/lib/compress-image';
+import { extractSupabaseStoragePath } from '@/lib/media-url';
 
-/**
- * Uploads files to Supabase Storage and returns their public URLs.
- * @param files Array of File objects to upload
- * @param folderPath Storage folder path (e.g. 'betegnabucket/providers/{provider_id}')
- * @returns Array of public URLs for the uploaded files
- */
+const BUCKET = 'betegnabucket';
+const CACHE_CONTROL = '31536000';
+
+export async function deleteStorageFilesFromUrls(urls: string[]): Promise<void> {
+    const paths = urls
+        .map(extractSupabaseStoragePath)
+        .filter((path): path is string => Boolean(path));
+
+    if (paths.length === 0) return;
+
+    const { error } = await getSupabase().storage.from(BUCKET).remove(paths);
+    if (error) {
+        console.warn('Storage delete failed:', error.message);
+    }
+}
+
 export async function uploadFilesToSupabase(files: File[], folderPath: string): Promise<string[]> {
-  const urls: string[] = [];
-  for (const file of files) {
-    const filePath = `${folderPath}/${Date.now()}_${file.name}`;
-    const { error } = await getSupabase().storage
-      .from('betegnabucket')
-      .upload(filePath, file, { cacheControl: '3600', upsert: false });
-    if (error) throw new Error(error.message);
-    const { data: publicUrlData } = getSupabase().storage.from('betegnabucket').getPublicUrl(filePath);
-    if (!publicUrlData?.publicUrl) throw new Error('Failed to get public URL');
-    urls.push(publicUrlData.publicUrl);
-  }
-  return urls;
+    const urls: string[] = [];
+
+    for (const rawFile of files) {
+        const file = rawFile.type.startsWith('image/')
+            ? await compressImageFile(rawFile)
+            : rawFile;
+        const filePath = `${folderPath}/${Date.now()}_${file.name}`;
+        const { error } = await getSupabase().storage
+            .from(BUCKET)
+            .upload(filePath, file, { cacheControl: CACHE_CONTROL, upsert: false });
+
+        if (error) throw new Error(error.message);
+
+        const { data: publicUrlData } = getSupabase().storage.from(BUCKET).getPublicUrl(filePath);
+        if (!publicUrlData?.publicUrl) throw new Error('Failed to get public URL');
+        urls.push(publicUrlData.publicUrl);
+    }
+
+    return urls;
 }

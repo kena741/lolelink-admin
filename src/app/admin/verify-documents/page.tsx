@@ -31,6 +31,7 @@ import {
 import { getSupabase } from '@/lib/supabaseClient';
 import { sendSms, buildRecipient } from '@/lib/sms';
 import { cn } from '@/lib/utils';
+import { getDisplayImageUrl } from '@/lib/media-url';
 
 type StatusFilter = 'all' | 'pending' | 'approved' | 'rejected';
 
@@ -711,21 +712,21 @@ const VerifyDocumentsPage = () => {
                                     </div>
 
                                     {/* Document Image */}
-                                    {selectedDocument.documentImage && (
+                                    {getDisplayImageUrl(selectedDocument.documentImage) && (
                                         <div>
                                             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 block">Document Image</label>
                                             <div className="rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
                                                 <div className="relative">
                                                     <Image
-                                                        src={selectedDocument.documentImage}
+                                                        src={getDisplayImageUrl(selectedDocument.documentImage)!}
                                                         alt={selectedDocument.documentName || 'Document'}
                                                         width={1200}
                                                         height={900}
                                                         className="w-full h-auto max-h-96 object-contain cursor-pointer"
-                                                        onClick={() => setSelectedImage(selectedDocument.documentImage || null)}
+                                                        onClick={() => setSelectedImage(getDisplayImageUrl(selectedDocument.documentImage))}
                                                     />
                                                     <button
-                                                        onClick={() => setSelectedImage(selectedDocument.documentImage || null)}
+                                                        onClick={() => setSelectedImage(getDisplayImageUrl(selectedDocument.documentImage))}
                                                         className="absolute top-4 right-4 p-2 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg hover:bg-white transition-colors"
                                                     >
                                                         <Eye className="h-5 w-5 text-gray-700" />
