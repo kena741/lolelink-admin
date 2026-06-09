@@ -1,6 +1,7 @@
 import { createSlice, PayloadAction, createAsyncThunk } from '@reduxjs/toolkit';
 import { getSupabase } from '@/lib/supabaseClient';
 import { getRemovedStorageUrls, getServiceImageUrls } from '@/lib/media-url';
+import { validateServiceDiscount } from '@/lib/service-discount';
 import { deleteStorageFilesFromUrls, uploadFilesToSupabase } from '@/lib/upload';
 
 export type SubCategoryModel = {
@@ -170,6 +171,14 @@ export const updateService = createAsyncThunk<ServiceModel, UpdateServiceArgs, {
         try {
             const { id, videoFile, removeVideo, ...rest } = args;
             if (!id) throw new Error('Service ID is required');
+
+            if (rest.discount !== undefined) {
+                const discountResult = validateServiceDiscount(rest.discount);
+                if (!discountResult.ok) {
+                    return thunkAPI.rejectWithValue(discountResult.error);
+                }
+                rest.discount = discountResult.value;
+            }
 
             const { data: original, error: fetchError } = await getSupabase()
                 .from('service')

@@ -7,6 +7,7 @@ import { fetchAllBookings, fetchBookingById, clearSingle } from "../../../featur
 import { CalendarCheck2, RefreshCw, Search } from "lucide-react";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import AuthGuard from "@/components/AuthGuard";
+import { formatServiceDiscountLabel } from "@/lib/service-discount";
 import { formatStatusLabel } from "@/lib/utils";
 
 const StatusBadge = ({ status }: { status?: string }) => {
@@ -67,7 +68,7 @@ const DetailModal: React.FC<{ open: boolean; onClose: () => void }> = ({ open, o
                             <div>
                                 <div className="text-sm text-gray-500 mb-1">Amounts</div>
                                 <div className="text-sm text-gray-700">Subtotal: {single.subTotal ?? 0}</div>
-                                <div className="text-sm text-gray-700">Discount: {single.discount ?? 0}</div>
+                                <div className="text-sm text-gray-700">Discount: {formatServiceDiscountLabel(single.discount)}</div>
                                 <div className="text-sm text-gray-900 font-semibold">Total: {single.totalAmount ?? single.price ?? 0}</div>
                             </div>
                             {single.serviceImage && (

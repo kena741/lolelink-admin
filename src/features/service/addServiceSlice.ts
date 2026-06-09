@@ -1,5 +1,6 @@
 import { createSlice as createModalSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { getSupabase } from '@/lib/supabaseClient';
+import { validateServiceDiscount } from '@/lib/service-discount';
 import { uploadFilesToSupabase } from '@/lib/upload';
 
 // Optional: import from a central service model if it exists
@@ -48,6 +49,11 @@ export const addService = createAsyncThunk(
     thunkAPI
   ) => {
     try {
+      const discountResult = validateServiceDiscount(args.service.discount);
+      if (!discountResult.ok) {
+        return thunkAPI.rejectWithValue(discountResult.error);
+      }
+
       let imageUrls: string[] = args.service.serviceImage || [];
       // If imageFiles are provided, upload them to Supabase Storage
       if (args.imageFiles && args.imageFiles.length > 0 && args.service.provider_id) {
@@ -64,6 +70,7 @@ export const addService = createAsyncThunk(
       }
       const serviceToSave = {
         ...args.service,
+        discount: discountResult.value,
         serviceImage: imageUrls,
         video: videoUrl,
       };

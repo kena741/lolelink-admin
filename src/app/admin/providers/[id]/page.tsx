@@ -14,6 +14,11 @@ import { approveServicesByProvider } from '@/features/service/approveServicesSli
 import { fetchVerifyDocuments } from '@/features/verifyDocuments/verifyDocumentsSlice';
 import { fetchPayoutRequests } from '@/features/payout/payoutSlice';
 import { getDisplayImageUrl, resolveProfileImageUrl } from '@/lib/media-url';
+import {
+    filterServiceDiscountInput,
+    getServiceDiscountError,
+    validateServiceDiscount,
+} from '@/lib/service-discount';
 import { fetchHandymen, updateHandyman, deleteHandyman, type Handyman } from '@/features/handyman/handymanSlice';
 import { fetchCategories } from '@/features/category/categorySlice';
 import { fetchSubCategories } from '@/features/subcategory/subcategorySlice';
@@ -203,10 +208,19 @@ export default function ProviderDetailPage() {
         const { name, value, type, checked } = e.target as HTMLInputElement;
         if (type === 'checkbox') {
             setServiceForm(f => ({ ...f, [name]: checked }));
-        } else {
-            setServiceForm(f => ({ ...f, [name]: value }));
+            return;
         }
+        if (name === 'discount') {
+            setServiceForm((f) => ({
+                ...f,
+                discount: filterServiceDiscountInput(value, f.discount),
+            }));
+            return;
+        }
+        setServiceForm(f => ({ ...f, [name]: value }));
     };
+
+    const serviceDiscountError = getServiceDiscountError(serviceForm.discount);
     const categoryNameById = (categoryId: string) =>
         categories.find((cat) => cat.id === categoryId)?.categoryName ?? '—';
 
@@ -227,6 +241,12 @@ export default function ProviderDetailPage() {
             alert('Please select a category and subcategory');
             return;
         }
+        const discountResult = validateServiceDiscount(serviceForm.discount);
+        if (!discountResult.ok) {
+            alert(discountResult.error);
+            return;
+        }
+
         const selectedCategory = categories.find((cat) => cat.id === serviceForm.categoryId);
         const selectedSubCategory = subCategories.find((sub) => sub.id === serviceForm.subCategoryId);
         const service = {
@@ -245,7 +265,7 @@ export default function ProviderDetailPage() {
                 categoryId: serviceForm.categoryId,
             },
             price: (serviceForm.price ?? '').toString().trim(),
-            discount: (serviceForm.discount ?? '').toString().trim() || undefined,
+            discount: discountResult.value,
             provider_id: id,
             serviceImage: [],
             video: undefined,
@@ -879,8 +899,23 @@ export default function ProviderDetailPage() {
                                         <Input id="svc-price" name="price" value={serviceForm.price} onChange={onServiceChange} placeholder="$100" />
                                     </div>
                                     <div className="grid gap-1.5">
-                                        <Label htmlFor="svc-discount">Discount (optional)</Label>
-                                        <Input id="svc-discount" name="discount" value={serviceForm.discount} onChange={onServiceChange} placeholder="e.g. 10%" />
+                                        <Label htmlFor="svc-discount">Discount (%) (optional)</Label>
+                                        <Input
+                                            id="svc-discount"
+                                            name="discount"
+                                            type="text"
+                                            inputMode="decimal"
+                                            value={serviceForm.discount}
+                                            onChange={onServiceChange}
+                                            placeholder="e.g. 10"
+                                            aria-invalid={serviceDiscountError ? true : undefined}
+                                            className={serviceDiscountError ? 'border-red-500 focus:ring-red-200' : undefined}
+                                        />
+                                        {serviceDiscountError ? (
+                                            <p className="text-xs text-red-600">{serviceDiscountError}</p>
+                                        ) : (
+                                            <p className="text-xs text-gray-500">Enter a percentage from 0 to 99.99.</p>
+                                        )}
                                     </div>
                                     <div className="grid gap-1.5">
                                         <Label htmlFor="svc-desc">Description</Label>
@@ -927,7 +962,9 @@ export default function ProviderDetailPage() {
                                 </div>
                                 <DialogFooter className="mt-0 shrink-0 border-t border-subtle px-6 py-4">
                                     <Button variant="ghost" onClick={() => dispatch(closeAddServiceModal())}>Cancel</Button>
-                                    <Button onClick={onCreateService} disabled={addLoading}>{addLoading ? 'Creating…' : 'Create'}</Button>
+                                    <Button onClick={onCreateService} disabled={addLoading || Boolean(serviceDiscountError)}>
+                                        {addLoading ? 'Creating…' : 'Create'}
+                                    </Button>
                                 </DialogFooter>
                             </Dialog>
 

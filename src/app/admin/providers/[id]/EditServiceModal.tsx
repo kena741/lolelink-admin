@@ -8,6 +8,11 @@ import { fetchProviderServices } from "@/features/provider/providerSlice";
 import { fetchCategories } from "@/features/category/categorySlice";
 import { fetchSubCategories } from "@/features/subcategory/subcategorySlice";
 import { uploadFilesToSupabase } from "@/lib/upload";
+import {
+    filterServiceDiscountInput,
+    getServiceDiscountError,
+    validateServiceDiscount,
+} from "@/lib/service-discount";
 
 const UUID_RE =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -133,8 +138,17 @@ export default function EditServiceModal() {
 
     const onChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
+        if (name === "discount") {
+            setForm((f) => ({
+                ...f,
+                discount: filterServiceDiscountInput(value, f.discount),
+            }));
+            return;
+        }
         setForm((f) => ({ ...f, [name]: value }));
     };
+
+    const discountError = getServiceDiscountError(form.discount);
 
     const onImageFiles = async (files: FileList | null) => {
         if (!files || files.length === 0) return;
@@ -259,6 +273,11 @@ export default function EditServiceModal() {
             alert("Invalid price");
             return;
         }
+        const discountResult = validateServiceDiscount(form.discount);
+        if (!discountResult.ok) {
+            alert(discountResult.error);
+            return;
+        }
         const selectedCategory = categories.find((cat) => cat.id === form.categoryId);
         const selectedSubCategory = subCategories.find((sub) => sub.id === form.subCategoryId);
         const normalizedDuration = toMinutesString(form.duration);
@@ -267,7 +286,7 @@ export default function EditServiceModal() {
             serviceName: form.serviceName,
             type: form.type,
             price: form.price,
-            discount: form.discount,
+            discount: discountResult.value,
             duration: normalizedDuration,
             description: form.description,
             approved: !!form.approved,
@@ -367,8 +386,23 @@ export default function EditServiceModal() {
                             <input id="svc-price" name="price" value={form.price} onChange={onChange} className="mt-1 w-full rounded-md border px-3 py-2 text-sm" inputMode="decimal" />
                         </div>
                         <div>
-                            <label className="text-sm font-medium" htmlFor="svc-discount">Discount</label>
-                            <input id="svc-discount" name="discount" value={form.discount} onChange={onChange} className="mt-1 w-full rounded-md border px-3 py-2 text-sm" inputMode="decimal" />
+                            <label className="text-sm font-medium" htmlFor="svc-discount">Discount (%) (optional)</label>
+                            <input
+                                id="svc-discount"
+                                name="discount"
+                                type="text"
+                                value={form.discount}
+                                onChange={onChange}
+                                className={`mt-1 w-full rounded-md border px-3 py-2 text-sm ${discountError ? 'border-red-500' : ''}`}
+                                inputMode="decimal"
+                                placeholder="e.g. 10"
+                                aria-invalid={discountError ? true : undefined}
+                            />
+                            {discountError ? (
+                                <p className="mt-1 text-xs text-red-600">{discountError}</p>
+                            ) : (
+                                <p className="mt-1 text-xs text-gray-500">Enter a percentage from 0 to 99.99.</p>
+                            )}
                         </div>
                     </div>
                     <div>
@@ -469,7 +503,7 @@ export default function EditServiceModal() {
 
                 <div className="mt-8 flex justify-end gap-3">
                     <button type="button" className="rounded border px-3 py-1.5 text-sm" onClick={() => dispatch(closeEditModal())}>Cancel</button>
-                    <button type="button" className="rounded bg-indigo-600 text-white px-3 py-1.5 text-sm disabled:opacity-60" onClick={onSave} disabled={loading}>{loading ? 'Saving…' : 'Save changes'}</button>
+                    <button type="button" className="rounded bg-indigo-600 text-white px-3 py-1.5 text-sm disabled:opacity-60" onClick={onSave} disabled={loading || Boolean(discountError)}>{loading ? 'Saving…' : 'Save changes'}</button>
                 </div>
             </div>
         </>
