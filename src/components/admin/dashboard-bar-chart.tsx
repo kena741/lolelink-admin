@@ -13,6 +13,23 @@ interface DashboardBarChartProps {
     emptyLabel: string;
     valueLabel: string;
     barColor: string;
+    isCurrency?: boolean;
+}
+
+function formatChartCurrency(value: number): string {
+    return value.toLocaleString("en-US", {
+        style: "currency",
+        currency: "USD",
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    });
+}
+
+function formatChartAxisCurrency(value: number): string {
+    if (Math.abs(value) >= 1000) {
+        return `$${(value / 1000).toLocaleString("en-US", { maximumFractionDigits: 1 })}k`;
+    }
+    return `$${value.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 }
 
 export function DashboardBarChart({
@@ -20,6 +37,7 @@ export function DashboardBarChart({
     emptyLabel,
     valueLabel,
     barColor,
+    isCurrency = false,
 }: DashboardBarChartProps) {
     const hasData = buckets.some((bucket) => bucket.value > 0);
     const chartData = buckets.map((bucket) => ({
@@ -62,12 +80,21 @@ export function DashboardBarChart({
                     tickLine={false}
                     axisLine={false}
                     tickMargin={8}
-                    width={44}
-                    allowDecimals={false}
+                    width={isCurrency ? 52 : 44}
+                    allowDecimals={isCurrency}
+                    tickFormatter={isCurrency ? formatChartAxisCurrency : undefined}
                 />
                 <ChartTooltip
                     cursor={{ fill: "var(--muted)", opacity: 0.35 }}
-                    content={<ChartTooltipContent />}
+                    content={
+                        <ChartTooltipContent
+                            formatter={
+                                isCurrency
+                                    ? (value) => formatChartCurrency(Number(value))
+                                    : undefined
+                            }
+                        />
+                    }
                 />
                 <Bar
                     dataKey="value"

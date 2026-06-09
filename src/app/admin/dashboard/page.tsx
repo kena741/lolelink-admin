@@ -25,7 +25,7 @@ import {
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { BookedService } from '@/features/bookedService/bookedServiceSlice';
-import { computeWalletMetrics, type WalletTransactionMetricRow } from '@/lib/wallet-transaction-metrics';
+import { computeWalletMetrics, parseWalletAmount, type WalletTransactionMetricRow } from '@/lib/wallet-transaction-metrics';
 import { DashboardBarChart } from '@/components/admin/dashboard-bar-chart';
 
 interface ChartBucket {
@@ -165,6 +165,25 @@ function countItemsInRange<T>(items: T[], start: Date, end: Date, resolveDate: (
     }, 0);
 }
 
+function sumItemsInRange<T>(
+    items: T[],
+    start: Date,
+    end: Date,
+    resolveDate: (item: T) => Date | null,
+    resolveValue: (item: T) => number,
+): number {
+    return items.reduce((sum, item) => {
+        const createdAt = resolveDate(item);
+        if (!createdAt || createdAt < start || createdAt >= end) return sum;
+        return sum + resolveValue(item);
+    }, 0);
+}
+
+function resolveWalletCreditAmount(row: WalletTransactionLiteRow): number {
+    if (row.isCredit !== true) return 0;
+    return parseWalletAmount(row.amount);
+}
+
 function resolveWalletDate(row: WalletTransactionLiteRow): Date | null {
     if (!row.createdDate) return null;
     const date = new Date(row.createdDate);
@@ -197,13 +216,19 @@ function buildTimeSeriesChart<T>(
     range: DashboardRange,
     resolveDate: (item: T) => Date | null,
     monthlyBuckets = false,
+    resolveValue?: (item: T) => number,
 ): ChartBucket[] {
     const now = new Date();
     const today = startOfDay(now);
+    const aggregate = (start: Date, end: Date) => (
+        resolveValue
+            ? sumItemsInRange(items, start, end, resolveDate, resolveValue)
+            : countItemsInRange(items, start, end, resolveDate)
+    );
 
     if (range === 'today') {
         const tomorrow = addDays(today, 1);
-        return [{ label: 'Today', value: countItemsInRange(items, today, tomorrow, resolveDate) }];
+        return [{ label: 'Today', value: aggregate(today, tomorrow) }];
     }
 
     if (range === '7d') {
@@ -212,7 +237,7 @@ function buildTimeSeriesChart<T>(
             const end = addDays(start, 1);
             return {
                 label: start.toLocaleDateString('en-US', { weekday: 'short' }),
-                value: countItemsInRange(items, start, end, resolveDate),
+                value: aggregate(start, end),
             };
         });
     }
@@ -223,7 +248,7 @@ function buildTimeSeriesChart<T>(
             const end = addDays(start, 5);
             return {
                 label: start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-                value: countItemsInRange(items, start, end, resolveDate),
+                value: aggregate(start, end),
             };
         });
     }
@@ -242,7 +267,7 @@ function buildTimeSeriesChart<T>(
             const bucketEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
             buckets.push({
                 label: cursor.toLocaleDateString('en-US', { month: 'short' }),
-                value: countItemsInRange(items, cursor, bucketEnd, resolveDate),
+                value: aggregate(cursor, bucketEnd),
             });
             cursor = bucketEnd;
         }
@@ -257,7 +282,7 @@ function buildTimeSeriesChart<T>(
         const weekEnd = addDays(weekStart, 7);
         buckets.push({
             label: weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-            value: countItemsInRange(items, weekStart, weekEnd, resolveDate),
+            value: aggregate(weekStart, weekEnd),
         });
         weekStart = weekEnd;
     }
@@ -273,10 +298,10 @@ function getPaymentChartTitle(range: DashboardRange): string {
 }
 
 function getPaymentChartSubtitle(range: DashboardRange): string {
-    if (range === 'today') return 'Wallet transactions today';
-    if (range === '7d') return 'Transactions per day, last 7 days';
-    if (range === '30d') return 'Transactions per 5-day period, last 30 days';
-    return 'Transactions per week, since May';
+    if (range === 'today') return 'Wallet payment volume today';
+    if (range === '7d') return 'Payment volume per day, last 7 days';
+    if (range === '30d') return 'Payment volume per 5-day period, last 30 days';
+    return 'Payment volume per week, since May';
 }
 
 function getProviderChartSubtitle(range: DashboardRange): string {
@@ -308,6 +333,7 @@ function DashboardContent() {
     const searchParams = useSearchParams();
     const { providers, loading: providersLoading } = useSelector((state: { provider: ProviderState }) => state.provider);
     const [bookingCount, setBookingCount] = useState<number>(0);
+    const [providerCount, setProviderCount] = useState<number>(0);
     const [customerCount, setCustomerCount] = useState<number>(0);
     const [analytics, setAnalytics] = useState<AnalyticsData>({
         totalRevenue: 0,
@@ -392,7 +418,19 @@ function DashboardContent() {
             const rangedWalletRows = walletRows.filter((row) => isDateInRange(row.createdDate));
             const walletMetrics = computeWalletMetrics(rangedWalletRows);
             const normalizedProviders = normalizeProviderRows(providersFromRedux(providerSource));
-            const paymentChart = buildTimeSeriesChart(rangedWalletRows, dashboardRange, resolveWalletDate);
+            const rangedProviderCount = normalizedProviders.filter((provider) => {
+                const createdAt = resolveProviderDate(provider);
+                if (!createdAt) return false;
+                return isDateInRange(createdAt.toISOString());
+            }).length;
+            setProviderCount(rangedProviderCount);
+            const paymentChart = buildTimeSeriesChart(
+                rangedWalletRows,
+                dashboardRange,
+                resolveWalletDate,
+                false,
+                resolveWalletCreditAmount,
+            );
             const providerChart = buildTimeSeriesChart(
                 normalizedProviders,
                 dashboardRange,
@@ -571,11 +609,15 @@ function DashboardContent() {
                 }));
             }
 
-            // Count customers
-            const { count: custCount } = await getSupabase()
+            const { data: customerRows, error: customerError } = await getSupabase()
                 .from('customer')
-                .select('*', { count: 'exact', head: true });
-            setCustomerCount(custCount ?? 0);
+                .select('created_at');
+            if (!customerError && customerRows) {
+                const rangedCustomerCount = customerRows.filter((row) => isDateInRange(row.created_at)).length;
+                setCustomerCount(rangedCustomerCount);
+            } else {
+                setCustomerCount(0);
+            }
             setCountsLoading(false);
         };
         fetchAnalyticsAndLists();
@@ -783,7 +825,7 @@ function DashboardContent() {
                             />
                             <StatCard
                                 title="Providers"
-                                value={providers.length}
+                                value={providerCount}
                                 icon={Users}
                                 iconBg="bg-chart-2/15"
                                 iconClassName="text-chart-2"
@@ -937,9 +979,10 @@ function DashboardContent() {
                                 </div>
                                 <DashboardBarChart
                                     buckets={paymentChartData}
-                                    emptyLabel="No wallet transactions in this period"
-                                    valueLabel="Transactions"
+                                    emptyLabel="No wallet payments in this period"
+                                    valueLabel="Amount"
                                     barColor="var(--chart-1)"
+                                    isCurrency
                                 />
                             </div>
 
