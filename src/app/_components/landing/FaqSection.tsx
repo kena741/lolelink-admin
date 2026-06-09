@@ -36,8 +36,8 @@ export function FaqSection({ sharedDescription, faqItems }: FaqSectionProps) {
           </div>
 
           <div className="order-1 lg:order-2">
-            <h2 className="font-[family-name:var(--font-outfit),sans-serif] text-[32px] font-bold leading-[1.1] text-[#027a3b]">FAQ</h2>
-            <p className="mt-2 max-w-[560px] font-[family-name:var(--font-outfit),sans-serif] text-[14px] font-normal leading-[1.4] text-[#7b7b7b] sm:text-[15px]">
+            <h2 className="font-sans text-[32px] font-bold leading-[1.1] text-[#027a3b]">FAQ</h2>
+            <p className="mt-2 max-w-[560px] font-sans text-[14px] font-normal leading-[1.4] text-[#7b7b7b] sm:text-[15px]">
               {sharedDescription}
             </p>
 

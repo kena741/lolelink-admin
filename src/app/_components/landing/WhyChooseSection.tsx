@@ -63,7 +63,7 @@ function WhyChooseGridCard({ card, index }: { card: WhyChooseCard; index: number
         className={`flex flex-col items-center gap-4 rounded-md bg-[#027a3b] px-4 py-5 text-center shadow-[0_2px_12px_rgba(2,122,59,0.2)] sm:px-5 sm:py-6 ${colSpanClass}`}
       >
         {imageBlock}
-        <p className="font-[family-name:var(--font-outfit),sans-serif] text-[14px] font-medium leading-[1.35] text-white sm:text-[15px]">
+        <p className="font-sans text-[14px] font-medium leading-[1.35] text-white sm:text-[15px]">
           {card.text}
         </p>
       </div>
@@ -75,7 +75,7 @@ function WhyChooseGridCard({ card, index }: { card: WhyChooseCard; index: number
         className={`flex flex-col items-center gap-3 rounded-md border border-[#b8d4c4] bg-white p-4 text-center shadow-[0_1px_3px_rgba(0,0,0,0.05)] sm:p-5 ${colSpanClass}`}
       >
         {imageBlock}
-        <p className="font-[family-name:var(--font-outfit),sans-serif] text-[14px] font-normal leading-[1.35] text-[#1b1b1b] sm:text-[15px]">
+        <p className="font-sans text-[14px] font-normal leading-[1.35] text-[#1b1b1b] sm:text-[15px]">
           Thank you for choosing <span className="font-bold text-[#027a3b]">Zemen</span>
         </p>
       </div>
@@ -87,7 +87,7 @@ function WhyChooseGridCard({ card, index }: { card: WhyChooseCard; index: number
         className={`flex flex-col items-center gap-3 rounded-md border border-[#b8d4c4] bg-white p-4 text-center shadow-[0_1px_3px_rgba(0,0,0,0.05)] sm:p-5 ${colSpanClass}`}
       >
         {imageBlock}
-        <p className="font-[family-name:var(--font-outfit),sans-serif] text-[14px] font-normal leading-[1.35] text-[#1b1b1b] sm:text-[15px]">
+        <p className="font-sans text-[14px] font-normal leading-[1.35] text-[#1b1b1b] sm:text-[15px]">
           <span className="font-semibold text-[#027a3b]">Escrow-style payments:</span> your money stays protected until you approve
           completed work.
         </p>
@@ -99,7 +99,7 @@ function WhyChooseGridCard({ card, index }: { card: WhyChooseCard; index: number
       className={`flex flex-col items-center gap-3 rounded-md border border-[#b8d4c4] bg-white p-4 text-center shadow-[0_1px_3px_rgba(0,0,0,0.05)] sm:p-5 ${colSpanClass}`}
     >
       {imageBlock}
-      <p className="font-[family-name:var(--font-outfit),sans-serif] text-[14px] font-normal leading-[1.35] text-[#1b1b1b] sm:text-[15px]">
+      <p className="font-sans text-[14px] font-normal leading-[1.35] text-[#1b1b1b] sm:text-[15px]">
         {card.text}
       </p>
     </div>
@@ -112,10 +112,10 @@ export function WhyChooseSection({ sharedDescription, cards }: WhyChooseSectionP
       <LazyMount minHeightClassName="min-h-[320px]">
         <div>
           <header className="mx-auto mb-8 max-w-[720px] text-center">
-            <h2 className="font-[family-name:var(--font-outfit),sans-serif] text-[24px] font-bold leading-[1.2] text-[#027a3b] sm:text-[28px]">
+            <h2 className="font-sans text-[24px] font-bold leading-[1.2] text-[#027a3b] sm:text-[28px]">
               Why Choose Zemen Service?
             </h2>
-            <p className="mt-3 font-[family-name:var(--font-outfit),sans-serif] text-[15px] font-normal leading-[1.4] text-[#838383] sm:text-[16px]">
+            <p className="mt-3 font-sans text-[15px] font-normal leading-[1.4] text-[#838383] sm:text-[16px]">
               {sharedDescription}
             </p>
           </header>

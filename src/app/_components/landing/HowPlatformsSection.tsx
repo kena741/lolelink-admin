@@ -26,10 +26,10 @@ interface HowPlatformsSectionProps {
 function JourneyColumn({ title, description, steps }: JourneyColumnProps) {
   return (
     <article className="how-platforms-card flex h-full flex-col rounded-md border border-[#ededed] bg-white p-5 shadow-[0_2px_12px_rgba(0,0,0,0.06)] sm:p-6">
-      <h3 className="font-[family-name:var(--font-outfit),sans-serif] text-[20px] font-bold leading-[1.2] text-[#027a3b] sm:text-[22px]">
+      <h3 className="font-sans text-[20px] font-bold leading-[1.2] text-[#027a3b] sm:text-[22px]">
         {title}
       </h3>
-      <p className="mt-2 font-[family-name:var(--font-outfit),sans-serif] text-[15px] font-normal leading-[1.4] text-[#838383]">
+      <p className="mt-2 font-sans text-[15px] font-normal leading-[1.4] text-[#838383]">
         {description}
       </p>
       <ol className="mt-6 list-none space-y-0 pl-0">
@@ -69,10 +69,10 @@ export function HowPlatformsSection({
       <LazyMount minHeightClassName="min-h-[480px]">
         <div className="how-platforms-work__inner mx-auto max-w-[1280px] px-4 py-12 sm:px-6">
           <header className="mx-auto mb-10 max-w-[720px] text-center">
-            <h2 className="font-[family-name:var(--font-outfit),sans-serif] text-[28px] font-bold leading-[1.15] text-[#027a3b] sm:text-[32px]">
+            <h2 className="font-sans text-[28px] font-bold leading-[1.15] text-[#027a3b] sm:text-[32px]">
               How Zemen Platforms work
             </h2>
-            <p className="mt-3 font-[family-name:var(--font-outfit),sans-serif] text-[16px] font-normal leading-[1.4] text-[#838383]">
+            <p className="mt-3 font-sans text-[16px] font-normal leading-[1.4] text-[#838383]">
               {sharedDescription}
             </p>
           </header>

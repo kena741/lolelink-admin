@@ -1,28 +1,23 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, New_Amsterdam, Outfit } from "next/font/google";
+import { Geist_Mono, Plus_Jakarta_Sans, Space_Grotesk } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 import Providers from "./providers";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const plusJakartaSans = Plus_Jakarta_Sans({
+  variable: "--font-plus-jakarta",
   subsets: ["latin"],
+  display: "swap",
+});
+
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-space-grotesk",
+  subsets: ["latin"],
+  display: "swap",
 });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-const newAmsterdam = New_Amsterdam({
-  weight: "400",
-  variable: "--font-new-amsterdam",
-  subsets: ["latin"],
-});
-
-const outfit = Outfit({
-  weight: ["300", "400", "500", "600"],
-  variable: "--font-outfit",
   subsets: ["latin"],
 });
 
@@ -101,10 +96,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} ${newAmsterdam.variable} ${outfit.variable} antialiased`}
-      >
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${plusJakartaSans.variable} ${spaceGrotesk.variable} ${geistMono.variable}`}
+    >
+      <body className={`${plusJakartaSans.className} antialiased`}>
         <Script id="theme-favicon" strategy="beforeInteractive">
           {`(function () {
   var lightIcon = "/logo.png?v=5";

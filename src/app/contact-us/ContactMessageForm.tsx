@@ -59,7 +59,7 @@ export function ContactMessageForm({ defaultSubject }: ContactMessageFormProps) 
                 autoComplete="name"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
-                className="h-[44px] rounded-md border border-[#dadada] bg-white px-4 font-[family-name:var(--font-outfit),sans-serif] text-[14px] text-[#1b1b1b] placeholder:text-[#838383] focus:outline-none focus:ring-2 focus:ring-[#027a3b] focus:ring-offset-2"
+                className="h-[44px] rounded-md border border-[#dadada] bg-white px-4 font-sans text-[14px] text-[#1b1b1b] placeholder:text-[#838383] focus:outline-none focus:ring-2 focus:ring-[#027a3b] focus:ring-offset-2"
             />
             <input
                 type="text"
@@ -68,7 +68,7 @@ export function ContactMessageForm({ defaultSubject }: ContactMessageFormProps) 
                 autoComplete="email tel"
                 value={emailOrPhone}
                 onChange={(event) => setEmailOrPhone(event.target.value)}
-                className="h-[44px] rounded-md border border-[#dadada] bg-white px-4 font-[family-name:var(--font-outfit),sans-serif] text-[14px] text-[#1b1b1b] placeholder:text-[#838383] focus:outline-none focus:ring-2 focus:ring-[#027a3b] focus:ring-offset-2"
+                className="h-[44px] rounded-md border border-[#dadada] bg-white px-4 font-sans text-[14px] text-[#1b1b1b] placeholder:text-[#838383] focus:outline-none focus:ring-2 focus:ring-[#027a3b] focus:ring-offset-2"
             />
             <input
                 type="text"
@@ -76,7 +76,7 @@ export function ContactMessageForm({ defaultSubject }: ContactMessageFormProps) 
                 placeholder="Subject"
                 value={subject}
                 onChange={(event) => setSubject(event.target.value)}
-                className="h-[44px] rounded-md border border-[#dadada] bg-white px-4 font-[family-name:var(--font-outfit),sans-serif] text-[14px] text-[#1b1b1b] placeholder:text-[#838383] focus:outline-none focus:ring-2 focus:ring-[#027a3b] focus:ring-offset-2 md:col-span-2"
+                className="h-[44px] rounded-md border border-[#dadada] bg-white px-4 font-sans text-[14px] text-[#1b1b1b] placeholder:text-[#838383] focus:outline-none focus:ring-2 focus:ring-[#027a3b] focus:ring-offset-2 md:col-span-2"
             />
             <textarea
                 name="message"
@@ -84,12 +84,12 @@ export function ContactMessageForm({ defaultSubject }: ContactMessageFormProps) 
                 rows={5}
                 value={message}
                 onChange={(event) => setMessage(event.target.value)}
-                className="rounded-md border border-[#dadada] bg-white px-4 py-3 font-[family-name:var(--font-outfit),sans-serif] text-[14px] text-[#1b1b1b] placeholder:text-[#838383] focus:outline-none focus:ring-2 focus:ring-[#027a3b] focus:ring-offset-2 md:col-span-2"
+                className="rounded-md border border-[#dadada] bg-white px-4 py-3 font-sans text-[14px] text-[#1b1b1b] placeholder:text-[#838383] focus:outline-none focus:ring-2 focus:ring-[#027a3b] focus:ring-offset-2 md:col-span-2"
             />
             <button
                 type="submit"
                 disabled={isSubmitDisabled}
-                className="h-[40px] rounded-md border border-[#027a3b] bg-[#027a3b] px-6 font-[family-name:var(--font-outfit),sans-serif] text-[14px] font-semibold text-white shadow-[0_4px_4px_rgba(0,0,0,0.15)] transition-colors hover:bg-[#015d2c] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#027a3b] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 md:col-span-2 md:w-fit"
+                className="h-[40px] rounded-md border border-[#027a3b] bg-[#027a3b] px-6 font-sans text-[14px] font-semibold text-white shadow-[0_4px_4px_rgba(0,0,0,0.15)] transition-colors hover:bg-[#015d2c] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#027a3b] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 md:col-span-2 md:w-fit"
             >
                 {isSending ? 'Sending...' : 'Send message'}
             </button>

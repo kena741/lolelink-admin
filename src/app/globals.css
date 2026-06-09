@@ -6,7 +6,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-plus-jakarta), "Plus Jakarta Sans", ui-sans-serif, sans-serif;
+  --font-display: var(--font-space-grotesk), "Space Grotesk", sans-serif;
   --font-mono: var(--font-geist-mono);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -165,6 +166,7 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-plus-jakarta), "Plus Jakarta Sans", ui-sans-serif, sans-serif;
   }
 
 .partner-marquee {
@@ -191,7 +193,7 @@
 
 /* ── Landing page ──────────────────────────────────────────────────── */
 .landing-page {
-  font-family: var(--font-outfit), -apple-system, Roboto, Helvetica, sans-serif;
+  font-family: var(--font-sans);
   background: #fff;
   color: #1b1b1b;
 }
@@ -349,7 +351,7 @@
   backdrop-filter: blur(4px);
   font-size: 16px;
   font-weight: 600;
-  font-family: var(--font-outfit), sans-serif;
+  font-family: var(--font-sans);
   line-height: 1.25;
   color: #fff;
 }
@@ -380,9 +382,10 @@
 
 /* Hero title */
 .hero-title {
-  font-family: var(--font-new-amsterdam), -apple-system, Roboto, Helvetica, sans-serif;
+  font-family: var(--font-display), var(--font-sans);
   font-size: clamp(44px, 6.5vw, 91px);
-  font-weight: 400;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   line-height: 1;
   text-align: center;
   max-width: 760px;
@@ -466,7 +469,7 @@
   color: #027a3b;
   font-size: 16px;
   font-weight: 600;
-  font-family: var(--font-outfit), sans-serif;
+  font-family: var(--font-sans);
   line-height: 1.25;
   white-space: nowrap;
   box-sizing: border-box;
@@ -679,7 +682,7 @@
   border-radius: 12px;
   font-size: 20px;
   font-weight: 400;
-  font-family: var(--font-outfit), sans-serif;
+  font-family: var(--font-sans);
   text-decoration: none;
   white-space: nowrap;
   transition: opacity 0.2s, background 0.2s;
@@ -732,7 +735,7 @@
 
 .hero-mobile-apps-title {
   margin: 0 0 10px;
-  font-family: var(--font-outfit), sans-serif;
+  font-family: var(--font-sans);
   font-size: 22px;
   font-weight: 700;
   line-height: 1.2;
@@ -741,7 +744,7 @@
 
 .hero-mobile-apps-desc {
   margin: 0 0 16px;
-  font-family: var(--font-outfit), sans-serif;
+  font-family: var(--font-sans);
   font-size: 15px;
   font-weight: 400;
   line-height: 1.4;
@@ -761,7 +764,7 @@
   border: 1px solid #027a3b;
   background: #e1eae7;
   color: #027a3b;
-  font-family: var(--font-outfit), sans-serif;
+  font-family: var(--font-sans);
   font-size: 16px;
   font-weight: 500;
   text-decoration: none;
@@ -1256,5 +1259,15 @@
   border-radius: 0.5rem;
   border: 1px solid var(--border);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-  font-family: var(--font-geist-sans), sans-serif;
+  font-family: var(--font-plus-jakarta), "Plus Jakarta Sans", sans-serif;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-space-grotesk), "Space Grotesk", sans-serif;
+  letter-spacing: -0.02em;
 }

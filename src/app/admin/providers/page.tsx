@@ -72,6 +72,40 @@ function providerAccountActive(p: Provider): boolean {
     return p.active !== false;
 }
 
+function ProviderActivationStatus({
+    provider,
+    onPay,
+}: {
+    provider: Provider;
+    onPay: (event: React.MouseEvent<HTMLButtonElement>) => void;
+}) {
+    const paid = providerActivationPaid(provider);
+
+    if (paid) {
+        return (
+            <span className="inline-flex items-center gap-1.5 rounded-md bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+                <BadgeCheck className="h-3.5 w-3.5 shrink-0" strokeWidth={2.25} />
+                Activation paid
+            </span>
+        );
+    }
+
+    return (
+        <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center rounded-md bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                Fee pending
+            </span>
+            <button
+                type="button"
+                onClick={onPay}
+                className="inline-flex h-8 shrink-0 items-center rounded-md bg-primary px-3 text-xs font-semibold text-primary-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+                Pay fee
+            </button>
+        </div>
+    );
+}
+
 interface SegmentOption<V extends string> {
     value: V;
     label: string;
@@ -87,7 +121,7 @@ interface SegmentGroupProps<V extends string> {
 function SegmentGroup<V extends string>({ label, value, options, onChange }: SegmentGroupProps<V>) {
     return (
         <div className="flex flex-col gap-2.5">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">{label}</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</span>
             <div
                 className="flex flex-wrap gap-1.5"
                 role="radiogroup"
@@ -103,11 +137,11 @@ function SegmentGroup<V extends string>({ label, value, options, onChange }: Seg
                             aria-checked={selected}
                             onClick={() => onChange(opt.value)}
                             className={cn(
-                                "inline-flex h-9 min-h-[36px] shrink-0 items-center justify-center rounded-lg px-3 text-sm font-medium transition-all duration-200",
-                                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white/80",
+                                "inline-flex h-9 min-h-[36px] shrink-0 items-center justify-center rounded-md px-3 text-sm font-medium transition-colors duration-150",
+                                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                                 selected
-                                    ? "bg-gradient-to-r from-indigo-500 to-purple-600 text-white"
-                                    : "border border-gray-200/90 bg-white/90 text-gray-700 hover:border-indigo-200 hover:bg-white hover:text-gray-900"
+                                    ? "bg-primary text-primary-foreground"
+                                    : "bg-muted/70 text-foreground hover:bg-muted"
                             )}
                         >
                             {opt.label}
@@ -338,14 +372,45 @@ const ProvidersPage = () => {
         };
     }, [providers, serviceCounts]);
 
+    const StatCard = ({
+        title,
+        value,
+        icon: Icon,
+        iconBg,
+        iconClassName,
+    }: {
+        title: string;
+        value: number | string;
+        icon: React.ElementType;
+        iconBg: string;
+        iconClassName?: string;
+    }) => (
+        <div className="group relative flex h-full min-h-[96px] min-w-0 items-center gap-2 rounded-2xl border border-border bg-card p-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-all duration-150 hover:bg-muted/40 hover:shadow-[0_2px_8px_rgba(0,0,0,0.08)] sm:p-5">
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl sm:h-11 sm:w-11 ${iconBg}`}>
+                <Icon className={`h-5 w-5 ${iconClassName ?? 'text-primary'}`} />
+            </div>
+            <div className="flex min-w-0 flex-1 flex-col justify-center gap-1 pr-1">
+                <p className="text-sm font-medium leading-snug text-muted-foreground">
+                    {title}
+                </p>
+                {loading ? (
+                    <span className="inline-block h-7 w-24 animate-pulse rounded bg-muted" />
+                ) : (
+                    <p className="min-w-0 text-base font-bold leading-tight tabular-nums text-foreground lg:text-sm xl:text-base">
+                        {typeof value === 'number' ? value.toLocaleString('en-US') : value}
+                    </p>
+                )}
+            </div>
+        </div>
+    );
+
     return (
         <AuthGuard>
             <div className="flex min-h-screen bg-background">
                 <Sidebar />
                 <main className="ml-64 w-full min-h-screen">
                     {/* Futuristic Header */}
-                    <div className="relative isolate overflow-hidden bg-primary transition-colors dark:!bg-sidebar dark:border-b dark:border-sidebar-border">
-                        
+                    <div className="relative isolate overflow-hidden border-b border-primary/20 bg-primary transition-colors dark:!bg-sidebar dark:border-sidebar-border">
                         <div className="relative mx-auto max-w-7xl px-6 py-12 sm:py-16 lg:px-8">
                             <div className="flex items-center justify-between gap-6">
                                 <div>
@@ -361,132 +426,72 @@ const ProvidersPage = () => {
                                         Manage and review all providers on the platform
                                     </p>
                                 </div>
-                                <div className="flex flex-wrap items-center justify-end gap-3">
-                                    <div className="rounded-xl border border-primary-foreground/15 bg-card/15 px-4 py-2 backdrop-blur-md">
-                                        <div className="text-sm text-primary-foreground/80">Total Providers</div>
-                                        <div className="text-2xl font-bold text-primary-foreground">{stats.totalProviders}</div>
-                                    </div>
-                                    <div className="flex items-center gap-3 rounded-xl border border-primary-foreground/15 bg-card/15 px-4 py-2 backdrop-blur-md">
-                                        <div
-                                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg shadow-md ring-1 ring-black/20"
-                                            style={{ backgroundColor: "#134e4a" }}
-                                        >
-                                            <BadgeCheck className="h-5 w-5 text-white" strokeWidth={2.5} aria-hidden />
-                                        </div>
-                                        <div>
-                                            <div className="text-sm text-primary-foreground/80">Activation paid</div>
-                                            <div className="text-2xl font-bold text-primary-foreground">
-                                                {loading ? "—" : stats.activationPaidCount}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <button
-                                        onClick={() => { dispatch(fetchProviders()); dispatch(fetchServiceCountsByProvider()); }}
-                                        className="group inline-flex items-center gap-2 rounded-xl bg-card/15 backdrop-blur-md px-4 py-3 text-sm font-semibold text-primary-foreground ring-2 ring-primary-foreground/20 hover:bg-card/25 hover:ring-primary-foreground/35 transition-all duration-300 hover:scale-105"
-                                    >
-                                        <RefreshCw className="h-4 w-4 group-hover:rotate-180 transition-transform duration-500" />
-                                        Refresh
-                                    </button>
-                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        dispatch(fetchProviders());
+                                        dispatch(fetchServiceCountsByProvider());
+                                    }}
+                                    className="group inline-flex items-center gap-2 rounded-xl border border-primary-foreground/20 bg-card/15 px-4 py-3 text-sm font-semibold text-primary-foreground transition-colors duration-150 hover:bg-card/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-foreground/40 focus-visible:ring-offset-2 focus-visible:ring-offset-primary"
+                                >
+                                    <RefreshCw className="h-4 w-4 transition-transform duration-500 group-hover:rotate-180" />
+                                    Refresh
+                                </button>
                             </div>
                         </div>
                     </div>
 
                     <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
-                        {/* Statistics Cards */}
-                        <section className="mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
-                            <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-white/80 to-white/40 backdrop-blur-xl border border-white/20 p-6 shadow-xl transition-all duration-300 hover:shadow-2xl hover:scale-[1.02]">
-                                <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                                <div className="relative z-10">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div className="p-3 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-xl shadow-lg">
-                                            <Users className="h-6 w-6 text-white" />
-                                        </div>
-                                    </div>
-                                    <p className="text-sm font-medium text-gray-600 mb-1">Total Providers</p>
-                                    <p className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-                                        {loading ? <span className="inline-block h-8 w-24 animate-pulse rounded bg-gray-200" /> : stats.totalProviders}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-white/80 to-white/40 backdrop-blur-xl border border-white/20 p-6 shadow-xl transition-all duration-300 hover:shadow-2xl hover:scale-[1.02]">
-                                <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-pink-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                                <div className="relative z-10">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div className="p-3 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl shadow-lg">
-                                            <Briefcase className="h-6 w-6 text-white" />
-                                        </div>
-                                    </div>
-                                    <p className="text-sm font-medium text-gray-600 mb-1">Total Services</p>
-                                    <p className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-                                        {loading ? <span className="inline-block h-8 w-24 animate-pulse rounded bg-gray-200" /> : stats.totalServices}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-white/80 to-white/40 backdrop-blur-xl border border-white/20 p-6 shadow-xl transition-all duration-300 hover:shadow-2xl hover:scale-[1.02]">
-                                <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 to-teal-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                                <div className="relative z-10">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div className="p-3 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl shadow-lg">
-                                            <TrendingUp className="h-6 w-6 text-white" />
-                                        </div>
-                                    </div>
-                                    <p className="text-sm font-medium text-gray-600 mb-1">Avg Services/Provider</p>
-                                    <p className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-                                        {loading ? <span className="inline-block h-8 w-24 animate-pulse rounded bg-gray-200" /> : stats.avgServicesPerProvider}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-white/80 to-white/40 backdrop-blur-xl border border-white/20 p-6 shadow-xl transition-all duration-300 hover:shadow-2xl hover:scale-[1.02]">
-                                <div className="absolute inset-0 bg-gradient-to-br from-fuchsia-500/10 to-rose-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                                <div className="relative z-10">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div className="p-3 bg-gradient-to-br from-fuchsia-500 to-rose-600 rounded-xl shadow-lg">
-                                            <Zap className="h-6 w-6 text-white" />
-                                        </div>
-                                    </div>
-                                    <p className="text-sm font-medium text-gray-600 mb-1">Active Providers</p>
-                                    <p className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-                                        {loading ? <span className="inline-block h-8 w-24 animate-pulse rounded bg-gray-200" /> : stats.providersWithServices}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-white/80 to-white/40 backdrop-blur-xl border border-white/20 p-6 shadow-xl transition-all duration-300 hover:shadow-2xl hover:scale-[1.02]">
-                                <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 to-teal-600/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                                <div className="relative z-10">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div
-                                            className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl shadow-lg ring-1 ring-teal-950/25"
-                                            style={{ backgroundColor: "#115e59" }}
-                                        >
-                                            <BadgeCheck className="h-6 w-6 text-white" strokeWidth={2.5} aria-hidden />
-                                        </div>
-                                    </div>
-                                    <p className="text-sm font-medium text-gray-600 mb-1">Activation paid</p>
-                                    <p className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-                                        {loading ? <span className="inline-block h-8 w-24 animate-pulse rounded bg-gray-200" /> : stats.activationPaidCount}
-                                    </p>
-                                </div>
-                            </div>
+                        <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                            <StatCard
+                                title="Providers"
+                                value={stats.totalProviders}
+                                icon={Users}
+                                iconBg="bg-primary/15"
+                            />
+                            <StatCard
+                                title="Services"
+                                value={stats.totalServices}
+                                icon={Briefcase}
+                                iconBg="bg-chart-2/15"
+                                iconClassName="text-chart-2"
+                            />
+                            <StatCard
+                                title="Avg Services"
+                                value={stats.avgServicesPerProvider}
+                                icon={TrendingUp}
+                                iconBg="bg-chart-3/15"
+                                iconClassName="text-chart-3"
+                            />
+                            <StatCard
+                                title="With Services"
+                                value={stats.providersWithServices}
+                                icon={Zap}
+                                iconBg="bg-chart-4/15"
+                                iconClassName="text-chart-4"
+                            />
+                            <StatCard
+                                title="Activation Paid"
+                                value={stats.activationPaidCount}
+                                icon={BadgeCheck}
+                                iconBg="bg-chart-5/15"
+                                iconClassName="text-chart-5"
+                            />
                         </section>
 
                         {/* Search and filters */}
                         <div className="mb-6 flex flex-col gap-5">
                             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                                 <div className="relative w-full max-w-md flex-1">
-                                    <Search className="pointer-events-none absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+                                    <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
                                     <input
                                         value={query}
                                         onChange={(e) => setQuery(e.target.value)}
                                         placeholder="Search name, email, phone, address…"
                                         className={cn(
-                                            "w-full rounded-xl border border-white/20 bg-white/80 py-3 pl-12 text-sm text-gray-900 shadow-lg backdrop-blur-xl placeholder:text-gray-500 transition-all",
-                                            "focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200/50",
-                                            query.trim() ? "pr-12" : "pr-5"
+                                            "h-10 w-full rounded-md border border-border bg-card py-2 pl-11 text-sm text-foreground shadow-[0_1px_3px_rgba(0,0,0,0.06)] placeholder:text-muted-foreground transition-colors",
+                                            "focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/30",
+                                            query.trim() ? "pr-11" : "pr-4"
                                         )}
                                     />
                                     {query.trim() ? (
@@ -494,7 +499,7 @@ const ProvidersPage = () => {
                                             type="button"
                                             aria-label="Clear search"
                                             onClick={() => setQuery("")}
-                                            className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2"
+                                            className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                                         >
                                             <X className="h-4 w-4" />
                                         </button>
@@ -508,24 +513,24 @@ const ProvidersPage = () => {
                                         aria-controls="providers-filters-panel"
                                         id="providers-filters-trigger"
                                         className={cn(
-                                            "inline-flex h-10 items-center gap-2 rounded-xl px-5 text-sm font-semibold backdrop-blur-xl transition-all",
-                                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2",
+                                            "inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm font-semibold transition-colors duration-150",
+                                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                                             filtersPanelOpen
-                                                ? "bg-indigo-50/95 text-indigo-900"
-                                                : "bg-white/80 text-gray-800 hover:bg-white"
+                                                ? "border-primary bg-primary text-primary-foreground"
+                                                : "border-border bg-card text-foreground hover:bg-muted"
                                         )}
                                     >
                                         <Filter className="h-4 w-4 shrink-0" />
                                         <span>Filters</span>
                                         {nonDefaultFilterCount > 0 ? (
-                                            <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-indigo-600 px-1.5 text-[11px] font-bold text-white tabular-nums">
+                                            <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-primary-foreground/20 px-1.5 text-[11px] font-bold tabular-nums">
                                                 {nonDefaultFilterCount}
                                             </span>
                                         ) : null}
                                         <ChevronDown
                                             className={cn(
-                                                "h-4 w-4 shrink-0 text-gray-500 transition-transform duration-200",
-                                                filtersPanelOpen && "rotate-180 text-indigo-700"
+                                                "h-4 w-4 shrink-0 transition-transform duration-200",
+                                                filtersPanelOpen && "rotate-180"
                                             )}
                                             aria-hidden
                                         />
@@ -534,21 +539,21 @@ const ProvidersPage = () => {
                                         type="button"
                                         onClick={exportToXlsx}
                                         disabled={filtered.length === 0}
-                                        className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/20 bg-white/80 px-4 text-sm font-semibold text-gray-700 shadow-lg backdrop-blur-xl transition-all hover:bg-white hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-40"
+                                        className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-card px-4 text-sm font-semibold text-foreground shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
                                     >
                                         <Download className="h-4 w-4 shrink-0" />
                                         Export XLSX
                                     </button>
-                                    <div className="flex h-10 items-center gap-0.5 rounded-xl border border-white/20 bg-white/80 p-1 shadow-lg backdrop-blur-xl">
+                                    <div className="flex h-10 items-center gap-0.5 rounded-md border border-border bg-card p-1 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
                                         <button
                                             type="button"
                                             aria-pressed={viewMode === "grid"}
                                             onClick={() => setViewMode("grid")}
                                             className={cn(
-                                                "rounded-lg p-2 transition-all",
+                                                "rounded-md p-2 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                                                 viewMode === "grid"
-                                                    ? "bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-md"
-                                                    : "text-gray-600 hover:bg-gray-100/80 hover:text-gray-900"
+                                                    ? "bg-primary text-primary-foreground"
+                                                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
                                             )}
                                         >
                                             <Grid3x3 className="h-5 w-5" />
@@ -558,10 +563,10 @@ const ProvidersPage = () => {
                                             aria-pressed={viewMode === "table"}
                                             onClick={() => setViewMode("table")}
                                             className={cn(
-                                                "rounded-lg p-2 transition-all",
+                                                "rounded-md p-2 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                                                 viewMode === "table"
-                                                    ? "bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-md"
-                                                    : "text-gray-600 hover:bg-gray-100/80 hover:text-gray-900"
+                                                    ? "bg-primary text-primary-foreground"
+                                                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
                                             )}
                                         >
                                             <List className="h-5 w-5" />
@@ -575,33 +580,32 @@ const ProvidersPage = () => {
                                 id="providers-filters-panel"
                                 role="region"
                                 aria-labelledby="providers-filters-trigger"
-                                className="relative overflow-hidden rounded-2xl border border-white/25 bg-white/75 px-6 py-5 backdrop-blur-xl sm:px-8 sm:py-6"
+                                className="rounded-2xl border border-border bg-card px-6 py-5 shadow-[0_1px_3px_rgba(0,0,0,0.06)] sm:px-8 sm:py-6"
                             >
-                                <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-indigo-500/[0.06] via-transparent to-purple-500/[0.07]" />
-                                <div className="relative">
-                                    <div className="mb-5 flex flex-wrap items-start justify-between gap-4 border-b border-gray-200/60 pb-4">
+                                <div>
+                                    <div className="mb-5 flex flex-wrap items-start justify-between gap-4 pb-2">
                                         <div className="flex min-w-0 items-start gap-3">
-                                            <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
-                                                <Filter className="h-[18px] w-[18px]" />
+                                            <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15">
+                                                <Filter className="h-[18px] w-[18px] text-primary" />
                                             </div>
                                             <div className="min-w-0">
                                                 <div className="flex flex-wrap items-center gap-2">
-                                                    <h2 className="text-base font-semibold text-gray-900">Filters</h2>
+                                                    <h2 className="text-base font-semibold text-foreground">Filters</h2>
                                                     {nonDefaultFilterCount > 0 ? (
-                                                        <span className="inline-flex items-center rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-bold tabular-nums text-indigo-800">
+                                                        <span className="inline-flex items-center rounded-full bg-primary/15 px-2 py-0.5 text-xs font-bold tabular-nums text-primary">
                                                             {nonDefaultFilterCount} active
                                                         </span>
                                                     ) : (
-                                                        <span className="text-xs font-medium text-gray-400">Defaults</span>
+                                                        <span className="text-xs font-medium text-muted-foreground">Defaults</span>
                                                     )}
                                                 </div>
-                                                <p className="mt-0.5 text-sm text-gray-500">
-                                                    Showing <span className="font-semibold text-gray-700">{filtered.length}</span> of{" "}
-                                                    <span className="font-semibold text-gray-700">{attributeFilteredProviders.length}</span>
+                                                <p className="mt-0.5 text-sm text-muted-foreground">
+                                                    Showing <span className="font-semibold text-foreground">{filtered.length}</span> of{" "}
+                                                    <span className="font-semibold text-foreground">{attributeFilteredProviders.length}</span>
                                                     {query.trim() ? (
                                                         <>
                                                             {" "}
-                                                            <span className="text-gray-400">(after search)</span>
+                                                            <span className="text-muted-foreground">(after search)</span>
                                                         </>
                                                     ) : null}
                                                 </p>
@@ -613,11 +617,11 @@ const ProvidersPage = () => {
                                                 onClick={resetFilters}
                                                 disabled={nonDefaultFilterCount === 0}
                                                 className={cn(
-                                                    "inline-flex h-10 shrink-0 items-center gap-2 rounded-xl px-5 text-sm font-semibold transition-all",
-                                                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2",
+                                                    "inline-flex h-10 shrink-0 items-center gap-2 rounded-md border px-4 text-sm font-semibold transition-colors duration-150",
+                                                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                                                     nonDefaultFilterCount > 0
-                                                        ? "bg-indigo-50/90 text-indigo-900 hover:bg-indigo-100/90"
-                                                        : "cursor-not-allowed bg-gray-50/80 text-gray-400"
+                                                        ? "border-border bg-card text-foreground hover:bg-muted"
+                                                        : "cursor-not-allowed border-border bg-muted text-muted-foreground"
                                                 )}
                                             >
                                                 <RotateCcw className={cn("h-4 w-4 shrink-0", nonDefaultFilterCount === 0 && "opacity-50")} />
@@ -626,7 +630,7 @@ const ProvidersPage = () => {
                                             <button
                                                 type="button"
                                                 onClick={() => setFiltersPanelOpen(false)}
-                                                className="inline-flex h-10 min-w-10 shrink-0 items-center justify-center rounded-xl border border-gray-200/90 bg-white/90 px-3 text-gray-700 transition-all hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2"
+                                                className="inline-flex h-10 min-w-10 shrink-0 items-center justify-center rounded-md border border-border bg-card px-3 text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                                                 aria-label="Close filters"
                                             >
                                                 <X className="h-4 w-4" />
@@ -682,26 +686,26 @@ const ProvidersPage = () => {
                         </div>
 
                         {actionError && (
-                            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                            <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
                                 {actionError}
                             </div>
                         )}
 
                         {loading && (
-                            <div className="mb-4 text-sm text-gray-600 flex items-center gap-2">
-                                <RefreshCw className="h-4 w-4 animate-spin" />
+                            <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
+                                <RefreshCw className="h-4 w-4 animate-spin text-primary" />
                                 Loading providers...
                             </div>
                         )}
                         {error && (
-                            <div className="mb-4 rounded-xl bg-red-50 border border-red-200 p-4 text-sm text-red-600">
+                            <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
                                 {error}
                             </div>
                         )}
 
                         {/* Grid View */}
                         {viewMode === "grid" && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                                 {paginated.map((p) => {
                                     const src = resolveProfileImageUrl(p);
                                     const first = p.firstName ?? p.first_name;
@@ -715,14 +719,13 @@ const ProvidersPage = () => {
                                     return (
                                         <div
                                             key={p.id}
-                                            className={`relative overflow-hidden rounded-2xl bg-gradient-to-br from-white/80 to-white/40 backdrop-blur-xl border border-white/20 shadow-xl transition-all duration-300 hover:shadow-2xl hover:scale-[1.02] hover:border-white/40 ${archived ? "opacity-75" : ""}`}
+                                            className={`relative overflow-hidden rounded-2xl border border-border bg-card shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-all duration-150 hover:bg-muted/30 hover:shadow-[0_2px_8px_rgba(0,0,0,0.08)] ${archived ? "opacity-75" : ""}`}
                                         >
                                             <Link
                                                 href={p.id ? `/admin/providers/${p.id}` : "#"}
-                                                className="group relative block overflow-hidden p-6"
+                                                className="group relative block p-6"
                                             >
-                                            <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                                            <div className="relative z-10">
+                                            <div>
                                                 <div className="flex items-start justify-between mb-4">
                                                     <div className="flex items-center gap-4">
                                                         {src && !failedImages.has(p.id) ? (
@@ -730,48 +733,36 @@ const ProvidersPage = () => {
                                                             <img
                                                                 src={src}
                                                                 alt={label}
-                                                                className="h-16 w-16 rounded-xl object-cover ring-2 ring-white/50 shadow-lg group-hover:ring-indigo-300 transition-all"
+                                                                className="h-16 w-16 rounded-xl object-cover shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-all"
                                                                 onError={() => setFailedImages((prev) => new Set(prev).add(p.id))}
                                                             />
                                                         ) : (
-                                                            <div className="h-16 w-16 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white ring-2 ring-white/50 shadow-lg grid place-items-center text-xl font-bold">
+                                                            <div className="grid h-16 w-16 place-items-center rounded-xl bg-primary text-xl font-bold text-primary-foreground shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
                                                                 {getInitials(p)}
                                                             </div>
                                                         )}
                                                         <div className="flex-1">
-                                                            <h3 className="text-lg font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">
+                                                            <h3 className="text-lg font-bold text-foreground transition-colors group-hover:text-primary">
                                                                 {label}
                                                             </h3>
-                                                            <p className="text-sm text-gray-600 mt-1">{p.email ?? "—"}</p>
+                                                            <p className="mt-1 text-sm text-muted-foreground">{p.email ?? "—"}</p>
                                                             {archived ? (
-                                                                <span className="mt-2 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                                                                <span className="mt-2 inline-flex rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
                                                                     Archived
                                                                 </span>
                                                             ) : null}
-                                                            <div className="mt-2 flex items-center gap-2">
-                                                                <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
-                                                                    providerActivationPaid(p)
-                                                                        ? "bg-emerald-100 text-emerald-700"
-                                                                        : "bg-amber-100 text-amber-700"
-                                                                }`}>
-                                                                    {providerActivationPaid(p) ? "Activation Paid" : "Activation Fee Pending"}
-                                                                </span>
-                                                                {!providerActivationPaid(p) && (
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={(e) => {
-                                                                            e.preventDefault();
-                                                                            e.stopPropagation();
-                                                                            const first = p.firstName ?? p.first_name;
-                                                                            const last = p.lastName ?? p.last_name;
-                                                                            const name = [first, last].filter(Boolean).join(" ") || p.name || "Provider";
-                                                                            setActivationTarget({ id: p.id, name });
-                                                                        }}
-                                                                        className="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-200 transition-colors"
-                                                                    >
-                                                                        Pay
-                                                                    </button>
-                                                                )}
+                                                            <div className="mt-2">
+                                                                <ProviderActivationStatus
+                                                                    provider={p}
+                                                                    onPay={(e) => {
+                                                                        e.preventDefault();
+                                                                        e.stopPropagation();
+                                                                        const first = p.firstName ?? p.first_name;
+                                                                        const last = p.lastName ?? p.last_name;
+                                                                        const name = [first, last].filter(Boolean).join(" ") || p.name || "Provider";
+                                                                        setActivationTarget({ id: p.id, name });
+                                                                    }}
+                                                                />
                                                             </div>
                                                         </div>
                                                     </div>
@@ -779,45 +770,45 @@ const ProvidersPage = () => {
 
                                                 <div className="space-y-3">
                                                     {p.phoneNumber || p.phone ? (
-                                                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                                                            <Phone className="h-4 w-4 text-gray-400" />
+                                                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                            <Phone className="h-4 w-4 text-muted-foreground" />
                                                             <span>{p.phoneNumber ?? p.phone}</span>
                                                         </div>
                                                     ) : null}
                                                     {p.address ? (
-                                                        <div className="flex items-start gap-2 text-sm text-gray-600">
-                                                            <MapPin className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                                                        <div className="flex items-start gap-2 text-sm text-muted-foreground">
+                                                            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                                                             <span className="line-clamp-2">{p.address}</span>
                                                         </div>
                                                     ) : null}
                                                     {p.createdAt && (
-                                                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                                                            <Calendar className="h-4 w-4 text-gray-400" />
+                                                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                            <Calendar className="h-4 w-4 text-muted-foreground" />
                                                             <span>{new Date(p.createdAt).toLocaleDateString()}</span>
                                                         </div>
                                                     )}
                                                 </div>
 
-                                                <div className="mt-4 pt-4 border-t border-gray-200/50 flex items-center justify-between">
+                                                <div className="mt-4 flex items-center justify-between pt-1">
                                                     <div className="flex items-center gap-2">
-                                                        <Briefcase className="h-4 w-4 text-gray-400" />
-                                                        <span className="text-sm font-medium text-gray-700">{serviceCount} Services</span>
+                                                        <Briefcase className="h-4 w-4 text-muted-foreground" />
+                                                        <span className="text-sm font-medium text-foreground">{serviceCount} Services</span>
                                                     </div>
-                                                    <div className="flex items-center gap-1 text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <div className="flex items-center gap-1 text-primary opacity-0 transition-opacity group-hover:opacity-100">
                                                         <span className="text-sm font-semibold">View</span>
                                                         <ArrowUpRight className="h-4 w-4" />
                                                     </div>
                                                 </div>
                                             </div>
                                             </Link>
-                                            <div className="flex items-center justify-end border-t border-gray-200/50 bg-white/50 px-3 py-2">
+                                            <div className="flex items-center justify-end bg-muted/30 px-3 py-2">
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger asChild>
                                                         <Button
                                                             type="button"
                                                             variant="ghost"
                                                             size="icon"
-                                                            className="h-9 w-9 text-gray-600 hover:text-gray-900"
+                                                            className="h-9 w-9 text-muted-foreground hover:text-foreground"
                                                             aria-label="Provider actions"
                                                         >
                                                             <MoreVertical className="h-4 w-4" />
@@ -880,12 +871,12 @@ const ProvidersPage = () => {
                                     );
                                 })}
                                 {paginated.length === 0 && !loading && (
-                                    <div className="col-span-full rounded-2xl bg-white/80 backdrop-blur-xl border border-white/20 p-12 text-center">
-                                        <div className="mx-auto w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
-                                            <Search className="h-8 w-8 text-gray-400" />
+                                    <div className="col-span-full rounded-2xl border border-dashed border-border bg-card p-12 text-center">
+                                        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+                                            <Search className="h-8 w-8 text-muted-foreground" />
                                         </div>
-                                        <p className="text-lg font-semibold text-gray-900 mb-2">No providers found</p>
-                                        <p className="text-sm text-gray-600">Try adjusting your search or filters</p>
+                                        <p className="mb-2 text-lg font-semibold text-foreground">No providers found</p>
+                                        <p className="text-sm text-muted-foreground">Try adjusting your search or filters</p>
                                     </div>
                                 )}
                             </div>
@@ -893,43 +884,43 @@ const ProvidersPage = () => {
 
                         {/* Table View */}
                         {viewMode === "table" && (
-                            <div className="rounded-2xl border border-white/20 bg-white/80 backdrop-blur-xl shadow-xl overflow-hidden">
+                            <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
                                 <div className="overflow-x-auto">
                                     <Table>
-                                        <TableHeader>
-                                            <TableRow className="bg-gradient-to-r from-indigo-50/50 to-purple-50/50 border-b border-white/20">
-                                                <TableHead className="font-semibold text-gray-700 w-[60px]">#</TableHead>
-                                                <TableHead className="font-semibold text-gray-700">Provider</TableHead>
-                                                <TableHead className="font-semibold text-gray-700">
+                                        <TableHeader className="[&_tr]:border-0">
+                                            <TableRow className="border-0 bg-muted/40">
+                                                <TableHead className="w-[60px] font-semibold text-foreground">#</TableHead>
+                                                <TableHead className="font-semibold text-foreground">Provider</TableHead>
+                                                <TableHead className="font-semibold text-foreground">
                                                     <button 
-                                                        className="inline-flex items-center gap-1 hover:text-indigo-600 transition-colors" 
+                                                        className="inline-flex items-center gap-1 transition-colors hover:text-primary" 
                                                         onClick={() => toggleSort("name")}
                                                     >
                                                         Name
                                                         <ChevronsUpDown className="h-4 w-4 opacity-60" />
                                                     </button>
                                                 </TableHead>
-                                                <TableHead className="font-semibold text-gray-700">Contact</TableHead>
-                                                <TableHead className="font-semibold text-gray-700">Location</TableHead>
-                                                <TableHead className="font-semibold text-gray-700">
+                                                <TableHead className="font-semibold text-foreground">Contact</TableHead>
+                                                <TableHead className="font-semibold text-foreground">Location</TableHead>
+                                                <TableHead className="font-semibold text-foreground">
                                                     <button 
-                                                        className="inline-flex items-center gap-1 hover:text-indigo-600 transition-colors" 
+                                                        className="inline-flex items-center gap-1 transition-colors hover:text-primary" 
                                                         onClick={() => toggleSort("services")}
                                                     >
                                                         Services
                                                         <ChevronsUpDown className="h-4 w-4 opacity-60" />
                                                     </button>
                                                 </TableHead>
-                                                <TableHead className="font-semibold text-gray-700">
+                                                <TableHead className="font-semibold text-foreground">
                                                     <button 
-                                                        className="inline-flex items-center gap-1 hover:text-indigo-600 transition-colors" 
+                                                        className="inline-flex items-center gap-1 transition-colors hover:text-primary" 
                                                         onClick={() => toggleSort("createdAt")}
                                                     >
                                                         Created
                                                         <ChevronsUpDown className="h-4 w-4 opacity-60" />
                                                     </button>
                                                 </TableHead>
-                                                <TableHead className="font-semibold text-gray-700 text-right">Actions</TableHead>
+                                                <TableHead className="text-right font-semibold text-foreground">Actions</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -946,9 +937,9 @@ const ProvidersPage = () => {
                                                 return (
                                                     <TableRow 
                                                         key={p.id} 
-                                                        className={`hover:bg-gradient-to-r hover:from-indigo-50/30 hover:to-purple-50/30 transition-all border-b border-white/20 ${archived ? "opacity-75" : ""}`}
+                                                        className={`border-0 transition-colors hover:bg-muted/30 ${archived ? "opacity-75" : ""}`}
                                                     >
-                                                        <TableCell className="text-sm font-medium text-gray-500">
+                                                        <TableCell className="text-sm font-medium text-muted-foreground">
                                                             {startIdx + idx + 1}
                                                         </TableCell>
                                                         <TableCell>
@@ -957,11 +948,11 @@ const ProvidersPage = () => {
                                                                 <img 
                                                                     src={src} 
                                                                     alt={label} 
-                                                                    className="h-12 w-12 rounded-xl object-cover ring-2 ring-white/50 shadow-md"
+                                                                    className="h-12 w-12 rounded-xl object-cover shadow-[0_1px_3px_rgba(0,0,0,0.06)]"
                                                                     onError={() => setFailedImages((prev) => new Set(prev).add(p.id))}
                                                                 />
                                                             ) : (
-                                                                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white ring-2 ring-white/50 shadow-md grid place-items-center text-sm font-bold">
+                                                                <div className="grid h-12 w-12 place-items-center rounded-xl bg-primary text-sm font-bold text-primary-foreground shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
                                                                     {getInitials(p)}
                                                                 </div>
                                                             )}
@@ -972,74 +963,52 @@ const ProvidersPage = () => {
                                                                     <div className="flex flex-col">
                                                                         <Link 
                                                                             href={`/admin/providers/${p.id}`} 
-                                                                            className="text-indigo-700 hover:text-indigo-900 hover:underline font-semibold transition-colors"
+                                                                            className="font-semibold text-primary transition-colors hover:text-primary/80 hover:underline"
                                                                         >
                                                                             {label}
                                                                         </Link>
-                                                                    <span className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                                                                    <span className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                                                                         <Mail className="h-3 w-3" />
                                                                         {p.email ?? ""}
                                                                     </span>
-                                                                    <div className="mt-1 flex items-center gap-1.5">
-                                                                        <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                                                                            providerActivationPaid(p)
-                                                                                ? "bg-emerald-100 text-emerald-700"
-                                                                                : "bg-amber-100 text-amber-700"
-                                                                        }`}>
-                                                                            {providerActivationPaid(p) ? "Activation Paid" : "Activation Fee Pending"}
-                                                                        </span>
-                                                                        {!providerActivationPaid(p) && (
-                                                                            <button
-                                                                                onClick={(e) => {
-                                                                                    e.preventDefault();
-                                                                                    e.stopPropagation();
-                                                                                    setActivationTarget({ id: p.id, name: label });
-                                                                                }}
-                                                                                className="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-200 transition-colors"
-                                                                            >
-                                                                                Pay
-                                                                            </button>
-                                                                        )}
+                                                                    <div className="mt-1.5">
+                                                                        <ProviderActivationStatus
+                                                                            provider={p}
+                                                                            onPay={(e) => {
+                                                                                e.preventDefault();
+                                                                                e.stopPropagation();
+                                                                                setActivationTarget({ id: p.id, name: label });
+                                                                            }}
+                                                                        />
                                                                     </div>
                                                                 </div>
                                                             ) : (
                                                                 <div className="flex flex-col">
                                                                     <span className="font-semibold">{label}</span>
-                                                                    <span className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                                                                    <span className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                                                                         <Mail className="h-3 w-3" />
                                                                         {p.email ?? ""}
                                                                     </span>
-                                                                    <div className="mt-1 flex items-center gap-1.5">
-                                                                        <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                                                                            providerActivationPaid(p)
-                                                                                ? "bg-emerald-100 text-emerald-700"
-                                                                                : "bg-amber-100 text-amber-700"
-                                                                        }`}>
-                                                                            {providerActivationPaid(p) ? "Activation Paid" : "Activation Fee Pending"}
-                                                                        </span>
-                                                                        {!providerActivationPaid(p) && (
-                                                                            <button
-                                                                                onClick={() => setActivationTarget({ id: p.id, name: label })}
-                                                                                className="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-200 transition-colors"
-                                                                            >
-                                                                                Pay
-                                                                            </button>
-                                                                        )}
+                                                                    <div className="mt-1.5">
+                                                                        <ProviderActivationStatus
+                                                                            provider={p}
+                                                                            onPay={() => setActivationTarget({ id: p.id, name: label })}
+                                                                        />
                                                                     </div>
                                                                 </div>
                                                             )}
                                                             </div>
                                                         </TableCell>
                                                         <TableCell>
-                                                            <div className="flex items-center gap-2 text-sm text-gray-700">
-                                                                <Phone className="h-4 w-4 text-gray-400" />
+                                                            <div className="flex items-center gap-2 text-sm text-foreground">
+                                                                <Phone className="h-4 w-4 text-muted-foreground" />
                                                                 {p.phoneNumber ?? p.phone ?? "—"}
                                                             </div>
                                                         </TableCell>
                                                         <TableCell>
                                                             {p.address ? (
-                                                                <div className="flex items-start gap-2 text-sm text-gray-700 max-w-xs">
-                                                                    <MapPin className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                                                                <div className="flex max-w-xs items-start gap-2 text-sm text-foreground">
+                                                                    <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                                                                     <span className="line-clamp-2">{p.address}</span>
                                                                 </div>
                                                             ) : (
@@ -1047,20 +1016,20 @@ const ProvidersPage = () => {
                                                             )}
                                                         </TableCell>
                                                         <TableCell>
-                                                            <span className="inline-flex items-center rounded-full bg-gradient-to-r from-indigo-500/10 to-purple-500/10 px-3 py-1 text-xs font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-200">
+                                                            <span className="inline-flex items-center rounded-full bg-primary/15 px-3 py-1 text-xs font-semibold text-primary">
                                                                 {serviceCount}
                                                             </span>
                                                         </TableCell>
                                                         <TableCell>
-                                                            <div className="flex items-center gap-2 text-sm text-gray-600">
-                                                                <Calendar className="h-4 w-4 text-gray-400" />
+                                                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                                <Calendar className="h-4 w-4 text-muted-foreground" />
                                                                 {p.createdAt ? new Date(p.createdAt).toLocaleDateString() : "—"}
                                                             </div>
                                                         </TableCell>
                                                         <TableCell className="text-right">
                                                             <div className="flex items-center justify-end gap-2">
                                                                 {archived ? (
-                                                                    <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                                                                    <span className="inline-flex rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
                                                                         Archived
                                                                     </span>
                                                                 ) : null}
@@ -1070,7 +1039,7 @@ const ProvidersPage = () => {
                                                                             type="button"
                                                                             variant="ghost"
                                                                             size="icon"
-                                                                            className="h-9 w-9 text-gray-600 hover:text-gray-900"
+                                                                            className="h-9 w-9 text-muted-foreground hover:text-foreground"
                                                                             aria-label="Row actions"
                                                                         >
                                                                             <MoreVertical className="h-4 w-4" />
@@ -1135,13 +1104,13 @@ const ProvidersPage = () => {
                                             })}
                                             {paginated.length === 0 && !loading && (
                                                 <TableRow>
-                                                    <TableCell className="px-4 py-12 text-center text-gray-500" colSpan={8}>
+                                                    <TableCell className="px-4 py-12 text-center text-muted-foreground" colSpan={8}>
                                                         <div className="flex flex-col items-center gap-3">
-                                                            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
-                                                                <Search className="h-8 w-8 text-gray-400" />
+                                                            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+                                                                <Search className="h-8 w-8 text-muted-foreground" />
                                                             </div>
-                                                            <p className="text-lg font-semibold text-gray-900">No providers found</p>
-                                                            <p className="text-sm text-gray-600">Try adjusting your search or filters</p>
+                                                            <p className="text-lg font-semibold text-foreground">No providers found</p>
+                                                            <p className="text-sm text-muted-foreground">Try adjusting your search or filters</p>
                                                         </div>
                                                     </TableCell>
                                                 </TableRow>
@@ -1153,26 +1122,26 @@ const ProvidersPage = () => {
                         )}
 
                         {filtered.length > 0 && (
-                            <div className="mt-4 flex items-center justify-between rounded-xl border border-white/20 bg-white/80 backdrop-blur-xl px-6 py-3 shadow-lg">
-                                <p className="text-sm text-gray-600">
-                                    Showing <span className="font-semibold text-gray-900">{startIdx + 1}</span>–<span className="font-semibold text-gray-900">{Math.min(startIdx + PAGE_SIZE, filtered.length)}</span> of{' '}
-                                    <span className="font-semibold text-gray-900">{filtered.length}</span>
+                            <div className="mt-4 flex items-center justify-between rounded-md border border-border bg-card px-6 py-3 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+                                <p className="text-sm text-muted-foreground">
+                                    Showing <span className="font-semibold text-foreground">{startIdx + 1}</span>–<span className="font-semibold text-foreground">{Math.min(startIdx + PAGE_SIZE, filtered.length)}</span> of{' '}
+                                    <span className="font-semibold text-foreground">{filtered.length}</span>
                                 </p>
                                 <div className="flex items-center gap-2">
                                     <button
                                         disabled={safePage <= 1}
                                         onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                                        className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                                     >
                                         <ChevronLeft className="h-4 w-4" />
                                     </button>
-                                    <span className="min-w-[80px] text-center text-sm font-medium text-gray-700">
+                                    <span className="min-w-[80px] text-center text-sm font-medium text-foreground">
                                         Page {safePage} of {totalPages}
                                     </span>
                                     <button
                                         disabled={safePage >= totalPages}
                                         onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                                        className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                                     >
                                         <ChevronRight className="h-4 w-4" />
                                     </button>
@@ -1187,19 +1156,19 @@ const ProvidersPage = () => {
                             onClick={() => !actionBusyId && setPendingDeleteProviderId(null)}
                         >
                             <div
-                                className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"
+                                className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
                                 onClick={(e) => e.stopPropagation()}
                             >
-                                <h3 className="text-lg font-bold text-gray-900 mb-2">Delete provider</h3>
-                                <p className="text-sm text-gray-600 mb-6">
+                                <h3 className="mb-2 text-lg font-bold text-foreground">Delete provider</h3>
+                                <p className="mb-6 text-sm text-muted-foreground">
                                     Permanently remove this provider. This cannot be undone. Foreign keys (services, bookings, etc.) may block deletion until related data is removed.
                                 </p>
-                                <div className="flex items-center gap-3 justify-end">
+                                <div className="flex items-center justify-end gap-3">
                                     <button
                                         type="button"
                                         onClick={() => setPendingDeleteProviderId(null)}
                                         disabled={Boolean(actionBusyId)}
-                                        className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                                        className="rounded-md border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                                     >
                                         Cancel
                                     </button>
@@ -1207,7 +1176,7 @@ const ProvidersPage = () => {
                                         type="button"
                                         onClick={() => void handleDeleteProvider()}
                                         disabled={Boolean(actionBusyId)}
-                                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition-colors disabled:opacity-50"
+                                        className="inline-flex items-center gap-2 rounded-md bg-destructive px-4 py-2 text-sm font-semibold text-destructive-foreground transition-colors hover:bg-destructive/90 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                                     >
                                         {actionBusyId === pendingDeleteProviderId ? (
                                             <Loader2 className="h-4 w-4 animate-spin" />

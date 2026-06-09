@@ -493,61 +493,132 @@ export default function ProviderDetailPage() {
                                             </div>
                                         </div>
                                         {services.length === 0 ? (
-                                            <div className="text-gray-500">No services found for this provider.</div>
+                                            <div className="rounded-2xl border border-dashed border-border bg-card p-12 text-center">
+                                                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+                                                    <Briefcase className="h-8 w-8 text-muted-foreground" />
+                                                </div>
+                                                <p className="text-lg font-semibold text-foreground">No services found</p>
+                                                <p className="mt-1 text-sm text-muted-foreground">Add a service to get started.</p>
+                                            </div>
                                         ) : (
-                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                                {services.map((s) => (
-                                                    <div key={s.id} className="bg-white rounded shadow p-4">
-                                                        <div className="mb-2 flex items-center justify-between">
-                                                            <div className="font-semibold">{s.serviceName || s.name || 'Service'}</div>
-                                                            <div className="flex gap-2">
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant="outline"
-                                                                    aria-label="Edit service"
-                                                                    title="Edit service"
-                                                                    onClick={() => openEditService(s.id)}
-                                                                >
-                                                                    <Pencil className="h-4 w-4" />
-                                                                </Button>
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant="outline"
-                                                                    className="text-red-600 border-red-300 hover:bg-red-50"
-                                                                    aria-label="Delete service"
-                                                                    title="Delete service (opens confirmation)"
-                                                                    onClick={() => setDeleteId(s.id)}
-                                                                >
-                                                                    <Trash2 className="h-4 w-4" />
-                                                                </Button>
-                                                            </div>
-                                                        </div>
-                                                        <div className="h-36 w-full bg-gray-100 mb-3 overflow-hidden rounded">
-                                                            {(() => {
-                                                                const primary = s.images?.[0]
-                                                                    ?? (Array.isArray(s.serviceImage) ? s.serviceImage[0] : s.serviceImage ?? undefined)
-                                                                    ?? s.image
-                                                                    ?? s.image_url
-                                                                    ?? undefined;
-                                                                return primary ? (
-                                                                    <Image src={primary} alt={s.serviceName || s.name || 'Service'} width={640} height={144} loading="lazy" className="h-36 w-full object-cover" />
+                                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                                                {services.map((s) => {
+                                                    const serviceTitle = s.serviceName || s.name || 'Service';
+                                                    const primaryImage = s.images?.[0]
+                                                        ?? (Array.isArray(s.serviceImage) ? s.serviceImage[0] : s.serviceImage ?? undefined)
+                                                        ?? s.image
+                                                        ?? s.image_url
+                                                        ?? undefined;
+                                                    const isActive = s.status !== false;
+
+                                                    return (
+                                                        <div
+                                                            key={s.id}
+                                                            className="overflow-hidden rounded-2xl border border-border bg-card shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-all duration-150 hover:bg-muted/30 hover:shadow-[0_2px_8px_rgba(0,0,0,0.08)]"
+                                                        >
+                                                            <div className="h-40 w-full overflow-hidden bg-muted">
+                                                                {primaryImage ? (
+                                                                    <Image
+                                                                        src={primaryImage}
+                                                                        alt={serviceTitle}
+                                                                        width={640}
+                                                                        height={160}
+                                                                        loading="lazy"
+                                                                        className="h-40 w-full object-cover"
+                                                                    />
                                                                 ) : (
-                                                                    <div className="h-36 w-full bg-gray-200" />
-                                                                );
-                                                            })()}
-                                                        </div>
-                                                        {s.description && (
-                                                            <div className="text-sm text-gray-600 mt-1 line-clamp-2">{s.description}</div>
-                                                        )}
-                                                        {s.images && s.images.length > 1 && (
-                                                            <div className="flex gap-2 mt-3">
-                                                                {s.images.slice(1, 5).map((img, idx) => (
-                                                                    <Image key={idx} src={img} alt={`thumb-${idx}`} width={40} height={40} loading="lazy" className="h-10 w-10 rounded object-cover border" />
-                                                                ))}
+                                                                    <div className="flex h-full items-center justify-center">
+                                                                        <Briefcase className="h-10 w-10 text-muted-foreground/60" />
+                                                                    </div>
+                                                                )}
                                                             </div>
-                                                        )}
-                                                    </div>
-                                                ))}
+                                                            <div className="p-5">
+                                                                <div className="mb-3 flex items-start justify-between gap-3">
+                                                                    <div className="min-w-0 flex-1">
+                                                                        <h3 className="truncate text-lg font-bold text-foreground">
+                                                                            {serviceTitle}
+                                                                        </h3>
+                                                                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                                                                            <span className={`inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold ${
+                                                                                isActive
+                                                                                    ? 'bg-primary/10 text-primary'
+                                                                                    : 'bg-muted text-muted-foreground'
+                                                                            }`}>
+                                                                                {isActive ? 'Active' : 'Inactive'}
+                                                                            </span>
+                                                                            {s.feature ? (
+                                                                                <span className="inline-flex items-center rounded-md bg-chart-4/15 px-2.5 py-1 text-xs font-semibold text-chart-4">
+                                                                                    Featured
+                                                                                </span>
+                                                                            ) : null}
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex shrink-0 gap-1">
+                                                                        <Button
+                                                                            size="icon"
+                                                                            variant="ghost"
+                                                                            className="h-9 w-9 text-muted-foreground hover:text-foreground"
+                                                                            aria-label="Edit service"
+                                                                            title="Edit service"
+                                                                            onClick={() => openEditService(s.id)}
+                                                                        >
+                                                                            <Pencil className="h-4 w-4" />
+                                                                        </Button>
+                                                                        <Button
+                                                                            size="icon"
+                                                                            variant="ghost"
+                                                                            className="h-9 w-9 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                                                            aria-label="Delete service"
+                                                                            title="Delete service"
+                                                                            onClick={() => setDeleteId(s.id)}
+                                                                        >
+                                                                            <Trash2 className="h-4 w-4" />
+                                                                        </Button>
+                                                                    </div>
+                                                                </div>
+                                                                {s.description ? (
+                                                                    <p className="line-clamp-2 text-sm text-muted-foreground">
+                                                                        {s.description}
+                                                                    </p>
+                                                                ) : null}
+                                                                <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+                                                                    <div className="flex flex-wrap items-center gap-2">
+                                                                        {s.price ? (
+                                                                            <span className="text-base font-bold tabular-nums text-foreground">
+                                                                                {s.price}
+                                                                            </span>
+                                                                        ) : null}
+                                                                        {s.discount ? (
+                                                                            <span className="inline-flex items-center rounded-md bg-chart-3/15 px-2 py-0.5 text-xs font-semibold text-chart-3">
+                                                                                {s.discount}% off
+                                                                            </span>
+                                                                        ) : null}
+                                                                    </div>
+                                                                    {s.duration ? (
+                                                                        <span className="text-xs font-medium text-muted-foreground">
+                                                                            {s.duration}
+                                                                        </span>
+                                                                    ) : null}
+                                                                </div>
+                                                                {s.images && s.images.length > 1 ? (
+                                                                    <div className="mt-3 flex gap-2">
+                                                                        {s.images.slice(1, 5).map((img, idx) => (
+                                                                            <Image
+                                                                                key={idx}
+                                                                                src={img}
+                                                                                alt={`${serviceTitle} ${idx + 2}`}
+                                                                                width={40}
+                                                                                height={40}
+                                                                                loading="lazy"
+                                                                                className="h-10 w-10 rounded-md object-cover shadow-[0_1px_3px_rgba(0,0,0,0.06)]"
+                                                                            />
+                                                                        ))}
+                                                                    </div>
+                                                                ) : null}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
                                             </div>
                                         )}
                                     </section>

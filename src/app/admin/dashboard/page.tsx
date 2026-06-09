@@ -2,7 +2,7 @@
 import React, { Suspense, useCallback, useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { getSupabase } from '@/lib/supabaseClient';
-import { fetchProviders, ProviderState } from '@/features/provider/providerSlice';
+import { fetchProviders, Provider, ProviderState } from '@/features/provider/providerSlice';
 import { AppDispatch } from '@/store/store';
 import Sidebar from '@/components/Sidebar';
 import AuthGuard from '@/components/AuthGuard';
@@ -26,6 +26,12 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { BookedService } from '@/features/bookedService/bookedServiceSlice';
 import { computeWalletMetrics, type WalletTransactionMetricRow } from '@/lib/wallet-transaction-metrics';
+import { DashboardBarChart } from '@/components/admin/dashboard-bar-chart';
+
+interface ChartBucket {
+    label: string;
+    value: number;
+}
 
 interface AnalyticsData {
     totalRevenue: number;
@@ -46,17 +52,18 @@ interface AnalyticsData {
     payoutIntegrationIssues: number;
     bookingsByStatus: Record<string, number>;
     recentBookings: BookedService[];
-    weeklyData: number[];
-    monthlyData: number[];
+    paymentChart: ChartBucket[];
+    providerChart: ChartBucket[];
 }
 
-interface BookedServiceRow {
-    totalAmount?: number | null;
-    price?: number | null;
-    status?: string | null;
-    paymentCompleted?: boolean | null;
-    payment_status?: string | null;
+interface ProviderLiteRow {
     createdAt?: string | null;
+    created_at?: string | null;
+}
+
+interface BookedServiceRow extends BookedService {
+    created_at?: string | null;
+    payment_status?: string | null;
 }
 
 interface WithdrawalRow {
@@ -101,12 +108,198 @@ function getPlatformRevenueFromBooking(value: BookedServiceRow): number {
 }
 
 function formatCurrency(value: number): string {
-    return `ETB ${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function formatStatValue(value: number, isCurrency?: boolean): string {
+    if (isCurrency) return formatCurrency(value);
+    return value.toLocaleString('en-US');
 }
 
 function isRejectedBooking(value: BookedServiceRow): boolean {
     const normalized = (value.status ?? '').toString().trim().toLowerCase();
     return normalized.includes('rejected') || normalized.includes('cancelled') || normalized.includes('canceled');
+}
+
+function startOfDay(date: Date): Date {
+    const next = new Date(date);
+    next.setHours(0, 0, 0, 0);
+    return next;
+}
+
+function addDays(date: Date, days: number): Date {
+    const next = new Date(date);
+    next.setDate(next.getDate() + days);
+    return next;
+}
+
+const PROVIDER_ALL_RANGE_START_MONTH = 2;
+const PAYMENT_ALL_RANGE_START_MONTH = 4;
+
+function getAllRangeStart(now: Date, startMonth: number): Date {
+    const thisYearStart = startOfDay(new Date(now.getFullYear(), startMonth, 1));
+    if (now >= thisYearStart) return thisYearStart;
+    return startOfDay(new Date(now.getFullYear() - 1, startMonth, 1));
+}
+
+function resolveBookingCreatedAt(booking: BookedServiceRow): Date | null {
+    const raw = booking.createdAt ?? booking.created_at;
+    if (!raw) return null;
+    const date = new Date(raw);
+    return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function normalizeBookingRows(rows: BookedServiceRow[]): BookedService[] {
+    return rows.map(({ created_at, payment_status, ...rest }) => ({
+        ...rest,
+        createdAt: rest.createdAt ?? created_at ?? undefined,
+        paymentCompleted: rest.paymentCompleted ?? undefined,
+    }));
+}
+
+function countItemsInRange<T>(items: T[], start: Date, end: Date, resolveDate: (item: T) => Date | null): number {
+    return items.reduce((count, item) => {
+        const createdAt = resolveDate(item);
+        if (!createdAt || createdAt < start || createdAt >= end) return count;
+        return count + 1;
+    }, 0);
+}
+
+function resolveWalletDate(row: WalletTransactionLiteRow): Date | null {
+    if (!row.createdDate) return null;
+    const date = new Date(row.createdDate);
+    return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function resolveProviderDate(provider: ProviderLiteRow): Date | null {
+    const raw = provider.createdAt ?? provider.created_at;
+    if (!raw) return null;
+    const date = new Date(raw);
+    return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function normalizeProviderRows(rows: ProviderLiteRow[]): ProviderLiteRow[] {
+    return rows.map((row) => ({
+        ...row,
+        createdAt: row.createdAt ?? row.created_at ?? null,
+    }));
+}
+
+function providersFromRedux(providers: Provider[]): ProviderLiteRow[] {
+    return providers.map((provider) => ({
+        createdAt: provider.createdAt ?? null,
+        created_at: null,
+    }));
+}
+
+function buildTimeSeriesChart<T>(
+    items: T[],
+    range: DashboardRange,
+    resolveDate: (item: T) => Date | null,
+    monthlyBuckets = false,
+): ChartBucket[] {
+    const now = new Date();
+    const today = startOfDay(now);
+
+    if (range === 'today') {
+        const tomorrow = addDays(today, 1);
+        return [{ label: 'Today', value: countItemsInRange(items, today, tomorrow, resolveDate) }];
+    }
+
+    if (range === '7d') {
+        return Array.from({ length: 7 }, (_, index) => {
+            const start = addDays(today, index - 6);
+            const end = addDays(start, 1);
+            return {
+                label: start.toLocaleDateString('en-US', { weekday: 'short' }),
+                value: countItemsInRange(items, start, end, resolveDate),
+            };
+        });
+    }
+
+    if (range === '30d') {
+        return Array.from({ length: 6 }, (_, index) => {
+            const start = addDays(today, -30 + index * 5);
+            const end = addDays(start, 5);
+            return {
+                label: start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                value: countItemsInRange(items, start, end, resolveDate),
+            };
+        });
+    }
+
+    const rangeStart = getAllRangeStart(
+        now,
+        monthlyBuckets ? PROVIDER_ALL_RANGE_START_MONTH : PAYMENT_ALL_RANGE_START_MONTH,
+    );
+
+    if (monthlyBuckets) {
+        const buckets: ChartBucket[] = [];
+        let cursor = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), 1);
+        const endLimit = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+        while (cursor < endLimit) {
+            const bucketEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+            buckets.push({
+                label: cursor.toLocaleDateString('en-US', { month: 'short' }),
+                value: countItemsInRange(items, cursor, bucketEnd, resolveDate),
+            });
+            cursor = bucketEnd;
+        }
+
+        return buckets;
+    }
+
+    const buckets: ChartBucket[] = [];
+    let weekStart = rangeStart;
+
+    while (weekStart <= today) {
+        const weekEnd = addDays(weekStart, 7);
+        buckets.push({
+            label: weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+            value: countItemsInRange(items, weekStart, weekEnd, resolveDate),
+        });
+        weekStart = weekEnd;
+    }
+
+    return buckets;
+}
+
+function getPaymentChartTitle(range: DashboardRange): string {
+    if (range === 'today') return "Today's Payments";
+    if (range === '7d') return 'Payment Activity';
+    if (range === '30d') return '30-Day Payments';
+    return 'Payment Activity';
+}
+
+function getPaymentChartSubtitle(range: DashboardRange): string {
+    if (range === 'today') return 'Wallet transactions today';
+    if (range === '7d') return 'Transactions per day, last 7 days';
+    if (range === '30d') return 'Transactions per 5-day period, last 30 days';
+    return 'Transactions per week, since May';
+}
+
+function getProviderChartSubtitle(range: DashboardRange): string {
+    if (range === 'today') return 'New providers today';
+    if (range === '7d') return 'New providers per day, last 7 days';
+    if (range === '30d') return 'New providers per 5-day period, last 30 days';
+    return 'New providers per month, since March';
+}
+
+async function fetchWalletRowsForDashboard(): Promise<WalletTransactionLiteRow[]> {
+    try {
+        const response = await fetch('/api/wallet-transactions');
+        if (!response.ok) return [];
+        const payload = (await response.json()) as {
+            data?: Array<WalletTransactionLiteRow & { created_date?: string | null }>;
+        };
+        return (payload.data ?? []).map((row) => ({
+            ...row,
+            createdDate: row.createdDate ?? row.created_date ?? null,
+        }));
+    } catch {
+        return [];
+    }
 }
 
 function DashboardContent() {
@@ -135,8 +328,8 @@ function DashboardContent() {
         payoutIntegrationIssues: 0,
         bookingsByStatus: {},
         recentBookings: [],
-        weeklyData: [],
-        monthlyData: []
+        paymentChart: [],
+        providerChart: []
     });
     const [countsLoading, setCountsLoading] = useState<boolean>(true);
     const initialRange = (() => {
@@ -173,21 +366,57 @@ function DashboardContent() {
     }, [dashboardRange, router, searchParams]);
 
     useEffect(() => {
-        dispatch(fetchProviders());
         const fetchAnalyticsAndLists = async () => {
             setCountsLoading(true);
-            
-            // Fetch bookings with full data for analytics
-            const { data: bookings, error: bookingsError } = await getSupabase()
-                .from('booked_service')
-                .select('*')
-                .order('createdAt', { ascending: false });
+
+            let providerSource = providers;
+            if (providerSource.length === 0) {
+                try {
+                    providerSource = await dispatch(fetchProviders()).unwrap();
+                } catch {
+                    providerSource = [];
+                }
+            }
+
+            const [
+                walletRows,
+                { data: bookings, error: bookingsError },
+            ] = await Promise.all([
+                fetchWalletRowsForDashboard(),
+                getSupabase()
+                    .from('booked_service')
+                    .select('*')
+                    .order('createdAt', { ascending: false }),
+            ]);
+
+            const rangedWalletRows = walletRows.filter((row) => isDateInRange(row.createdDate));
+            const walletMetrics = computeWalletMetrics(rangedWalletRows);
+            const normalizedProviders = normalizeProviderRows(providersFromRedux(providerSource));
+            const paymentChart = buildTimeSeriesChart(rangedWalletRows, dashboardRange, resolveWalletDate);
+            const providerChart = buildTimeSeriesChart(
+                normalizedProviders,
+                dashboardRange,
+                resolveProviderDate,
+                dashboardRange === 'all',
+            );
+            setAnalytics((prev) => ({
+                ...prev,
+                totalCredit: rangedWalletRows.length,
+                totalNetFlow: walletMetrics.totalNetFlowAdjusted,
+                totalTopUp: walletMetrics.totalTopUpAdjusted,
+                paymentChart,
+                providerChart,
+            }));
 
             if (!bookingsError && bookings) {
                 setBookingCount(bookings.length);
 
-                const bookingRows = bookings as BookedServiceRow[];
-                const rangedBookingRows = bookingRows.filter((booking) => isDateInRange(booking.createdAt));
+                const bookingRows = normalizeBookingRows(bookings as BookedServiceRow[]);
+                const rangedBookingRows = bookingRows.filter((booking) => {
+                    const createdAt = resolveBookingCreatedAt(booking);
+                    if (!createdAt) return false;
+                    return isDateInRange(createdAt.toISOString());
+                });
                 const rangedCompletedPaidBookings = rangedBookingRows.filter((booking) => {
                     return isCompletedBooking(booking) && isCustomerPaymentDone(booking);
                 });
@@ -202,13 +431,6 @@ function DashboardContent() {
                 const totalCompletedGrossAmount = rangedCompletedPaidBookings.reduce((sum, booking) => {
                     return sum + getBookingGrossAmount(booking);
                 }, 0);
-                const { data: walletRows, error: walletRowsError } = await getSupabase()
-                    .from('wallet_transaction')
-                    .select('amount, isCredit, note, transactionId, createdDate, type, userId');
-                const rangedWalletRows = !walletRowsError && walletRows
-                    ? (walletRows as WalletTransactionLiteRow[]).filter((row) => isDateInRange(row.createdDate))
-                    : [];
-                const walletMetrics = computeWalletMetrics(rangedWalletRows);
                 const totalCredit = rangedWalletRows.length;
                 const totalNetFlow = walletMetrics.totalNetFlowAdjusted;
                 const totalTopUp = walletMetrics.totalTopUpAdjusted;
@@ -216,8 +438,8 @@ function DashboardContent() {
                 // Calculate monthly revenue (last 30 days)
                 const thirtyDaysAgo = new Date();
                 thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-                const monthlyBookings = bookingRows.filter(booking => {
-                    const createdAt = booking.createdAt ? new Date(booking.createdAt) : null;
+                const monthlyBookings = bookingRows.filter((booking) => {
+                    const createdAt = resolveBookingCreatedAt(booking);
                     return createdAt && createdAt >= thirtyDaysAgo;
                 });
                 const monthlyRevenue = monthlyBookings.reduce((sum, booking) => {
@@ -227,8 +449,8 @@ function DashboardContent() {
                 // Calculate previous month revenue for comparison
                 const sixtyDaysAgo = new Date();
                 sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
-                const previousMonthBookings = bookingRows.filter(booking => {
-                    const createdAt = booking.createdAt ? new Date(booking.createdAt) : null;
+                const previousMonthBookings = bookingRows.filter((booking) => {
+                    const createdAt = resolveBookingCreatedAt(booking);
                     return createdAt && createdAt >= sixtyDaysAgo && createdAt < thirtyDaysAgo;
                 });
                 const previousMonthRevenue = previousMonthBookings.reduce((sum, booking) => {
@@ -239,38 +461,10 @@ function DashboardContent() {
                     ? ((monthlyRevenue - previousMonthRevenue) / previousMonthRevenue) * 100 
                     : monthlyRevenue > 0 ? 100 : 0;
 
-                // Group bookings by status
                 const bookingsByStatus: Record<string, number> = {};
-                bookings.forEach(booking => {
+                rangedBookingRows.forEach((booking) => {
                     const status = booking.status || 'unknown';
                     bookingsByStatus[status] = (bookingsByStatus[status] || 0) + 1;
-                });
-
-                // Get weekly data from ranged rows (last 7 days buckets)
-                const weeklyData = Array.from({ length: 7 }, (_, i) => {
-                    const date = new Date();
-                    date.setDate(date.getDate() - (6 - i));
-                    date.setHours(0, 0, 0, 0);
-                    const nextDate = new Date(date);
-                    nextDate.setDate(nextDate.getDate() + 1);
-                    return rangedBookingRows.filter((booking) => {
-                        const createdAt = booking.createdAt ? new Date(booking.createdAt) : null;
-                        return createdAt && createdAt >= date && createdAt < nextDate;
-                    }).length;
-                });
-
-                // Get monthly data from ranged rows (last 12 months buckets)
-                const monthlyData = Array.from({ length: 12 }, (_, i) => {
-                    const date = new Date();
-                    date.setMonth(date.getMonth() - (11 - i));
-                    date.setDate(1);
-                    date.setHours(0, 0, 0, 0);
-                    const nextDate = new Date(date);
-                    nextDate.setMonth(nextDate.getMonth() + 1);
-                    return rangedBookingRows.filter((booking) => {
-                        const createdAt = booking.createdAt ? new Date(booking.createdAt) : null;
-                        return createdAt && createdAt >= date && createdAt < nextDate;
-                    }).length;
                 });
 
                 setAnalytics({
@@ -291,9 +485,9 @@ function DashboardContent() {
                     payoutCompletedToday: 0,
                     payoutIntegrationIssues: 0,
                     bookingsByStatus,
-                    recentBookings: bookings.slice(0, 5),
-                    weeklyData,
-                    monthlyData
+                    recentBookings: bookingRows.slice(0, 5),
+                    paymentChart,
+                    providerChart,
                 });
             }
 
@@ -385,13 +579,13 @@ function DashboardContent() {
             setCountsLoading(false);
         };
         fetchAnalyticsAndLists();
-    }, [dispatch, dashboardRange, isDateInRange]);
+    }, [dispatch, dashboardRange, isDateInRange, providers]);
 
     const isLoading = providersLoading || countsLoading;
 
     // Calculate max value for chart scaling
-    const maxWeeklyValue = Math.max(...analytics.weeklyData, 1);
-    const maxMonthlyValue = Math.max(...analytics.monthlyData, 1);
+    const paymentChartData = analytics.paymentChart;
+    const providerChartData = analytics.providerChart;
 
     const StatCard = ({ 
         title, 
@@ -403,7 +597,6 @@ function DashboardContent() {
         isCurrency,
         iconClassName,
         icon: Icon, 
-        gradient, 
         iconBg,
         href 
     }: { 
@@ -420,66 +613,59 @@ function DashboardContent() {
         isCurrency?: boolean;
         iconClassName?: string;
         icon: React.ElementType; 
-        gradient: string;
         iconBg: string;
         href?: string;
     }) => {
         const content = (
-            <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-white/80 to-white/40 backdrop-blur-xl border border-white/20 p-6 shadow-xl transition-all duration-300 hover:shadow-2xl hover:scale-[1.02] hover:border-white/40">
-                {/* Animated gradient background */}
-                <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${gradient}`} />
-                
-                {/* Glowing effect */}
-                <div className="absolute -inset-1 bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-500" />
-                
-                <div className="relative z-10">
-                    <div className="flex items-start justify-between mb-4">
-                        <div className={`${iconBg} p-3 rounded-xl shadow-lg`}>
-                            <Icon className={`h-6 w-6 ${iconClassName ?? 'text-white'}`} />
-                        </div>
-                        {change !== undefined && (
-                            <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${
-                                change >= 0 
-                                    ? 'bg-emerald-500/20 text-emerald-600' 
-                                    : 'bg-red-500/20 text-red-600'
-                            }`}>
-                                {change >= 0 ? (
-                                    <TrendingUp className="h-3 w-3" />
-                                ) : (
-                                    <TrendingDown className="h-3 w-3" />
-                                )}
-                                {Math.abs(change).toFixed(1)}%
-                            </div>
-                        )}
-                    </div>
-                    <p className="text-sm font-medium text-gray-600 mb-1">{title}</p>
-                    <p className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-                        {isLoading ? (
-                            <span className="inline-block h-8 w-24 animate-pulse rounded bg-gray-200" />
-                        ) : valueNode ? (
-                            valueNode
+            <div className="group relative flex h-full min-h-[96px] min-w-0 items-center gap-2 rounded-2xl border border-border bg-card p-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-all duration-150 hover:bg-muted/40 hover:shadow-[0_2px_8px_rgba(0,0,0,0.08)] sm:p-5">
+                {change !== undefined && (
+                    <div className={`absolute right-3 top-3 flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold ${
+                        change >= 0 
+                            ? 'bg-primary/15 text-primary' 
+                            : 'bg-destructive/15 text-destructive'
+                    }`}>
+                        {change >= 0 ? (
+                            <TrendingUp className="h-3 w-3" />
                         ) : (
-                            typeof value === 'number' && isCurrency
-                                ? formatCurrency(value)
-                                : value.toLocaleString()
+                            <TrendingDown className="h-3 w-3" />
                         )}
+                        {Math.abs(change).toFixed(1)}%
+                    </div>
+                )}
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl sm:h-11 sm:w-11 ${iconBg}`}>
+                    <Icon className={`h-5 w-5 ${iconClassName ?? 'text-primary'}`} />
+                </div>
+                <div className="flex min-w-0 flex-1 flex-col justify-center gap-1 pr-1">
+                    <p className="text-sm font-medium leading-snug text-muted-foreground">
+                        {title}
                     </p>
+                    {isLoading ? (
+                        <span className="inline-block h-7 w-24 animate-pulse rounded bg-muted" />
+                    ) : valueNode ? (
+                        valueNode
+                    ) : (
+                        <p className="min-w-0 text-base font-bold leading-tight tabular-nums text-foreground lg:text-sm xl:text-base">
+                            {typeof value === 'number'
+                                ? formatStatValue(value, isCurrency)
+                                : value}
+                        </p>
+                    )}
                     {note && (
-                        <p className="mt-1 text-xs text-gray-500">
+                        <p className="text-xs text-muted-foreground">
                             <sup>{note}</sup>
                         </p>
                     )}
                     {bookingBreakdown && (
-                        <p className="mt-2 text-sm font-semibold">
-                            <span className="text-emerald-600" title="Completed">
+                        <p className="text-sm font-semibold tabular-nums">
+                            <span className="text-primary" title="Completed">
                                 {bookingBreakdown.completed}
                             </span>
-                            <span className="mx-2 text-gray-400">|</span>
-                            <span className="text-blue-600" title="In Progress">
+                            <span className="mx-2 text-muted-foreground">|</span>
+                            <span className="text-chart-3" title="In Progress">
                                 {bookingBreakdown.inProgress}
                             </span>
-                            <span className="mx-2 text-gray-400">|</span>
-                            <span className="text-red-600" title="Rejected">
+                            <span className="mx-2 text-muted-foreground">|</span>
+                            <span className="text-destructive" title="Rejected">
                                 {bookingBreakdown.rejected}
                             </span>
                         </p>
@@ -489,32 +675,32 @@ function DashboardContent() {
         );
 
         if (href) {
-            return <Link href={href}>{content}</Link>;
+            return <Link href={href} className="block h-full min-w-0">{content}</Link>;
         }
         return content;
     };
 
     const StatusBadge = ({ status, count }: { status: string; count: number }) => {
         const statusConfig: Record<string, { color: string; icon: React.ElementType; bg: string }> = {
-            completed: { color: 'text-emerald-600', icon: CheckCircle2, bg: 'bg-emerald-500/10' },
-            pending: { color: 'text-amber-600', icon: Clock, bg: 'bg-amber-500/10' },
-            accepted: { color: 'text-blue-600', icon: CheckCircle2, bg: 'bg-blue-500/10' },
-            ongoing: { color: 'text-purple-600', icon: Activity, bg: 'bg-purple-500/10' },
-            rejected: { color: 'text-red-600', icon: XCircle, bg: 'bg-red-500/10' },
-            cancelled: { color: 'text-gray-600', icon: XCircle, bg: 'bg-gray-500/10' },
+            completed: { color: 'text-primary', icon: CheckCircle2, bg: 'bg-primary/10' },
+            pending: { color: 'text-chart-4', icon: Clock, bg: 'bg-chart-4/15' },
+            accepted: { color: 'text-chart-3', icon: CheckCircle2, bg: 'bg-chart-3/15' },
+            ongoing: { color: 'text-chart-2', icon: Activity, bg: 'bg-chart-2/15' },
+            rejected: { color: 'text-destructive', icon: XCircle, bg: 'bg-destructive/10' },
+            cancelled: { color: 'text-muted-foreground', icon: XCircle, bg: 'bg-muted' },
         };
 
-        const config = statusConfig[status] || { color: 'text-gray-600', icon: Activity, bg: 'bg-gray-500/10' };
+        const config = statusConfig[status] || { color: 'text-muted-foreground', icon: Activity, bg: 'bg-muted' };
         const Icon = config.icon;
 
         return (
-            <div className={`flex items-center gap-3 p-4 rounded-xl ${config.bg} border border-white/20 backdrop-blur-sm transition-all hover:scale-105`}>
-                <div className={`${config.color} p-2 rounded-lg bg-white/50`}>
+            <div className={`flex items-center gap-3 rounded-xl border border-border bg-background p-4 transition-colors hover:bg-muted ${config.bg}`}>
+                <div className={`${config.color} rounded-lg bg-card p-2`}>
                     <Icon className="h-5 w-5" />
                 </div>
                 <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-700 capitalize">{status}</p>
-                    <p className="text-2xl font-bold text-gray-900">{count}</p>
+                    <p className="text-sm font-medium text-muted-foreground capitalize">{status}</p>
+                    <p className="text-2xl font-bold text-foreground">{count}</p>
                 </div>
             </div>
         );
@@ -525,10 +711,7 @@ function DashboardContent() {
             <div className="flex min-h-screen bg-background">
                 <Sidebar />
                 <main className="ml-64 w-full min-h-screen">
-                    {/* Futuristic Header */}
-                    <div className="relative isolate overflow-hidden bg-primary transition-colors dark:!bg-sidebar dark:border-b dark:border-sidebar-border">
-                        {/* Animated gradient background */}
-                     
+                    <div className="relative isolate overflow-hidden border-b border-primary/20 bg-primary transition-colors dark:!bg-sidebar dark:border-sidebar-border">
                         <div className="relative mx-auto max-w-7xl px-6 py-12 sm:py-16 lg:px-8">
                             <div className="flex items-center justify-between gap-6">
                                 <div>
@@ -546,7 +729,7 @@ function DashboardContent() {
                                 </div>
                                 <Link 
                                     href="/admin/providers" 
-                                    className="group inline-flex items-center gap-2 rounded-xl bg-card/15 backdrop-blur-md px-4 py-3 text-sm font-semibold text-primary-foreground ring-2 ring-primary-foreground/20 hover:bg-card/25 hover:ring-primary-foreground/35 transition-all duration-300 hover:scale-105"
+                                    className="group inline-flex items-center gap-2 rounded-xl border border-primary-foreground/20 bg-card/15 px-4 py-3 text-sm font-semibold text-primary-foreground transition-colors duration-150 hover:bg-card/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-foreground/40 focus-visible:ring-offset-2 focus-visible:ring-offset-primary"
                                 >
                                     Manage Providers
                                     <ArrowUpRight className="h-4 w-4 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
@@ -566,10 +749,10 @@ function DashboardContent() {
                                 <button
                                     key={range.id}
                                     onClick={() => setDashboardRange(range.id as DashboardRange)}
-                                    className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
+                                    className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                                         dashboardRange === range.id
-                                            ? 'bg-indigo-600 text-white'
-                                            : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
+                                            ? 'bg-primary text-primary-foreground'
+                                            : 'border border-border bg-card text-foreground hover:bg-muted'
                                     }`}
                                 >
                                     {range.label}
@@ -577,77 +760,73 @@ function DashboardContent() {
                             ))}
                         </div>
                         {/* Main Stats Grid */}
-                        <section className="mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-6">
+                        <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
                             <StatCard
-                                title="Total Transactions"
+                                title="Transactions"
                                 value={analytics.totalCredit}
                                 icon={DollarSign}
-                                gradient="bg-gradient-to-br from-emerald-500/20 to-teal-500/20"
-                                iconBg="bg-gradient-to-br from-emerald-500 to-teal-600"
+                                iconBg="bg-primary/15"
                             />
                             <StatCard
-                                title="Total Top Up"
+                                title="Top Up"
                                 value={analytics.totalTopUp}
                                 isCurrency
                                 icon={DollarSign}
-                                gradient="bg-gradient-to-br from-emerald-500/20 to-teal-500/20"
-                                iconBg="bg-gradient-to-br from-emerald-500 to-teal-600"
+                                iconBg="bg-primary/15"
                             />
                             <StatCard
                                 title="Net Flow"
                                 value={analytics.totalNetFlow}
                                 isCurrency
                                 icon={DollarSign}
-                                gradient="bg-gradient-to-br from-emerald-500/20 to-teal-500/20"
-                                iconBg="bg-gradient-to-br from-emerald-500 to-teal-600"
+                                iconBg="bg-primary/15"
                             />
                             <StatCard
-                                title="Total Providers"
+                                title="Providers"
                                 value={providers.length}
                                 icon={Users}
-                                gradient="bg-gradient-to-br from-indigo-500/20 to-blue-500/20"
-                                iconBg="bg-gradient-to-br from-indigo-500 to-blue-600"
+                                iconBg="bg-chart-2/15"
+                                iconClassName="text-chart-2"
                                 href="/admin/providers"
                             />
                             <StatCard
-                                title="Total Bookings"
+                                title="Bookings"
                                 value={bookingCount}
                                 valueNode={
-                                    <span className="inline-flex items-center text-3xl font-bold">
+                                    <span className="inline-flex w-full min-w-0 items-baseline text-base font-bold tabular-nums lg:text-sm xl:text-base">
                                         <span className="relative inline-flex items-center">
-                                            <span className="peer text-emerald-600">{analytics.totalCompletedBookings}</span>
-                                            <span className="pointer-events-none absolute -top-7 left-1/2 z-20 hidden -translate-x-1/2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-[10px] font-medium text-white peer-hover:block">
+                                            <span className="peer text-primary">{analytics.totalCompletedBookings}</span>
+                                            <span className="pointer-events-none absolute -top-7 left-1/2 z-20 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1 text-[10px] font-medium text-popover-foreground shadow-[0_8px_18px_rgba(0,0,0,0.12)] peer-hover:block">
                                                 Completed
                                             </span>
                                         </span>
-                                        <span className="mx-2 text-gray-400">|</span>
+                                        <span className="mx-2 text-muted-foreground">|</span>
                                         <span className="relative inline-flex items-center">
-                                            <span className="peer text-blue-600">{analytics.totalInProgressBookings}</span>
-                                            <span className="pointer-events-none absolute -top-7 left-1/2 z-20 hidden -translate-x-1/2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-[10px] font-medium text-white peer-hover:block">
+                                            <span className="peer text-chart-3">{analytics.totalInProgressBookings}</span>
+                                            <span className="pointer-events-none absolute -top-7 left-1/2 z-20 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1 text-[10px] font-medium text-popover-foreground shadow-[0_8px_18px_rgba(0,0,0,0.12)] peer-hover:block">
                                                 In Progress
                                             </span>
                                         </span>
-                                        <span className="mx-2 text-gray-400">|</span>
+                                        <span className="mx-2 text-muted-foreground">|</span>
                                         <span className="relative inline-flex items-center">
-                                            <span className="peer text-red-600">{analytics.totalRejectedBookings}</span>
-                                            <span className="pointer-events-none absolute -top-7 left-1/2 z-20 hidden -translate-x-1/2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-[10px] font-medium text-white peer-hover:block">
+                                            <span className="peer text-destructive">{analytics.totalRejectedBookings}</span>
+                                            <span className="pointer-events-none absolute -top-7 left-1/2 z-20 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1 text-[10px] font-medium text-popover-foreground shadow-[0_8px_18px_rgba(0,0,0,0.12)] peer-hover:block">
                                                 Rejected
                                             </span>
                                         </span>
                                     </span>
                                 }
                                 icon={CalendarCheck2}
-                                gradient="bg-gradient-to-br from-blue-500/20 to-indigo-500/20"
-                                iconBg="bg-gradient-to-br from-blue-500 to-indigo-600"
-                                iconClassName="text-indigo-950"
+                                iconBg="bg-chart-3/15"
+                                iconClassName="text-chart-3"
                                 href="/admin/bookings"
                             />
                             <StatCard
-                                title="Total Customers"
+                                title="Customers"
                                 value={customerCount}
                                 icon={Users}
-                                gradient="bg-gradient-to-br from-violet-500/20 to-purple-500/20"
-                                iconBg="bg-gradient-to-br from-violet-500 to-purple-600"
+                                iconBg="bg-chart-4/15"
+                                iconClassName="text-chart-4"
                                 href="/admin/customers"
                             />
                         </section>
@@ -738,96 +917,61 @@ function DashboardContent() {
 
                         {/* Analytics Charts Section */}
                         <section className="mb-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
-                            {/* Weekly Activity Chart */}
-                            <div className="lg:col-span-2 rounded-2xl border border-subtle bg-surface p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+                            <div className="lg:col-span-2 rounded-2xl border border-border bg-card p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
                                 <div className="flex items-center justify-between mb-6">
                                     <div className="flex items-center gap-3">
-                                        <div className="rounded-xl bg-accent-info-bg p-2">
-                                            <BarChart3 className="h-5 w-5 text-accent-info" />
+                                        <div className="rounded-xl bg-primary/15 p-2">
+                                            <BarChart3 className="h-5 w-5 text-primary" />
                                         </div>
                                         <div>
-                                            <h2 className="text-lg font-bold text-primary">Weekly Activity</h2>
-                                            <p className="text-xs font-medium text-primary/80">
-                                                {dashboardRange === 'today' ? 'Today'
-                                                    : dashboardRange === '7d' ? 'Last 7 days'
-                                                        : dashboardRange === '30d' ? 'Last 30 days'
-                                                            : 'All time'}
+                                            <h2 className="text-lg font-bold text-foreground">{getPaymentChartTitle(dashboardRange)}</h2>
+                                            <p className="text-xs font-medium text-muted-foreground">
+                                                {getPaymentChartSubtitle(dashboardRange)}
                                             </p>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2 rounded-full bg-subtle px-3 py-1">
+                                    <div className="flex items-center gap-2 rounded-full bg-muted px-3 py-1">
                                         <Zap className="h-4 w-4 text-primary" />
                                         <span className="text-xs font-semibold text-primary">Live</span>
                                     </div>
                                 </div>
-                                <div className="h-48 rounded-xl border border-subtle bg-subtle/60 p-3">
-                                    <div className="flex h-full items-end gap-2">
-                                    {analytics.weeklyData.map((value, idx) => {
-                                        const height = maxWeeklyValue > 0 ? (value / maxWeeklyValue) * 100 : 0;
-                                        return (
-                                            <div key={idx} className="flex-1 flex flex-col items-center group">
-                                                <div 
-                                                    className="w-full rounded-t-lg bg-gradient-to-t from-indigo-600 to-purple-600 transition-all duration-200 group-hover:opacity-90"
-                                                    style={{ height: `${height}%`, minHeight: value > 0 ? '6px' : '0' }}
-                                                />
-                                                <div className="mt-2 text-xs font-medium text-primary/70 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    {value}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                    </div>
-                                </div>
-                                <div className="mt-4 flex justify-between text-xs font-medium text-primary/80">
-                                    {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, idx) => (
-                                        <span key={idx}>{day}</span>
-                                    ))}
-                                </div>
+                                <DashboardBarChart
+                                    buckets={paymentChartData}
+                                    emptyLabel="No wallet transactions in this period"
+                                    valueLabel="Transactions"
+                                    barColor="var(--chart-1)"
+                                />
                             </div>
 
-                            {/* Monthly Overview */}
-                            <div className="rounded-2xl border border-subtle bg-surface p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+                            <div className="rounded-2xl border border-border bg-card p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
                                 <div className="flex items-center gap-3 mb-6">
-                                    <div className="rounded-xl bg-accent-info-bg p-2">
-                                        <Activity className="h-5 w-5 text-accent-info" />
+                                    <div className="rounded-xl bg-primary/15 p-2">
+                                        <Users className="h-5 w-5 text-primary" />
                                     </div>
                                     <div>
-                                        <h2 className="text-lg font-bold text-primary">Monthly Trend</h2>
-                                            <p className="text-xs font-medium text-primary/80">
-                                                {dashboardRange === 'today' ? 'Today view'
-                                                    : dashboardRange === '7d' ? '7-day view'
-                                                        : dashboardRange === '30d' ? '30-day view'
-                                                            : 'All-time view'}
-                                            </p>
+                                        <h2 className="text-lg font-bold text-foreground">Provider Growth</h2>
+                                        <p className="text-xs font-medium text-muted-foreground">
+                                            {getProviderChartSubtitle(dashboardRange)}
+                                        </p>
                                     </div>
                                 </div>
-                                <div className="h-48 rounded-xl border border-subtle bg-subtle/60 p-3">
-                                    <div className="flex h-full items-end gap-1">
-                                    {analytics.monthlyData.map((value, idx) => {
-                                        const height = maxMonthlyValue > 0 ? (value / maxMonthlyValue) * 100 : 0;
-                                        return (
-                                            <div 
-                                                key={idx} 
-                                                className="flex-1 rounded-t-md bg-gradient-to-t from-indigo-600 to-purple-600 transition-all duration-200 hover:opacity-90"
-                                                style={{ height: `${height}%`, minHeight: value > 0 ? '6px' : '0' }}
-                                                title={`${value} bookings`}
-                                            />
-                                        );
-                                    })}
-                                    </div>
-                                </div>
+                                <DashboardBarChart
+                                    buckets={providerChartData}
+                                    emptyLabel="No new providers in this period"
+                                    valueLabel="Providers"
+                                    barColor="var(--chart-2)"
+                                />
                             </div>
                         </section>
 
                         {/* Status Breakdown & Quick Actions */}
                         <section className="mb-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
-                            {/* Booking Status Breakdown */}
-                            <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/80 to-white/40 backdrop-blur-xl border border-white/20 p-6 shadow-xl">
+                            <div className="lg:col-span-2 rounded-2xl border border-border bg-card p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
                                 <div className="flex items-center gap-3 mb-6">
-                                    <div className="p-2 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl shadow-lg">
-                                        <CheckCircle2 className="h-5 w-5 text-white" />
+                                    <div className="rounded-xl bg-primary/15 p-2">
+                                        <CheckCircle2 className="h-5 w-5 text-primary" />
                                     </div>
-                                    <h2 className="text-lg font-bold text-gray-900">Booking Status</h2>
+                                    <h2 className="text-lg font-bold text-foreground">Booking Status</h2>
                                 </div>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                                     {Object.entries(analytics.bookingsByStatus).map(([status, count]) => (
@@ -836,47 +980,46 @@ function DashboardContent() {
                                 </div>
                             </div>
 
-                            {/* Quick Actions */}
-                            <div className="rounded-2xl border border-subtle bg-surface p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-                                <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-primary">
-                                    <Zap className="h-5 w-5 text-accent-info" />
+                            <div className="rounded-2xl border border-border bg-card p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+                                <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-foreground">
+                                    <Zap className="h-5 w-5 text-primary" />
                                     Quick Actions
                                 </h3>
                                 <ul className="space-y-3">
                                     <li>
                                         <Link 
-                                            className="group flex w-full items-center justify-between rounded-md border border-subtle bg-base px-4 py-3 text-primary transition-all duration-150 hover:bg-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-info focus-visible:ring-offset-2" 
+                                            className="group flex w-full items-center justify-between rounded-md border border-border bg-background px-4 py-3 text-foreground transition-all duration-150 hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" 
                                             href="/admin/providers"
                                         >
                                             <span className="text-[16px] font-medium leading-[1.3]">Providers</span>
-                                            <ArrowUpRight className="h-4 w-4 text-secondary transition-transform group-hover:-translate-y-1 group-hover:translate-x-1" />
+                                            <ArrowUpRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:-translate-y-1 group-hover:translate-x-1" />
                                         </Link>
                                     </li>
                                     <li>
                                         <Link 
-                                            className="group flex w-full items-center justify-between rounded-md border border-subtle bg-base px-4 py-3 text-primary transition-all duration-150 hover:bg-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-info focus-visible:ring-offset-2" 
+                                            className="group flex w-full items-center justify-between rounded-md border border-border bg-background px-4 py-3 text-foreground transition-all duration-150 hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" 
                                             href="/admin/customers"
                                         >
                                             <span className="text-[16px] font-medium leading-[1.3]">Customers</span>
-                                            <ArrowUpRight className="h-4 w-4 text-secondary transition-transform group-hover:-translate-y-1 group-hover:translate-x-1" />
+                                            <ArrowUpRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:-translate-y-1 group-hover:translate-x-1" />
                                         </Link>
                                     </li>
                                     <li>
                                         <Link 
-                                            className="group flex w-full items-center justify-between rounded-md border border-subtle bg-base px-4 py-3 text-primary transition-all duration-150 hover:bg-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-info focus-visible:ring-offset-2" 
+                                            className="group flex w-full items-center justify-between rounded-md border border-border bg-background px-4 py-3 text-foreground transition-all duration-150 hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" 
                                             href="/admin/bookings"
                                         >
                                             <span className="text-[16px] font-medium leading-[1.3]">Bookings</span>
-                                            <ArrowUpRight className="h-4 w-4 text-secondary transition-transform group-hover:-translate-y-1 group-hover:translate-x-1" />
+                                            <ArrowUpRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:-translate-y-1 group-hover:translate-x-1" />
                                         </Link>
                                     </li>
                                     <li>
                                         <Link 
-                                            className="group flex w-full items-center justify-between rounded-md border border-subtle bg-base px-4 py-3 text-primary transition-all duration-150 hover:bg-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-info focus-visible:ring-offset-2" 
+                                            className="group flex w-full items-center justify-between rounded-md border border-border bg-background px-4 py-3 text-foreground transition-all duration-150 hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" 
                                             href="/admin/services/approve"
                                         >
                                             <span className="text-[16px] font-medium leading-[1.3]">Approve Services</span>
-                                            <ArrowUpRight className="h-4 w-4 text-secondary transition-transform group-hover:-translate-y-1 group-hover:translate-x-1" />
+                                            <ArrowUpRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:-translate-y-1 group-hover:translate-x-1" />
                                         </Link>
                                     </li>
                                 </ul>
