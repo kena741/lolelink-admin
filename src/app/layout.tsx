@@ -108,6 +108,14 @@ export default function RootLayout({
       className={`${inter.variable} ${plusJakartaSans.variable} ${spaceGrotesk.variable} ${geistMono.variable}`}
     >
       <body className="font-sans antialiased">
+        <Script id="theme-init" strategy="beforeInteractive">
+          {`(function () {
+  try {
+    var theme = localStorage.getItem("theme");
+    document.documentElement.classList.toggle("dark", theme === "dark");
+  } catch (e) {}
+})();`}
+        </Script>
         <Script id="theme-favicon" strategy="beforeInteractive">
           {`(function () {
   var lightIcon = "/logo.png?v=5";

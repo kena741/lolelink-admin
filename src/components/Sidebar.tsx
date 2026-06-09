@@ -38,13 +38,13 @@ import Image from 'next/image';
 function navClass(active: boolean) {
     return active
         ? 'bg-primary/10 text-primary font-medium'
-        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900';
+        : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground';
 }
 
 function iconClass(active: boolean) {
     return active
         ? 'text-primary'
-        : 'text-gray-400 group-hover:text-gray-600';
+        : 'text-text-hint group-hover:text-muted-foreground';
 }
 
 // Provider Management Section
@@ -122,15 +122,17 @@ const Sidebar = () => {
     }, []);
 
     const toggleTheme = () => {
-        const nextTheme = theme === 'dark' ? 'light' : 'dark';
-        setTheme(nextTheme);
-        document.documentElement.classList.toggle('dark', nextTheme === 'dark');
-        localStorage.setItem('theme', nextTheme);
+        setTheme((prev) => {
+            const nextTheme = prev === 'dark' ? 'light' : 'dark';
+            document.documentElement.classList.toggle('dark', nextTheme === 'dark');
+            localStorage.setItem('theme', nextTheme);
+            return nextTheme;
+        });
     };
 
     return (
-        <aside className="admin-shell fixed left-0 top-0 z-40 flex h-screen w-64 flex-col border-r border-gray-200 bg-white">
-            <div className="flex h-16 shrink-0 items-center gap-3 border-b border-gray-200 px-5">
+        <aside className="admin-shell fixed left-0 top-0 z-40 flex h-screen w-64 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
+            <div className="flex h-16 shrink-0 items-center gap-3 border-b border-sidebar-border px-5">
                 <Image
                     src="/logo.png"
                     alt="Zemen Service logo"
@@ -139,7 +141,7 @@ const Sidebar = () => {
                     className="h-8 w-8 rounded-[var(--radius)] object-contain"
                     priority
                 />
-                <span className="font-heading text-[15px] font-semibold tracking-normal text-gray-900">
+                <span className="font-heading text-[15px] font-semibold tracking-normal text-sidebar-foreground">
                     Zemen Service
                 </span>
             </div>
@@ -165,7 +167,7 @@ const Sidebar = () => {
                         {/* Works Section */}
                         <li className="pt-5">
                             <div className="px-3 py-1 mb-1">
-                                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Works</p>
+                                <p className="text-[11px] font-semibold uppercase tracking-wider text-text-hint">Works</p>
                             </div>
                             <ul className="space-y-1">
                                 {worksSubItems.map(({ href, label, icon: Icon }) => {
@@ -177,10 +179,10 @@ const Sidebar = () => {
                                                 className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                                     active
                                                         ? 'bg-primary/10 text-primary font-medium'
-                                                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                                                        : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
                                                 }`}
                                             >
-                                                <Icon className={`h-4 w-4 ${active ? 'text-primary' : 'text-gray-400 group-hover:text-gray-600'}`} />
+                                                <Icon className={`h-4 w-4 ${active ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
                                                 <span>{label}</span>
                                             </Link>
                                         </li>
@@ -192,7 +194,7 @@ const Sidebar = () => {
                         {/* Customers Section */}
                         <li className="pt-5">
                             <div className="px-3 py-1 mb-1">
-                                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Customers</p>
+                                <p className="text-[11px] font-semibold uppercase tracking-wider text-text-hint">Customers</p>
                             </div>
                             <ul className="space-y-1">
                                 {customersSubItems.map(({ href, label, icon: Icon }) => {
@@ -206,10 +208,10 @@ const Sidebar = () => {
                                                 className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                                     active
                                                         ? 'bg-primary/10 text-primary font-medium'
-                                                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                                                        : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
                                                 }`}
                                             >
-                                                <Icon className={`h-4 w-4 ${active ? 'text-primary' : 'text-gray-400 group-hover:text-gray-600'}`} />
+                                                <Icon className={`h-4 w-4 ${active ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
                                                 <span>{label}</span>
                                             </Link>
                                         </li>
@@ -221,7 +223,7 @@ const Sidebar = () => {
                         {/* Provider Management Section */}
                         <li className="pt-5">
                             <div className="px-3 py-1 mb-1">
-                                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Provider Management</p>
+                                <p className="text-[11px] font-semibold uppercase tracking-wider text-text-hint">Provider Management</p>
                             </div>
                             <ul className="space-y-1">
                                 {providerManagementSubItems.map(({ href, label, icon: Icon }) => {
@@ -233,10 +235,10 @@ const Sidebar = () => {
                                                 className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                                     active
                                                         ? 'bg-primary/10 text-primary font-medium'
-                                                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                                                        : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
                                                 }`}
                                             >
-                                                <Icon className={`h-4 w-4 ${active ? 'text-primary' : 'text-gray-400 group-hover:text-gray-600'}`} />
+                                                <Icon className={`h-4 w-4 ${active ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
                                                 <span>{label}</span>
                                             </Link>
                                         </li>
@@ -248,7 +250,7 @@ const Sidebar = () => {
                         {/* Service Management Section */}
                         <li className="pt-5">
                             <div className="px-3 py-1 mb-1">
-                                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Service Management</p>
+                                <p className="text-[11px] font-semibold uppercase tracking-wider text-text-hint">Service Management</p>
                             </div>
                             <ul className="space-y-1">
                                 {serviceManagementSubItems.map(({ href, label, icon: Icon, isCategory }) => {
@@ -261,21 +263,21 @@ const Sidebar = () => {
                                                     className={`group w-full flex items-center justify-between gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                                         isCategoryActive
                                                             ? 'bg-primary/10 text-primary font-medium'
-                                                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                                                            : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
                                                     }`}
                                                 >
                                                     <div className="flex items-center gap-3">
-                                                        <Icon className={`h-4 w-4 ${isCategoryActive ? 'text-primary' : 'text-gray-400 group-hover:text-gray-600'}`} />
+                                                        <Icon className={`h-4 w-4 ${isCategoryActive ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
                                                         <span>{label}</span>
                                                     </div>
                                                     {isCategoryOpen ? (
-                                                        <ChevronDown className="h-4 w-4 text-gray-400" />
+                                                        <ChevronDown className="h-4 w-4 text-text-hint" />
                                                     ) : (
-                                                        <ChevronRight className="h-4 w-4 text-gray-400" />
+                                                        <ChevronRight className="h-4 w-4 text-text-hint" />
                                                     )}
                                                 </button>
                                                 {isCategoryOpen && (
-                                                    <ul className="ml-4 mt-0.5 space-y-0.5 border-l border-gray-100 pl-3">
+                                                    <ul className="ml-4 mt-0.5 space-y-0.5 border-l border-sidebar-border pl-3">
                                                         {categorySubItems.map(({ href: catHref, label: catLabel, icon: CatIcon }) => {
                                                             const active = pathname === catHref || (catHref === '/admin/categories' && pathname?.startsWith('/admin/categories/'));
                                                             return (
@@ -285,10 +287,10 @@ const Sidebar = () => {
                                                                         className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                                                             active
                                                                                 ? 'bg-primary/10 text-primary font-medium'
-                                                                                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                                                                                : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
                                                                         }`}
                                                                     >
-                                                                        <CatIcon className={`h-3.5 w-3.5 ${active ? 'text-primary' : 'text-gray-400 group-hover:text-gray-600'}`} />
+                                                                        <CatIcon className={`h-3.5 w-3.5 ${active ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
                                                                         <span>{catLabel}</span>
                                                                     </Link>
                                                                 </li>
@@ -310,10 +312,10 @@ const Sidebar = () => {
                                                 className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                                     active
                                                         ? 'bg-primary/10 text-primary font-medium'
-                                                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                                                        : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
                                                 }`}
                                             >
-                                                <Icon className={`h-4 w-4 ${active ? 'text-primary' : 'text-gray-400 group-hover:text-gray-600'}`} />
+                                                <Icon className={`h-4 w-4 ${active ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
                                                 <span>{label}</span>
                                             </Link>
                                         </li>
@@ -325,7 +327,7 @@ const Sidebar = () => {
                         {/* System Management Section */}
                         <li className="pt-5">
                             <div className="px-3 py-1 mb-1">
-                                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">System Management</p>
+                                <p className="text-[11px] font-semibold uppercase tracking-wider text-text-hint">System Management</p>
                             </div>
                             <ul className="space-y-1">
                                 {/* Finance Sub-section (still collapsible) */}
@@ -335,21 +337,21 @@ const Sidebar = () => {
                                         className={`group w-full flex items-center justify-between gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                             isFinanceActive
                                                 ? 'bg-primary/10 text-primary font-medium'
-                                                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                                                            : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
                                         }`}
                                     >
                                         <div className="flex items-center gap-3">
-                                            <DollarSign className={`h-4 w-4 ${isFinanceActive ? 'text-primary' : 'text-gray-400 group-hover:text-gray-600'}`} />
+                                            <DollarSign className={`h-4 w-4 ${isFinanceActive ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
                                             <span>Finance</span>
                                         </div>
                                         {isFinanceOpen ? (
-                                            <ChevronDown className="h-4 w-4 text-gray-400" />
+                                            <ChevronDown className="h-4 w-4 text-text-hint" />
                                         ) : (
-                                            <ChevronRight className="h-4 w-4 text-gray-400" />
+                                            <ChevronRight className="h-4 w-4 text-text-hint" />
                                         )}
                                     </button>
                                     {isFinanceOpen && (
-                                        <ul className="ml-4 mt-0.5 space-y-0.5 border-l border-gray-100 pl-3">
+                                        <ul className="ml-4 mt-0.5 space-y-0.5 border-l border-sidebar-border pl-3">
                                             {financeSubItems.map(({ href, label, icon: Icon }) => {
                                                 const active = pathname === href;
                                                 return (
@@ -359,10 +361,10 @@ const Sidebar = () => {
                                                             className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                                                 active
                                                                     ? 'bg-primary/10 text-primary font-medium'
-                                                                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                                                                    : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
                                                             }`}
                                                         >
-                                                            <Icon className={`h-3.5 w-3.5 ${active ? 'text-primary' : 'text-gray-400 group-hover:text-gray-600'}`} />
+                                                            <Icon className={`h-3.5 w-3.5 ${active ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
                                                             <span>{label}</span>
                                                         </Link>
                                                     </li>
@@ -379,10 +381,10 @@ const Sidebar = () => {
                                         className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                             pathname?.startsWith('/admin/settings')
                                                 ? 'bg-primary/10 text-primary font-medium'
-                                                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                                                            : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
                                         }`}
                                     >
-                                        <Settings className={`h-4 w-4 ${pathname?.startsWith('/admin/settings') ? 'text-primary' : 'text-gray-400 group-hover:text-gray-600'}`} />
+                                        <Settings className={`h-4 w-4 ${pathname?.startsWith('/admin/settings') ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
                                         <span>Global Settings</span>
                                     </Link>
                                 </li>
@@ -392,10 +394,10 @@ const Sidebar = () => {
                                         className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                             pathname?.startsWith('/admin/admins')
                                                 ? 'bg-primary/10 text-primary font-medium'
-                                                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                                                            : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
                                         }`}
                                     >
-                                        <UserCog className={`h-4 w-4 ${pathname?.startsWith('/admin/admins') ? 'text-primary' : 'text-gray-400 group-hover:text-gray-600'}`} />
+                                        <UserCog className={`h-4 w-4 ${pathname?.startsWith('/admin/admins') ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
                                         <span>Admins</span>
                                     </Link>
                                 </li>
@@ -405,10 +407,10 @@ const Sidebar = () => {
                                         className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                             pathname?.startsWith('/admin/activity-logs')
                                                 ? 'bg-primary/10 text-primary font-medium'
-                                                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                                                            : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
                                         }`}
                                     >
-                                        <Activity className={`h-4 w-4 ${pathname?.startsWith('/admin/activity-logs') ? 'text-primary' : 'text-gray-400 group-hover:text-gray-600'}`} />
+                                        <Activity className={`h-4 w-4 ${pathname?.startsWith('/admin/activity-logs') ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
                                         <span>Activity Logs</span>
                                     </Link>
                                 </li>
@@ -418,10 +420,10 @@ const Sidebar = () => {
                                         className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                             pathname?.startsWith('/admin/roles')
                                                 ? 'bg-primary/10 text-primary font-medium'
-                                                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                                                            : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
                                         }`}
                                     >
-                                        <Shield className={`h-4 w-4 ${pathname?.startsWith('/admin/roles') ? 'text-primary' : 'text-gray-400 group-hover:text-gray-600'}`} />
+                                        <Shield className={`h-4 w-4 ${pathname?.startsWith('/admin/roles') ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
                                         <span>Roles</span>
                                     </Link>
                                 </li>
@@ -431,10 +433,10 @@ const Sidebar = () => {
                                         className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                             pathname === '/admin/contact-messages'
                                                 ? 'bg-primary/10 text-primary font-medium'
-                                                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                                                            : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
                                         }`}
                                     >
-                                        <MessageSquare className={`h-4 w-4 ${pathname === '/admin/contact-messages' ? 'text-primary' : 'text-gray-400 group-hover:text-gray-600'}`} />
+                                        <MessageSquare className={`h-4 w-4 ${pathname === '/admin/contact-messages' ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
                                         <span>Contact Messages</span>
                                     </Link>
                                 </li>
@@ -444,7 +446,7 @@ const Sidebar = () => {
                 </nav>
             </div>
 
-            <div className="shrink-0 border-t border-gray-200 px-3 py-3">
+            <div className="shrink-0 border-t border-sidebar-border px-3 py-3">
                 <SupabaseEnvSwitcher compact />
                 <div className="flex items-center gap-2">
                     <button
@@ -452,20 +454,20 @@ const Sidebar = () => {
                         onClick={toggleTheme}
                         aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
                         title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
-                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius)] border border-gray-200 text-gray-600 transition-colors hover:bg-gray-50"
+                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius)] border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                     >
                         {theme === 'dark' ? <Moon className="h-3.5 w-3.5" /> : <Sun className="h-3.5 w-3.5" />}
                     </button>
                     <button
                         type="button"
                         onClick={async () => { await getSupabase().auth.signOut(); location.href = '/login'; }}
-                        className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[var(--radius)] border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                        className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[var(--radius)] border border-border bg-card px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                     >
                         <LogOut className="h-3.5 w-3.5" />
                         Sign out
                     </button>
                 </div>
-                <p className="mt-2 text-center text-[11px] text-gray-400">© {new Date().getFullYear()} Zemen Service</p>
+                <p className="mt-2 text-center text-[11px] text-text-hint">© {new Date().getFullYear()} Zemen Service</p>
             </div>
         </aside>
     );

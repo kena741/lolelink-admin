@@ -148,6 +148,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --text-primary: #e8f0f2;
   --text-secondary: #a8b8c0;
   --text-hint: #7a8a92;
@@ -257,6 +258,15 @@
   aside.admin-shell {
     font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
     letter-spacing: 0;
+    background-color: var(--sidebar);
+    color: var(--sidebar-foreground);
+  }
+
+  .dark aside.admin-shell {
+    --sidebar: #1c2428;
+    --sidebar-foreground: var(--text-primary);
+    --sidebar-accent: #243038;
+    --sidebar-border: #2e3a40;
   }
 
   main.ml-64 h1,
@@ -298,6 +308,8 @@
     --border: #2e3a40;
     --popover: #1c2428;
     --popover-foreground: var(--text-primary);
+    background-color: var(--background);
+    color: var(--text-primary);
   }
 }
 

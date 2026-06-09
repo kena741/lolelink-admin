@@ -44,7 +44,7 @@ export function SupabaseEnvSwitcher({ compact = false }: { compact?: boolean }) 
                 <p className="text-[12px] font-medium text-muted-foreground">Supabase</p>
             ) : null}
             <div
-                className="flex rounded-md border border-gray-200 bg-gray-50 p-0.5"
+                className="flex rounded-md border border-border bg-muted p-0.5"
                 role="group"
                 aria-label="Supabase environment"
             >
@@ -59,8 +59,8 @@ export function SupabaseEnvSwitcher({ compact = false }: { compact?: boolean }) 
                             onClick={() => switchTo(target)}
                             className={`flex-1 rounded-[6px] px-2 py-1 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                                 isActive
-                                    ? "bg-white text-gray-900 shadow-sm"
-                                    : "text-gray-500 hover:text-gray-900"
+                                    ? "bg-card text-foreground shadow-sm"
+                                    : "text-muted-foreground hover:text-foreground"
                             } disabled:cursor-not-allowed disabled:opacity-50`}
                         >
                             {targetLabel(target)}
