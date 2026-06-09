@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Sidebar from "@/components/Sidebar";
 import AuthGuard from "@/components/AuthGuard";
+import AdminPageHeader, { adminHeaderButtonClassName } from "@/components/AdminPageHeader";
 import {
     Bell,
     CalendarCheck2,
@@ -281,48 +282,36 @@ export default function NotificationsPage() {
 
     return (
         <AuthGuard>
-            <div className="flex min-h-screen bg-background">
+            <div className="flex min-h-screen">
                 <Sidebar />
                 <main className="ml-64 w-full min-h-screen">
-                    <div className="relative isolate overflow-hidden bg-primary transition-colors dark:!bg-sidebar dark:border-b dark:border-sidebar-border">
-                        <div className="relative mx-auto max-w-7xl px-6 py-12 sm:py-16 lg:px-8">
-                            <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-                                <div>
-                                    <div className="mb-2 flex items-center gap-3">
-                                        <div className="rounded-lg bg-card/15 p-2 backdrop-blur-sm">
-                                            <Bell className="h-6 w-6 text-primary-foreground" />
-                                        </div>
-                                        <h1 className="text-3xl font-bold tracking-tight text-primary-foreground drop-shadow-lg sm:text-4xl">
-                                            Notifications
-                                        </h1>
-                                    </div>
-                                    <p className="max-w-2xl text-sm text-primary-foreground/90 sm:text-base">
-                                        Track operational updates and respond quickly to new activity.
-                                    </p>
-                                </div>
-                                <div className="flex flex-wrap items-center gap-2">
+                    <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+                        <AdminPageHeader
+                            title="Notifications"
+                            description="Track operational updates and respond quickly to new activity."
+                            actions={
+                                <>
                                     <button
+                                        type="button"
                                         onClick={onMarkAllRead}
                                         disabled={unreadCount === 0 || loading}
-                                        className="inline-flex h-10 items-center gap-2 rounded-xl bg-card/15 px-4 text-sm font-semibold text-primary-foreground ring-2 ring-primary-foreground/20 backdrop-blur-md transition-all duration-200 hover:bg-card/25 disabled:cursor-not-allowed disabled:opacity-50"
+                                        className={adminHeaderButtonClassName()}
                                     >
                                         <CheckCheck className="h-4 w-4" />
                                         Mark all read
                                     </button>
                                     <button
+                                        type="button"
                                         onClick={onRefresh}
                                         disabled={loading}
-                                        className="inline-flex h-10 items-center gap-2 rounded-xl bg-card/15 px-4 text-sm font-semibold text-primary-foreground ring-2 ring-primary-foreground/20 backdrop-blur-md transition-all duration-200 hover:bg-card/25 disabled:cursor-not-allowed disabled:opacity-50"
+                                        className={adminHeaderButtonClassName()}
                                     >
                                         <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
                                         Refresh
                                     </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+                                </>
+                            }
+                        />
                         <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
                             {filterOptions.map((option) => {
                                 const selected = readFilter === option.id;

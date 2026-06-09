@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import Sidebar from '@/components/Sidebar';
 import AuthGuard from '@/components/AuthGuard';
+import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import { ArrowLeft, RefreshCw, Plus, Edit, Trash2, X, CheckCircle2, XCircle } from 'lucide-react';
 import Link from 'next/link';
 import { fetchCoupons, createCoupon, updateCoupon, deleteCoupon } from '@/features/coupon/couponSlice';
@@ -139,43 +140,39 @@ const CouponsPage = () => {
 
     return (
         <AuthGuard>
-            <div className="flex min-h-screen bg-gray-50">
+            <div className="flex min-h-screen">
                 <Sidebar />
-                <div className="flex-1 ml-64">
-                    <div className="p-8">
-                        {/* Header */}
-                        <div className="mb-6">
-                            <Link
-                                href="/admin/dashboard"
-                                className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
-                            >
-                                <ArrowLeft className="h-4 w-4" />
-                                <span className="text-sm font-medium">Back to Dashboard</span>
-                            </Link>
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <h1 className="text-3xl font-bold text-gray-900">Coupons</h1>
-                                    <p className="text-gray-600 mt-1">Manage discount coupons</p>
-                                </div>
-                                <div className="flex items-center gap-3">
+                <main className="ml-64 w-full min-h-screen">
+                    <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+                        <AdminPageHeader
+                            title="Coupons"
+                            description="Manage discount coupons"
+                            breadcrumbs={[
+                                { label: 'Dashboard', href: '/admin/dashboard' },
+                                { label: 'Coupons' },
+                            ]}
+                            actions={
+                                <>
                                     <button
+                                        type="button"
                                         onClick={() => dispatch(fetchCoupons())}
                                         disabled={loading}
-                                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                                        className={adminHeaderButtonClassName()}
                                     >
                                         <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                                         Refresh
                                     </button>
                                     <button
+                                        type="button"
                                         onClick={() => handleOpenModal()}
-                                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+                                        className={adminHeaderButtonClassName()}
                                     >
                                         <Plus className="h-4 w-4" />
                                         Add Coupon
                                     </button>
-                                </div>
-                            </div>
-                        </div>
+                                </>
+                            }
+                        />
 
                         {/* Error Message */}
                         {error && (
@@ -336,7 +333,7 @@ const CouponsPage = () => {
                             </div>
                         </div>
                     </div>
-                </div>
+                </main>
             </div>
 
             {/* Add/Edit Modal */}

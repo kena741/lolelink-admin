@@ -3,7 +3,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import AuthGuard from '@/components/AuthGuard';
 import Sidebar from '@/components/Sidebar';
-import { Button } from '@/components/ui/button';
+import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
+import { RefreshCw } from 'lucide-react';
 import { fetchServices, approveFeatureRequestById, rejectFeatureRequestById, unfeatureServiceById, resetApproveState } from '@/features/service/approveServicesSlice';
 import type { RootState } from '@/store/store';
 import ServiceCard from '@/components/ServiceCard';
@@ -58,39 +59,24 @@ export default function ApproveServicesPage() {
 
     return (
         <AuthGuard>
-            <div className="flex min-h-screen bg-background">
+            <div className="flex min-h-screen">
                 <Sidebar />
                 <main className="ml-64 w-full min-h-screen">
-                    {/* Futuristic Header */}
-                    <div className="relative isolate overflow-hidden bg-primary transition-colors dark:!bg-sidebar dark:border-b dark:border-sidebar-border">
-                        
-                        <div className="relative mx-auto max-w-7xl px-6 py-12 sm:py-16 lg:px-8">
-                            <div className="flex items-center justify-between gap-6">
-                                <div>
-                                    <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-primary-foreground drop-shadow-lg mb-2">
-                                        Approve Services
-                                    </h1>
-                                    <p className="text-primary-foreground/90 text-base font-medium">
-                                        {pendingServicesCount > 0
-                                            ? `${pendingServicesCount} awaiting approval`
-                                            : 'No pending approvals'} · {pendingFeaturedCount > 0
-                                            ? `${pendingFeaturedCount} featured pending`
-                                            : 'No pending featured'}
-                                    </p>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <Button 
-                                        onClick={() => dispatch(fetchServices())} 
-                                        className="bg-card/15 backdrop-blur-md text-primary-foreground border-primary-foreground/20 hover:bg-card/25"
-                                    >
-                                        Refresh
-                                    </Button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
                     <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+                        <AdminPageHeader
+                            title="Approve Services"
+                            description={`${pendingServicesCount > 0 ? `${pendingServicesCount} awaiting approval` : 'No pending approvals'} · ${pendingFeaturedCount > 0 ? `${pendingFeaturedCount} featured pending` : 'No pending featured'}`}
+                            actions={
+                                <button
+                                    type="button"
+                                    onClick={() => dispatch(fetchServices())}
+                                    className={adminHeaderButtonClassName()}
+                                >
+                                    <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                                    Refresh
+                                </button>
+                            }
+                        />
                         {/* Search and Tabs */}
                         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                             <div className="w-full sm:w-96">

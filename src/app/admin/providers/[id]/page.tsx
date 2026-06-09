@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Sidebar from '@/components/Sidebar';
 import AuthGuard from '@/components/AuthGuard';
+import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import { useParams } from 'next/navigation';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { fetchProviderById, fetchProviderServices, clearSelected, clearServices, updateProvider } from '@/features/provider/providerSlice';
@@ -325,64 +326,52 @@ export default function ProviderDetailPage() {
 
     return (
         <AuthGuard>
-            <div className="flex">
+            <div className="flex min-h-screen">
                 <Sidebar />
-                <main className="ml-64 w-full min-h-screen bg-gray-50">
+                <main className="ml-64 w-full min-h-screen">
                     {(selectedLoading || servicesLoading) && (
-                        <div className="p-10">Loading...</div>
+                        <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">Loading...</div>
                     )}
                     {error && (
-                        <div className="p-10 text-red-600">{error}</div>
+                        <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8 text-red-600">{error}</div>
                     )}
                     {!selectedLoading && provider && (
-                        <>
-                            <div>
-                                {/* Banner */}
-                                <div className="h-48 w-full bg-gray-200 relative">
-                                    {bannerSrc ? (
-                                        // eslint-disable-next-line @next/next/no-img-element
-                                        <img src={bannerSrc} alt="Banner" className="h-48 w-full object-cover" />
-                                    ) : (
-                                        <div className="h-48 w-full bg-gradient-to-r from-gray-200 to-gray-300" />)
-                                    }
-                                    {/* Profile image */}
-                                    <div className="absolute -bottom-12 left-10 h-24 w-24 rounded-full ring-4 ring-white overflow-hidden bg-gray-300">
-                                        {profileSrc ? (
-                                            // eslint-disable-next-line @next/next/no-img-element
-                                            <img src={profileSrc} alt={displayName} className="h-full w-full object-cover" />
-                                        ) : null}
-                                    </div>
-                                </div>
-
-                                {/* Details */}
-                                <div className="p-10 pt-16">
-                                    <div className="flex items-center justify-between mb-6">
-                                        <div>
-                                            <div className="flex items-center gap-3">
-                                                <h1 className="text-3xl font-bold">{displayName}</h1>
-                                                <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
-                                                    provider.activation_paid
-                                                        ? 'bg-emerald-100 text-emerald-700'
-                                                        : 'bg-amber-100 text-amber-700'
-                                                }`}>
-                                                    {provider.activation_paid ? 'Activation Paid' : 'Activation Fee Pending'}
-                                                </span>
-                                                {!provider.activation_paid && (
-                                                    <Button
-                                                        size="sm"
-                                                        onClick={() => setActivationModalOpen(true)}
-                                                        className="gap-1.5"
-                                                    >
-                                                        <CreditCard className="h-4 w-4" />
-                                                        Pay Activation Fee
-                                                    </Button>
-                                                )}
-                                            </div>
-                                            <p className="text-gray-600">{provider.email || '—'} · {provider.phoneNumber || provider.phone || '—'}</p>
-                                            <p className="text-gray-600">{provider.address || '—'}</p>
-                                        </div>
-                                        <Button onClick={() => setOpen(true)} variant="outline">Edit</Button>
-                                    </div>
+                        <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+                            <AdminPageHeader
+                                title={displayName}
+                                description={`${provider.email || '—'} · ${provider.phoneNumber || provider.phone || '—'} · ${provider.address || '—'}`}
+                                backHref="/admin/providers"
+                                actions={
+                                    <>
+                                        {!provider.activation_paid && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setActivationModalOpen(true)}
+                                                className={adminHeaderButtonClassName()}
+                                            >
+                                                <CreditCard className="h-4 w-4" />
+                                                Pay Activation Fee
+                                            </button>
+                                        )}
+                                        <button
+                                            type="button"
+                                            onClick={() => setOpen(true)}
+                                            className={adminHeaderButtonClassName()}
+                                        >
+                                            Edit
+                                        </button>
+                                    </>
+                                }
+                            />
+                            <div className="mb-4 flex flex-wrap items-center gap-2">
+                                <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
+                                    provider.activation_paid
+                                        ? 'bg-emerald-100 text-emerald-700'
+                                        : 'bg-amber-100 text-amber-700'
+                                }`}>
+                                    {provider.activation_paid ? 'Activation Paid' : 'Activation Fee Pending'}
+                                </span>
+                            </div>
 
                                     {/* Earnings Summary */}
                                     <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -835,8 +824,6 @@ export default function ProviderDetailPage() {
                                         )}
                                     </section>
                                     )}
-                                </div>
-                            </div>
                             {/* Edit dialog */}
                             <Dialog open={open} onClose={() => { setOpen(false); setSaveError(null); }}>
                                 <DialogHeader>
@@ -1276,7 +1263,7 @@ export default function ProviderDetailPage() {
                                     providerName={displayName}
                                 />
                             )}
-                        </>
+                        </div>
                     )}
                 </main>
             </div>

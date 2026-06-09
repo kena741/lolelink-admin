@@ -60,7 +60,7 @@ function LoginContent() {
         <div className="grid min-h-screen place-items-center bg-gray-50 px-6">
             <div className="w-full max-w-md rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
                 <div className="mb-6 text-center">
-                    <div className="mx-auto mb-3 h-10 w-10 rounded-lg bg-gradient-to-br from-indigo-600 via-purple-600 to-fuchsia-600" />
+                    <div className="mx-auto mb-3 h-10 w-10 rounded-lg bg-primary" />
                     <h1 className="text-lg font-semibold text-gray-900">Admin Login</h1>
                     <p className="mt-1 text-sm text-gray-600">Sign in with your admin email and password.</p>
                 </div>
@@ -78,7 +78,7 @@ function LoginContent() {
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             placeholder="you@example.com"
-                            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                             required
                         />
                     </div>
@@ -90,14 +90,14 @@ function LoginContent() {
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             placeholder="Your password"
-                            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                             required
                         />
                     </div>
                     <button
                         type="submit"
                         disabled={loading}
-                        className="inline-flex w-full items-center justify-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                        className="inline-flex w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-accent disabled:opacity-50"
                     >
                         {loading ? "Signing in…" : "Sign in"}
                     </button>

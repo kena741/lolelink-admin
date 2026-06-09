@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import AuthGuard from '@/components/AuthGuard';
+import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { fetchActivityLogs } from '@/features/admin/activityLogSlice';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -62,26 +63,16 @@ function ActivityLogsPage() {
 
     return (
         <AuthGuard>
-            <div className="flex min-h-screen bg-background">
+            <div className="flex min-h-screen">
                 <Sidebar />
                 <main className="ml-64 w-full min-h-screen">
-                    <div className="relative isolate overflow-hidden bg-primary transition-colors dark:!bg-sidebar dark:border-b dark:border-sidebar-border">
-                        <div className="relative mx-auto max-w-7xl px-6 py-12 sm:py-16 lg:px-8">
-                            <div className="flex items-center justify-between gap-6">
-                                <div>
-                                    <div className="mb-2 flex items-center gap-3">
-                                        <div className="rounded-lg bg-card/15 p-2 backdrop-blur-sm">
-                                            <Activity className="h-6 w-6 text-primary-foreground" />
-                                        </div>
-                                        <h1 className="text-3xl font-bold tracking-tight text-primary-foreground drop-shadow-lg sm:text-4xl">
-                                            Activity Logs
-                                        </h1>
-                                    </div>
-                                    <p className="text-base font-medium text-primary-foreground/90">
-                                        Track actions performed by admin users
-                                    </p>
-                                </div>
+                    <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+                        <AdminPageHeader
+                            title="Activity Logs"
+                            description="Track actions performed by admin users"
+                            actions={
                                 <button
+                                    type="button"
                                     onClick={() => {
                                         const offset = (currentPage - 1) * PAGE_SIZE;
                                         dispatch(fetchActivityLogs({
@@ -91,16 +82,13 @@ function ActivityLogsPage() {
                                             offset,
                                         }));
                                     }}
-                                    className="group inline-flex items-center gap-2 rounded-xl bg-card/15 px-4 py-3 text-sm font-semibold text-primary-foreground ring-2 ring-primary-foreground/20 transition-all hover:bg-card/25"
+                                    className={adminHeaderButtonClassName()}
                                 >
-                                    <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : 'group-hover:rotate-180'} transition-transform duration-500`} />
+                                    <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                                     Refresh
                                 </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+                            }
+                        />
                         <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center">
                             <div className="relative w-full max-w-md flex-1">
                                 <Search className="pointer-events-none absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />

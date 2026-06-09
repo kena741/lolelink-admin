@@ -14,7 +14,7 @@ function targetLabel(target: SupabaseTarget): string {
     return target === "staging" ? "Staging" : "Prod";
 }
 
-export function SupabaseEnvSwitcher() {
+export function SupabaseEnvSwitcher({ compact = false }: { compact?: boolean }) {
     const [active] = useState<SupabaseTarget>(() => getClientSupabaseTarget());
     const [isSwitching, setIsSwitching] = useState(false);
 
@@ -39,10 +39,12 @@ export function SupabaseEnvSwitcher() {
     const targets: SupabaseTarget[] = ["prod", "staging"];
 
     return (
-        <div className="space-y-2 px-3 py-2">
-            <p className="text-[12px] font-medium text-muted-foreground">Supabase</p>
+        <div className={compact ? "mb-2 space-y-1" : "space-y-2 px-3 py-2"}>
+            {!compact ? (
+                <p className="text-[12px] font-medium text-muted-foreground">Supabase</p>
+            ) : null}
             <div
-                className="flex rounded-md border border-border bg-muted/40 p-0.5"
+                className="flex rounded-md border border-gray-200 bg-gray-50 p-0.5"
                 role="group"
                 aria-label="Supabase environment"
             >
@@ -55,10 +57,10 @@ export function SupabaseEnvSwitcher() {
                             type="button"
                             disabled={isSwitching || isDisabled}
                             onClick={() => switchTo(target)}
-                            className={`flex-1 rounded-[6px] px-2 py-1.5 text-[12px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
+                            className={`flex-1 rounded-[6px] px-2 py-1 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                                 isActive
-                                    ? "bg-background text-foreground shadow-sm"
-                                    : "text-muted-foreground hover:text-foreground"
+                                    ? "bg-white text-gray-900 shadow-sm"
+                                    : "text-gray-500 hover:text-gray-900"
                             } disabled:cursor-not-allowed disabled:opacity-50`}
                         >
                             {targetLabel(target)}

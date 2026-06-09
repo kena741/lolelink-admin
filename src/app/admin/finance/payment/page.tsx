@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { ArrowLeft, CheckCircle2, Clock, CreditCard, RefreshCw, XCircle } from 'lucide-react';
 import AuthGuard from '@/components/AuthGuard';
 import Sidebar from '@/components/Sidebar';
+import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { fetchPayments, updatePayment } from '@/features/payments/paymentsSlice';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
@@ -80,47 +81,27 @@ const PaymentPage = () => {
 
     return (
         <AuthGuard>
-            <div className="flex min-h-screen bg-background">
+            <div className="flex min-h-screen">
                 <Sidebar />
                 <main className="ml-64 w-full min-h-screen">
-                    <div className="relative isolate overflow-hidden bg-primary transition-colors dark:!bg-sidebar dark:border-b dark:border-sidebar-border">
-                        <div className="relative mx-auto max-w-7xl px-6 py-12 sm:py-16 lg:px-8">
-                            <div className="flex items-center justify-between gap-6">
-                                <div>
-                                    <div className="mb-2 flex items-center gap-3">
-                                        <Link
-                                            href="/admin/dashboard"
-                                            className="rounded-lg bg-card/15 p-2 backdrop-blur-sm transition-colors hover:bg-card/25"
-                                        >
-                                            <ArrowLeft className="h-5 w-5 text-primary-foreground" />
-                                        </Link>
-                                        <div className="rounded-lg bg-card/15 p-2 backdrop-blur-sm">
-                                            <CreditCard className="h-6 w-6 text-primary-foreground" />
-                                        </div>
-                                        <h1 className="text-3xl font-bold tracking-tight text-primary-foreground drop-shadow-lg sm:text-4xl">
-                                            Payments
-                                        </h1>
-                                    </div>
-                                    <div className="flex items-center gap-2 text-sm text-primary-foreground/90">
-                                        <Link href="/admin/dashboard" className="transition-colors hover:text-primary-foreground">
-                                            Dashboard
-                                        </Link>
-                                        <span>/</span>
-                                        <span className="font-semibold text-primary-foreground">Payments</span>
-                                    </div>
-                                </div>
+                    <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+                        <AdminPageHeader
+                            title="Payments"
+                            breadcrumbs={[
+                                { label: 'Dashboard', href: '/admin/dashboard' },
+                                { label: 'Payments' },
+                            ]}
+                            actions={
                                 <button
+                                    type="button"
                                     onClick={() => dispatch(fetchPayments())}
-                                    className="group inline-flex items-center gap-2 rounded-xl bg-card/15 px-4 py-3 text-sm font-semibold text-primary-foreground ring-2 ring-primary-foreground/20 backdrop-blur-md transition-all duration-300 hover:scale-105 hover:bg-card/25 hover:ring-primary-foreground/35"
+                                    className={adminHeaderButtonClassName()}
                                 >
-                                    <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : 'group-hover:rotate-180'} transition-transform duration-500`} />
+                                    <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                                     Refresh
                                 </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+                            }
+                        />
                         <section className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
                             <div className="group relative overflow-hidden rounded-2xl border border-white/20 bg-gradient-to-br from-white/80 to-white/40 p-6 shadow-xl backdrop-blur-xl transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl">
                                 <p className="mb-1 text-sm font-medium text-gray-600">Pending</p>
