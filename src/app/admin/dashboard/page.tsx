@@ -38,6 +38,8 @@ interface AnalyticsData {
     totalCredit: number;
     totalNetFlow: number;
     totalTopUp: number;
+    totalActivationFee: number;
+    totalCustomerTopUp: number;
     monthlyRevenue: number;
     revenueChange: number;
     totalCompletedRevenueBookings: number;
@@ -340,6 +342,8 @@ function DashboardContent() {
         totalCredit: 0,
         totalNetFlow: 0,
         totalTopUp: 0,
+        totalActivationFee: 0,
+        totalCustomerTopUp: 0,
         monthlyRevenue: 0,
         revenueChange: 0,
         totalCompletedRevenueBookings: 0,
@@ -442,6 +446,8 @@ function DashboardContent() {
                 totalCredit: rangedWalletRows.length,
                 totalNetFlow: walletMetrics.totalNetFlowAdjusted,
                 totalTopUp: walletMetrics.totalTopUpAdjusted,
+                totalActivationFee: walletMetrics.totalActivationFeeAdjusted,
+                totalCustomerTopUp: walletMetrics.totalCustomerTopUpAdjusted,
                 paymentChart,
                 providerChart,
             }));
@@ -472,6 +478,8 @@ function DashboardContent() {
                 const totalCredit = rangedWalletRows.length;
                 const totalNetFlow = walletMetrics.totalNetFlowAdjusted;
                 const totalTopUp = walletMetrics.totalTopUpAdjusted;
+                const totalActivationFee = walletMetrics.totalActivationFeeAdjusted;
+                const totalCustomerTopUp = walletMetrics.totalCustomerTopUpAdjusted;
 
                 // Calculate monthly revenue (last 30 days)
                 const thirtyDaysAgo = new Date();
@@ -510,6 +518,8 @@ function DashboardContent() {
                     totalCredit,
                     totalNetFlow,
                     totalTopUp,
+                    totalActivationFee,
+                    totalCustomerTopUp,
                     monthlyRevenue,
                     revenueChange,
                     totalCompletedRevenueBookings: rangedCompletedPaidBookings.length,
@@ -789,7 +799,7 @@ function DashboardContent() {
                             ))}
                         </div>
                         {/* Main Stats Grid */}
-                        <section className="mb-8 grid grid-cols-1 items-stretch gap-4 min-w-0 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+                        <section className="mb-8 grid grid-cols-1 items-stretch gap-4 min-w-0 sm:grid-cols-2 lg:grid-cols-4">
                             <StatCard
                                 title="Transactions"
                                 value={analytics.totalCredit}
@@ -797,11 +807,26 @@ function DashboardContent() {
                                 iconBg="bg-primary/10"
                             />
                             <StatCard
-                                title="Top Up"
+                                title="Activation fee"
+                                value={analytics.totalActivationFee}
+                                isCurrency
+                                icon={DollarSign}
+                                iconBg="bg-primary/10"
+                            />
+                            <StatCard
+                                title="Customer top up"
+                                value={analytics.totalCustomerTopUp}
+                                isCurrency
+                                icon={DollarSign}
+                                iconBg="bg-primary/10"
+                            />
+                            <StatCard
+                                title="Total top up"
                                 value={analytics.totalTopUp}
                                 isCurrency
                                 icon={DollarSign}
                                 iconBg="bg-primary/10"
+                                note="Provider + customer"
                             />
                             <StatCard
                                 title="Net Flow"
