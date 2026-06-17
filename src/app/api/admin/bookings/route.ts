@@ -1,13 +1,19 @@
 import { NextResponse } from 'next/server';
 import { logAdminActivity } from '@/lib/admin-activity-log';
 import { requireAdminPermission } from '@/lib/admin-auth';
+import { sendBookingCreatedNotifications, sendBookingPaymentConfirmedNotifications } from '@/lib/booking-notifications';
 import {
-    computeBookingAmounts,
-    resolveServiceImage,
-    resolveServiceName,
-    resolveServiceUnitPrice,
-} from '@/lib/booking-pricing';
-import { sendBookingCreatedNotifications } from '@/lib/booking-notifications';
+    buildBookingPayload,
+    type BookingAddressInput,
+    type BookingPaymentMode,
+    type CouponInput,
+} from '@/lib/booking-payload';
+import {
+    debitCustomerWalletForBooking,
+    sendBookingProviderSms,
+    upsertBookingPaymentRecord,
+} from '@/lib/booking-payment-side-effects';
+import { resolveServiceName } from '@/lib/booking-pricing';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
@@ -19,33 +25,25 @@ interface CreateBookingBody {
     bookingDate?: string;
     quantity?: string;
     description?: string;
-    payment_path?: 'pay_now' | 'pay_later';
+    payment_path?: 'pay_now' | 'pay_later' | 'wallet' | 'mark_paid';
+    payment_mode?: BookingPaymentMode | 'pay_now';
+    bookingAddress?: BookingAddressInput;
+    coupon_id?: number;
+    coupon_code?: string;
 }
 
-interface CustomerRow {
-    id: string;
-    first_name?: string | null;
-    last_name?: string | null;
-    firstName?: string | null;
-    lastName?: string | null;
-    email?: string | null;
-    phone?: string | null;
-    phoneNumber?: string | null;
-    mobile_number?: string | null;
+function readCustomerName(row: Record<string, unknown>): string {
+    const first = typeof row.firstName === 'string' ? row.firstName : typeof row.first_name === 'string' ? row.first_name : '';
+    const last = typeof row.lastName === 'string' ? row.lastName : typeof row.last_name === 'string' ? row.last_name : '';
+    return [first, last].filter(Boolean).join(' ').trim() || 'Customer';
 }
 
-function readCustomerField(row: CustomerRow, keys: Array<keyof CustomerRow>): string {
-    for (const key of keys) {
-        const value = row[key];
-        if (typeof value === 'string' && value.trim()) return value.trim();
-    }
-    return '';
-}
-
-function readCustomerName(row: CustomerRow): string {
-    const first = readCustomerField(row, ['firstName', 'first_name']);
-    const last = readCustomerField(row, ['lastName', 'last_name']);
-    return [first, last].filter(Boolean).join(' ').trim();
+function resolvePaymentMode(body: CreateBookingBody): BookingPaymentMode {
+    const mode = body.payment_mode ?? body.payment_path;
+    if (mode === 'pay_now' || mode === 'chapa') return 'chapa';
+    if (mode === 'wallet') return 'wallet';
+    if (mode === 'mark_paid') return 'mark_paid';
+    return 'pay_later';
 }
 
 export async function POST(request: Request) {
@@ -58,123 +56,170 @@ export async function POST(request: Request) {
 
     try {
         const body = (await request.json()) as CreateBookingBody;
-        const providerId = (body.provider_id ?? '').trim();
         const serviceId = (body.service_id ?? '').trim();
         const customerId = (body.customer_id ?? '').trim();
-        const paymentPath = body.payment_path === 'pay_now' ? 'pay_now' : 'pay_later';
-        const quantityRaw = (body.quantity ?? '1').trim() || '1';
-        const quantity = parseInt(quantityRaw, 10);
+        const paymentMode = resolvePaymentMode(body);
 
-        if (!providerId) return NextResponse.json({ error: 'provider_id is required' }, { status: 400 });
         if (!serviceId) return NextResponse.json({ error: 'service_id is required' }, { status: 400 });
         if (!customerId) return NextResponse.json({ error: 'customer_id is required' }, { status: 400 });
-        if (!Number.isFinite(quantity) || quantity < 1) {
-            return NextResponse.json({ error: 'quantity must be at least 1' }, { status: 400 });
+
+        let providerId = (body.provider_id ?? '').trim();
+        if (!providerId) {
+            const { data: serviceRow } = await supabaseAdmin
+                .from('service')
+                .select('provider_id')
+                .eq('id', serviceId)
+                .maybeSingle();
+            providerId = typeof (serviceRow as { provider_id?: string } | null)?.provider_id === 'string'
+                ? (serviceRow as { provider_id: string }).provider_id
+                : '';
         }
 
-        const { data: customerRaw, error: customerError } = await supabaseAdmin
-            .from('customer')
-            .select('*')
-            .eq('id', customerId)
-            .maybeSingle();
-
-        if (customerError) {
-            return NextResponse.json({ error: customerError.message }, { status: 500 });
-        }
-        if (!customerRaw) {
-            return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
+        if (!providerId) {
+            return NextResponse.json({ error: 'provider_id is required' }, { status: 400 });
         }
 
-        const customer = customerRaw as CustomerRow;
-        const customerName = readCustomerName(customer) || 'Customer';
+        const coupon: CouponInput | null =
+            body.coupon_id || body.coupon_code
+                ? { id: body.coupon_id, code: body.coupon_code }
+                : null;
 
-        const { data: serviceRaw, error: serviceError } = await supabaseAdmin
-            .from('service')
-            .select('*')
-            .eq('id', serviceId)
-            .eq('provider_id', providerId)
-            .maybeSingle();
+        const { row, totalAmountNumber } = await buildBookingPayload(supabaseAdmin, {
+            customerId,
+            serviceId,
+            providerId,
+            bookingDate: body.bookingDate?.trim() || new Date().toISOString(),
+            description: body.description,
+            quantity: body.quantity,
+            bookingAddress: body.bookingAddress,
+            coupon,
+            paymentMode,
+        });
 
-        if (serviceError) {
-            return NextResponse.json({ error: serviceError.message }, { status: 500 });
+        if (paymentMode === 'wallet') {
+            const { data: walletCustomer } = await supabaseAdmin
+                .from('customer')
+                .select('wallet_amount')
+                .eq('id', customerId)
+                .maybeSingle();
+
+            const walletAmount = Number((walletCustomer as { wallet_amount?: string | number } | null)?.wallet_amount ?? 0);
+            if (!Number.isFinite(walletAmount) || walletAmount < totalAmountNumber) {
+                return NextResponse.json({ error: 'Insufficient wallet balance' }, { status: 400 });
+            }
         }
-        if (!serviceRaw) {
-            return NextResponse.json({ error: 'Service not found for this provider' }, { status: 404 });
-        }
 
-        const service = serviceRaw as Record<string, unknown>;
-        if (service.isArchived === true) {
-            return NextResponse.json({ error: 'Service is archived' }, { status: 400 });
-        }
-        if (service.status === false) {
-            return NextResponse.json({ error: 'Service is inactive' }, { status: 400 });
-        }
+        const bookingId = String(row.id);
+        const serviceName = resolveServiceName((row.serviceDetails ?? {}) as Record<string, unknown>) || 'Service';
 
-        const unitPrice = resolveServiceUnitPrice(service.price);
-        if (unitPrice <= 0) {
-            return NextResponse.json({ error: 'Service price is invalid' }, { status: 400 });
-        }
-
-        const discountRaw = typeof service.discount === 'string' ? service.discount : undefined;
-        const amounts = computeBookingAmounts(unitPrice, discountRaw, quantity);
-        const now = new Date().toISOString();
-        const bookingId = crypto.randomUUID();
-
-        const insertRow = {
-            id: bookingId,
-            provider_id: providerId,
-            customer_id: customerId,
-            firstName: readCustomerField(customer, ['firstName', 'first_name']),
-            lastName: readCustomerField(customer, ['lastName', 'last_name']),
-            email: readCustomerField(customer, ['email']),
-            phoneNumber: readCustomerField(customer, ['phoneNumber', 'mobile_number', 'phone']),
-            service_id: serviceId,
-            serviceName: resolveServiceName(service),
-            serviceImage: resolveServiceImage(service),
-            price: unitPrice,
-            discount: amounts.discount,
-            subTotal: amounts.subTotal,
-            totalAmount: amounts.totalAmount,
-            quantity: String(quantity),
-            bookingDate: body.bookingDate?.trim() || now,
-            description: body.description?.trim() || null,
-            status: 'booked',
-            payment_status: 'pending_payment',
-            paymentCompleted: false,
-            createdAt: now,
-        };
-
-        const { data: created, error: insertError } = await supabaseAdmin
+        const { data: created, error: upsertError } = await supabaseAdmin
             .from('booked_service')
-            .insert(insertRow)
+            .upsert(row, { onConflict: 'id' })
             .select('*')
             .single();
 
-        if (insertError) {
-            return NextResponse.json({ error: insertError.message || 'Failed to create booking' }, { status: 500 });
+        if (upsertError) {
+            return NextResponse.json({ error: upsertError.message || 'Failed to create booking' }, { status: 500 });
         }
+
+        const customerName = readCustomerName(created as Record<string, unknown>);
+
+        if (paymentMode === 'wallet') {
+            const walletResult = await debitCustomerWalletForBooking(
+                supabaseAdmin,
+                bookingId,
+                customerId,
+                totalAmountNumber
+            );
+            if (!walletResult.ok) {
+                await supabaseAdmin.from('booked_service').delete().eq('id', bookingId);
+                return NextResponse.json({ error: walletResult.error }, { status: walletResult.status });
+            }
+
+            await upsertBookingPaymentRecord(
+                supabaseAdmin,
+                created as { id: string; customer_id?: string; totalAmount?: string; price?: string },
+                {
+                    providerRef: String(row.payment_id ?? bookingId),
+                    paymentMethod: 'wallet',
+                    provider: 'wallet',
+                    status: 'payment_completed',
+                }
+            );
+
+            await sendBookingPaymentConfirmedNotifications(supabaseAdmin, {
+                bookingId,
+                providerId,
+                customerId,
+                serviceName,
+                amount: totalAmountNumber,
+            });
+        }
+
+        if (paymentMode === 'mark_paid') {
+            await supabaseAdmin
+                .from('booked_service')
+                .update({
+                    payment_status: 'payment_completed',
+                    paymentCompleted: true,
+                    status: 'paid_for_service_booked',
+                })
+                .eq('id', bookingId);
+
+            await upsertBookingPaymentRecord(
+                supabaseAdmin,
+                created as { id: string; customer_id?: string; totalAmount?: string; price?: string },
+                {
+                    providerRef: String(row.payment_id ?? bookingId),
+                    paymentMethod: 'admin',
+                    provider: 'admin',
+                    status: 'payment_completed',
+                }
+            );
+
+            await sendBookingPaymentConfirmedNotifications(supabaseAdmin, {
+                bookingId,
+                providerId,
+                customerId,
+                serviceName,
+                amount: totalAmountNumber,
+            });
+        }
+
+        const notificationPaymentPath =
+            paymentMode === 'pay_later' ? 'pay_later' : 'pay_now';
+        const notifyProviderOnCreate = paymentMode !== 'chapa';
 
         await sendBookingCreatedNotifications(supabaseAdmin, {
             bookingId,
             providerId,
             customerId,
-            serviceName: resolveServiceName(service) || 'Service',
+            serviceName,
             customerName,
-            paymentPath,
+            paymentPath: notificationPaymentPath,
+            notifyProvider: notifyProviderOnCreate,
         });
+
+        if (notifyProviderOnCreate) {
+            await sendBookingProviderSms(supabaseAdmin, {
+                providerId,
+                serviceName,
+                customerName,
+            });
+        }
 
         await logAdminActivity({
             request,
             action: 'create',
             resource_type: 'booking',
             resource_id: bookingId,
-            summary: `Created booking for ${customerName} (${paymentPath === 'pay_now' ? 'pay now' : 'pay later'})`,
+            summary: `Created booking for ${customerName} (${paymentMode})`,
             metadata: {
                 provider_id: providerId,
                 service_id: serviceId,
                 customer_id: customerId,
-                payment_path: paymentPath,
-                total_amount: amounts.totalAmount,
+                payment_mode: paymentMode,
+                total_amount: totalAmountNumber,
             },
         });
 

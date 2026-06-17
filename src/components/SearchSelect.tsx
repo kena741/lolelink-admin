@@ -108,7 +108,7 @@ export function SearchSelect({
     }
 
     return (
-        <div ref={containerRef} className="relative grid gap-1.5">
+        <div ref={containerRef} className={cn('relative grid gap-1.5', open && 'z-[110]')}>
             <Label htmlFor={id}>{label}</Label>
 
             <div

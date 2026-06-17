@@ -32,7 +32,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ status: 'error', reason: 'Booking not found for tx_ref' }, { status: 404 });
         }
 
-        const result = await markBookingPaymentCompleted(supabaseAdmin, bookingId, txRef);
+        const result = await markBookingPaymentCompleted(supabaseAdmin, bookingId, txRef, body.reference);
         if (!result.ok) {
             return NextResponse.json({ status: 'error', reason: result.error }, { status: result.status });
         }

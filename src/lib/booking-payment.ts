@@ -1,29 +1,98 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { sendBookingPaymentConfirmedNotifications } from '@/lib/booking-notifications';
+import {
+    providerBookingNotificationExists,
+    sendBookingPaymentConfirmedNotifications,
+    sendProviderNewBookingNotification,
+} from '@/lib/booking-notifications';
+import {
+    bookingTotalAmount,
+    sendBookingProviderSms,
+    upsertBookingPaymentRecord,
+} from '@/lib/booking-payment-side-effects';
 
 interface BookingRow {
     id: string;
     provider_id: string;
     customer_id?: string | null;
     serviceName?: string | null;
-    totalAmount?: number | null;
-    price?: number | null;
+    firstName?: string | null;
+    lastName?: string | null;
+    totalAmount?: string | number | null;
+    price?: string | number | null;
     payment_status?: string | null;
     paymentCompleted?: boolean | null;
     payment_id?: string | null;
+    status?: string | null;
+    paymentType?: string | null;
 }
 
-function bookingAmount(booking: BookingRow): number {
-    const total = Number(booking.totalAmount ?? 0);
-    if (Number.isFinite(total) && total > 0) return total;
-    const price = Number(booking.price ?? 0);
-    return Number.isFinite(price) && price > 0 ? price : 0;
+const PAID_AWAITING_PROVIDER_STATUS = 'paid_for_service_booked';
+export const BOOKING_PAYMENT_STATUS_COMPLETED = 'payment_completed';
+
+function readCustomerName(booking: BookingRow): string {
+    const first = (booking.firstName ?? '').trim();
+    const last = (booking.lastName ?? '').trim();
+    return [first, last].filter(Boolean).join(' ').trim() || 'Customer';
+}
+
+async function notifyProviderAboutBooking(
+    supabaseAdmin: SupabaseClient,
+    booking: BookingRow
+): Promise<void> {
+    if (!booking.customer_id || !booking.provider_id) return;
+
+    const alreadyNotified = await providerBookingNotificationExists(
+        supabaseAdmin,
+        booking.id,
+        booking.provider_id
+    );
+    if (alreadyNotified) return;
+
+    const customerName = readCustomerName(booking);
+    const serviceName = (booking.serviceName ?? '').trim() || 'Service';
+
+    await sendProviderNewBookingNotification(supabaseAdmin, {
+        bookingId: booking.id,
+        providerId: booking.provider_id,
+        serviceName,
+        customerName,
+    });
+
+    await sendBookingProviderSms(supabaseAdmin, {
+        providerId: booking.provider_id,
+        serviceName,
+        customerName,
+    });
+}
+
+async function applyPaidBookingState(
+    supabaseAdmin: SupabaseClient,
+    booking: BookingRow,
+    extra?: Record<string, unknown>
+): Promise<void> {
+    const needsUpdate =
+        (booking.payment_status ?? '') !== BOOKING_PAYMENT_STATUS_COMPLETED ||
+        booking.paymentCompleted !== true ||
+        (booking.status ?? '').trim() !== PAID_AWAITING_PROVIDER_STATUS;
+
+    if (!needsUpdate && !extra) return;
+
+    await supabaseAdmin
+        .from('booked_service')
+        .update({
+            payment_status: BOOKING_PAYMENT_STATUS_COMPLETED,
+            paymentCompleted: true,
+            status: PAID_AWAITING_PROVIDER_STATUS,
+            ...extra,
+        })
+        .eq('id', booking.id);
 }
 
 export async function markBookingPaymentCompleted(
     supabaseAdmin: SupabaseClient,
     bookingId: string,
-    txRef: string
+    txRef: string,
+    chapaReference?: string
 ): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
     const { data: bookingRaw, error: bookingError } = await supabaseAdmin
         .from('booked_service')
@@ -44,7 +113,9 @@ export async function markBookingPaymentCompleted(
         return { ok: false, error: 'Transaction reference does not match booking', status: 400 };
     }
 
-    if (booking.paymentCompleted || (booking.payment_status ?? '') === 'payment_completed') {
+    if (booking.paymentCompleted || (booking.payment_status ?? '') === BOOKING_PAYMENT_STATUS_COMPLETED) {
+        await applyPaidBookingState(supabaseAdmin, booking);
+        await notifyProviderAboutBooking(supabaseAdmin, booking);
         return { ok: true };
     }
 
@@ -52,11 +123,12 @@ export async function markBookingPaymentCompleted(
     const { error: updateError } = await supabaseAdmin
         .from('booked_service')
         .update({
-            payment_status: 'payment_completed',
+            payment_status: BOOKING_PAYMENT_STATUS_COMPLETED,
             paymentCompleted: true,
             payment_id: txRef,
             paid_at: now,
             paymentType: 'chapa',
+            status: PAID_AWAITING_PROVIDER_STATUS,
         })
         .eq('id', bookingId);
 
@@ -64,14 +136,23 @@ export async function markBookingPaymentCompleted(
         return { ok: false, error: updateError.message, status: 500 };
     }
 
+    await upsertBookingPaymentRecord(supabaseAdmin, booking, {
+        providerRef: chapaReference || txRef,
+        paymentMethod: 'chapa',
+        provider: 'chapa',
+        status: 'payment_completed',
+    });
+
     if (booking.customer_id && booking.provider_id) {
         await sendBookingPaymentConfirmedNotifications(supabaseAdmin, {
             bookingId,
             providerId: booking.provider_id,
             customerId: booking.customer_id,
             serviceName: (booking.serviceName ?? '').trim() || 'Service',
-            amount: bookingAmount(booking),
+            amount: bookingTotalAmount(booking),
         });
+
+        await notifyProviderAboutBooking(supabaseAdmin, booking);
     }
 
     return { ok: true };

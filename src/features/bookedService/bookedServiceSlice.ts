@@ -123,7 +123,15 @@ export const fetchBookingById = createAsyncThunk<
     }
 );
 
-export type PaymentPath = 'pay_now' | 'pay_later';
+export type PaymentPath = 'pay_now' | 'pay_later' | 'wallet' | 'mark_paid';
+
+export interface BookingAddressInput {
+    address?: string;
+    locality?: string;
+    landmark?: string;
+    latitude?: number;
+    longitude?: number;
+}
 
 export interface CreateBookingInput {
     provider_id: string;
@@ -132,7 +140,11 @@ export interface CreateBookingInput {
     bookingDate?: string;
     quantity?: string;
     description?: string;
-    payment_path: PaymentPath;
+    payment_path?: PaymentPath;
+    payment_mode?: PaymentPath;
+    bookingAddress?: BookingAddressInput;
+    coupon_id?: number;
+    coupon_code?: string;
 }
 
 interface CreateBookingResponse {
@@ -233,6 +245,27 @@ export const verifyBookingPayment = createAsyncThunk<
     }
 });
 
+export const deleteBooking = createAsyncThunk<
+    string,
+    string,
+    { rejectValue: string }
+>('bookedService/deleteBooking', async (bookingId, { rejectWithValue }) => {
+    try {
+        const response = await fetch(`/api/admin/bookings/${encodeURIComponent(bookingId)}`, {
+            method: 'DELETE',
+        });
+
+        if (!response.ok) {
+            return rejectWithValue(await parseApiError(response));
+        }
+
+        return bookingId;
+    } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : 'Failed to delete booking';
+        return rejectWithValue(msg);
+    }
+});
+
 const bookedServiceSlice = createSlice({
     name: 'bookedService',
     initialState,
@@ -291,6 +324,19 @@ const bookedServiceSlice = createSlice({
             .addCase(createBooking.rejected, (state, action) => {
                 state.loading = false;
                 state.error = (action.payload as string) || 'Failed to create booking';
+            })
+            .addCase(deleteBooking.pending, (state) => {
+                state.error = null;
+            })
+            .addCase(deleteBooking.fulfilled, (state, action: PayloadAction<string>) => {
+                const deletedId = action.payload;
+                state.items = state.items.filter((item) => item.id !== deletedId);
+                if (state.single?.id === deletedId) {
+                    state.single = null;
+                }
+            })
+            .addCase(deleteBooking.rejected, (state, action) => {
+                state.error = (action.payload as string) || 'Failed to delete booking';
             });
     },
 });

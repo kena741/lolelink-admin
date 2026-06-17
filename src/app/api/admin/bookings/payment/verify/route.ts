@@ -55,6 +55,11 @@ export async function POST(request: Request) {
         }
 
         if (booking.paymentCompleted || (booking.payment_status ?? '') === 'payment_completed') {
+            const result = await markBookingPaymentCompleted(supabaseAdmin, bookingId, txRef);
+            if (!result.ok) {
+                return NextResponse.json({ error: result.error }, { status: result.status });
+            }
+
             return NextResponse.json({
                 status: 'success',
                 already_paid: true,
@@ -99,7 +104,7 @@ export async function POST(request: Request) {
             });
         }
 
-        const result = await markBookingPaymentCompleted(supabaseAdmin, bookingId, txRef);
+        const result = await markBookingPaymentCompleted(supabaseAdmin, bookingId, txRef, verifyData.data?.reference);
         if (!result.ok) {
             return NextResponse.json({ error: result.error }, { status: result.status });
         }

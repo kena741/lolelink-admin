@@ -3,8 +3,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Sidebar from "../../../components/Sidebar";
 import { useAppDispatch, useAppSelector } from "../../../store/hooks";
-import { fetchAllBookings, fetchBookingById, clearSingle } from "../../../features/bookedService/bookedServiceSlice";
-import { Plus, RefreshCw, Search } from "lucide-react";
+import { fetchAllBookings, fetchBookingById, clearSingle, deleteBooking } from "../../../features/bookedService/bookedServiceSlice";
+import { Plus, RefreshCw, Search, Trash2 } from "lucide-react";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import AuthGuard from "@/components/AuthGuard";
 import AdminPageHeader, { adminHeaderButtonClassName } from "@/components/AdminPageHeader";
@@ -36,7 +36,12 @@ const StatusBadge = ({ status }: { status?: string }) => {
     return <span className={`px-2 py-1 rounded text-xs ${color}`}>{formatStatusLabel(status ?? "booked")}</span>;
 };
 
-const DetailModal: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
+const DetailModal: React.FC<{
+    open: boolean;
+    onClose: () => void;
+    onDelete: (id: string) => Promise<void>;
+    deleting: boolean;
+}> = ({ open, onClose, onDelete, deleting }) => {
     const { single, loading } = useAppSelector((s) => s.bookedService);
 
     if (!open) return null;
@@ -93,8 +98,19 @@ const DetailModal: React.FC<{ open: boolean; onClose: () => void }> = ({ open, o
                         </div>
                     )}
                 </div>
-                <div className="px-5 py-3 border-t flex items-center justify-end gap-2">
-                    <button onClick={onClose} className="px-4 py-2 rounded bg-gray-100 hover:bg-gray-200">Close</button>
+                <div className="px-5 py-3 border-t flex items-center justify-between gap-2">
+                    {single && (
+                        <button
+                            type="button"
+                            onClick={() => void onDelete(single.id)}
+                            disabled={deleting}
+                            className="inline-flex items-center gap-2 px-4 py-2 rounded border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50"
+                        >
+                            <Trash2 className="h-4 w-4" />
+                            {deleting ? 'Deleting...' : 'Delete'}
+                        </button>
+                    )}
+                    <button onClick={onClose} className="ml-auto px-4 py-2 rounded bg-gray-100 hover:bg-gray-200">Close</button>
                 </div>
             </div>
         </div>
@@ -107,6 +123,7 @@ const BookingsPage = () => {
     const [open, setOpen] = useState(false);
     const [createOpen, setCreateOpen] = useState(false);
     const [query, setQuery] = useState("");
+    const [deletingId, setDeletingId] = useState<string | null>(null);
 
     useEffect(() => {
         // Load all bookings across all providers
@@ -125,6 +142,21 @@ const BookingsPage = () => {
     const onClose = () => {
         setOpen(false);
         dispatch(clearSingle());
+    };
+
+    const handleDeleteBooking = async (id: string) => {
+        const booking = items.find((item) => item.id === id);
+        const label = booking?.serviceName || booking?.id || 'this booking';
+        if (!confirm(`Delete booking for ${label}? This cannot be undone.`)) return;
+
+        setDeletingId(id);
+        try {
+            await dispatch(deleteBooking(id)).unwrap();
+            if (open) onClose();
+        } catch {
+        } finally {
+            setDeletingId(null);
+        }
     };
 
     const filtered = useMemo(() => {
@@ -251,12 +283,23 @@ const BookingsPage = () => {
                                             <TableCell><StatusBadge status={b.status} /></TableCell>
                                             <TableCell>{b.createdAt ? new Date(b.createdAt).toLocaleString() : '—'}</TableCell>
                                             <TableCell className="text-right">
-                                                <button
-                                                    onClick={() => onOpenDetail(b.id)}
-                                                    className="px-3 py-1.5 text-sm border rounded hover:bg-gray-50"
-                                                >
-                                                    View
-                                                </button>
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <button
+                                                        onClick={() => onOpenDetail(b.id)}
+                                                        className="px-3 py-1.5 text-sm border rounded hover:bg-gray-50"
+                                                    >
+                                                        View
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => void handleDeleteBooking(b.id)}
+                                                        disabled={deletingId === b.id}
+                                                        className="inline-flex items-center gap-1 px-3 py-1.5 text-sm border border-red-200 rounded text-red-600 hover:bg-red-50 disabled:opacity-50"
+                                                    >
+                                                        <Trash2 className="h-3.5 w-3.5" />
+                                                        {deletingId === b.id ? 'Deleting...' : 'Delete'}
+                                                    </button>
+                                                </div>
                                             </TableCell>
                                         </TableRow>
                                     ))}
@@ -274,7 +317,12 @@ const BookingsPage = () => {
                     </div>
                 </main>
 
-                <DetailModal open={open} onClose={onClose} />
+                <DetailModal
+                    open={open}
+                    onClose={onClose}
+                    onDelete={handleDeleteBooking}
+                    deleting={Boolean(deletingId)}
+                />
                 <CreateBookingModal
                     open={createOpen}
                     onClose={() => setCreateOpen(false)}

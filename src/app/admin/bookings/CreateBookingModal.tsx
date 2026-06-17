@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { CreditCard, Clock, Loader2 } from 'lucide-react';
-import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Banknote, CreditCard, Clock, Loader2, Wallet } from 'lucide-react';
+import { Dialog, DialogBody, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,7 +15,9 @@ import {
 } from '@/features/bookedService/bookedServiceSlice';
 import { fetchAllCustomers } from '@/features/customer/customerSlice';
 import { fetchServices } from '@/features/service/approveServicesSlice';
+import { fetchCoupons, type Coupon } from '@/features/coupon/couponSlice';
 import { computeBookingAmounts, resolveServiceUnitPrice } from '@/lib/booking-pricing';
+import { formatCouponDiscountLabel, formatCouponSelectDescription, formatCouponSelectLabel } from '@/lib/coupon-format';
 import { formatServiceDiscountLabel } from '@/lib/service-discount';
 import type { Customer } from '@/features/customer/customerSlice';
 import { SearchSelect, type SearchSelectOption } from '@/components/SearchSelect';
@@ -69,10 +71,20 @@ function isServiceSelectable(service: BookingServiceRow): boolean {
     return resolveServiceUnitPrice(service.price) > 0;
 }
 
+function isCouponSelectable(coupon: Coupon): boolean {
+    if (coupon.active === false) return false;
+    if (coupon.expiredAt) {
+        const expires = new Date(coupon.expiredAt);
+        if (!Number.isNaN(expires.getTime()) && expires.getTime() < Date.now()) return false;
+    }
+    return Boolean(coupon.code);
+}
+
 export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingModalProps) {
     const dispatch = useAppDispatch();
     const { customers, loading: customersLoading } = useAppSelector((state) => state.customer);
     const { services: allServicesRaw, loading: servicesLoading } = useAppSelector((state) => state.approveServices);
+    const { coupons, loading: couponsLoading } = useAppSelector((state) => state.coupon);
 
     const [step, setStep] = useState<WizardStep>('details');
     const [providerId, setProviderId] = useState('');
@@ -81,8 +93,13 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
     const [bookingDate, setBookingDate] = useState('');
     const [quantity, setQuantity] = useState('1');
     const [description, setDescription] = useState('');
+    const [address, setAddress] = useState('');
+    const [locality, setLocality] = useState('');
+    const [landmark, setLandmark] = useState('');
+    const [couponId, setCouponId] = useState('');
     const [paymentPath, setPaymentPath] = useState<PaymentPath>('pay_later');
     const [createdBookingId, setCreatedBookingId] = useState('');
+    const [chapaCheckoutUrl, setChapaCheckoutUrl] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState('');
@@ -91,6 +108,7 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
         if (!open) return;
         dispatch(fetchServices());
         dispatch(fetchAllCustomers());
+        dispatch(fetchCoupons());
     }, [dispatch, open]);
 
     useEffect(() => {
@@ -115,6 +133,11 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
         [allServices]
     );
 
+    const activeCoupons = useMemo(
+        () => coupons.filter(isCouponSelectable),
+        [coupons]
+    );
+
     const selectedService = useMemo(
         () => selectableServices.find((service) => service.id === serviceId),
         [selectableServices, serviceId]
@@ -127,12 +150,28 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
         [activeCustomers, customerId]
     );
 
+    const selectedCoupon = useMemo(
+        () => activeCoupons.find((coupon) => String(coupon.id) === couponId) ?? null,
+        [activeCoupons, couponId]
+    );
+
     const priceSummary = useMemo(() => {
         if (!selectedService) return null;
         const unitPrice = resolveServiceUnitPrice(selectedService.price);
         const qty = parseInt(quantity, 10);
-        return computeBookingAmounts(unitPrice, selectedService.discount, Number.isFinite(qty) && qty > 0 ? qty : 1);
-    }, [selectedService, quantity]);
+        return computeBookingAmounts(
+            unitPrice,
+            selectedService.discount,
+            Number.isFinite(qty) && qty > 0 ? qty : 1,
+            selectedCoupon
+        );
+    }, [selectedService, quantity, selectedCoupon]);
+
+    const customerWalletBalance = selectedCustomer?.wallet_amount ?? 0;
+    const walletInsufficient =
+        paymentPath === 'wallet' &&
+        priceSummary !== null &&
+        customerWalletBalance < priceSummary.totalAmount;
 
     const serviceOptions = useMemo<SearchSelectOption[]>(
         () =>
@@ -163,6 +202,17 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
         [activeCustomers]
     );
 
+    const couponOptions = useMemo<SearchSelectOption[]>(
+        () =>
+            activeCoupons.map((coupon) => ({
+                value: String(coupon.id),
+                label: formatCouponSelectLabel(coupon),
+                description: formatCouponSelectDescription(coupon),
+                searchText: [coupon.code, coupon.title].filter(Boolean).join(' '),
+            })),
+        [activeCoupons]
+    );
+
     function handleServiceChange(nextServiceId: string) {
         setServiceId(nextServiceId);
         const service = selectableServices.find((item) => item.id === nextServiceId);
@@ -176,8 +226,13 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
         setCustomerId('');
         setQuantity('1');
         setDescription('');
+        setAddress('');
+        setLocality('');
+        setLandmark('');
+        setCouponId('');
         setPaymentPath('pay_later');
         setCreatedBookingId('');
+        setChapaCheckoutUrl('');
         setLoading(false);
         setError(null);
         setSuccessMessage('');
@@ -196,6 +251,8 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
         const qty = parseInt(quantity, 10);
         if (!Number.isFinite(qty) || qty < 1) return 'Quantity must be at least 1';
         if (!bookingDate) return 'Booking date is required';
+        if (!address.trim()) return 'Booking address is required';
+        if (!locality.trim()) return 'Locality is required';
         return null;
     }
 
@@ -203,6 +260,11 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
         const validationError = validateDetails();
         if (validationError) {
             setError(validationError);
+            return;
+        }
+
+        if (path === 'wallet' && walletInsufficient) {
+            setError('Customer wallet balance is insufficient for this booking');
             return;
         }
 
@@ -218,7 +280,14 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                     bookingDate: new Date(bookingDate).toISOString(),
                     quantity,
                     description: description.trim() || undefined,
-                    payment_path: path,
+                    payment_mode: path,
+                    bookingAddress: {
+                        address: address.trim(),
+                        locality: locality.trim(),
+                        landmark: landmark.trim() || undefined,
+                    },
+                    coupon_id: selectedCoupon?.id,
+                    coupon_code: selectedCoupon?.code,
                 })
             ).unwrap();
 
@@ -231,10 +300,25 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                 return;
             }
 
-            const payment = await dispatch(initiateBookingPayment({ bookingId: booking.id })).unwrap();
-            if (payment.checkout_url) {
-                window.open(payment.checkout_url, '_blank');
+            if (path === 'wallet') {
+                setSuccessMessage('Booking created and paid from customer wallet.');
+                setStep('success');
+                return;
             }
+
+            if (path === 'mark_paid') {
+                setSuccessMessage('Booking created and marked as paid.');
+                setStep('success');
+                return;
+            }
+
+            const payment = await dispatch(initiateBookingPayment({ bookingId: booking.id })).unwrap();
+            if (!payment.checkout_url) {
+                setError('Chapa did not return a checkout URL');
+                return;
+            }
+
+            setChapaCheckoutUrl(payment.checkout_url);
             setStep('chapa');
         } catch (err: unknown) {
             const message = typeof err === 'string' ? err : 'Failed to create booking';
@@ -269,9 +353,12 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
 
         try {
             const payment = await dispatch(initiateBookingPayment({ bookingId: createdBookingId })).unwrap();
-            if (payment.checkout_url) {
-                window.open(payment.checkout_url, '_blank');
+            if (!payment.checkout_url) {
+                setError('Chapa did not return a checkout URL');
+                return;
             }
+
+            setChapaCheckoutUrl(payment.checkout_url);
         } catch (err: unknown) {
             const message = typeof err === 'string' ? err : 'Failed to reopen checkout';
             setError(message);
@@ -290,19 +377,20 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                     : 'Booking Created';
 
     return (
-        <Dialog open={open} onClose={handleClose} className="max-w-2xl">
-            <DialogHeader>
+        <Dialog open={open} onClose={handleClose} scrollable className="p-0">
+            <DialogHeader className="border-b border-border px-4 pb-3 pt-4">
                 <DialogTitle>{stepTitle}</DialogTitle>
                 <DialogDescription>
                     {step === 'details' && 'Select service and customer for the new booking.'}
-                    {step === 'payment_path' && 'Choose whether to collect payment now or let the customer pay later.'}
-                    {step === 'chapa' && 'Complete payment in the Chapa tab, then verify to confirm.'}
+                    {step === 'payment_path' && 'Choose how payment should be handled for this booking.'}
+                    {step === 'chapa' && 'Open Chapa checkout, complete payment, then verify below.'}
                     {step === 'success' && successMessage}
                 </DialogDescription>
             </DialogHeader>
 
+            <DialogBody className="px-4 py-4">
             {step === 'details' && (
-                <div className="mt-4 grid gap-4">
+                <div className="grid gap-4">
                     <SearchSelect
                         id="booking-service"
                         label="Service"
@@ -361,6 +449,50 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                     </div>
 
                     <div className="grid gap-1.5">
+                        <Label htmlFor="booking-address">Address</Label>
+                        <Input
+                            id="booking-address"
+                            value={address}
+                            onChange={(e) => setAddress(e.target.value)}
+                            placeholder="Street address"
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div className="grid gap-1.5">
+                            <Label htmlFor="booking-locality">Locality</Label>
+                            <Input
+                                id="booking-locality"
+                                value={locality}
+                                onChange={(e) => setLocality(e.target.value)}
+                                placeholder="Area or neighborhood"
+                            />
+                        </div>
+                        <div className="grid gap-1.5">
+                            <Label htmlFor="booking-landmark">Landmark (optional)</Label>
+                            <Input
+                                id="booking-landmark"
+                                value={landmark}
+                                onChange={(e) => setLandmark(e.target.value)}
+                                placeholder="Nearby landmark"
+                            />
+                        </div>
+                    </div>
+
+                    <SearchSelect
+                        id="booking-coupon"
+                        label="Coupon (optional)"
+                        value={couponId}
+                        onChange={setCouponId}
+                        options={couponOptions}
+                        placeholder="No coupon"
+                        searchPlaceholder="Search coupon code..."
+                        emptyMessage="No active coupons found"
+                        loading={couponsLoading}
+                        loadingMessage="Loading coupons..."
+                    />
+
+                    <div className="grid gap-1.5">
                         <Label htmlFor="booking-description">Description (optional)</Label>
                         <textarea
                             id="booking-description"
@@ -374,17 +506,29 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                     {priceSummary && selectedService && (
                         <div className="rounded-md border border-border bg-muted/40 p-3 text-sm">
                             <div className="flex justify-between">
-                                <span className="text-muted-foreground">Unit price</span>
-                                <span>ETB {resolveServiceUnitPrice(selectedService.price).toFixed(2)}</span>
-                            </div>
-                            <div className="flex justify-between">
-                                <span className="text-muted-foreground">Discount</span>
-                                <span>{formatServiceDiscountLabel(selectedService.discount)}</span>
-                            </div>
-                            <div className="flex justify-between">
-                                <span className="text-muted-foreground">Subtotal</span>
+                                <span className="text-muted-foreground">Unit price × qty</span>
                                 <span>ETB {priceSummary.subTotal.toFixed(2)}</span>
                             </div>
+                            {priceSummary.serviceDiscountAmount > 0 && (
+                                <div className="flex justify-between">
+                                    <span className="text-muted-foreground">
+                                        Service discount ({formatServiceDiscountLabel(selectedService.discount)})
+                                    </span>
+                                    <span>- ETB {priceSummary.serviceDiscountAmount.toFixed(2)}</span>
+                                </div>
+                            )}
+                            <div className="flex justify-between">
+                                <span className="text-muted-foreground">After service discount</span>
+                                <span>ETB {priceSummary.afterServiceDiscount.toFixed(2)}</span>
+                            </div>
+                            {priceSummary.couponAmount > 0 && selectedCoupon && (
+                                <div className="flex justify-between">
+                                    <span className="text-muted-foreground">
+                                        Coupon ({selectedCoupon.code ?? 'applied'} · {formatCouponDiscountLabel(selectedCoupon)})
+                                    </span>
+                                    <span>- ETB {priceSummary.couponAmount.toFixed(2)}</span>
+                                </div>
+                            )}
                             <div className="mt-2 flex justify-between font-semibold">
                                 <span>Total</span>
                                 <span>ETB {priceSummary.totalAmount.toFixed(2)}</span>
@@ -395,13 +539,16 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                     {selectedCustomer && (
                         <div className="rounded-md border border-border bg-muted/20 p-3 text-sm text-muted-foreground">
                             Booking for {customerLabel(selectedCustomer)}
+                            {typeof selectedCustomer.wallet_amount === 'number' && (
+                                <div className="mt-1">Wallet balance: ETB {selectedCustomer.wallet_amount.toFixed(2)}</div>
+                            )}
                         </div>
                     )}
                 </div>
             )}
 
             {step === 'payment_path' && (
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-3 sm:grid-cols-2">
                     <button
                         type="button"
                         onClick={() => setPaymentPath('pay_now')}
@@ -437,14 +584,67 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                             Create the booking now. The customer pays through the app after provider acceptance.
                         </p>
                     </button>
+
+                    <button
+                        type="button"
+                        onClick={() => setPaymentPath('wallet')}
+                        className={`rounded-xl border p-4 text-left transition-colors ${
+                            paymentPath === 'wallet'
+                                ? 'border-indigo-500 bg-indigo-50'
+                                : 'border-border hover:bg-muted/40'
+                        }`}
+                    >
+                        <div className="mb-2 flex items-center gap-2 font-semibold text-card-foreground">
+                            <Wallet className="h-5 w-5" />
+                            Pay from wallet
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                            Debit the customer wallet immediately and mark the booking as paid.
+                        </p>
+                        {walletInsufficient && (
+                            <p className="mt-2 text-sm text-red-600">Insufficient wallet balance.</p>
+                        )}
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => setPaymentPath('mark_paid')}
+                        className={`rounded-xl border p-4 text-left transition-colors ${
+                            paymentPath === 'mark_paid'
+                                ? 'border-indigo-500 bg-indigo-50'
+                                : 'border-border hover:bg-muted/40'
+                        }`}
+                    >
+                        <div className="mb-2 flex items-center gap-2 font-semibold text-card-foreground">
+                            <Banknote className="h-5 w-5" />
+                            Mark as paid
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                            Record the booking as paid by admin without processing Chapa or wallet.
+                        </p>
+                    </button>
                 </div>
             )}
 
             {step === 'chapa' && (
-                <div className="mt-4 space-y-3">
+                <div className="space-y-3">
                     <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                        Chapa checkout opened in a new tab. Complete payment there, then verify below.
+                        Booking created. Click the button below to open Chapa checkout in a new tab, complete payment, then verify.
                     </div>
+                    {chapaCheckoutUrl ? (
+                        <a
+                            href={chapaCheckoutUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-accent"
+                        >
+                            Open Chapa Checkout
+                        </a>
+                    ) : (
+                        <div className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+                            Checkout link is not available. Use refresh checkout below.
+                        </div>
+                    )}
                     <Button onClick={handleVerifyPayment} disabled={loading} className="w-full">
                         {loading ? (
                             <>
@@ -456,24 +656,25 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                         )}
                     </Button>
                     <Button variant="outline" onClick={handleReopenCheckout} disabled={loading} className="w-full">
-                        Reopen Chapa Checkout
+                        Refresh Checkout Link
                     </Button>
                 </div>
             )}
 
             {step === 'success' && (
-                <div className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+                <div className="rounded-md border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
                     {successMessage}
                 </div>
             )}
 
             {error && (
-                <div className="mt-3 rounded-md bg-red-50 p-3 text-sm text-red-600">
+                <div className="rounded-md bg-red-50 p-3 text-sm text-red-600">
                     {error}
                 </div>
             )}
+            </DialogBody>
 
-            <DialogFooter className="mt-4">
+            <DialogFooter className="border-t border-border bg-card px-4 py-3">
                 {step === 'details' && (
                     <>
                         <Button variant="ghost" onClick={handleClose} disabled={loading}>
@@ -501,7 +702,10 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                         <Button variant="ghost" onClick={() => setStep('details')} disabled={loading}>
                             Back
                         </Button>
-                        <Button onClick={() => void handleCreateBooking(paymentPath)} disabled={loading}>
+                        <Button
+                            onClick={() => void handleCreateBooking(paymentPath)}
+                            disabled={loading || walletInsufficient}
+                        >
                             {loading ? (
                                 <>
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -509,6 +713,10 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                                 </>
                             ) : paymentPath === 'pay_now' ? (
                                 'Create & Pay'
+                            ) : paymentPath === 'wallet' ? (
+                                'Create & Pay from Wallet'
+                            ) : paymentPath === 'mark_paid' ? (
+                                'Create & Mark Paid'
                             ) : (
                                 'Create Booking'
                             )}
