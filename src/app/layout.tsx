@@ -1,8 +1,14 @@
 import type { Metadata } from "next";
-import { Geist_Mono, Plus_Jakarta_Sans, Space_Grotesk } from "next/font/google";
+import { Geist_Mono, Inter, Plus_Jakarta_Sans, Space_Grotesk } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 import Providers from "./providers";
+
+const inter = Inter({
+  variable: "--font-inter",
+  subsets: ["latin"],
+  display: "swap",
+});
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   variable: "--font-plus-jakarta",
@@ -99,9 +105,17 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${plusJakartaSans.variable} ${spaceGrotesk.variable} ${geistMono.variable}`}
+      className={`${inter.variable} ${plusJakartaSans.variable} ${spaceGrotesk.variable} ${geistMono.variable}`}
     >
-      <body className={`${plusJakartaSans.className} antialiased`}>
+      <body className="font-sans antialiased">
+        <Script id="theme-init" strategy="beforeInteractive">
+          {`(function () {
+  try {
+    var theme = localStorage.getItem("theme");
+    document.documentElement.classList.toggle("dark", theme === "dark");
+  } catch (e) {}
+})();`}
+        </Script>
         <Script id="theme-favicon" strategy="beforeInteractive">
           {`(function () {
   var lightIcon = "/logo.png?v=5";

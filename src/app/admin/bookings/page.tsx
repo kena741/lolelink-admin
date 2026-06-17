@@ -4,9 +4,10 @@ import Image from "next/image";
 import Sidebar from "../../../components/Sidebar";
 import { useAppDispatch, useAppSelector } from "../../../store/hooks";
 import { fetchAllBookings, fetchBookingById, clearSingle } from "../../../features/bookedService/bookedServiceSlice";
-import { CalendarCheck2, Plus, RefreshCw, Search } from "lucide-react";
+import { Plus, RefreshCw, Search } from "lucide-react";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import AuthGuard from "@/components/AuthGuard";
+import AdminPageHeader, { adminHeaderButtonClassName } from "@/components/AdminPageHeader";
 import { formatServiceDiscountLabel } from "@/lib/service-discount";
 import { formatStatusLabel } from "@/lib/utils";
 import { CreateBookingModal } from "./CreateBookingModal";
@@ -149,52 +150,34 @@ const BookingsPage = () => {
 
     return (
         <AuthGuard>
-            <div className="flex min-h-screen bg-background">
+            <div className="flex min-h-screen">
                 <Sidebar />
                 <main className="ml-64 w-full min-h-screen">
-                    {/* Futuristic Header */}
-                    <div className="relative isolate overflow-hidden bg-primary transition-colors dark:!bg-sidebar dark:border-b dark:border-sidebar-border">
-                        
-                        <div className="relative mx-auto max-w-7xl px-6 py-12 sm:py-16 lg:px-8">
-                            <div className="flex items-center justify-between gap-6">
-                                <div>
-                                    <div className="flex items-center gap-3 mb-2">
-                                        <div className="rounded-lg bg-card/15 p-2 backdrop-blur-sm">
-                                            <CalendarCheck2 className="h-6 w-6 text-primary-foreground" />
-                                        </div>
-                                        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-primary-foreground drop-shadow-lg">
-                                            Bookings
-                                        </h1>
-                                    </div>
-                                    <p className="text-primary-foreground/90 text-base font-medium">
-                                        All booked services from customers across providers
-                                    </p>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <div className="rounded-xl border border-primary-foreground/15 bg-card/15 px-4 py-2 backdrop-blur-md">
-                                        <div className="text-sm text-primary-foreground/80">Total Bookings</div>
-                                        <div className="text-2xl font-bold text-primary-foreground">{items.length}</div>
-                                    </div>
+                    <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+                        <AdminPageHeader
+                            title="Bookings"
+                            description="All booked services from customers across providers"
+                            actions={
+                                <>
                                     <button
+                                        type="button"
                                         onClick={() => setCreateOpen(true)}
-                                        className="group inline-flex items-center gap-2 rounded-xl bg-card px-4 py-3 text-sm font-semibold text-primary shadow-lg ring-2 ring-primary-foreground/20 hover:bg-card/90 transition-all duration-300"
+                                        className={adminHeaderButtonClassName()}
                                     >
                                         <Plus className="h-4 w-4" />
                                         Create booking
                                     </button>
                                     <button
+                                        type="button"
                                         onClick={onRefresh}
-                                        className="group inline-flex items-center gap-2 rounded-xl bg-card/15 backdrop-blur-md px-4 py-3 text-sm font-semibold text-primary-foreground ring-2 ring-primary-foreground/20 hover:bg-card/25 hover:ring-primary-foreground/35 transition-all duration-300 hover:scale-105"
+                                        className={adminHeaderButtonClassName()}
                                     >
-                                        <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : 'group-hover:rotate-180'} transition-transform duration-500`} />
+                                        <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                                         Refresh
                                     </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+                                </>
+                            }
+                        />
                         {/* Toolbar */}
                         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div className="w-full sm:w-96">

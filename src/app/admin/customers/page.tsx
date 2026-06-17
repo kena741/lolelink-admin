@@ -14,6 +14,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import AuthGuard from '@/components/AuthGuard';
+import AdminPageHeader from '@/components/AdminPageHeader';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
 
@@ -154,34 +155,14 @@ export default function CustomersPage() {
 
     return (
         <AuthGuard>
-            <div className="flex min-h-screen bg-background">
+            <div className="flex min-h-screen">
                 <Sidebar />
                 <main className="ml-64 w-full min-h-screen">
-                    <div className="relative isolate overflow-hidden bg-primary transition-colors dark:!bg-sidebar dark:border-b dark:border-sidebar-border">
-                        <div className="relative mx-auto max-w-7xl px-6 py-12 sm:py-16 lg:px-8">
-                            <div className="flex items-center justify-between gap-6">
-                                <div>
-                                    <div className="flex items-center gap-3 mb-2">
-                                        <div className="rounded-lg bg-card/15 p-2 backdrop-blur-sm">
-                                            <Users className="h-6 w-6 text-primary-foreground" />
-                                        </div>
-                                        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-primary-foreground drop-shadow-lg">
-                                            Customers
-                                        </h1>
-                                    </div>
-                                    <p className="text-primary-foreground/90 text-base font-medium">
-                                        Directory of customers and their recent activity
-                                    </p>
-                                </div>
-                                <div className="rounded-xl border border-primary-foreground/15 bg-card/15 px-4 py-2 backdrop-blur-md">
-                                    <div className="text-sm text-primary-foreground/80">Total Customers</div>
-                                    <div className="text-2xl font-bold text-primary-foreground">{customers.length}</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
                     <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+                        <AdminPageHeader
+                            title="Customers"
+                            description="Directory of customers and their recent activity"
+                        />
                         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div className="w-full sm:w-96">
                                 <div className="relative">

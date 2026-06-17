@@ -15,6 +15,10 @@ export interface WalletMetricsSummary {
     totalNetFlowAdjusted: number;
     totalTopUpGross: number;
     totalTopUpAdjusted: number;
+    totalActivationFeeGross: number;
+    totalActivationFeeAdjusted: number;
+    totalCustomerTopUpGross: number;
+    totalCustomerTopUpAdjusted: number;
 }
 
 function normalizeType(type: string | null | undefined): string {
@@ -113,6 +117,40 @@ export function sumTopUpCredits(
     }, 0);
 }
 
+export function sumActivationCredits(
+    rows: WalletTransactionMetricRow[],
+    options?: { adjusted?: boolean }
+): number {
+    const providerActivationUserIds = options?.adjusted
+        ? buildUserIdsWithProviderActivation(rows)
+        : new Set<string>();
+
+    return rows.reduce((sum, row) => {
+        if (!isActivationCredit(row)) return sum;
+        if (options?.adjusted && shouldExcludeFromAdjustedCredit(row, providerActivationUserIds)) {
+            return sum;
+        }
+        return sum + parseWalletAmount(row.amount);
+    }, 0);
+}
+
+export function sumCustomerTopUpCredits(
+    rows: WalletTransactionMetricRow[],
+    options?: { adjusted?: boolean }
+): number {
+    const providerActivationUserIds = options?.adjusted
+        ? buildUserIdsWithProviderActivation(rows)
+        : new Set<string>();
+
+    return rows.reduce((sum, row) => {
+        if (!isCustomerTopUpCredit(row)) return sum;
+        if (options?.adjusted && shouldExcludeFromAdjustedCredit(row, providerActivationUserIds)) {
+            return sum;
+        }
+        return sum + parseWalletAmount(row.amount);
+    }, 0);
+}
+
 export function sumNetFlow(
     rows: WalletTransactionMetricRow[],
     options?: { adjusted?: boolean }
@@ -141,6 +179,10 @@ export function computeWalletMetrics(rows: WalletTransactionMetricRow[]): Wallet
         totalNetFlowAdjusted: sumNetFlow(rows, { adjusted: true }),
         totalTopUpGross: sumTopUpCredits(rows),
         totalTopUpAdjusted: sumTopUpCredits(rows, { adjusted: true }),
+        totalActivationFeeGross: sumActivationCredits(rows),
+        totalActivationFeeAdjusted: sumActivationCredits(rows, { adjusted: true }),
+        totalCustomerTopUpGross: sumCustomerTopUpCredits(rows),
+        totalCustomerTopUpAdjusted: sumCustomerTopUpCredits(rows, { adjusted: true }),
     };
 }
 

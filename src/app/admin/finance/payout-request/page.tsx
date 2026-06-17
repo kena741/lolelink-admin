@@ -3,6 +3,7 @@ import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import Sidebar from '@/components/Sidebar';
 import AuthGuard from '@/components/AuthGuard';
+import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import { 
     DollarSign, 
     CheckCircle2, 
@@ -244,58 +245,35 @@ function PayoutRequestPageContent() {
 
     return (
         <AuthGuard>
-            <div className="flex min-h-screen bg-gradient-to-br from-gray-50 via-indigo-50/30 to-purple-50/30">
+            <div className="flex min-h-screen">
                 <Sidebar />
                 <main className="ml-64 w-full min-h-screen">
-                    {/* Futuristic Header */}
-                    <div className="relative isolate overflow-hidden bg-primary transition-colors dark:!bg-sidebar dark:border-b dark:border-sidebar-border">
-                        <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600 opacity-90" />
-                        <div className="absolute top-0 left-1/4 w-72 h-72 bg-purple-500/30 rounded-full blur-3xl animate-pulse" />
-                        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-fuchsia-500/30 rounded-full blur-3xl animate-pulse delay-1000" />
-                        
-                        <div className="relative mx-auto max-w-7xl px-6 py-12 sm:py-16 lg:px-8">
-                            <div className="flex items-center justify-between gap-6">
-                                <div>
-                                    <div className="flex items-center gap-3 mb-2">
-                                        <Link 
-                                            href="/admin/dashboard"
-                                            className="p-2 bg-white/20 rounded-lg backdrop-blur-sm hover:bg-white/30 transition-colors"
-                                        >
-                                            <ArrowLeft className="h-5 w-5 text-white" />
-                                        </Link>
-                                        <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                                            <DollarSign className="h-6 w-6 text-white" />
-                                        </div>
-                                        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white drop-shadow-lg">
-                                            Payout Request
-                                        </h1>
-                                    </div>
-                                    <div className="flex items-center gap-2 text-white/90 text-sm">
-                                        <Link href="/admin/dashboard" className="hover:text-white transition-colors">
-                                            Dashboard
-                                        </Link>
-                                        <span>/</span>
-                                        <span className="text-white font-semibold">Payout Request</span>
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={() => dispatch(fetchPayoutRequests())}
-                                    className="group inline-flex items-center gap-2 rounded-xl bg-white/10 backdrop-blur-md px-4 py-3 text-sm font-semibold text-white ring-2 ring-white/20 hover:bg-white/20 hover:ring-white/40 transition-all duration-300 hover:scale-105"
-                                >
-                                    <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : 'group-hover:rotate-180'} transition-transform duration-500`} />
-                                    Refresh
-                                </button>
-                                <Link
-                                    href={exportAuditHref}
-                                    className="inline-flex items-center gap-2 rounded-xl bg-white/10 backdrop-blur-md px-4 py-3 text-sm font-semibold text-white ring-2 ring-white/20 hover:bg-white/20 hover:ring-white/40 transition-all duration-300 hover:scale-105"
-                                >
-                                    Export Audit CSV
-                                </Link>
-                            </div>
-                        </div>
-                    </div>
-
                     <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+                        <AdminPageHeader
+                            title="Payout Request"
+                            breadcrumbs={[
+                                { label: 'Dashboard', href: '/admin/dashboard' },
+                                { label: 'Payout Request' },
+                            ]}
+                            actions={
+                                <>
+                                    <button
+                                        type="button"
+                                        onClick={() => dispatch(fetchPayoutRequests())}
+                                        className={adminHeaderButtonClassName()}
+                                    >
+                                        <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                                        Refresh
+                                    </button>
+                                    <Link
+                                        href={exportAuditHref}
+                                        className={adminHeaderButtonClassName()}
+                                    >
+                                        Export Audit CSV
+                                    </Link>
+                                </>
+                            }
+                        />
                         {segmentLabel && (
                             <div className="mb-4 flex items-center justify-between rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3">
                                 <p className="text-sm font-semibold text-indigo-700">Active segment: {segmentLabel}</p>

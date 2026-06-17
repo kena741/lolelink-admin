@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import AuthGuard from '@/components/AuthGuard';
+import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { createAdmin, deleteAdmin, fetchAdmins, updateAdmin } from '@/features/admin/adminSlice';
 import { fetchAdminRoles } from '@/features/admin/adminRoleSlice';
@@ -239,53 +240,37 @@ function AdminsPage() {
 
     return (
         <AuthGuard>
-            <div className="flex min-h-screen bg-background">
+            <div className="flex min-h-screen">
                 <Sidebar />
                 <main className="ml-64 w-full min-h-screen">
-                    <div className="relative isolate overflow-hidden bg-primary transition-colors dark:!bg-sidebar dark:border-b dark:border-sidebar-border">
-                        <div className="relative mx-auto max-w-7xl px-6 py-12 sm:py-16 lg:px-8">
-                            <div className="flex items-center justify-between gap-6">
-                                <div>
-                                    <div className="mb-2 flex items-center gap-3">
-                                        <div className="rounded-lg bg-card/15 p-2 backdrop-blur-sm">
-                                            <UserCog className="h-6 w-6 text-primary-foreground" />
-                                        </div>
-                                        <h1 className="text-3xl font-bold tracking-tight text-primary-foreground drop-shadow-lg sm:text-4xl">
-                                            Admin Management
-                                        </h1>
-                                    </div>
-                                    <p className="text-base font-medium text-primary-foreground/90">
-                                        Create admin accounts and assign roles
-                                    </p>
-                                </div>
-                                <div className="flex flex-wrap items-center justify-end gap-3">
-                                    <div className="rounded-xl border border-primary-foreground/15 bg-card/15 px-4 py-2 backdrop-blur-md">
-                                        <div className="text-sm text-primary-foreground/80">Total Admins</div>
-                                        <div className="text-2xl font-bold text-primary-foreground">{stats.total}</div>
-                                    </div>
+                    <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+                        <AdminPageHeader
+                            title="Admin Management"
+                            description="Create admin accounts and assign roles"
+                            actions={
+                                <>
                                     <button
+                                        type="button"
                                         onClick={() => {
                                             dispatch(fetchAdmins());
                                             dispatch(fetchAdminRoles());
                                         }}
-                                        className="group inline-flex items-center gap-2 rounded-xl bg-card/15 px-4 py-3 text-sm font-semibold text-primary-foreground ring-2 ring-primary-foreground/20 transition-all hover:bg-card/25"
+                                        className={adminHeaderButtonClassName()}
                                     >
-                                        <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : 'group-hover:rotate-180'} transition-transform duration-500`} />
+                                        <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                                         Refresh
                                     </button>
                                     <button
+                                        type="button"
                                         onClick={openCreateModal}
-                                        className="inline-flex items-center gap-2 rounded-xl bg-card/20 px-4 py-3 text-sm font-semibold text-primary-foreground ring-2 ring-primary-foreground/25 transition-all hover:bg-card/30"
+                                        className={adminHeaderButtonClassName()}
                                     >
                                         <Plus className="h-4 w-4" />
                                         Add Admin
                                     </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+                                </>
+                            }
+                        />
                         <section className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-3">
                             <div className="rounded-2xl border border-white/20 bg-white/80 p-6 shadow-xl backdrop-blur-xl">
                                 <div className="mb-4 inline-flex rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 p-3 shadow-lg">

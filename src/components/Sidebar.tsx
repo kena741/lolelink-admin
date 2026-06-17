@@ -32,7 +32,20 @@ import {
 } from 'lucide-react';
 import { getSupabase } from '@/lib/supabaseClient';
 import { SupabaseEnvSwitcher, SupabaseStagingBanner } from '@/components/SupabaseEnvSwitcher';
+import { cn } from '@/lib/utils';
 import Image from 'next/image';
+
+function navClass(active: boolean) {
+    return active
+        ? 'bg-primary/10 text-primary font-medium'
+        : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground';
+}
+
+function iconClass(active: boolean) {
+    return active
+        ? 'text-primary'
+        : 'text-text-hint group-hover:text-muted-foreground';
+}
 
 // Provider Management Section
 const providerManagementSubItems = [
@@ -77,7 +90,7 @@ const financeSubItems = [
 
 const Sidebar = () => {
     const pathname = usePathname();
-    const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+    const [theme, setTheme] = useState<'light' | 'dark'>('light');
     
     // Category sub-section (still collapsible)
     const isCategoryActive = pathname?.startsWith('/admin/categories') || pathname?.startsWith('/admin/subcategories');
@@ -103,61 +116,58 @@ const Sidebar = () => {
         const savedTheme = localStorage.getItem('theme');
         const initialTheme = savedTheme === 'light' || savedTheme === 'dark'
             ? savedTheme
-            : 'dark';
+            : 'light';
         document.documentElement.classList.toggle('dark', initialTheme === 'dark');
         setTheme(initialTheme);
     }, []);
 
     const toggleTheme = () => {
-        const nextTheme = theme === 'dark' ? 'light' : 'dark';
-        setTheme(nextTheme);
-        document.documentElement.classList.toggle('dark', nextTheme === 'dark');
-        localStorage.setItem('theme', nextTheme);
+        setTheme((prev) => {
+            const nextTheme = prev === 'dark' ? 'light' : 'dark';
+            document.documentElement.classList.toggle('dark', nextTheme === 'dark');
+            localStorage.setItem('theme', nextTheme);
+            return nextTheme;
+        });
     };
 
     return (
-        <aside className="fixed left-0 top-0 z-40 flex h-screen w-64 flex-col border-r border-sidebar-border bg-sidebar/95 text-sidebar-foreground backdrop-blur supports-[backdrop-filter]:bg-sidebar/90">
-            {/* Scrollable content */}
-            <div className="flex-1 overflow-y-auto">
-                {/* Brand */}
-                <div className="flex items-center gap-2 ">
-                    <Image
-                        src="/logo.png"
-                        alt="Zemen Service logo"
-                        width={56}
-                        height={56}
-                        className="h-14 w-14 rounded-lg object-contain"
-                        priority
-                    />
-                    <span className="text-base font-semibold text-sidebar-foreground">Zemen Service Admin</span>
-                </div>
-                <SupabaseStagingBanner />
-                <div className="px-6">
-                    <div className="h-px w-full bg-gradient-to-r from-transparent via-sidebar-border to-transparent" />
-                </div>
+        <aside className="admin-shell fixed left-0 top-0 z-40 flex h-screen w-64 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
+            <div className="flex h-16 shrink-0 items-center gap-3 border-b border-sidebar-border px-5">
+                <Image
+                    src="/logo.png"
+                    alt="Zemen Service logo"
+                    width={32}
+                    height={32}
+                    className="h-8 w-8 rounded-[var(--radius)] object-contain"
+                    priority
+                />
+                <span className="font-heading text-[15px] font-semibold tracking-normal text-sidebar-foreground">
+                    Zemen Service
+                </span>
+            </div>
 
-                {/* Nav */}
-                <nav className="mt-4 px-3 pb-6">
-                    <ul className="space-y-1">
+            <div className="flex-1 overflow-y-auto px-3 py-4">
+                <SupabaseStagingBanner />
+                <nav>
+                    <ul className="space-y-0.5">
                         {/* Dashboard */}
                         <li>
                             <Link
                                 href="/admin/dashboard"
-                                className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                                    pathname === '/admin/dashboard'
-                                        ? 'bg-sidebar-primary text-sidebar-primary-foreground ring-1 ring-inset ring-sidebar-ring/40'
-                                        : 'text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent'
-                                }`}
+                                className={cn(
+                                    'group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors',
+                                    navClass(pathname === '/admin/dashboard'),
+                                )}
                             >
-                                <LayoutDashboard className={`h-4 w-4 ${pathname === '/admin/dashboard' ? 'text-sidebar-primary-foreground' : 'text-muted-foreground group-hover:text-sidebar-foreground'}`} />
+                                <LayoutDashboard className={cn('h-4 w-4', iconClass(pathname === '/admin/dashboard'))} />
                                 <span>Dashboard</span>
                             </Link>
                         </li>
 
                         {/* Works Section */}
-                        <li className="pt-2">
+                        <li className="pt-5">
                             <div className="px-3 py-1 mb-1">
-                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Works</p>
+                                <p className="text-[11px] font-semibold uppercase tracking-wider text-text-hint">Works</p>
                             </div>
                             <ul className="space-y-1">
                                 {worksSubItems.map(({ href, label, icon: Icon }) => {
@@ -166,13 +176,13 @@ const Sidebar = () => {
                                         <li key={href}>
                                             <Link
                                                 href={href}
-                                                className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                                                className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                                     active
-                                                        ? 'bg-sidebar-primary text-sidebar-primary-foreground ring-1 ring-inset ring-sidebar-ring/40'
-                                                        : 'text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent'
+                                                        ? 'bg-primary/10 text-primary font-medium'
+                                                        : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
                                                 }`}
                                             >
-                                                <Icon className={`h-4 w-4 ${active ? 'text-sidebar-primary-foreground' : 'text-muted-foreground group-hover:text-sidebar-foreground'}`} />
+                                                <Icon className={`h-4 w-4 ${active ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
                                                 <span>{label}</span>
                                             </Link>
                                         </li>
@@ -182,9 +192,9 @@ const Sidebar = () => {
                         </li>
 
                         {/* Customers Section */}
-                        <li className="pt-2">
+                        <li className="pt-5">
                             <div className="px-3 py-1 mb-1">
-                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Customers</p>
+                                <p className="text-[11px] font-semibold uppercase tracking-wider text-text-hint">Customers</p>
                             </div>
                             <ul className="space-y-1">
                                 {customersSubItems.map(({ href, label, icon: Icon }) => {
@@ -195,13 +205,13 @@ const Sidebar = () => {
                                         <li key={href}>
                                             <Link
                                                 href={href}
-                                                className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                                                className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                                     active
-                                                        ? 'bg-sidebar-primary text-sidebar-primary-foreground ring-1 ring-inset ring-sidebar-ring/40'
-                                                        : 'text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent'
+                                                        ? 'bg-primary/10 text-primary font-medium'
+                                                        : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
                                                 }`}
                                             >
-                                                <Icon className={`h-4 w-4 ${active ? 'text-sidebar-primary-foreground' : 'text-muted-foreground group-hover:text-sidebar-foreground'}`} />
+                                                <Icon className={`h-4 w-4 ${active ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
                                                 <span>{label}</span>
                                             </Link>
                                         </li>
@@ -211,9 +221,9 @@ const Sidebar = () => {
                         </li>
 
                         {/* Provider Management Section */}
-                        <li className="pt-2">
+                        <li className="pt-5">
                             <div className="px-3 py-1 mb-1">
-                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Provider Management</p>
+                                <p className="text-[11px] font-semibold uppercase tracking-wider text-text-hint">Provider Management</p>
                             </div>
                             <ul className="space-y-1">
                                 {providerManagementSubItems.map(({ href, label, icon: Icon }) => {
@@ -222,13 +232,13 @@ const Sidebar = () => {
                                         <li key={href}>
                                             <Link
                                                 href={href}
-                                                className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                                                className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                                     active
-                                                        ? 'bg-sidebar-primary text-sidebar-primary-foreground ring-1 ring-inset ring-sidebar-ring/40'
-                                                        : 'text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent'
+                                                        ? 'bg-primary/10 text-primary font-medium'
+                                                        : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
                                                 }`}
                                             >
-                                                <Icon className={`h-4 w-4 ${active ? 'text-sidebar-primary-foreground' : 'text-muted-foreground group-hover:text-sidebar-foreground'}`} />
+                                                <Icon className={`h-4 w-4 ${active ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
                                                 <span>{label}</span>
                                             </Link>
                                         </li>
@@ -238,9 +248,9 @@ const Sidebar = () => {
                         </li>
 
                         {/* Service Management Section */}
-                        <li className="pt-2">
+                        <li className="pt-5">
                             <div className="px-3 py-1 mb-1">
-                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Service Management</p>
+                                <p className="text-[11px] font-semibold uppercase tracking-wider text-text-hint">Service Management</p>
                             </div>
                             <ul className="space-y-1">
                                 {serviceManagementSubItems.map(({ href, label, icon: Icon, isCategory }) => {
@@ -250,37 +260,37 @@ const Sidebar = () => {
                                             <li key="categories">
                                                 <button
                                                     onClick={() => setIsCategoryOpen(!isCategoryOpen)}
-                                                    className={`group w-full flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                                                    className={`group w-full flex items-center justify-between gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                                         isCategoryActive
-                                                            ? 'bg-sidebar-primary text-sidebar-primary-foreground ring-1 ring-inset ring-sidebar-ring/40'
-                                                            : 'text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent'
+                                                            ? 'bg-primary/10 text-primary font-medium'
+                                                            : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
                                                     }`}
                                                 >
                                                     <div className="flex items-center gap-3">
-                                                        <Icon className={`h-4 w-4 ${isCategoryActive ? 'text-sidebar-primary-foreground' : 'text-muted-foreground group-hover:text-sidebar-foreground'}`} />
+                                                        <Icon className={`h-4 w-4 ${isCategoryActive ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
                                                         <span>{label}</span>
                                                     </div>
                                                     {isCategoryOpen ? (
-                                                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                                        <ChevronDown className="h-4 w-4 text-text-hint" />
                                                     ) : (
-                                                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                                        <ChevronRight className="h-4 w-4 text-text-hint" />
                                                     )}
                                                 </button>
                                                 {isCategoryOpen && (
-                                                    <ul className="mt-1 ml-7 space-y-1">
+                                                    <ul className="ml-4 mt-0.5 space-y-0.5 border-l border-sidebar-border pl-3">
                                                         {categorySubItems.map(({ href: catHref, label: catLabel, icon: CatIcon }) => {
                                                             const active = pathname === catHref || (catHref === '/admin/categories' && pathname?.startsWith('/admin/categories/'));
                                                             return (
                                                                 <li key={catHref}>
                                                                     <Link
                                                                         href={catHref}
-                                                                        className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                                                                        className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                                                             active
-                                                                                ? 'bg-sidebar-primary text-sidebar-primary-foreground ring-1 ring-inset ring-sidebar-ring/40'
-                                                                                : 'text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent'
+                                                                                ? 'bg-primary/10 text-primary font-medium'
+                                                                                : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
                                                                         }`}
                                                                     >
-                                                                        <CatIcon className={`h-3.5 w-3.5 ${active ? 'text-sidebar-primary-foreground' : 'text-muted-foreground group-hover:text-sidebar-foreground'}`} />
+                                                                        <CatIcon className={`h-3.5 w-3.5 ${active ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
                                                                         <span>{catLabel}</span>
                                                                     </Link>
                                                                 </li>
@@ -299,13 +309,13 @@ const Sidebar = () => {
                                         <li key={href}>
                                             <Link
                                                 href={href}
-                                                className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                                                className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                                     active
-                                                        ? 'bg-sidebar-primary text-sidebar-primary-foreground ring-1 ring-inset ring-sidebar-ring/40'
-                                                        : 'text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent'
+                                                        ? 'bg-primary/10 text-primary font-medium'
+                                                        : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
                                                 }`}
                                             >
-                                                <Icon className={`h-4 w-4 ${active ? 'text-sidebar-primary-foreground' : 'text-muted-foreground group-hover:text-sidebar-foreground'}`} />
+                                                <Icon className={`h-4 w-4 ${active ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
                                                 <span>{label}</span>
                                             </Link>
                                         </li>
@@ -315,46 +325,46 @@ const Sidebar = () => {
                         </li>
 
                         {/* System Management Section */}
-                        <li className="pt-2">
+                        <li className="pt-5">
                             <div className="px-3 py-1 mb-1">
-                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">System Management</p>
+                                <p className="text-[11px] font-semibold uppercase tracking-wider text-text-hint">System Management</p>
                             </div>
                             <ul className="space-y-1">
                                 {/* Finance Sub-section (still collapsible) */}
                                 <li>
                                     <button
                                         onClick={() => setIsFinanceOpen(!isFinanceOpen)}
-                                        className={`group w-full flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                                        className={`group w-full flex items-center justify-between gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                             isFinanceActive
-                                                ? 'bg-sidebar-primary text-sidebar-primary-foreground ring-1 ring-inset ring-sidebar-ring/40'
-                                                : 'text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent'
+                                                ? 'bg-primary/10 text-primary font-medium'
+                                                            : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
                                         }`}
                                     >
                                         <div className="flex items-center gap-3">
-                                            <DollarSign className={`h-4 w-4 ${isFinanceActive ? 'text-sidebar-primary-foreground' : 'text-muted-foreground group-hover:text-sidebar-foreground'}`} />
+                                            <DollarSign className={`h-4 w-4 ${isFinanceActive ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
                                             <span>Finance</span>
                                         </div>
                                         {isFinanceOpen ? (
-                                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                            <ChevronDown className="h-4 w-4 text-text-hint" />
                                         ) : (
-                                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                            <ChevronRight className="h-4 w-4 text-text-hint" />
                                         )}
                                     </button>
                                     {isFinanceOpen && (
-                                        <ul className="mt-1 ml-7 space-y-1">
+                                        <ul className="ml-4 mt-0.5 space-y-0.5 border-l border-sidebar-border pl-3">
                                             {financeSubItems.map(({ href, label, icon: Icon }) => {
                                                 const active = pathname === href;
                                                 return (
                                                     <li key={href}>
                                                         <Link
                                                             href={href}
-                                                            className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                                                            className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                                                 active
-                                                                    ? 'bg-sidebar-primary text-sidebar-primary-foreground ring-1 ring-inset ring-sidebar-ring/40'
-                                                                    : 'text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent'
+                                                                    ? 'bg-primary/10 text-primary font-medium'
+                                                                    : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
                                                             }`}
                                                         >
-                                                            <Icon className={`h-3.5 w-3.5 ${active ? 'text-sidebar-primary-foreground' : 'text-muted-foreground group-hover:text-sidebar-foreground'}`} />
+                                                            <Icon className={`h-3.5 w-3.5 ${active ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
                                                             <span>{label}</span>
                                                         </Link>
                                                     </li>
@@ -368,65 +378,65 @@ const Sidebar = () => {
                                 <li>
                                     <Link
                                         href="/admin/settings"
-                                        className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                                        className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                             pathname?.startsWith('/admin/settings')
-                                                ? 'bg-sidebar-primary text-sidebar-primary-foreground ring-1 ring-inset ring-sidebar-ring/40'
-                                                : 'text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent'
+                                                ? 'bg-primary/10 text-primary font-medium'
+                                                            : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
                                         }`}
                                     >
-                                        <Settings className={`h-4 w-4 ${pathname?.startsWith('/admin/settings') ? 'text-sidebar-primary-foreground' : 'text-muted-foreground group-hover:text-sidebar-foreground'}`} />
+                                        <Settings className={`h-4 w-4 ${pathname?.startsWith('/admin/settings') ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
                                         <span>Global Settings</span>
                                     </Link>
                                 </li>
                                 <li>
                                     <Link
                                         href="/admin/admins"
-                                        className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                                        className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                             pathname?.startsWith('/admin/admins')
-                                                ? 'bg-sidebar-primary text-sidebar-primary-foreground ring-1 ring-inset ring-sidebar-ring/40'
-                                                : 'text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent'
+                                                ? 'bg-primary/10 text-primary font-medium'
+                                                            : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
                                         }`}
                                     >
-                                        <UserCog className={`h-4 w-4 ${pathname?.startsWith('/admin/admins') ? 'text-sidebar-primary-foreground' : 'text-muted-foreground group-hover:text-sidebar-foreground'}`} />
+                                        <UserCog className={`h-4 w-4 ${pathname?.startsWith('/admin/admins') ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
                                         <span>Admins</span>
                                     </Link>
                                 </li>
                                 <li>
                                     <Link
                                         href="/admin/activity-logs"
-                                        className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                                        className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                             pathname?.startsWith('/admin/activity-logs')
-                                                ? 'bg-sidebar-primary text-sidebar-primary-foreground ring-1 ring-inset ring-sidebar-ring/40'
-                                                : 'text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent'
+                                                ? 'bg-primary/10 text-primary font-medium'
+                                                            : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
                                         }`}
                                     >
-                                        <Activity className={`h-4 w-4 ${pathname?.startsWith('/admin/activity-logs') ? 'text-sidebar-primary-foreground' : 'text-muted-foreground group-hover:text-sidebar-foreground'}`} />
+                                        <Activity className={`h-4 w-4 ${pathname?.startsWith('/admin/activity-logs') ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
                                         <span>Activity Logs</span>
                                     </Link>
                                 </li>
                                 <li>
                                     <Link
                                         href="/admin/roles"
-                                        className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                                        className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                             pathname?.startsWith('/admin/roles')
-                                                ? 'bg-sidebar-primary text-sidebar-primary-foreground ring-1 ring-inset ring-sidebar-ring/40'
-                                                : 'text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent'
+                                                ? 'bg-primary/10 text-primary font-medium'
+                                                            : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
                                         }`}
                                     >
-                                        <Shield className={`h-4 w-4 ${pathname?.startsWith('/admin/roles') ? 'text-sidebar-primary-foreground' : 'text-muted-foreground group-hover:text-sidebar-foreground'}`} />
+                                        <Shield className={`h-4 w-4 ${pathname?.startsWith('/admin/roles') ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
                                         <span>Roles</span>
                                     </Link>
                                 </li>
                                 <li>
                                     <Link
                                         href="/admin/contact-messages"
-                                        className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                                        className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                             pathname === '/admin/contact-messages'
-                                                ? 'bg-sidebar-primary text-sidebar-primary-foreground ring-1 ring-inset ring-sidebar-ring/40'
-                                                : 'text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent'
+                                                ? 'bg-primary/10 text-primary font-medium'
+                                                            : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
                                         }`}
                                     >
-                                        <MessageSquare className={`h-4 w-4 ${pathname === '/admin/contact-messages' ? 'text-sidebar-primary-foreground' : 'text-muted-foreground group-hover:text-sidebar-foreground'}`} />
+                                        <MessageSquare className={`h-4 w-4 ${pathname === '/admin/contact-messages' ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
                                         <span>Contact Messages</span>
                                     </Link>
                                 </li>
@@ -436,24 +446,28 @@ const Sidebar = () => {
                 </nav>
             </div>
 
-            {/* Footer */}
-            <div className="mt-auto border-t border-sidebar-border px-6 py-4">
-                <SupabaseEnvSwitcher />
-                <button
-                    onClick={toggleTheme}
-                    className="mb-2 inline-flex w-full items-center justify-center gap-2 rounded-md border border-sidebar-border bg-sidebar-accent px-3 py-2 text-sm text-sidebar-accent-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground"
-                >
-                    {theme === 'dark' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
-                    {theme === 'dark' ? 'Dark mode' : 'Light mode'}
-                </button>
-                <button
-                    onClick={async () => { await getSupabase().auth.signOut(); location.href = '/login'; }}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-sidebar-border bg-sidebar-accent px-3 py-2 text-sm text-sidebar-accent-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground"
-                >
-                    <LogOut className="h-4 w-4" />
-                    Sign out
-                </button>
-                <p className="mt-3 text-center text-xs text-muted-foreground">© {new Date().getFullYear()} Zemen Service</p>
+            <div className="shrink-0 border-t border-sidebar-border px-3 py-3">
+                <SupabaseEnvSwitcher compact />
+                <div className="flex items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={toggleTheme}
+                        aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                        title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
+                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius)] border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    >
+                        {theme === 'dark' ? <Moon className="h-3.5 w-3.5" /> : <Sun className="h-3.5 w-3.5" />}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={async () => { await getSupabase().auth.signOut(); location.href = '/login'; }}
+                        className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[var(--radius)] border border-border bg-card px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    >
+                        <LogOut className="h-3.5 w-3.5" />
+                        Sign out
+                    </button>
+                </div>
+                <p className="mt-2 text-center text-[11px] text-text-hint">© {new Date().getFullYear()} Zemen Service</p>
             </div>
         </aside>
     );

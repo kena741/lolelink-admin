@@ -45,6 +45,7 @@ import {
     X,
 } from "lucide-react";
 import AuthGuard from "@/components/AuthGuard";
+import AdminPageHeader, { adminHeaderButtonClassName } from "@/components/AdminPageHeader";
 import { ActivationPaymentModal } from "@/components/ActivationPaymentModal";
 import { fetchSettings } from "@/features/settings/settingsSlice";
 import { cn } from "@/lib/utils";
@@ -385,64 +386,54 @@ const ProvidersPage = () => {
         iconBg: string;
         iconClassName?: string;
     }) => (
-        <div className="group relative flex h-full min-h-[96px] min-w-0 items-center gap-2 rounded-2xl border border-border bg-card p-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-all duration-150 hover:bg-muted/40 hover:shadow-[0_2px_8px_rgba(0,0,0,0.08)] sm:p-5">
-            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl sm:h-11 sm:w-11 ${iconBg}`}>
-                <Icon className={`h-5 w-5 ${iconClassName ?? 'text-primary'}`} />
-            </div>
-            <div className="flex min-w-0 flex-1 flex-col justify-center gap-1 pr-1">
-                <p className="text-sm font-medium leading-snug text-muted-foreground">
-                    {title}
-                </p>
-                {loading ? (
-                    <span className="inline-block h-7 w-24 animate-pulse rounded bg-muted" />
-                ) : (
-                    <p className="min-w-0 text-base font-bold leading-tight tabular-nums text-foreground lg:text-sm xl:text-base">
-                        {typeof value === 'number' ? value.toLocaleString('en-US') : value}
+        <div className="group relative min-w-0 rounded-2xl border border-border bg-card p-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-all duration-150 hover:bg-muted/40 hover:shadow-[0_2px_8px_rgba(0,0,0,0.08)] sm:p-5">
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-text-secondary">
+                        {title}
                     </p>
-                )}
+                    {loading ? (
+                        <span className="mt-1 inline-block h-7 w-24 animate-pulse rounded bg-muted" />
+                    ) : (
+                        <p
+                            className="mt-1 min-w-0 font-heading text-[clamp(1rem,1.4vw+0.55rem,1.5rem)] font-bold leading-tight tabular-nums tracking-normal text-text-primary"
+                            title={typeof value === 'number' ? value.toLocaleString('en-US') : String(value)}
+                        >
+                            {typeof value === 'number' ? value.toLocaleString('en-US') : value}
+                        </p>
+                    )}
+                </div>
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl sm:h-11 sm:w-11 ${iconBg}`}>
+                    <Icon className={`h-5 w-5 ${iconClassName ?? 'text-text-secondary'}`} />
+                </div>
             </div>
         </div>
     );
 
     return (
         <AuthGuard>
-            <div className="flex min-h-screen bg-background">
+            <div className="flex min-h-screen">
                 <Sidebar />
                 <main className="ml-64 w-full min-h-screen">
-                    {/* Futuristic Header */}
-                    <div className="relative isolate overflow-hidden border-b border-primary/20 bg-primary transition-colors dark:!bg-sidebar dark:border-sidebar-border">
-                        <div className="relative mx-auto max-w-7xl px-6 py-12 sm:py-16 lg:px-8">
-                            <div className="flex items-center justify-between gap-6">
-                                <div>
-                                    <div className="flex items-center gap-3 mb-2">
-                                        <div className="rounded-lg bg-card/15 p-2 backdrop-blur-sm">
-                                            <Briefcase className="h-6 w-6 text-primary-foreground" />
-                                        </div>
-                                        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-primary-foreground drop-shadow-lg">
-                                            Service Providers
-                                        </h1>
-                                    </div>
-                                    <p className="text-primary-foreground/90 text-base font-medium">
-                                        Manage and review all providers on the platform
-                                    </p>
-                                </div>
+                    <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+                        <AdminPageHeader
+                            title="Service Providers"
+                            description="Manage and review all providers on the platform"
+                            actions={
                                 <button
                                     type="button"
                                     onClick={() => {
                                         dispatch(fetchProviders());
                                         dispatch(fetchServiceCountsByProvider());
                                     }}
-                                    className="group inline-flex items-center gap-2 rounded-xl border border-primary-foreground/20 bg-card/15 px-4 py-3 text-sm font-semibold text-primary-foreground transition-colors duration-150 hover:bg-card/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-foreground/40 focus-visible:ring-offset-2 focus-visible:ring-offset-primary"
+                                    className={adminHeaderButtonClassName()}
                                 >
-                                    <RefreshCw className="h-4 w-4 transition-transform duration-500 group-hover:rotate-180" />
+                                    <RefreshCw className="h-4 w-4" />
                                     Refresh
                                 </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
-                        <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                            }
+                        />
+                        <section className="mb-8 grid grid-cols-1 gap-4 min-w-0 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                             <StatCard
                                 title="Providers"
                                 value={stats.totalProviders}

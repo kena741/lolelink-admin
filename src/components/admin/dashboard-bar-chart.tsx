@@ -54,7 +54,7 @@ export function DashboardBarChart({
 
     if (!hasData) {
         return (
-            <div className="flex h-[240px] items-center justify-center rounded-xl border border-dashed border-border bg-background/60 px-4 text-center text-sm text-muted-foreground">
+            <div className="flex h-[240px] items-center justify-center rounded-xl border border-dashed border-border bg-background/60 px-4 text-center text-sm text-text-secondary">
                 {emptyLabel}
             </div>
         );

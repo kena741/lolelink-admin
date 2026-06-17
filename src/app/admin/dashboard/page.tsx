@@ -6,6 +6,7 @@ import { fetchProviders, Provider, ProviderState } from '@/features/provider/pro
 import { AppDispatch } from '@/store/store';
 import Sidebar from '@/components/Sidebar';
 import AuthGuard from '@/components/AuthGuard';
+import AdminPageHeader from '@/components/AdminPageHeader';
 import { 
     Users, 
     CalendarCheck2, 
@@ -19,7 +20,6 @@ import {
     XCircle,
     Zap,
     BarChart3,
-    Sparkles,
     CircleHelp
 } from 'lucide-react';
 import Link from 'next/link';
@@ -38,6 +38,8 @@ interface AnalyticsData {
     totalCredit: number;
     totalNetFlow: number;
     totalTopUp: number;
+    totalActivationFee: number;
+    totalCustomerTopUp: number;
     monthlyRevenue: number;
     revenueChange: number;
     totalCompletedRevenueBookings: number;
@@ -340,6 +342,8 @@ function DashboardContent() {
         totalCredit: 0,
         totalNetFlow: 0,
         totalTopUp: 0,
+        totalActivationFee: 0,
+        totalCustomerTopUp: 0,
         monthlyRevenue: 0,
         revenueChange: 0,
         totalCompletedRevenueBookings: 0,
@@ -442,6 +446,8 @@ function DashboardContent() {
                 totalCredit: rangedWalletRows.length,
                 totalNetFlow: walletMetrics.totalNetFlowAdjusted,
                 totalTopUp: walletMetrics.totalTopUpAdjusted,
+                totalActivationFee: walletMetrics.totalActivationFeeAdjusted,
+                totalCustomerTopUp: walletMetrics.totalCustomerTopUpAdjusted,
                 paymentChart,
                 providerChart,
             }));
@@ -472,6 +478,8 @@ function DashboardContent() {
                 const totalCredit = rangedWalletRows.length;
                 const totalNetFlow = walletMetrics.totalNetFlowAdjusted;
                 const totalTopUp = walletMetrics.totalTopUpAdjusted;
+                const totalActivationFee = walletMetrics.totalActivationFeeAdjusted;
+                const totalCustomerTopUp = walletMetrics.totalCustomerTopUpAdjusted;
 
                 // Calculate monthly revenue (last 30 days)
                 const thirtyDaysAgo = new Date();
@@ -510,6 +518,8 @@ function DashboardContent() {
                     totalCredit,
                     totalNetFlow,
                     totalTopUp,
+                    totalActivationFee,
+                    totalCustomerTopUp,
                     monthlyRevenue,
                     revenueChange,
                     totalCompletedRevenueBookings: rangedCompletedPaidBookings.length,
@@ -658,8 +668,11 @@ function DashboardContent() {
         iconBg: string;
         href?: string;
     }) => {
+        const formattedValue =
+            typeof value === 'number' ? formatStatValue(value, isCurrency) : String(value);
+
         const content = (
-            <div className="group relative flex h-full min-h-[96px] min-w-0 items-center gap-2 rounded-2xl border border-border bg-card p-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-all duration-150 hover:bg-muted/40 hover:shadow-[0_2px_8px_rgba(0,0,0,0.08)] sm:p-5">
+            <div className="group relative flex h-full min-w-0 flex-col rounded-2xl border border-border bg-card p-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-all duration-150 hover:bg-muted/40 hover:shadow-[0_2px_8px_rgba(0,0,0,0.08)] sm:p-5">
                 {change !== undefined && (
                     <div className={`absolute right-3 top-3 flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold ${
                         change >= 0 
@@ -674,42 +687,39 @@ function DashboardContent() {
                         {Math.abs(change).toFixed(1)}%
                     </div>
                 )}
-                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl sm:h-11 sm:w-11 ${iconBg}`}>
-                    <Icon className={`h-5 w-5 ${iconClassName ?? 'text-primary'}`} />
-                </div>
-                <div className="flex min-w-0 flex-1 flex-col justify-center gap-1 pr-1">
-                    <p className="text-sm font-medium leading-snug text-muted-foreground">
+                <div className="flex items-center justify-between gap-2">
+                    <p className="min-w-0 truncate text-sm font-medium text-text-secondary">
                         {title}
                     </p>
+                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${iconBg}`}>
+                        <Icon className={`h-4 w-4 ${iconClassName ?? 'text-primary'}`} />
+                    </div>
+                </div>
+                <div className="mt-3 min-w-0 flex-1">
                     {isLoading ? (
-                        <span className="inline-block h-7 w-24 animate-pulse rounded bg-muted" />
+                        <span className="inline-block h-8 w-24 animate-pulse rounded bg-muted" />
                     ) : valueNode ? (
                         valueNode
                     ) : (
-                        <p className="min-w-0 text-base font-bold leading-tight tabular-nums text-foreground lg:text-sm xl:text-base">
-                            {typeof value === 'number'
-                                ? formatStatValue(value, isCurrency)
-                                : value}
+                        <p
+                            className="truncate font-heading text-xl font-bold tabular-nums tracking-normal text-text-primary sm:text-2xl"
+                            title={formattedValue}
+                        >
+                            {formattedValue}
                         </p>
                     )}
                     {note && (
-                        <p className="text-xs text-muted-foreground">
+                        <p className="mt-1 text-xs text-text-secondary">
                             <sup>{note}</sup>
                         </p>
                     )}
                     {bookingBreakdown && (
-                        <p className="text-sm font-semibold tabular-nums">
-                            <span className="text-primary" title="Completed">
-                                {bookingBreakdown.completed}
-                            </span>
-                            <span className="mx-2 text-muted-foreground">|</span>
-                            <span className="text-chart-3" title="In Progress">
-                                {bookingBreakdown.inProgress}
-                            </span>
-                            <span className="mx-2 text-muted-foreground">|</span>
-                            <span className="text-destructive" title="Rejected">
-                                {bookingBreakdown.rejected}
-                            </span>
+                        <p className="mt-2 flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs font-medium tabular-nums text-text-secondary">
+                            <span className="text-primary">{bookingBreakdown.completed} completed</span>
+                            <span aria-hidden="true">·</span>
+                            <span>{bookingBreakdown.inProgress} in progress</span>
+                            <span aria-hidden="true">·</span>
+                            <span>{bookingBreakdown.rejected} rejected</span>
                         </p>
                     )}
                 </div>
@@ -729,10 +739,10 @@ function DashboardContent() {
             accepted: { color: 'text-chart-3', icon: CheckCircle2, bg: 'bg-chart-3/15' },
             ongoing: { color: 'text-chart-2', icon: Activity, bg: 'bg-chart-2/15' },
             rejected: { color: 'text-destructive', icon: XCircle, bg: 'bg-destructive/10' },
-            cancelled: { color: 'text-muted-foreground', icon: XCircle, bg: 'bg-muted' },
+            cancelled: { color: 'text-text-secondary', icon: XCircle, bg: 'bg-muted' },
         };
 
-        const config = statusConfig[status] || { color: 'text-muted-foreground', icon: Activity, bg: 'bg-muted' };
+        const config = statusConfig[status] || { color: 'text-text-secondary', icon: Activity, bg: 'bg-muted' };
         const Icon = config.icon;
 
         return (
@@ -741,8 +751,8 @@ function DashboardContent() {
                     <Icon className="h-5 w-5" />
                 </div>
                 <div className="flex-1">
-                    <p className="text-sm font-medium text-muted-foreground capitalize">{status}</p>
-                    <p className="text-2xl font-bold text-foreground">{count}</p>
+                    <p className="text-sm font-medium text-text-secondary capitalize">{status}</p>
+                    <p className="font-heading text-2xl font-bold tabular-nums tracking-normal text-text-primary">{count}</p>
                 </div>
             </div>
         );
@@ -750,37 +760,24 @@ function DashboardContent() {
 
     return (
         <AuthGuard>
-            <div className="flex min-h-screen bg-background">
+            <div className="flex min-h-screen">
                 <Sidebar />
                 <main className="ml-64 w-full min-h-screen">
-                    <div className="relative isolate overflow-hidden border-b border-primary/20 bg-primary transition-colors dark:!bg-sidebar dark:border-sidebar-border">
-                        <div className="relative mx-auto max-w-7xl px-6 py-12 sm:py-16 lg:px-8">
-                            <div className="flex items-center justify-between gap-6">
-                                <div>
-                                    <div className="flex items-center gap-3 mb-2">
-                                        <div className="rounded-lg bg-card/15 p-2 backdrop-blur-sm">
-                                            <Sparkles className="h-6 w-6 text-primary-foreground" />
-                                        </div>
-                                        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-primary-foreground drop-shadow-lg">
-                                            Admin Dashboard
-                                        </h1>
-                                    </div>
-                                    <p className="text-primary-foreground/90 text-base font-medium">
-                                        Real-time insights and analytics for your platform
-                                    </p>
-                                </div>
-                                <Link 
-                                    href="/admin/providers" 
-                                    className="group inline-flex items-center gap-2 rounded-xl border border-primary-foreground/20 bg-card/15 px-4 py-3 text-sm font-semibold text-primary-foreground transition-colors duration-150 hover:bg-card/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-foreground/40 focus-visible:ring-offset-2 focus-visible:ring-offset-primary"
+                    <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+                        <AdminPageHeader
+                            title="Admin Dashboard"
+                            description="Real-time insights and analytics for your platform"
+                            actions={
+                                <Link
+                                    href="/admin/providers"
+                                    className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-text-secondary transition-colors hover:text-text-primary"
                                 >
                                     Manage Providers
-                                    <ArrowUpRight className="h-4 w-4 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+                                    <ArrowUpRight className="h-4 w-4" />
                                 </Link>
-                            </div>
-                        </div>
-                    </div>
+                            }
+                        />
 
-                    <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
                         <div className="mb-6 flex flex-wrap items-center gap-2">
                             {[
                                 { id: 'today', label: 'Today' },
@@ -791,10 +788,10 @@ function DashboardContent() {
                                 <button
                                     key={range.id}
                                     onClick={() => setDashboardRange(range.id as DashboardRange)}
-                                    className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                                    className={`rounded-full px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                                         dashboardRange === range.id
                                             ? 'bg-primary text-primary-foreground'
-                                            : 'border border-border bg-card text-foreground hover:bg-muted'
+                                            : 'border border-border bg-card text-text-primary hover:bg-muted'
                                     }`}
                                 >
                                     {range.label}
@@ -802,73 +799,66 @@ function DashboardContent() {
                             ))}
                         </div>
                         {/* Main Stats Grid */}
-                        <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
+                        <section className="mb-8 grid grid-cols-1 items-stretch gap-4 min-w-0 sm:grid-cols-2 lg:grid-cols-4">
                             <StatCard
                                 title="Transactions"
                                 value={analytics.totalCredit}
                                 icon={DollarSign}
-                                iconBg="bg-primary/15"
+                                iconBg="bg-primary/10"
                             />
                             <StatCard
-                                title="Top Up"
+                                title="Activation fee"
+                                value={analytics.totalActivationFee}
+                                isCurrency
+                                icon={DollarSign}
+                                iconBg="bg-primary/10"
+                            />
+                            <StatCard
+                                title="Customer top up"
+                                value={analytics.totalCustomerTopUp}
+                                isCurrency
+                                icon={DollarSign}
+                                iconBg="bg-primary/10"
+                            />
+                            <StatCard
+                                title="Total top up"
                                 value={analytics.totalTopUp}
                                 isCurrency
                                 icon={DollarSign}
-                                iconBg="bg-primary/15"
+                                iconBg="bg-primary/10"
+                                note="Provider + customer"
                             />
                             <StatCard
                                 title="Net Flow"
                                 value={analytics.totalNetFlow}
                                 isCurrency
                                 icon={DollarSign}
-                                iconBg="bg-primary/15"
+                                iconBg="bg-primary/10"
                             />
                             <StatCard
                                 title="Providers"
                                 value={providerCount}
                                 icon={Users}
-                                iconBg="bg-chart-2/15"
-                                iconClassName="text-chart-2"
+                                iconBg="bg-primary/10"
                                 href="/admin/providers"
                             />
                             <StatCard
                                 title="Bookings"
                                 value={bookingCount}
-                                valueNode={
-                                    <span className="inline-flex w-full min-w-0 items-baseline text-base font-bold tabular-nums lg:text-sm xl:text-base">
-                                        <span className="relative inline-flex items-center">
-                                            <span className="peer text-primary">{analytics.totalCompletedBookings}</span>
-                                            <span className="pointer-events-none absolute -top-7 left-1/2 z-20 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1 text-[10px] font-medium text-popover-foreground shadow-[0_8px_18px_rgba(0,0,0,0.12)] peer-hover:block">
-                                                Completed
-                                            </span>
-                                        </span>
-                                        <span className="mx-2 text-muted-foreground">|</span>
-                                        <span className="relative inline-flex items-center">
-                                            <span className="peer text-chart-3">{analytics.totalInProgressBookings}</span>
-                                            <span className="pointer-events-none absolute -top-7 left-1/2 z-20 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1 text-[10px] font-medium text-popover-foreground shadow-[0_8px_18px_rgba(0,0,0,0.12)] peer-hover:block">
-                                                In Progress
-                                            </span>
-                                        </span>
-                                        <span className="mx-2 text-muted-foreground">|</span>
-                                        <span className="relative inline-flex items-center">
-                                            <span className="peer text-destructive">{analytics.totalRejectedBookings}</span>
-                                            <span className="pointer-events-none absolute -top-7 left-1/2 z-20 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1 text-[10px] font-medium text-popover-foreground shadow-[0_8px_18px_rgba(0,0,0,0.12)] peer-hover:block">
-                                                Rejected
-                                            </span>
-                                        </span>
-                                    </span>
-                                }
+                                bookingBreakdown={{
+                                    completed: analytics.totalCompletedBookings,
+                                    inProgress: analytics.totalInProgressBookings,
+                                    rejected: analytics.totalRejectedBookings,
+                                }}
                                 icon={CalendarCheck2}
-                                iconBg="bg-chart-3/15"
-                                iconClassName="text-chart-3"
+                                iconBg="bg-primary/10"
                                 href="/admin/bookings"
                             />
                             <StatCard
                                 title="Customers"
                                 value={customerCount}
                                 icon={Users}
-                                iconBg="bg-chart-4/15"
-                                iconClassName="text-chart-4"
+                                iconBg="bg-primary/10"
                                 href="/admin/customers"
                             />
                         </section>
@@ -876,14 +866,14 @@ function DashboardContent() {
                         <section className="mb-8 rounded-2xl border border-border bg-card p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
                             <div className="mb-5 flex items-center justify-between">
                                 <div>
-                                    <h2 className="text-lg font-bold text-foreground">Payout Health</h2>
-                                    <p className="text-xs text-muted-foreground">
+                                    <h2 className="admin-section-title">Payout Health</h2>
+                                    <p className="admin-section-desc">
                                         Includes waiting confirmations and delivery issues in selected range.
                                     </p>
                                 </div>
                                 <Link
                                     href="/admin/finance/payout-request"
-                                    className="text-sm font-semibold text-foreground/90 underline-offset-4 hover:text-foreground hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
+                                    className="text-sm font-medium text-text-secondary underline-offset-4 hover:text-text-primary hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
                                 >
                                     Open payout requests
                                 </Link>
@@ -893,66 +883,66 @@ function DashboardContent() {
                                     href="/admin/finance/payout-request?segment=waiting_confirmation"
                                     className="group relative rounded-xl border border-border bg-background p-4 transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                                 >
-                                    <p className="flex items-center gap-1 text-xs font-semibold text-muted-foreground">
+                                    <p className="flex items-center gap-1 text-xs font-medium text-text-secondary">
                                         Waiting Confirmation
                                         <CircleHelp className="h-3.5 w-3.5" />
                                     </p>
                                     <span className="pointer-events-none absolute left-4 top-9 z-20 hidden w-[220px] rounded-md border border-border bg-popover px-2 py-1.5 text-[11px] font-medium text-popover-foreground shadow-[0_8px_18px_rgba(0,0,0,0.12)] group-hover:block">
                                         Transfer was initiated but completion confirmation has not arrived yet. Open this to verify and resolve stuck payouts.
                                     </span>
-                                    <p className="mt-2 text-2xl font-bold text-foreground">{analytics.payoutWaitingConfirmation}</p>
+                                    <p className="mt-2 font-heading text-2xl font-bold tabular-nums tracking-normal text-text-primary">{analytics.payoutWaitingConfirmation}</p>
                                 </Link>
                                 <Link
                                     href="/admin/finance/payout-request?segment=failed_rejected"
                                     className="group relative rounded-xl border border-border bg-background p-4 transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                                 >
-                                    <p className="flex items-center gap-1 text-xs font-semibold text-muted-foreground">
+                                    <p className="flex items-center gap-1 text-xs font-medium text-text-secondary">
                                         Failed / Rejected
                                         <CircleHelp className="h-3.5 w-3.5" />
                                     </p>
                                     <span className="pointer-events-none absolute left-4 top-9 z-20 hidden w-[220px] rounded-md border border-border bg-popover px-2 py-1.5 text-[11px] font-medium text-popover-foreground shadow-[0_8px_18px_rgba(0,0,0,0.12)] group-hover:block">
                                         Chapa payout failed or the request was rejected. Open this list to review reason and retry or close the case.
                                     </span>
-                                    <p className="mt-2 text-2xl font-bold text-foreground">{analytics.payoutFailedOrRejected}</p>
+                                    <p className="mt-2 font-heading text-2xl font-bold tabular-nums tracking-normal text-text-primary">{analytics.payoutFailedOrRejected}</p>
                                 </Link>
                                 <Link
                                     href="/admin/finance/payout-request?segment=missing_payment_method"
                                     className="group relative rounded-xl border border-border bg-background p-4 transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                                 >
-                                    <p className="flex items-center gap-1 text-xs font-semibold text-muted-foreground">
+                                    <p className="flex items-center gap-1 text-xs font-medium text-text-secondary">
                                         Missing Payment Method
                                         <CircleHelp className="h-3.5 w-3.5" />
                                     </p>
                                     <span className="pointer-events-none absolute left-4 top-9 z-20 hidden w-[220px] rounded-md border border-border bg-popover px-2 py-1.5 text-[11px] font-medium text-popover-foreground shadow-[0_8px_18px_rgba(0,0,0,0.12)] group-hover:block">
                                         Provider payout request exists but required bank or wallet method is incomplete or unavailable.
                                     </span>
-                                    <p className="mt-2 text-2xl font-bold text-foreground">{analytics.payoutMissingPaymentMethod}</p>
+                                    <p className="mt-2 font-heading text-2xl font-bold tabular-nums tracking-normal text-text-primary">{analytics.payoutMissingPaymentMethod}</p>
                                 </Link>
                                 <Link
                                     href="/admin/finance/payout-request?segment=completed_today"
                                     className="group relative rounded-xl border border-border bg-background p-4 transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                                 >
-                                    <p className="flex items-center gap-1 text-xs font-semibold text-muted-foreground">
+                                    <p className="flex items-center gap-1 text-xs font-medium text-text-secondary">
                                         Completed Today
                                         <CircleHelp className="h-3.5 w-3.5" />
                                     </p>
                                     <span className="pointer-events-none absolute left-4 top-9 z-20 hidden w-[220px] rounded-md border border-border bg-popover px-2 py-1.5 text-[11px] font-medium text-popover-foreground shadow-[0_8px_18px_rgba(0,0,0,0.12)] group-hover:block">
                                         Count of payouts marked completed during today in your selected dashboard range.
                                     </span>
-                                    <p className="mt-2 text-2xl font-bold text-foreground">{analytics.payoutCompletedToday}</p>
+                                    <p className="mt-2 font-heading text-2xl font-bold tabular-nums tracking-normal text-text-primary">{analytics.payoutCompletedToday}</p>
                                 </Link>
                                 <Link
                                     href="/admin/finance/payout-request?segment=failed_rejected"
                                     className="group relative rounded-xl border border-border bg-background p-4 transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                                 >
-                                    <p className="flex items-center gap-1 text-xs font-semibold text-muted-foreground">
+                                    <p className="flex items-center gap-1 text-xs font-medium text-text-secondary">
                                         Integration Issues
                                         <CircleHelp className="h-3.5 w-3.5" />
                                     </p>
                                     <span className="pointer-events-none absolute left-4 top-9 z-20 hidden w-[220px] rounded-md border border-border bg-popover px-2 py-1.5 text-[11px] font-medium text-popover-foreground shadow-[0_8px_18px_rgba(0,0,0,0.12)] group-hover:block">
                                         Transfer records with webhook or verification problems requiring manual payout investigation.
                                     </span>
-                                    <p className="mt-2 text-2xl font-bold text-foreground">{analytics.payoutIntegrationIssues}</p>
+                                    <p className="mt-2 font-heading text-2xl font-bold tabular-nums tracking-normal text-text-primary">{analytics.payoutIntegrationIssues}</p>
                                 </Link>
                             </div>
                         </section>
@@ -963,18 +953,18 @@ function DashboardContent() {
                                 <div className="flex items-center justify-between mb-6">
                                     <div className="flex items-center gap-3">
                                         <div className="rounded-xl bg-primary/15 p-2">
-                                            <BarChart3 className="h-5 w-5 text-primary" />
+                                            <BarChart3 className="h-5 w-5 text-text-secondary" />
                                         </div>
                                         <div>
-                                            <h2 className="text-lg font-bold text-foreground">{getPaymentChartTitle(dashboardRange)}</h2>
-                                            <p className="text-xs font-medium text-muted-foreground">
+                                            <h2 className="admin-section-title">{getPaymentChartTitle(dashboardRange)}</h2>
+                                            <p className="admin-section-desc">
                                                 {getPaymentChartSubtitle(dashboardRange)}
                                             </p>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2 rounded-full bg-muted px-3 py-1">
-                                        <Zap className="h-4 w-4 text-primary" />
-                                        <span className="text-xs font-semibold text-primary">Live</span>
+                                        <Zap className="h-4 w-4 text-text-secondary" />
+                                        <span className="text-xs font-semibold text-text-secondary">Live</span>
                                     </div>
                                 </div>
                                 <DashboardBarChart
@@ -989,11 +979,11 @@ function DashboardContent() {
                             <div className="rounded-2xl border border-border bg-card p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
                                 <div className="flex items-center gap-3 mb-6">
                                     <div className="rounded-xl bg-primary/15 p-2">
-                                        <Users className="h-5 w-5 text-primary" />
+                                        <Users className="h-5 w-5 text-text-secondary" />
                                     </div>
                                     <div>
-                                        <h2 className="text-lg font-bold text-foreground">Provider Growth</h2>
-                                        <p className="text-xs font-medium text-muted-foreground">
+                                        <h2 className="admin-section-title">Provider Growth</h2>
+                                        <p className="admin-section-desc">
                                             {getProviderChartSubtitle(dashboardRange)}
                                         </p>
                                     </div>
@@ -1012,9 +1002,9 @@ function DashboardContent() {
                             <div className="lg:col-span-2 rounded-2xl border border-border bg-card p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
                                 <div className="flex items-center gap-3 mb-6">
                                     <div className="rounded-xl bg-primary/15 p-2">
-                                        <CheckCircle2 className="h-5 w-5 text-primary" />
+                                        <CheckCircle2 className="h-5 w-5 text-text-secondary" />
                                     </div>
-                                    <h2 className="text-lg font-bold text-foreground">Booking Status</h2>
+                                    <h2 className="admin-section-title">Booking Status</h2>
                                 </div>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                                     {Object.entries(analytics.bookingsByStatus).map(([status, count]) => (
@@ -1024,45 +1014,45 @@ function DashboardContent() {
                             </div>
 
                             <div className="rounded-2xl border border-border bg-card p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-                                <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-foreground">
-                                    <Zap className="h-5 w-5 text-primary" />
+                                <h3 className="admin-section-title mb-4 flex items-center gap-2">
+                                    <Zap className="h-5 w-5 text-text-secondary" />
                                     Quick Actions
                                 </h3>
                                 <ul className="space-y-3">
                                     <li>
                                         <Link 
-                                            className="group flex w-full items-center justify-between rounded-md border border-border bg-background px-4 py-3 text-foreground transition-all duration-150 hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" 
+                                            className="group flex w-full items-center justify-between rounded-md border border-border bg-background px-4 py-3 text-text-primary transition-all duration-150 hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" 
                                             href="/admin/providers"
                                         >
-                                            <span className="text-[16px] font-medium leading-[1.3]">Providers</span>
-                                            <ArrowUpRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:-translate-y-1 group-hover:translate-x-1" />
+                                            <span className="text-sm font-medium">Providers</span>
+                                            <ArrowUpRight className="h-4 w-4 text-text-secondary transition-transform group-hover:-translate-y-1 group-hover:translate-x-1" />
                                         </Link>
                                     </li>
                                     <li>
                                         <Link 
-                                            className="group flex w-full items-center justify-between rounded-md border border-border bg-background px-4 py-3 text-foreground transition-all duration-150 hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" 
+                                            className="group flex w-full items-center justify-between rounded-md border border-border bg-background px-4 py-3 text-text-primary transition-all duration-150 hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" 
                                             href="/admin/customers"
                                         >
-                                            <span className="text-[16px] font-medium leading-[1.3]">Customers</span>
-                                            <ArrowUpRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:-translate-y-1 group-hover:translate-x-1" />
+                                            <span className="text-sm font-medium">Customers</span>
+                                            <ArrowUpRight className="h-4 w-4 text-text-secondary transition-transform group-hover:-translate-y-1 group-hover:translate-x-1" />
                                         </Link>
                                     </li>
                                     <li>
                                         <Link 
-                                            className="group flex w-full items-center justify-between rounded-md border border-border bg-background px-4 py-3 text-foreground transition-all duration-150 hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" 
+                                            className="group flex w-full items-center justify-between rounded-md border border-border bg-background px-4 py-3 text-text-primary transition-all duration-150 hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" 
                                             href="/admin/bookings"
                                         >
-                                            <span className="text-[16px] font-medium leading-[1.3]">Bookings</span>
-                                            <ArrowUpRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:-translate-y-1 group-hover:translate-x-1" />
+                                            <span className="text-sm font-medium">Bookings</span>
+                                            <ArrowUpRight className="h-4 w-4 text-text-secondary transition-transform group-hover:-translate-y-1 group-hover:translate-x-1" />
                                         </Link>
                                     </li>
                                     <li>
                                         <Link 
-                                            className="group flex w-full items-center justify-between rounded-md border border-border bg-background px-4 py-3 text-foreground transition-all duration-150 hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" 
+                                            className="group flex w-full items-center justify-between rounded-md border border-border bg-background px-4 py-3 text-text-primary transition-all duration-150 hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" 
                                             href="/admin/services/approve"
                                         >
-                                            <span className="text-[16px] font-medium leading-[1.3]">Approve Services</span>
-                                            <ArrowUpRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:-translate-y-1 group-hover:translate-x-1" />
+                                            <span className="text-sm font-medium">Approve Services</span>
+                                            <ArrowUpRight className="h-4 w-4 text-text-secondary transition-transform group-hover:-translate-y-1 group-hover:translate-x-1" />
                                         </Link>
                                     </li>
                                 </ul>

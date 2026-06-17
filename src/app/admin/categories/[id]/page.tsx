@@ -4,6 +4,7 @@ import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { useParams, useRouter } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
 import AuthGuard from '@/components/AuthGuard';
+import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import { 
     FolderTree, 
     ArrowLeft, 
@@ -177,7 +178,7 @@ const CategoryDetailPage = () => {
     if (!category) {
         return (
             <AuthGuard>
-                <div className="flex min-h-screen bg-background">
+                <div className="flex min-h-screen">
                     <Sidebar />
                     <main className="ml-64 w-full min-h-screen flex items-center justify-center">
                         <div className="text-center">
@@ -194,78 +195,51 @@ const CategoryDetailPage = () => {
 
     return (
         <AuthGuard>
-            <div className="flex min-h-screen bg-background">
+            <div className="flex min-h-screen">
                 <Sidebar />
                 <main className="ml-64 w-full min-h-screen">
-                    {/* Header */}
-                    <div className="relative isolate overflow-hidden bg-primary transition-colors dark:!bg-sidebar dark:border-b dark:border-sidebar-border">
-                        <div className="relative mx-auto max-w-7xl px-6 py-12 sm:py-16 lg:px-8">
-                            <div className="flex items-center justify-between gap-6">
-                                <div>
-                                    <div className="flex items-center gap-3 mb-2">
-                                        <Link 
-                                            href="/admin/categories"
-                                            className="rounded-lg bg-card/15 p-2 backdrop-blur-sm transition-colors hover:bg-card/25"
-                                        >
-                                            <ArrowLeft className="h-5 w-5 text-primary-foreground" />
-                                        </Link>
-                                        <div className="rounded-lg bg-card/15 p-2 backdrop-blur-sm">
-                                            <FolderTree className="h-6 w-6 text-primary-foreground" />
-                                        </div>
-                                        <div>
-                                            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-primary-foreground drop-shadow-lg">
-                                                {category.categoryName}
-                                            </h1>
-                                            <p className="text-primary-foreground/80 text-sm mt-1">
-                                                {categorySubCategories.length} {categorySubCategories.length === 1 ? 'subcategory' : 'subcategories'}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-2 text-primary-foreground/90 text-sm">
-                                        <Link href="/admin/dashboard" className="hover:text-primary-foreground transition-colors">
-                                            Dashboard
-                                        </Link>
-                                        <span>/</span>
-                                        <Link href="/admin/categories" className="hover:text-primary-foreground transition-colors">
-                                            Categories
-                                        </Link>
-                                        <span>/</span>
-                                        <span className="text-primary-foreground font-semibold">{category.categoryName}</span>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-3">
+                    <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+                        <AdminPageHeader
+                            title={category.categoryName}
+                            description={`${categorySubCategories.length} ${categorySubCategories.length === 1 ? 'subcategory' : 'subcategories'}`}
+                            backHref="/admin/categories"
+                            breadcrumbs={[
+                                { label: 'Dashboard', href: '/admin/dashboard' },
+                                { label: 'Categories', href: '/admin/categories' },
+                                { label: category.categoryName },
+                            ]}
+                            actions={
+                                <>
                                     <button
+                                        type="button"
                                         onClick={() => {
                                             dispatch(fetchSubCategories());
                                             dispatch(fetchCategories());
                                         }}
-                                        className="group inline-flex items-center gap-2 rounded-xl bg-white/10 backdrop-blur-md px-4 py-3 text-sm font-semibold text-white ring-2 ring-white/20 hover:bg-white/20 hover:ring-white/40 transition-all duration-300 hover:scale-105"
+                                        className={adminHeaderButtonClassName()}
                                     >
-                                        <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : 'group-hover:rotate-180'} transition-transform duration-500`} />
+                                        <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                                         Refresh
                                     </button>
-                                    <div className="flex items-center gap-2">
-                                        <button
-                                            onClick={() => handleOpenModal(undefined, false)}
-                                            className="inline-flex items-center gap-2 rounded-xl bg-white/20 backdrop-blur-md px-4 py-3 text-sm font-semibold text-white ring-2 ring-white/30 hover:bg-white/30 hover:ring-white/50 transition-all duration-300 hover:scale-105"
-                                        >
-                                            <Plus className="h-4 w-4" />
-                                            Add Subcategory
-                                        </button>
-                                        <button
-                                            onClick={() => handleOpenModal(undefined, true)}
-                                            className="inline-flex items-center gap-2 rounded-xl bg-emerald-500/80 backdrop-blur-md px-4 py-3 text-sm font-semibold text-white ring-2 ring-white/30 hover:bg-emerald-500 hover:ring-white/50 transition-all duration-300 hover:scale-105"
-                                        >
-                                            <Plus className="h-4 w-4" />
-                                            Add Multiple
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+                                    <button
+                                        type="button"
+                                        onClick={() => handleOpenModal(undefined, false)}
+                                        className={adminHeaderButtonClassName()}
+                                    >
+                                        <Plus className="h-4 w-4" />
+                                        Add Subcategory
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleOpenModal(undefined, true)}
+                                        className={adminHeaderButtonClassName()}
+                                    >
+                                        <Plus className="h-4 w-4" />
+                                        Add Multiple
+                                    </button>
+                                </>
+                            }
+                        />
                         {error && (
                             <div className="mb-6 rounded-xl bg-red-50 border border-red-200 p-4 text-sm text-red-600">
                                 {error}
