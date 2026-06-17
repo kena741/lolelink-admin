@@ -4,11 +4,12 @@ import Image from "next/image";
 import Sidebar from "../../../components/Sidebar";
 import { useAppDispatch, useAppSelector } from "../../../store/hooks";
 import { fetchAllBookings, fetchBookingById, clearSingle } from "../../../features/bookedService/bookedServiceSlice";
-import { CalendarCheck2, RefreshCw, Search } from "lucide-react";
+import { CalendarCheck2, Plus, RefreshCw, Search } from "lucide-react";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import AuthGuard from "@/components/AuthGuard";
 import { formatServiceDiscountLabel } from "@/lib/service-discount";
 import { formatStatusLabel } from "@/lib/utils";
+import { CreateBookingModal } from "./CreateBookingModal";
 
 const StatusBadge = ({ status }: { status?: string }) => {
     const color = useMemo(() => {
@@ -103,6 +104,7 @@ const BookingsPage = () => {
     const dispatch = useAppDispatch();
     const { items, loading, error } = useAppSelector((s) => s.bookedService);
     const [open, setOpen] = useState(false);
+    const [createOpen, setCreateOpen] = useState(false);
     const [query, setQuery] = useState("");
 
     useEffect(() => {
@@ -173,6 +175,13 @@ const BookingsPage = () => {
                                         <div className="text-sm text-primary-foreground/80">Total Bookings</div>
                                         <div className="text-2xl font-bold text-primary-foreground">{items.length}</div>
                                     </div>
+                                    <button
+                                        onClick={() => setCreateOpen(true)}
+                                        className="group inline-flex items-center gap-2 rounded-xl bg-card px-4 py-3 text-sm font-semibold text-primary shadow-lg ring-2 ring-primary-foreground/20 hover:bg-card/90 transition-all duration-300"
+                                    >
+                                        <Plus className="h-4 w-4" />
+                                        Create booking
+                                    </button>
                                     <button
                                         onClick={onRefresh}
                                         className="group inline-flex items-center gap-2 rounded-xl bg-card/15 backdrop-blur-md px-4 py-3 text-sm font-semibold text-primary-foreground ring-2 ring-primary-foreground/20 hover:bg-card/25 hover:ring-primary-foreground/35 transition-all duration-300 hover:scale-105"
@@ -283,6 +292,11 @@ const BookingsPage = () => {
                 </main>
 
                 <DetailModal open={open} onClose={onClose} />
+                <CreateBookingModal
+                    open={createOpen}
+                    onClose={() => setCreateOpen(false)}
+                    onCreated={() => dispatch(fetchAllBookings())}
+                />
             </div>
         </AuthGuard>
     );

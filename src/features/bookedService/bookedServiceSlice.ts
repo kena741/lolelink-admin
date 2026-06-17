@@ -123,6 +123,116 @@ export const fetchBookingById = createAsyncThunk<
     }
 );
 
+export type PaymentPath = 'pay_now' | 'pay_later';
+
+export interface CreateBookingInput {
+    provider_id: string;
+    service_id: string;
+    customer_id: string;
+    bookingDate?: string;
+    quantity?: string;
+    description?: string;
+    payment_path: PaymentPath;
+}
+
+interface CreateBookingResponse {
+    data: BookedService;
+}
+
+interface InitBookingPaymentResponse {
+    checkout_url?: string;
+    tx_ref: string;
+    booking_id: string;
+    amount: number;
+}
+
+interface VerifyBookingPaymentResponse {
+    status: string;
+    message?: string;
+    booking_id?: string;
+}
+
+async function parseApiError(response: Response): Promise<string> {
+    const payload = (await response.json().catch(() => null)) as { error?: string; message?: string } | null;
+    return payload?.error || payload?.message || `Request failed (${response.status})`;
+}
+
+export const createBooking = createAsyncThunk<
+    BookedService,
+    CreateBookingInput,
+    { rejectValue: string }
+>('bookedService/createBooking', async (input, { rejectWithValue }) => {
+    try {
+        const response = await fetch('/api/admin/bookings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(input),
+        });
+
+        if (!response.ok) {
+            return rejectWithValue(await parseApiError(response));
+        }
+
+        const payload = (await response.json()) as CreateBookingResponse;
+        return payload.data;
+    } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : 'Failed to create booking';
+        return rejectWithValue(msg);
+    }
+});
+
+export const initiateBookingPayment = createAsyncThunk<
+    InitBookingPaymentResponse,
+    { bookingId: string },
+    { rejectValue: string }
+>('bookedService/initiateBookingPayment', async ({ bookingId }, { rejectWithValue }) => {
+    try {
+        const response = await fetch('/api/admin/bookings/payment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ bookingId }),
+        });
+
+        if (!response.ok) {
+            return rejectWithValue(await parseApiError(response));
+        }
+
+        return (await response.json()) as InitBookingPaymentResponse;
+    } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : 'Failed to initialize payment';
+        return rejectWithValue(msg);
+    }
+});
+
+export const verifyBookingPayment = createAsyncThunk<
+    VerifyBookingPaymentResponse,
+    { bookingId: string },
+    { rejectValue: string }
+>('bookedService/verifyBookingPayment', async ({ bookingId }, { rejectWithValue }) => {
+    try {
+        const response = await fetch('/api/admin/bookings/payment/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ bookingId }),
+        });
+
+        const payload = (await response.json()) as VerifyBookingPaymentResponse & { error?: string };
+
+        if (!response.ok) {
+            return rejectWithValue(payload.error || payload.message || `Request failed (${response.status})`);
+        }
+
+        if (payload.status === 'pending') {
+            return rejectWithValue(payload.message || 'Payment not yet confirmed');
+        }
+
+        return payload;
+    } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : 'Failed to verify payment';
+        return rejectWithValue(msg);
+    }
+});
+
 const bookedServiceSlice = createSlice({
     name: 'bookedService',
     initialState,
@@ -169,6 +279,18 @@ const bookedServiceSlice = createSlice({
             .addCase(fetchBookingById.rejected, (state, action) => {
                 state.loading = false;
                 state.error = (action.payload as string) || 'Failed to fetch booking';
+            })
+            .addCase(createBooking.pending, (state) => {
+                state.loading = true;
+                state.error = null;
+            })
+            .addCase(createBooking.fulfilled, (state, action: PayloadAction<BookedService>) => {
+                state.loading = false;
+                state.items = [action.payload, ...state.items.filter((item) => item.id !== action.payload.id)];
+            })
+            .addCase(createBooking.rejected, (state, action) => {
+                state.loading = false;
+                state.error = (action.payload as string) || 'Failed to create booking';
             });
     },
 });
