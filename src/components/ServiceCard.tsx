@@ -13,6 +13,7 @@ export interface ServiceCardProps {
     onApproveFeature?: (serviceId: string) => void | Promise<void>;
     onRejectFeature?: (serviceId: string) => void | Promise<void>;
     onRemoveFeatured?: (serviceId: string) => void | Promise<void>;
+    onDelete?: (serviceId: string) => void | Promise<void>;
 }
 
 const ServiceCard: React.FC<ServiceCardProps> = ({
@@ -22,6 +23,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({
     onApproveFeature,
     onRejectFeature,
     onRemoveFeatured,
+    onDelete,
 }) => {
     const videoRef = React.useRef<HTMLVideoElement | null>(null);
     const playHoverPreview = async () => {
@@ -167,6 +169,16 @@ const ServiceCard: React.FC<ServiceCardProps> = ({
                         className="whitespace-nowrap font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-800 h-9 rounded-md px-3 flex items-center justify-center gap-1 text-xs sm:text-sm"
                     >
                         Remove featured
+                    </button>
+                )}
+                {onDelete && (
+                    <button
+                        type="button"
+                        disabled={isActionLoading}
+                        onClick={() => onDelete(service.id)}
+                        className="whitespace-nowrap font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-red-300 bg-red-50 hover:bg-red-100 text-red-800 h-9 rounded-md px-3 flex items-center justify-center gap-1 text-xs sm:text-sm"
+                    >
+                        Delete
                     </button>
                 )}
                 <button

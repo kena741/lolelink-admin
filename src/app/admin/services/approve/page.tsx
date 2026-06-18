@@ -6,17 +6,21 @@ import Sidebar from '@/components/Sidebar';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import { RefreshCw } from 'lucide-react';
 import { fetchServices, approveFeatureRequestById, rejectFeatureRequestById, unfeatureServiceById, resetApproveState } from '@/features/service/approveServicesSlice';
+import { deleteService as deleteServiceThunk } from '@/features/service/deleteServiceSlice';
 import type { RootState } from '@/store/store';
 import ServiceCard from '@/components/ServiceCard';
 import type { ServiceModel } from '@/features/service/editServiceSlice';
 import { mapServiceRowToEditServiceModel, openEditModal } from '@/features/service/editServiceSlice';
 import EditServiceModal from '@/app/admin/providers/[id]/EditServiceModal';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export default function ApproveServicesPage() {
     const dispatch = useAppDispatch();
     const { services, loading, error, updatedCount } = useAppSelector((s: RootState) => s.approveServices ?? { services: [], loading: false, error: null, updatedCount: 0 });
+    const { loading: deleteLoading, error: deleteError } = useAppSelector((s: RootState) => s.deleteService ?? { loading: false, error: null, success: false });
 
-    // We'll treat fetched rows as the shared ServiceModel when rendering
+    const [deleteId, setDeleteId] = useState<string | null>(null);
     const [query, setQuery] = useState('');
     const [activeTab, setActiveTab] = useState<'services' | 'featured'>('services');
     const [servicesSubTab, setServicesSubTab] = useState<'pending' | 'approved'>('pending');
@@ -54,6 +58,18 @@ export default function ApproveServicesPage() {
             dispatch(resetApproveState());
         };
     }, [dispatch]);
+
+    const confirmDeletePendingService = async () => {
+        if (!deleteId) return;
+        try {
+            await dispatch(deleteServiceThunk(deleteId)).unwrap();
+            await dispatch(fetchServices());
+        } catch (e) {
+            console.error('Delete pending service failed', e);
+        } finally {
+            setDeleteId(null);
+        }
+    };
 
     // Note: approval is now provider-scoped. Use the provider detail page to approve a provider's services.
 
@@ -162,7 +178,15 @@ export default function ApproveServicesPage() {
                                                 mapServiceRowToEditServiceModel(svc as unknown as Record<string, unknown>)
                                             ));
                                         };
-                                        return <ServiceCard key={srv.id ?? JSON.stringify(srv)} service={srv} onView={onView} />;
+                                        return (
+                                            <ServiceCard
+                                                key={srv.id ?? JSON.stringify(srv)}
+                                                service={srv}
+                                                onView={onView}
+                                                isActionLoading={loading || deleteLoading}
+                                                onDelete={(serviceId) => setDeleteId(serviceId)}
+                                            />
+                                        );
                                     })}
                                 </div>
                             )}
@@ -310,6 +334,31 @@ export default function ApproveServicesPage() {
                     </div>
                 </main>
                 <EditServiceModal />
+
+                <Dialog open={!!deleteId} onClose={() => setDeleteId(null)}>
+                    <DialogHeader>
+                        <DialogTitle>Delete pending service?</DialogTitle>
+                        <DialogDescription>
+                            This removes the service from the pending queue. If it has bookings, it will be archived instead of permanently deleted.
+                        </DialogDescription>
+                    </DialogHeader>
+                    {deleteError && (
+                        <div className="text-sm text-red-600">{String(deleteError)}</div>
+                    )}
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => setDeleteId(null)} disabled={deleteLoading}>
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="outline"
+                            className="text-red-600 border-red-300 hover:bg-red-50"
+                            onClick={confirmDeletePendingService}
+                            disabled={deleteLoading}
+                        >
+                            {deleteLoading ? 'Deleting…' : 'Delete'}
+                        </Button>
+                    </DialogFooter>
+                </Dialog>
             </div>
         </AuthGuard>
     );
