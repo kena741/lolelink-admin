@@ -1,27 +1,29 @@
 import type { NextConfig } from "next";
 
-const resolvedProdUrl =
-  process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ||
-  process.env.SUPABASE_URL?.trim() ||
-  "";
-const resolvedProdAnonKey =
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ||
-  process.env.SUPABASE_ANON_KEY?.trim() ||
-  "";
-const resolvedStagingUrl =
-  process.env.NEXT_PUBLIC_SUPABASE_URL_STAGING?.trim() ||
-  process.env.SUPABASE_URL_STAGING?.trim() ||
-  "";
-const resolvedStagingAnonKey =
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY_STAGING?.trim() ||
-  process.env.SUPABASE_ANON_KEY_STAGING?.trim() ||
-  "";
+function readEnv(name: string): string {
+  return (process.env[name] ?? "").trim();
+}
 
-const supabaseHost = resolvedProdUrl
-  ? new URL(resolvedProdUrl).hostname
-  : resolvedStagingUrl
-    ? new URL(resolvedStagingUrl).hostname
-    : undefined;
+function safeSupabaseHostname(url: string): string | undefined {
+  if (!url) return undefined;
+  try {
+    return new URL(url).hostname;
+  } catch {
+    console.warn(`[next.config] Ignoring invalid Supabase URL: ${url}`);
+    return undefined;
+  }
+}
+
+const resolvedProdUrl = readEnv("NEXT_PUBLIC_SUPABASE_URL") || readEnv("SUPABASE_URL");
+const resolvedProdAnonKey =
+  readEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY") || readEnv("SUPABASE_ANON_KEY");
+const resolvedStagingUrl =
+  readEnv("NEXT_PUBLIC_SUPABASE_URL_STAGING") || readEnv("SUPABASE_URL_STAGING");
+const resolvedStagingAnonKey =
+  readEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY_STAGING") || readEnv("SUPABASE_ANON_KEY_STAGING");
+
+const supabaseHost =
+  safeSupabaseHostname(resolvedProdUrl) ?? safeSupabaseHostname(resolvedStagingUrl);
 
 const allowedDevOrigins = process.env.NEXT_ALLOWED_DEV_ORIGINS?.split(",")
   .map((origin) => origin.trim())
