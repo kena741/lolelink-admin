@@ -13,3 +13,7 @@ export function formatStatusLabel(value: string | null | undefined) {
     .trim()
     .replace(/\b\w/g, (char) => char.toUpperCase())
 }
+
+export function isLocalhostHostname(hostname: string): boolean {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]"
+}

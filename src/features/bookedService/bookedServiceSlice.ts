@@ -20,18 +20,22 @@ export interface BookedService {
     bookingDate?: string;
     createdAt?: string;
     status?:
-        | 'booked'
-        | 'booked_accepted'
-        | 'booked_rejected'
-        | 'pending_customer_payment'
-        | 'paid_for_service_booked'
-        | 'booked_cancelled'
-        | 'service_started'
-        | 'service_completion_approval'
-        | 'service_completion_approved_by_customer'
-        | 'completed';
+        | 'pending'
+        | 'accepted'
+        | 'rejected'
+        | 'on_the_way'
+        | 'in_progress'
+        | 'hold'
+        | 'completed'
+        | 'pending_extra_payment'
+        | 'pending_approval'
+        | 'admin_paid';
     description?: string;
     paymentCompleted?: boolean;
+    payment_status?: string | null;
+    paymentType?: string | null;
+    providerName?: string;
+    customerName?: string;
 }
 
 interface BookedServiceState {
@@ -57,6 +61,96 @@ const normalizeRows = (rows: BookedServiceRow[] | null | undefined): BookedServi
         createdAt: rest.createdAt ?? created_at,
     }));
 
+function formatPersonName(...parts: (string | null | undefined)[]): string {
+    return parts
+        .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
+        .join(' ')
+        .trim();
+}
+
+function resolveProviderName(raw: Record<string, unknown>): string {
+    const full = formatPersonName(
+        raw.firstName as string | undefined,
+        raw.lastName as string | undefined,
+        raw.first_name as string | undefined,
+        raw.last_name as string | undefined
+    );
+    if (full) return full;
+    if (typeof raw.userName === 'string' && raw.userName.trim()) return raw.userName.trim();
+    return '';
+}
+
+function resolveCustomerName(raw: Record<string, unknown>): string {
+    const full = formatPersonName(
+        raw.first_name as string | undefined,
+        raw.last_name as string | undefined,
+        raw.firstName as string | undefined,
+        raw.lastName as string | undefined
+    );
+    if (full) return full;
+    if (typeof raw.user_name === 'string' && raw.user_name.trim()) return raw.user_name.trim();
+    return '';
+}
+
+async function enrichBookingsWithNames(rows: BookedService[]): Promise<BookedService[]> {
+    if (rows.length === 0) return rows;
+
+    const providerIds = Array.from(new Set(rows.map((row) => row.provider_id).filter(Boolean)));
+    const customerIds = Array.from(
+        new Set(
+            rows
+                .map((row) => row.customer_id)
+                .filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+        )
+    );
+
+    const [providersResult, customersResult] = await Promise.all([
+        providerIds.length > 0
+            ? getSupabase().from('provider').select('id, firstName, lastName, userName').in('id', providerIds)
+            : Promise.resolve({ data: [], error: null }),
+        customerIds.length > 0
+            ? getSupabase().from('customer').select('id, first_name, last_name, user_name').in('id', customerIds)
+            : Promise.resolve({ data: [], error: null }),
+    ]);
+
+    if (providersResult.error) throw providersResult.error;
+    if (customersResult.error) throw customersResult.error;
+
+    const providerNameById = new Map<string, string>();
+    for (const provider of (providersResult.data ?? []) as Record<string, unknown>[]) {
+        const id = typeof provider.id === 'string' ? provider.id : '';
+        if (!id) continue;
+        const name = resolveProviderName(provider);
+        if (name) providerNameById.set(id, name);
+    }
+
+    const customerNameById = new Map<string, string>();
+    for (const customer of (customersResult.data ?? []) as Record<string, unknown>[]) {
+        const id = typeof customer.id === 'string' ? customer.id : '';
+        if (!id) continue;
+        const name = resolveCustomerName(customer);
+        if (name) customerNameById.set(id, name);
+    }
+
+    return rows.map((row) => ({
+        ...row,
+        providerName: providerNameById.get(row.provider_id) || undefined,
+        customerName: row.customer_id ? customerNameById.get(row.customer_id) : undefined,
+    }));
+}
+
+export function getBookingProviderDisplayName(booking: BookedService): string {
+    return booking.providerName?.trim() || 'Unknown provider';
+}
+
+export function getBookingCustomerDisplayName(booking: BookedService): string {
+    return (
+        booking.customerName?.trim() ||
+        formatPersonName(booking.firstName, booking.lastName) ||
+        'Unknown customer'
+    );
+}
+
 export const fetchProviderBookings = createAsyncThunk<
     BookedService[],
     { provider_id?: string; statuses?: string[] },
@@ -73,7 +167,7 @@ export const fetchProviderBookings = createAsyncThunk<
             }
             const { data, error } = await query.order('createdAt', { ascending: false });
             if (error) throw error;
-            return normalizeRows(data as BookedServiceRow[]);
+            return enrichBookingsWithNames(normalizeRows(data as BookedServiceRow[]));
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to fetch bookings';
             return rejectWithValue(msg);
@@ -97,7 +191,7 @@ export const fetchAllBookings = createAsyncThunk<
             }
             const { data, error } = await query.order('createdAt', { ascending: false });
             if (error) throw error;
-            return normalizeRows(data as BookedServiceRow[]);
+            return enrichBookingsWithNames(normalizeRows(data as BookedServiceRow[]));
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to fetch bookings';
             return rejectWithValue(msg);
@@ -115,7 +209,9 @@ export const fetchBookingById = createAsyncThunk<
         try {
             const { data, error } = await getSupabase().from('booked_service').select('*').eq('id', id).single();
             if (error) throw error;
-            return data as BookedService;
+            const [enriched] = await enrichBookingsWithNames(normalizeRows([data as BookedServiceRow]));
+            if (!enriched) throw new Error('Booking not found');
+            return enriched;
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to fetch booking';
             return rejectWithValue(msg);

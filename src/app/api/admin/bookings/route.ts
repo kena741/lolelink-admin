@@ -14,6 +14,7 @@ import {
     upsertBookingPaymentRecord,
 } from '@/lib/booking-payment-side-effects';
 import { resolveServiceName } from '@/lib/booking-pricing';
+import { BOOKING_PAYMENT_STATUS, BOOKING_STATUS } from '@/lib/booking-status';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
@@ -140,10 +141,11 @@ export async function POST(request: Request) {
                 supabaseAdmin,
                 created as { id: string; customer_id?: string; totalAmount?: string; price?: string },
                 {
-                    providerRef: String(row.payment_id ?? bookingId),
+                    paymentId: walletResult.paymentId,
+                    providerRef: walletResult.paymentId,
                     paymentMethod: 'wallet',
                     provider: 'wallet',
-                    status: 'payment_completed',
+                    status: BOOKING_PAYMENT_STATUS.COMPLETED,
                 }
             );
 
@@ -157,12 +159,15 @@ export async function POST(request: Request) {
         }
 
         if (paymentMode === 'mark_paid') {
+            const paymentId = String(row.payment_id ?? crypto.randomUUID());
+
             await supabaseAdmin
                 .from('booked_service')
                 .update({
-                    payment_status: 'payment_completed',
+                    payment_status: BOOKING_PAYMENT_STATUS.COMPLETED,
                     paymentCompleted: true,
-                    status: 'paid_for_service_booked',
+                    status: BOOKING_STATUS.ADMIN_PAID,
+                    payment_id: paymentId,
                 })
                 .eq('id', bookingId);
 
@@ -170,10 +175,11 @@ export async function POST(request: Request) {
                 supabaseAdmin,
                 created as { id: string; customer_id?: string; totalAmount?: string; price?: string },
                 {
-                    providerRef: String(row.payment_id ?? bookingId),
+                    paymentId,
+                    providerRef: paymentId,
                     paymentMethod: 'admin',
                     provider: 'admin',
-                    status: 'payment_completed',
+                    status: BOOKING_PAYMENT_STATUS.COMPLETED,
                 }
             );
 

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAdminPermission } from '@/lib/admin-auth';
 import { isChapaSuccessStatus, loadChapaSecretKey } from '@/lib/chapa-config';
 import { markBookingPaymentCompleted } from '@/lib/booking-payment';
+import { resolveChapaTxRefForBooking } from '@/lib/booking-payment-side-effects';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
@@ -48,7 +49,7 @@ export async function POST(request: Request) {
         }
 
         const booking = bookingRaw as BookingRow;
-        const txRef = (booking.payment_id ?? '').trim();
+        const txRef = await resolveChapaTxRefForBooking(supabaseAdmin, bookingId);
 
         if (!txRef) {
             return NextResponse.json({ error: 'No payment has been initiated for this booking' }, { status: 400 });

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { BOOKING_PAYMENT_STATUS } from '@/lib/booking-status';
 
 const SMS_UPSTREAM = 'https://betegna-ai.vercel.app/sms/send';
 
@@ -22,17 +23,34 @@ export function bookingTotalAmount(booking: BookingRow): number {
     return parseAmount(booking.price);
 }
 
+export async function resolveChapaTxRefForBooking(
+    admin: SupabaseClient,
+    bookingId: string
+): Promise<string | null> {
+    const { data } = await admin
+        .from('payments')
+        .select('provider_ref')
+        .eq('booking_id', bookingId)
+        .maybeSingle();
+
+    const ref = (data as { provider_ref?: string } | null)?.provider_ref;
+    return typeof ref === 'string' && ref.trim() ? ref.trim() : null;
+}
+
 export async function upsertBookingPaymentRecord(
     admin: SupabaseClient,
     booking: BookingRow,
     params: {
+        paymentId?: string;
         providerRef: string;
         paymentMethod?: string;
         provider?: string;
         status?: string;
     }
-): Promise<void> {
-    if (!booking.customer_id) return;
+): Promise<string> {
+    if (!booking.customer_id) {
+        return params.paymentId ?? '';
+    }
 
     const now = new Date().toISOString();
     const amount = bookingTotalAmount(booking);
@@ -43,12 +61,16 @@ export async function upsertBookingPaymentRecord(
         .eq('booking_id', booking.id)
         .maybeSingle();
 
+    const paymentId =
+        params.paymentId ??
+        (existing && (existing as { id?: string }).id ? (existing as { id: string }).id : crypto.randomUUID());
+
     const payload = {
         booking_id: booking.id,
         customer_id: booking.customer_id,
         amount,
         currency: 'ETB',
-        status: params.status ?? 'payment_completed',
+        status: params.status ?? BOOKING_PAYMENT_STATUS.COMPLETED,
         payment_method: params.paymentMethod ?? 'chapa',
         provider: params.provider ?? 'chapa',
         provider_ref: params.providerRef,
@@ -58,13 +80,15 @@ export async function upsertBookingPaymentRecord(
 
     if (existing && (existing as { id?: string }).id) {
         await admin.from('payments').update(payload).eq('id', (existing as { id: string }).id);
-        return;
+        return paymentId;
     }
 
     await admin.from('payments').insert({
-        id: crypto.randomUUID(),
+        id: paymentId,
         ...payload,
     });
+
+    return paymentId;
 }
 
 export async function debitCustomerWalletForBooking(
@@ -72,7 +96,7 @@ export async function debitCustomerWalletForBooking(
     bookingId: string,
     customerId: string,
     amount: number
-): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
+): Promise<{ ok: true; paymentId: string } | { ok: false; error: string; status: number }> {
     const { data: customerRaw, error: customerError } = await admin
         .from('customer')
         .select('id, wallet_amount')
@@ -93,6 +117,7 @@ export async function debitCustomerWalletForBooking(
 
     const now = new Date().toISOString();
     const txRef = `wallet-bkg-${bookingId.slice(0, 8)}-${Date.now()}`;
+    const paymentId = crypto.randomUUID();
 
     const { error: walletTxError } = await admin.from('wallet_transaction').insert({
         amount: amount.toFixed(2),
@@ -121,12 +146,10 @@ export async function debitCustomerWalletForBooking(
     const { error: bookingUpdateError } = await admin
         .from('booked_service')
         .update({
-            payment_status: 'payment_completed',
+            payment_status: BOOKING_PAYMENT_STATUS.COMPLETED,
             paymentCompleted: true,
             paymentType: 'wallet',
-            payment_id: txRef,
-            paid_at: now,
-            status: 'paid_for_service_booked',
+            payment_id: paymentId,
         })
         .eq('id', bookingId);
 
@@ -134,7 +157,7 @@ export async function debitCustomerWalletForBooking(
         return { ok: false, error: bookingUpdateError.message, status: 500 };
     }
 
-    return { ok: true };
+    return { ok: true, paymentId };
 }
 
 interface ProviderRow {

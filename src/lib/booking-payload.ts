@@ -5,8 +5,9 @@ import {
     resolveServiceName,
     resolveServiceUnitPrice,
 } from '@/lib/booking-pricing';
+import { resolveInitialBookingStatus, BOOKING_PAYMENT_STATUS, type BookingPaymentMode } from '@/lib/booking-status';
 
-export type BookingPaymentMode = 'pay_later' | 'chapa' | 'wallet' | 'mark_paid';
+export type { BookingPaymentMode };
 
 export interface BookingAddressInput {
     address?: string;
@@ -197,8 +198,7 @@ export async function buildBookingPayload(
     const bookingAddress = buildBookingAddressObject(input.bookingAddress);
 
     const paymentCompleted = input.paymentMode === 'mark_paid';
-    const bookingStatus =
-        input.paymentMode === 'mark_paid' ? 'paid_for_service_booked' : 'booked';
+    const bookingStatus = resolveInitialBookingStatus(input.paymentMode);
     const paymentType =
         input.paymentMode === 'mark_paid'
             ? 'admin'
@@ -229,7 +229,7 @@ export async function buildBookingPayload(
         description: input.description?.trim() || '',
         status: bookingStatus,
         paymentCompleted: input.paymentMode === 'mark_paid',
-        payment_status: paymentCompleted ? 'payment_completed' : 'pending_payment',
+        payment_status: paymentCompleted ? BOOKING_PAYMENT_STATUS.COMPLETED : BOOKING_PAYMENT_STATUS.PENDING,
         paymentType,
         postJobPayment: false,
         extraChargeGst,
@@ -249,8 +249,7 @@ export async function buildBookingPayload(
     }
 
     if (paymentCompleted) {
-        row.paid_at = now;
-        row.payment_id = `admin-${bookingId.slice(0, 8)}-${Date.now()}`;
+        row.payment_id = crypto.randomUUID();
     }
 
     return {

@@ -6,6 +6,8 @@ import {
     resolveChapaConfig,
 } from '@/lib/chapa-config';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
+import { BOOKING_PAYMENT_STATUS } from '@/lib/booking-status';
+import { upsertBookingPaymentRecord } from '@/lib/booking-payment-side-effects';
 
 export const runtime = 'nodejs';
 
@@ -95,6 +97,7 @@ export async function POST(request: Request) {
 
         const origin = new URL(request.url).origin;
         const appBaseUrl = (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || origin).trim();
+        const paymentId = crypto.randomUUID();
         const txRef = `bkg-${booking.id.replace(/-/g, '').slice(0, 12)}-${Date.now()}`.slice(0, 50);
         const customerEmail = (booking.email ?? '').trim() || 'customer@platform.com';
         const firstName = (booking.firstName ?? '').trim() || 'Customer';
@@ -139,10 +142,22 @@ export async function POST(request: Request) {
         await supabaseAdmin
             .from('booked_service')
             .update({
-                payment_id: txRef,
+                payment_id: paymentId,
                 paymentType: 'chapa',
             })
             .eq('id', bookingId);
+
+        await upsertBookingPaymentRecord(
+            supabaseAdmin,
+            booking as { id: string; customer_id?: string; totalAmount?: number; price?: number },
+            {
+                paymentId,
+                providerRef: txRef,
+                paymentMethod: 'chapa',
+                provider: 'chapa',
+                status: BOOKING_PAYMENT_STATUS.PENDING,
+            }
+        );
 
         return NextResponse.json({
             status: 'success',

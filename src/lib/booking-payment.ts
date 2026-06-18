@@ -4,6 +4,7 @@ import {
     sendBookingPaymentConfirmedNotifications,
     sendProviderNewBookingNotification,
 } from '@/lib/booking-notifications';
+import { BOOKING_PAYMENT_STATUS } from '@/lib/booking-status';
 import {
     bookingTotalAmount,
     sendBookingProviderSms,
@@ -25,9 +26,6 @@ interface BookingRow {
     status?: string | null;
     paymentType?: string | null;
 }
-
-const PAID_AWAITING_PROVIDER_STATUS = 'paid_for_service_booked';
-export const BOOKING_PAYMENT_STATUS_COMPLETED = 'payment_completed';
 
 function readCustomerName(booking: BookingRow): string {
     const first = (booking.firstName ?? '').trim();
@@ -71,18 +69,16 @@ async function applyPaidBookingState(
     extra?: Record<string, unknown>
 ): Promise<void> {
     const needsUpdate =
-        (booking.payment_status ?? '') !== BOOKING_PAYMENT_STATUS_COMPLETED ||
-        booking.paymentCompleted !== true ||
-        (booking.status ?? '').trim() !== PAID_AWAITING_PROVIDER_STATUS;
+        (booking.payment_status ?? '') !== BOOKING_PAYMENT_STATUS.COMPLETED ||
+        booking.paymentCompleted !== true;
 
     if (!needsUpdate && !extra) return;
 
     await supabaseAdmin
         .from('booked_service')
         .update({
-            payment_status: BOOKING_PAYMENT_STATUS_COMPLETED,
+            payment_status: BOOKING_PAYMENT_STATUS.COMPLETED,
             paymentCompleted: true,
-            status: PAID_AWAITING_PROVIDER_STATUS,
             ...extra,
         })
         .eq('id', booking.id);
@@ -92,7 +88,7 @@ export async function markBookingPaymentCompleted(
     supabaseAdmin: SupabaseClient,
     bookingId: string,
     txRef: string,
-    chapaReference?: string
+    _chapaReference?: string
 ): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
     const { data: bookingRaw, error: bookingError } = await supabaseAdmin
         .from('booked_service')
@@ -108,27 +104,32 @@ export async function markBookingPaymentCompleted(
     }
 
     const booking = bookingRaw as BookingRow;
-    const storedRef = (booking.payment_id ?? '').trim();
+
+    const { data: paymentRow } = await supabaseAdmin
+        .from('payments')
+        .select('provider_ref')
+        .eq('booking_id', bookingId)
+        .maybeSingle();
+
+    const storedRef = ((paymentRow as { provider_ref?: string } | null)?.provider_ref ?? '').trim();
     if (storedRef && storedRef !== txRef) {
         return { ok: false, error: 'Transaction reference does not match booking', status: 400 };
     }
 
-    if (booking.paymentCompleted || (booking.payment_status ?? '') === BOOKING_PAYMENT_STATUS_COMPLETED) {
+    if (booking.paymentCompleted || (booking.payment_status ?? '') === BOOKING_PAYMENT_STATUS.COMPLETED) {
         await applyPaidBookingState(supabaseAdmin, booking);
         await notifyProviderAboutBooking(supabaseAdmin, booking);
         return { ok: true };
     }
 
-    const now = new Date().toISOString();
+    const paymentId = (booking.payment_id ?? '').trim() || crypto.randomUUID();
     const { error: updateError } = await supabaseAdmin
         .from('booked_service')
         .update({
-            payment_status: BOOKING_PAYMENT_STATUS_COMPLETED,
+            payment_status: BOOKING_PAYMENT_STATUS.COMPLETED,
             paymentCompleted: true,
-            payment_id: txRef,
-            paid_at: now,
+            payment_id: paymentId,
             paymentType: 'chapa',
-            status: PAID_AWAITING_PROVIDER_STATUS,
         })
         .eq('id', bookingId);
 
@@ -137,10 +138,11 @@ export async function markBookingPaymentCompleted(
     }
 
     await upsertBookingPaymentRecord(supabaseAdmin, booking, {
-        providerRef: chapaReference || txRef,
+        paymentId,
+        providerRef: txRef,
         paymentMethod: 'chapa',
         provider: 'chapa',
-        status: 'payment_completed',
+        status: BOOKING_PAYMENT_STATUS.COMPLETED,
     });
 
     if (booking.customer_id && booking.provider_id) {
@@ -163,11 +165,11 @@ export async function resolveBookingIdByTxRef(
     txRef: string
 ): Promise<string | null> {
     const { data } = await supabaseAdmin
-        .from('booked_service')
-        .select('id')
-        .eq('payment_id', txRef)
+        .from('payments')
+        .select('booking_id')
+        .eq('provider_ref', txRef)
         .maybeSingle();
 
-    const id = (data as { id?: string } | null)?.id;
+    const id = (data as { booking_id?: string } | null)?.booking_id;
     return typeof id === 'string' && id.trim() ? id.trim() : null;
 }
