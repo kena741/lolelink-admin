@@ -35,19 +35,38 @@ async function ensureDefaultRoles(supabaseAdmin: ReturnType<typeof getSupabaseAd
         .select('id', { count: 'exact', head: true });
 
     if (countError) throw countError;
-    if ((count ?? 0) > 0) return;
 
-    const { error: seedError } = await supabaseAdmin.from('admin_role').insert(
-        DEFAULT_ADMIN_ROLES.map((role) => ({
-            slug: role.slug,
-            name: role.name,
-            description: role.description,
-            permissions: [...role.permissions],
-            is_system: role.is_system,
-        }))
-    );
+    if ((count ?? 0) === 0) {
+        const { error: seedError } = await supabaseAdmin.from('admin_role').insert(
+            DEFAULT_ADMIN_ROLES.map((role) => ({
+                slug: role.slug,
+                name: role.name,
+                description: role.description,
+                permissions: [...role.permissions],
+                is_system: role.is_system,
+            }))
+        );
 
-    if (seedError) throw seedError;
+        if (seedError) throw seedError;
+        return;
+    }
+
+    for (const role of DEFAULT_ADMIN_ROLES) {
+        if (!role.is_system) continue;
+
+        const { error: syncError } = await supabaseAdmin
+            .from('admin_role')
+            .update({
+                name: role.name,
+                description: role.description,
+                permissions: [...role.permissions],
+                updated_at: new Date().toISOString(),
+            })
+            .eq('slug', role.slug)
+            .eq('is_system', true);
+
+        if (syncError) throw syncError;
+    }
 }
 
 export async function GET(request: Request) {

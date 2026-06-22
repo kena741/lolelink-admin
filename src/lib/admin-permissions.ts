@@ -65,12 +65,14 @@ export const DEFAULT_ADMIN_ROLES = [
     {
         slug: 'support_admin',
         name: 'Support Admin',
-        description: 'Customer support and read-only provider access',
+        description: 'Customer support with full access to bookings, services, notifications, and document verification',
         permissions: [
             'customers:read', 'customers:write',
-            'bookings:read',
+            'bookings:read', 'bookings:write',
             'contact:read', 'contact:write',
-            'providers:read',
+            'providers:read', 'providers:verify',
+            'services:read', 'services:write',
+            'notifications:read', 'notifications:write',
         ],
         is_system: true,
     },
