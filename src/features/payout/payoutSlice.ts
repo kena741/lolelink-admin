@@ -433,28 +433,31 @@ export const completePayoutRequest = createAsyncThunk<
     'payout/completePayoutRequest',
     async ({ id, adminNote }, { rejectWithValue }) => {
         try {
-            const updateData: { paymentStatus: string; paymentDate: string; adminNote?: string } = {
-                paymentStatus: 'completed',
-                paymentDate: new Date().toISOString(),
+            const response = await fetch('/api/payout/complete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ withdrawalId: id, adminNote }),
+            });
+
+            const payload = (await response.json()) as {
+                error?: string;
+                data?: WithdrawalHistoryRow;
             };
 
-            if (adminNote)
-                updateData.adminNote = adminNote;
+            if (!response.ok) {
+                return rejectWithValue(payload.error || 'Failed to complete payout request');
+            }
 
-            const { data, error } = await getSupabase()
-                .from('withdrawal_history')
-                .update(updateData)
-                .eq('id', id)
-                .select()
-                .single();
-
-            if (error) throw error;
+            const data = payload.data;
+            if (!data) {
+                return rejectWithValue('Failed to complete payout request');
+            }
 
             await createPayoutNotification({
                 title: 'Withdrawal completed',
                 description: `Withdrawal ${id} was marked completed.`,
                 type: 'payout_completed',
-                provider_id: (data as WithdrawalHistoryRow).providerId,
+                provider_id: data.providerId,
                 action_url: '/admin/finance/payout-request',
                 dedupe_key: `payout_completed:${id}`,
             });
@@ -486,15 +489,7 @@ export const completePayoutRequest = createAsyncThunk<
                 if (!bankError && bank) addBankToMap(bankMap, toBankDetailsFromPaymentMethod(bank as ProviderPaymentMethodRow));
             }
 
-            logClientAdminActivity({
-                action: 'transfer',
-                resource_type: 'withdrawal',
-                resource_id: id,
-                summary: `Marked withdrawal ${id} as completed`,
-                metadata: { provider_id: (data as WithdrawalHistoryRow).providerId, amount: (data as WithdrawalHistoryRow).amount },
-            });
-
-            return normalizeRows([data as WithdrawalHistoryRow], providerMap, bankMap)[0];
+            return normalizeRows([data], providerMap, bankMap)[0];
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to complete payout request';
             return rejectWithValue(msg);

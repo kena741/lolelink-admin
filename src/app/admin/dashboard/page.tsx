@@ -132,6 +132,17 @@ function formatCurrency(value: number): string {
     return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function formatChapaLedgerGapNote(liveBalance: number, ledgerChapa: number): string {
+    const gap = liveBalance - ledgerChapa;
+    if (gap > 0.005) {
+        return `Ledger Chapa ${formatCurrency(ledgerChapa)} · ${formatCurrency(gap)} below live`;
+    }
+    if (gap < -0.005) {
+        return `Ledger Chapa ${formatCurrency(ledgerChapa)} · ${formatCurrency(Math.abs(gap))} above live`;
+    }
+    return `Ledger Chapa ${formatCurrency(ledgerChapa)} · matches live`;
+}
+
 function formatStatValue(value: number, isCurrency?: boolean): string {
     if (isCurrency) return formatCurrency(value);
     return value.toLocaleString('en-US');
@@ -730,10 +741,6 @@ function DashboardContent() {
         analytics.chapaAvailableBalance != null
             ? analytics.chapaAvailableBalance - analytics.chapaWalletNet
             : null;
-    const chapaNetFlowGap =
-        analytics.chapaAvailableBalance != null
-            ? analytics.chapaAvailableBalance - analytics.totalNetFlow
-            : null;
 
     const chapaActivationInWallet =
         analytics.totalActivationFee - analytics.totalManualActivation;
@@ -936,24 +943,35 @@ function DashboardContent() {
                             )}
                         </div>
                         {/* Main Stats Grid */}
-                        <section className="mb-8 grid grid-cols-1 items-stretch gap-4 min-w-0 sm:grid-cols-2 lg:grid-cols-5">
+                        <section className="mb-8 grid grid-cols-1 items-stretch gap-4 min-w-0 sm:grid-cols-2 lg:grid-cols-3">
                             <StatCard
                                 title="Net Flow"
-                                value={analytics.totalNetFlow}
+                                value={analytics.chapaWalletNet}
                                 isCurrency
                                 icon={DollarSign}
                                 iconBg="bg-primary/10"
-                                note="Wallet credits − debits"
+                                note="Chapa gateway ledger only"
                             />
                             <StatCard
-                                title={hasLiveChapaBalance ? 'Chapa balance' : 'App wallet'}
+                                title="Direct payments"
+                                value={analytics.nonChapaWalletNet}
+                                isCurrency
+                                icon={DollarSign}
+                                iconBg="bg-primary/10"
+                                note="Offline & non-Chapa ledger"
+                            />
+                            <StatCard
+                                title={hasLiveChapaBalance ? 'Chapa balance' : 'App wallet Chapa'}
                                 value={analytics.chapaAvailableBalance ?? analytics.chapaWalletNet}
                                 isCurrency
                                 icon={DollarSign}
                                 iconBg="bg-primary/10"
                                 note={
                                     hasLiveChapaBalance
-                                        ? 'Live Chapa account'
+                                        ? formatChapaLedgerGapNote(
+                                            analytics.chapaAvailableBalance!,
+                                            analytics.chapaWalletNet
+                                        )
                                         : 'Recorded in wallet ledger'
                                 }
                             />
@@ -985,81 +1003,6 @@ function DashboardContent() {
                             />
                         </section>
 
-                        {showFinanceDebug && (
-                        <section className="mb-8 grid grid-cols-1 items-stretch gap-4 min-w-0 sm:grid-cols-2 lg:grid-cols-4">
-                            <StatCard
-                                title="Wallet rows"
-                                value={analytics.totalCredit}
-                                icon={Activity}
-                                iconBg="bg-primary/10"
-                                note="Ledger entry count"
-                            />
-                            <StatCard
-                                title="Wallet credits"
-                                value={analytics.totalWalletCreditsAdjusted}
-                                isCurrency
-                                icon={TrendingUp}
-                                iconBg="bg-primary/10"
-                            />
-                            <StatCard
-                                title="Wallet debits"
-                                value={analytics.totalWalletDebits}
-                                isCurrency
-                                icon={TrendingDown}
-                                iconBg="bg-primary/10"
-                            />
-                            <StatCard
-                                title="Non-Chapa net"
-                                value={analytics.nonChapaWalletNet}
-                                isCurrency
-                                icon={DollarSign}
-                                iconBg="bg-primary/10"
-                            />
-                            <StatCard
-                                title="Activation fee"
-                                value={analytics.totalActivationFee}
-                                isCurrency
-                                icon={DollarSign}
-                                iconBg="bg-primary/10"
-                            />
-                            <StatCard
-                                title="Manual activation"
-                                value={analytics.totalManualActivation}
-                                isCurrency
-                                icon={DollarSign}
-                                iconBg="bg-primary/10"
-                                note="Offline · not in Chapa"
-                            />
-                            <StatCard
-                                title="Customer top up"
-                                value={analytics.totalCustomerTopUp}
-                                isCurrency
-                                icon={DollarSign}
-                                iconBg="bg-primary/10"
-                            />
-                            <StatCard
-                                title="Total top up"
-                                value={analytics.totalTopUp}
-                                isCurrency
-                                icon={DollarSign}
-                                iconBg="bg-primary/10"
-                                note="Provider + customer"
-                            />
-                            <StatCard
-                                title="App wallet Chapa"
-                                value={analytics.chapaWalletNet}
-                                isCurrency
-                                icon={DollarSign}
-                                iconBg="bg-primary/10"
-                                note={
-                                    hasLiveChapaBalance && chapaSurplus != null
-                                        ? `${formatCurrency(chapaSurplus)} not in ledger`
-                                        : undefined
-                                }
-                            />
-                        </section>
-                        )}
-
                         {showFinanceDebug && walletBreakdown && (
                             <WalletMetricBreakdownDebug
                                 breakdown={walletBreakdown}
@@ -1071,15 +1014,14 @@ function DashboardContent() {
                                     totalTopUp: analytics.totalTopUp,
                                     walletCredits: analytics.totalWalletCreditsAdjusted,
                                     walletDebits: analytics.totalWalletDebits,
-                                    netFlow: analytics.totalNetFlow,
                                     chapaWalletNet: analytics.chapaWalletNet,
+                                    nonChapaWalletNet: analytics.nonChapaWalletNet,
+                                    totalLedgerNet: analytics.totalNetFlow,
                                     chapaActivationInWallet,
                                     otherChapaInWallet,
                                     chapaAvailableBalance: analytics.chapaAvailableBalance,
                                     chapaLedgerBalance: analytics.chapaLedgerBalance,
                                     chapaSurplus,
-                                    chapaNetFlowGap,
-                                    nonChapaWalletNet: analytics.nonChapaWalletNet,
                                     providerCount,
                                     bookingCount,
                                     completedBookings: analytics.totalCompletedBookings,

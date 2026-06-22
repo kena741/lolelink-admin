@@ -1,7 +1,14 @@
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
+import {
+    loadChapaSecretKey,
+    resolveChapaSettlementAmount,
+    resolveChapaWalletCreditAmount,
+    verifyChapaTransaction,
+} from '@/lib/chapa-config';
 import { findPriorCustomerWalletTopUp } from '@/lib/wallet-transaction-activation';
+import { hasCustomerWalletTopUpTransactionId } from '@/lib/wallet-transaction-metrics';
 
 export const runtime = 'nodejs';
 
@@ -250,12 +257,31 @@ async function handleManualMark(
     const walletSkipped = Boolean(priorTopUp);
 
     if (!walletSkipped) {
+        let walletAmount = feeAmount;
+        let paymentType = 'manual';
+        let walletNote = `Activation payment top up (manual)${note ? ` - ${note}` : ''}`;
+
+        if (hasCustomerWalletTopUpTransactionId(ref)) {
+            const chapaSecretKey = await loadChapaSecretKey(admin);
+            if (chapaSecretKey) {
+                const verified = await verifyChapaTransaction(chapaSecretKey, ref);
+                if (verified.ok) {
+                    const settlement = resolveChapaSettlementAmount(verified.data);
+                    walletAmount = settlement != null
+                        ? settlement.toFixed(2)
+                        : resolveChapaWalletCreditAmount(verified.data, feeAmount);
+                    paymentType = 'chapa';
+                    walletNote = `Activation payment top up (Chapa, net after fee)${note ? ` - ${note}` : ''}`;
+                }
+            }
+        }
+
         const { error: walletError } = await admin.from('wallet_transaction').insert({
-            amount: feeAmount,
+            amount: walletAmount,
             createdDate: now,
             isCredit: true,
-            note: `Activation payment top up (manual)${note ? ` - ${note}` : ''}`,
-            paymentType: 'manual',
+            note: walletNote,
+            paymentType,
             transactionId: ref,
             type: 'provider',
             userId: provider.id,

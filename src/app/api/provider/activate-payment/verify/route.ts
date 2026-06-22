@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 import { findPriorCustomerWalletTopUp } from '@/lib/wallet-transaction-activation';
+import { resolveChapaSettlementAmount } from '@/lib/chapa-config';
+
+const MIN_ACTIVATION_SETTLEMENT_ETB = 50;
 
 export const runtime = 'nodejs';
 
@@ -99,6 +102,7 @@ export async function POST(request: Request) {
             data?: {
                 status?: string;
                 amount?: number;
+                charge?: number;
                 currency?: string;
                 tx_ref?: string;
                 reference?: string;
@@ -149,9 +153,13 @@ export async function POST(request: Request) {
             .maybeSingle();
 
         const constants = parseObjectValue((constantRow as { data: unknown } | null)?.data);
-        const feeAmount = typeof constants.provider_activation_account_activation_fee_amount === 'string'
+        const configuredFeeRaw = typeof constants.provider_activation_account_activation_fee_amount === 'string'
             ? constants.provider_activation_account_activation_fee_amount
             : verifyData.data?.amount?.toString() || '0';
+        const settlementAmount = resolveChapaSettlementAmount(verifyData.data ?? {});
+        const feeAmount = settlementAmount != null && settlementAmount >= MIN_ACTIVATION_SETTLEMENT_ETB
+            ? settlementAmount.toFixed(2)
+            : configuredFeeRaw;
 
         let walletSkipped = Boolean(existingWalletTx);
         let walletSkippedReason: string | null = existingWalletTx ? 'existing_wallet_transaction' : null;
@@ -171,7 +179,7 @@ export async function POST(request: Request) {
                     amount: feeAmount,
                     createdDate: now,
                     isCredit: true,
-                    note: 'Activation payment top up (Chapa)',
+                    note: 'Activation payment top up (Chapa, net after fee)',
                     paymentType: 'chapa',
                     transactionId: txRef,
                     type: 'provider',

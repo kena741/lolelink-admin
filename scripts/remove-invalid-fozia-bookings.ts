@@ -57,10 +57,6 @@ async function main(): Promise<void> {
         process.exit(1);
     }
 
-    const refundTotal = (debits ?? []).reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
-    const currentWallet = Number(customer.wallet_amount ?? 0);
-    const nextWallet = Math.round((currentWallet + refundTotal) * 100) / 100;
-
     console.log('Bookings to delete:', (bookings ?? []).length);
     for (const booking of bookings ?? []) {
         console.log(`  ${booking.id} | ${booking.payment_status} | ${booking.status} | ${booking.createdAt}`);
@@ -69,7 +65,7 @@ async function main(): Promise<void> {
     for (const debit of debits ?? []) {
         console.log(`  ${debit.id} | booking ${debit.transactionId} | ${debit.amount}`);
     }
-    console.log(`Customer ${customer.email} wallet: ${currentWallet.toFixed(2)} → ${nextWallet.toFixed(2)}`);
+    console.log(`Customer ${customer.email} wallet_amount: ${Number(customer.wallet_amount ?? 0).toFixed(2)} (unchanged — no refund credit)`);
 
     if (dryRun || !apply) {
         console.log(dryRun ? '\nDry run.' : '\nPass --apply to execute.');
@@ -90,32 +86,6 @@ async function main(): Promise<void> {
         }
     }
 
-    if (refundTotal > 0) {
-        const { error: creditError } = await admin.from('wallet_transaction').insert({
-            amount: refundTotal.toFixed(2),
-            createdDate: new Date().toISOString(),
-            isCredit: true,
-            note: 'Reversal: removed 4 invalid self-bookings (service fees refunded)',
-            paymentType: 'manual',
-            transactionId: `admin-refund-fozia-17792-${Date.now()}`,
-            type: 'customer',
-            userId: CUSTOMER_ID,
-        });
-        if (creditError) {
-            console.error('Failed to insert refund credit:', creditError.message);
-            process.exit(1);
-        }
-
-        const { error: walletUpdateError } = await admin
-            .from('customer')
-            .update({ wallet_amount: nextWallet })
-            .eq('id', CUSTOMER_ID);
-        if (walletUpdateError) {
-            console.error('Failed to update customer wallet:', walletUpdateError.message);
-            process.exit(1);
-        }
-    }
-
     const { error: deleteBookingsError } = await admin
         .from('booked_service')
         .delete()
@@ -126,7 +96,7 @@ async function main(): Promise<void> {
         process.exit(1);
     }
 
-    console.log('\nDone. Removed 4 bookings, deleted fee debits, refunded customer wallet.');
+    console.log('\nDone. Removed 4 bookings and deleted fee debits (no wallet refund credit).');
 }
 
 main().catch((error: unknown) => {

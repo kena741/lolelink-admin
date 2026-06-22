@@ -15,15 +15,14 @@ interface WalletMetricBreakdownDebugProps {
         totalTopUp: number;
         walletCredits: number;
         walletDebits: number;
-        netFlow: number;
         chapaWalletNet: number;
+        nonChapaWalletNet: number;
+        totalLedgerNet: number;
         chapaActivationInWallet: number;
         otherChapaInWallet: number;
         chapaAvailableBalance: number | null;
         chapaLedgerBalance: number | null;
         chapaSurplus: number | null;
-        chapaNetFlowGap: number | null;
-        nonChapaWalletNet: number;
         providerCount: number;
         bookingCount: number;
         completedBookings: number;
@@ -49,6 +48,16 @@ function sumBreakdownLines(lines: WalletMetricBreakdownLine[]): number {
 function formatSignedCurrency(value: number): string {
     const prefix = value < 0 ? '−' : '';
     return `${prefix}${formatCurrency(Math.abs(value))}`;
+}
+
+function formatChapaSurplusLabel(surplus: number): string {
+    if (surplus > 0.005) {
+        return `${formatCurrency(surplus)} in Chapa · not in ledger`;
+    }
+    if (surplus < -0.005) {
+        return `${formatCurrency(Math.abs(surplus))} ledger exceeds Chapa`;
+    }
+    return 'ledger matches live Chapa';
 }
 
 function FormulaLine({ segments }: { segments: FormulaSegment[] }) {
@@ -151,20 +160,20 @@ export function WalletMetricBreakdownDebug({ breakdown, totals }: WalletMetricBr
             <div className="mb-5">
                 <h2 className="admin-section-title">Metric breakdown (debug)</h2>
                 <p className="admin-section-desc">
-                    What each dashboard card is summed from in the selected date range. Amounts come from{' '}
-                    <span className="font-medium text-text-primary">wallet_transaction</span> unless noted.
+                    Ledger detail for the selected date range. Production{' '}
+                    <span className="font-medium text-text-primary">Net Flow</span> is Chapa only;{' '}
+                    <span className="font-medium text-text-primary">Direct payments</span> is tracked separately.
                 </p>
                 <FormulaLine
                     segments={[
-                        { value: formatCurrency(totals.walletCredits) },
-                        { value: formatCurrency(totals.walletDebits), operator: '−' },
-                        { value: formatCurrency(totals.netFlow), operator: '=' },
+                        { value: formatCurrency(totals.chapaWalletNet) },
+                        { value: formatSignedCurrency(totals.nonChapaWalletNet), operator: '+' },
+                        { value: formatCurrency(totals.totalLedgerNet), operator: '=' },
                     ]}
                 />
                 <p className="mt-1 text-xs text-text-secondary">
-                    Net Flow = wallet credits − debits. Also{' '}
-                    {formatCurrency(totals.chapaWalletNet)} + ({formatSignedCurrency(totals.nonChapaWalletNet)}) ={' '}
-                    {formatCurrency(totals.netFlow)} (Chapa rows + non-Chapa rows).
+                    Chapa ledger + direct / non-Chapa = full ledger net (
+                    {formatCurrency(totals.walletCredits)} credits − {formatCurrency(totals.walletDebits)} debits).
                 </p>
             </div>
 
@@ -218,7 +227,7 @@ export function WalletMetricBreakdownDebug({ breakdown, totals }: WalletMetricBr
                 <MetricBreakdownCard
                     title="Total top up"
                     total={totals.totalTopUp}
-                    totalLabel="All top-up-shaped credits (overlaps activation fee — not added to Net Flow separately)"
+                    totalLabel="All top-up-shaped credits (overlaps activation fee)"
                     lines={breakdown.totalTopUp}
                 />
 
@@ -244,20 +253,9 @@ export function WalletMetricBreakdownDebug({ breakdown, totals }: WalletMetricBr
                 />
 
                 <MetricBreakdownCard
-                    title="Net Flow"
-                    total={totals.netFlow}
-                    totalLabel="Wallet credits − wallet debits"
-                    formula={[
-                        { value: formatCurrency(totals.walletCredits) },
-                        { value: formatCurrency(totals.walletDebits), operator: '−' },
-                        { value: formatCurrency(totals.netFlow), operator: '=' },
-                    ]}
-                />
-
-                <MetricBreakdownCard
-                    title="App wallet Chapa"
+                    title="Net Flow (Chapa)"
                     total={totals.chapaWalletNet}
-                    totalLabel="Net of rows tagged Chapa (paymentType / note / transactionId)"
+                    totalLabel="Production Net Flow · Chapa-tagged rows only"
                     lines={breakdown.chapaWalletNet}
                     signedAmounts
                     formula={[
@@ -268,15 +266,21 @@ export function WalletMetricBreakdownDebug({ breakdown, totals }: WalletMetricBr
                 />
 
                 <MetricBreakdownCard
-                    title="Non-Chapa net"
+                    title="Direct payments"
                     total={totals.nonChapaWalletNet}
-                    totalLabel="Net of rows not tagged Chapa (manual, fees, non-Chapa payouts)"
+                    totalLabel="Production Direct payments · offline & non-Chapa"
                     lines={breakdown.nonChapaWalletNet}
                     signedAmounts
+                />
+
+                <MetricBreakdownCard
+                    title="Total ledger"
+                    total={totals.totalLedgerNet}
+                    totalLabel="Chapa + direct (full wallet_transaction net)"
                     formula={[
                         { value: formatCurrency(totals.chapaWalletNet) },
                         { value: formatSignedCurrency(totals.nonChapaWalletNet), operator: '+' },
-                        { value: formatCurrency(totals.netFlow), operator: '=' },
+                        { value: formatCurrency(totals.totalLedgerNet), operator: '=' },
                     ]}
                 />
 
@@ -290,11 +294,17 @@ export function WalletMetricBreakdownDebug({ breakdown, totals }: WalletMetricBr
                     }
                     formula={
                         totals.chapaAvailableBalance != null
-                            ? [
-                                  { value: formatCurrency(totals.chapaWalletNet) },
-                                  { value: `${formatCurrency(chapaSurplus)} missing wallet rows`, operator: '+' },
-                                  { value: formatCurrency(totals.chapaAvailableBalance), operator: '=' },
-                              ]
+                            ? chapaSurplus >= 0
+                                ? [
+                                      { value: formatCurrency(totals.chapaWalletNet) },
+                                      { value: formatChapaSurplusLabel(chapaSurplus), operator: '+' },
+                                      { value: formatCurrency(totals.chapaAvailableBalance), operator: '=' },
+                                  ]
+                                : [
+                                      { value: formatCurrency(totals.chapaWalletNet) },
+                                      { value: formatChapaSurplusLabel(chapaSurplus), operator: '−' },
+                                      { value: formatCurrency(totals.chapaAvailableBalance), operator: '=' },
+                                  ]
                             : [{ value: `${formatCurrency(totals.chapaWalletNet)} from wallet rows only` }]
                     }
                 />
@@ -333,20 +343,19 @@ export function WalletMetricBreakdownDebug({ breakdown, totals }: WalletMetricBr
                 />
             </div>
 
-            {totals.chapaAvailableBalance != null && totals.chapaSurplus != null && totals.chapaNetFlowGap != null && (
+            {totals.chapaAvailableBalance != null && totals.chapaSurplus != null && (
                 <div className="mt-6 rounded-xl border border-border bg-background p-4">
                     <p className="text-sm font-semibold text-text-primary">Chapa reconciliation</p>
                     <FormulaLine
                         segments={[
                             { value: formatCurrency(totals.chapaAvailableBalance) },
-                            { value: formatCurrency(totals.netFlow), operator: '−' },
-                            { value: formatCurrency(totals.chapaNetFlowGap), operator: '=' },
+                            { value: formatCurrency(totals.chapaWalletNet), operator: '−' },
+                            { value: formatSignedCurrency(totals.chapaSurplus), operator: '=' },
                         ]}
                     />
                     <p className="mt-1 text-xs text-text-secondary">
-                        Chapa available − Net Flow. Should match Chapa surplus − Non-Chapa net (
-                        {formatCurrency(totals.chapaSurplus)} − {formatCurrency(totals.nonChapaWalletNet)} ={' '}
-                        {formatCurrency(totals.chapaSurplus - totals.nonChapaWalletNet)}).
+                        Live Chapa − app wallet Chapa = {formatSignedCurrency(totals.chapaSurplus)} (
+                        {formatChapaSurplusLabel(totals.chapaSurplus)}).
                     </p>
                 </div>
             )}

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
+import { deductProviderWalletForWithdrawal } from '@/lib/withdrawal-wallet-side-effects';
 
 export const runtime = 'nodejs';
 
@@ -106,6 +107,19 @@ export async function POST(request: Request) {
             .eq('id', (withdrawalData as { id: string }).id);
         if (updateError)
             return NextResponse.json({ error: updateError.message || 'Failed to update withdrawal status from webhook' }, { status: 500 });
+
+        if (nextStatus === 'completed') {
+            const walletResult = await deductProviderWalletForWithdrawal(
+                supabaseAdmin,
+                (withdrawalData as { id: string }).id
+            );
+            if (!walletResult.ok) {
+                return NextResponse.json(
+                    { error: `Withdrawal completed but wallet deduction failed: ${walletResult.error}` },
+                    { status: 500 }
+                );
+            }
+        }
 
         await insertNotificationIfMissing(supabaseAdmin, {
             title: `Payout ${nextStatus}`,

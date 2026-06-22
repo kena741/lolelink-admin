@@ -78,6 +78,80 @@ function mapChapaBalanceRow(row: ChapaBalanceApiRow): ChapaEtbBalance | null {
     };
 }
 
+export interface ChapaVerifyTransaction {
+    status?: string;
+    amount?: number;
+    charge?: number;
+    tx_ref?: string;
+    reference?: string;
+}
+
+export async function verifyChapaTransaction(
+    secretKey: string,
+    txRef: string
+): Promise<{ ok: true; data: ChapaVerifyTransaction } | { ok: false; error: string }> {
+    const response = await fetch(
+        `https://api.chapa.co/v1/transaction/verify/${encodeURIComponent(txRef)}`,
+        {
+            method: 'GET',
+            headers: { Authorization: `Bearer ${secretKey}` },
+            cache: 'no-store',
+        }
+    );
+
+    const payload = (await response.json()) as {
+        status?: string;
+        message?: string;
+        data?: ChapaVerifyTransaction;
+    };
+
+    if (!response.ok || payload.status !== 'success') {
+        return { ok: false, error: payload.message || 'Chapa verify failed' };
+    }
+
+    const txStatus = String(payload.data?.status ?? '').toLowerCase();
+    if (!isChapaSuccessStatus(txStatus)) {
+        return { ok: false, error: `Chapa status is ${txStatus || 'unknown'}` };
+    }
+
+    return { ok: true, data: payload.data ?? {} };
+}
+
+export function resolveChapaSettlementAmount(data: ChapaVerifyTransaction): number | null {
+    const gross = Number(data.amount ?? 0);
+    const charge = Number(data.charge ?? 0);
+
+    if (!Number.isFinite(gross) || gross <= 0) return null;
+
+    if (Number.isFinite(charge) && charge >= 0) {
+        return Math.round((gross - charge) * 100) / 100;
+    }
+
+    return Math.round(gross * 100) / 100;
+}
+
+export function resolveChapaWalletCreditAmount(
+    data: ChapaVerifyTransaction,
+    fallbackAmount: string
+): string {
+    const gross = Number(data.amount ?? 0);
+    const charge = Number(data.charge ?? 0);
+
+    if (Number.isFinite(gross) && gross > 0) {
+        const inferredFromCustomerFee = Math.round((gross / 1.035) * 100) / 100;
+        if (Math.abs(inferredFromCustomerFee * 1.035 - gross) < 0.02) {
+            return inferredFromCustomerFee.toFixed(2);
+        }
+        if (Number.isFinite(charge) && charge > 0) {
+            return (gross - charge).toFixed(2);
+        }
+        return gross.toFixed(2);
+    }
+
+    const fallback = Number(fallbackAmount);
+    return Number.isFinite(fallback) && fallback > 0 ? fallback.toFixed(2) : '0.00';
+}
+
 export async function fetchChapaEtbBalance(secretKey: string): Promise<ChapaEtbBalance> {
     const headers = { Authorization: `Bearer ${secretKey}` };
 
