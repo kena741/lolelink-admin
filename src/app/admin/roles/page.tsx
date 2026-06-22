@@ -23,6 +23,7 @@ import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminP
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { createAdminRole, deleteAdminRole, fetchAdminRoles, updateAdminRole } from '@/features/admin/adminRoleSlice';
 import { groupPermissionsByCategory, PERMISSION_DEFINITIONS } from '@/lib/admin-permissions';
+import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -59,6 +60,7 @@ type SortDir = 'asc' | 'desc';
 
 function RolesPage() {
     const dispatch = useAppDispatch();
+    const { canWriteRoles } = useAdminPermissions();
     const { roles, loading, error } = useAppSelector((state) => state.adminRole);
     const [query, setQuery] = useState('');
     const [sortBy, setSortBy] = useState<SortKey>('name');
@@ -252,6 +254,7 @@ function RolesPage() {
                                         <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                                         Refresh
                                     </button>
+                                    {canWriteRoles && (
                                     <button
                                         type="button"
                                         onClick={openCreateModal}
@@ -260,6 +263,7 @@ function RolesPage() {
                                         <Plus className="h-4 w-4" />
                                         Add Role
                                     </button>
+                                    )}
                                 </>
                             }
                         />
@@ -427,6 +431,7 @@ function RolesPage() {
                                                         </span>
                                                     </TableCell>
                                                     <TableCell className="text-right">
+                                                        {canWriteRoles ? (
                                                         <DropdownMenu>
                                                             <DropdownMenuTrigger asChild>
                                                                 <Button
@@ -464,6 +469,7 @@ function RolesPage() {
                                                                 )}
                                                             </DropdownMenuContent>
                                                         </DropdownMenu>
+                                                        ) : null}
                                                     </TableCell>
                                                 </TableRow>
                                             );

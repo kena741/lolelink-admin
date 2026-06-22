@@ -33,11 +33,13 @@ import { getSupabase } from '@/lib/supabaseClient';
 import { sendSms, buildRecipient } from '@/lib/sms';
 import { cn } from '@/lib/utils';
 import { getDisplayImageUrl } from '@/lib/media-url';
+import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 
 type StatusFilter = 'all' | 'pending' | 'approved' | 'rejected';
 
 const VerifyDocumentsPage = () => {
     const dispatch = useAppDispatch();
+    const { canVerifyProviders } = useAdminPermissions();
     const { documents, loading, error } = useAppSelector((state) => state.verifyDocuments);
     const [processingId, setProcessingId] = useState<string | null>(null);
     const [processingProviderId, setProcessingProviderId] = useState<string | null>(null);
@@ -460,6 +462,7 @@ const VerifyDocumentsPage = () => {
                                                                 </span>
                                                             </div>
                                                         </div>
+                                                        {canVerifyProviders && (
                                                         <div className="flex flex-wrap items-center gap-2">
                                                             {pendingDocs.length > 0 && (
                                                                 <button
@@ -481,6 +484,7 @@ const VerifyDocumentsPage = () => {
                                                                 </button>
                                                             )}
                                                         </div>
+                                                        )}
                                                     </div>
                                                 </div>
 
@@ -766,7 +770,7 @@ const VerifyDocumentsPage = () => {
                                     )}
 
                                     {/* Actions */}
-                                    {selectedDocument.isVerify === null && (
+                                    {canVerifyProviders && selectedDocument.isVerify === null && (
                                         <div className="flex items-center gap-3 pt-4 border-t border-gray-200">
                                             <button
                                                 onClick={() => {
@@ -791,7 +795,7 @@ const VerifyDocumentsPage = () => {
                                         </div>
                                     )}
 
-                                    {selectedDocument.isVerify === false && (
+                                    {canVerifyProviders && selectedDocument.isVerify === false && (
                                         <div className="flex items-center gap-3 pt-4 border-t border-gray-200">
                                             <button
                                                 onClick={() => {

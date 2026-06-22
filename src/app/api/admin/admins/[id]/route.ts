@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireAdminPermission } from '@/lib/admin-auth';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 import { logAdminActivity } from '@/lib/admin-activity-log';
 
@@ -20,6 +21,9 @@ async function getIdFromParams(params: Promise<RouteParams> | RouteParams): Prom
 }
 
 export async function PATCH(request: Request, context: { params: Promise<RouteParams> }) {
+    const auth = await requireAdminPermission(request, 'admins:write');
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
     const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const id = await getIdFromParams(context.params);
@@ -107,6 +111,9 @@ export async function PATCH(request: Request, context: { params: Promise<RoutePa
 }
 
 export async function DELETE(request: Request, context: { params: Promise<RouteParams> }) {
+    const auth = await requireAdminPermission(request, 'admins:write');
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
     const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const id = await getIdFromParams(context.params);
@@ -114,7 +121,7 @@ export async function DELETE(request: Request, context: { params: Promise<RouteP
 
         const { data: existing, error: existingError } = await supabaseAdmin
             .from('admin')
-            .select('user_id')
+            .select('user_id, full_name')
             .eq('id', id)
             .maybeSingle();
 
@@ -131,7 +138,7 @@ export async function DELETE(request: Request, context: { params: Promise<RouteP
             action: 'delete',
             resource_type: 'admin',
             resource_id: id,
-            summary: `Deleted admin ${id}`,
+            summary: `Deleted admin ${(existing.full_name as string | null)?.trim() || id}`,
         });
 
         return NextResponse.json({ ok: true });

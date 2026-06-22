@@ -17,6 +17,7 @@ import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader from '@/components/AdminPageHeader';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
+import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 
 const PAGE_SIZE = 20;
 
@@ -27,6 +28,7 @@ function customerIsArchived(c: { archived_at?: string | null; archivedAt?: strin
 
 export default function CustomersPage() {
     const dispatch = useAppDispatch();
+    const { canWriteCustomers } = useAdminPermissions();
     const { customers, loading, error, convertingId, convertError } = useAppSelector((s) => s.customer);
     const [query, setQuery] = useState('');
     const [showArchived, setShowArchived] = useState(false);
@@ -338,7 +340,7 @@ export default function CustomersPage() {
                                                                         Open provider
                                                                     </Link>
                                                                 </DropdownMenuItem>
-                                                            ) : c.id ? (
+                                                            ) : c.id && canWriteCustomers ? (
                                                                 <DropdownMenuItem
                                                                     disabled={convertingId === c.id || rowBusy}
                                                                     onSelect={() => {
@@ -356,7 +358,7 @@ export default function CustomersPage() {
                                                                     </span>
                                                                 </DropdownMenuItem>
                                                             ) : null}
-                                                            {!archived && c.id ? (
+                                                            {canWriteCustomers && !archived && c.id ? (
                                                                 <DropdownMenuItem
                                                                     disabled={rowBusy}
                                                                     onSelect={() => {
@@ -370,7 +372,7 @@ export default function CustomersPage() {
                                                                     </span>
                                                                 </DropdownMenuItem>
                                                             ) : null}
-                                                            {archived && c.id ? (
+                                                            {canWriteCustomers && archived && c.id ? (
                                                                 <DropdownMenuItem
                                                                     disabled={rowBusy}
                                                                     onSelect={() => {
@@ -384,7 +386,7 @@ export default function CustomersPage() {
                                                                     </span>
                                                                 </DropdownMenuItem>
                                                             ) : null}
-                                                            {c.id ? (
+                                                            {canWriteCustomers && c.id ? (
                                                                 <>
                                                                     <DropdownMenuSeparator />
                                                                     <DropdownMenuItem

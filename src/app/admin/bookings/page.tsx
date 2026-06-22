@@ -18,6 +18,7 @@ import { getSupabase } from "@/lib/supabaseClient";
 import type { BookedService } from "@/features/bookedService/bookedServiceSlice";
 import { CreateBookingModal } from "./CreateBookingModal";
 import { useIsLocalhost } from "@/hooks/use-is-localhost";
+import { useAdminPermissions } from "@/hooks/use-admin-permissions";
 
 function DebugJsonBlock({ title, value }: { title: string; value: unknown }) {
     return (
@@ -106,7 +107,8 @@ const DetailModal: React.FC<{
     onClose: () => void;
     onDelete: (id: string) => Promise<void>;
     deleting: boolean;
-}> = ({ open, onClose, onDelete, deleting }) => {
+    canDelete: boolean;
+}> = ({ open, onClose, onDelete, deleting, canDelete }) => {
     const { single, loading } = useAppSelector((s) => s.bookedService);
 
     if (!open) return null;
@@ -180,7 +182,7 @@ const DetailModal: React.FC<{
                     )}
                 </div>
                 <div className="px-5 py-3 border-t flex items-center justify-between gap-2">
-                    {single && (
+                    {single && canDelete && (
                         <button
                             type="button"
                             onClick={() => void onDelete(single.id)}
@@ -435,6 +437,7 @@ const BookingDebugModal: React.FC<{
 const BookingsPage = () => {
     const dispatch = useAppDispatch();
     const isLocalhost = useIsLocalhost();
+    const { canWriteBookings } = useAdminPermissions();
     const { items, loading, error } = useAppSelector((s) => s.bookedService);
     const [open, setOpen] = useState(false);
     const [createOpen, setCreateOpen] = useState(false);
@@ -515,14 +518,16 @@ const BookingsPage = () => {
                             description="All booked services from customers across providers"
                             actions={
                                 <>
-                                    <button
-                                        type="button"
-                                        onClick={() => setCreateOpen(true)}
-                                        className={adminHeaderButtonClassName()}
-                                    >
-                                        <Plus className="h-4 w-4" />
-                                        Create booking
-                                    </button>
+                                    {canWriteBookings && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setCreateOpen(true)}
+                                            className={adminHeaderButtonClassName()}
+                                        >
+                                            <Plus className="h-4 w-4" />
+                                            Create booking
+                                        </button>
+                                    )}
                                     <button
                                         type="button"
                                         onClick={onRefresh}
@@ -624,19 +629,21 @@ const BookingsPage = () => {
                                                     >
                                                         <Eye className="h-4 w-4" />
                                                     </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => void handleDeleteBooking(b.id)}
-                                                        disabled={deletingId === b.id}
-                                                        aria-label={deletingId === b.id ? 'Deleting booking' : 'Delete booking'}
-                                                        className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-red-200"
-                                                    >
-                                                        {deletingId === b.id ? (
-                                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                                        ) : (
-                                                            <Trash2 className="h-4 w-4" />
-                                                        )}
-                                                    </button>
+                                                    {canWriteBookings && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => void handleDeleteBooking(b.id)}
+                                                            disabled={deletingId === b.id}
+                                                            aria-label={deletingId === b.id ? 'Deleting booking' : 'Delete booking'}
+                                                            className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-red-200"
+                                                        >
+                                                            {deletingId === b.id ? (
+                                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                                            ) : (
+                                                                <Trash2 className="h-4 w-4" />
+                                                            )}
+                                                        </button>
+                                                    )}
                                                     {isLocalhost && (
                                                         <button
                                                             type="button"
@@ -670,6 +677,7 @@ const BookingsPage = () => {
                     onClose={onClose}
                     onDelete={handleDeleteBooking}
                     deleting={Boolean(deletingId)}
+                    canDelete={canWriteBookings}
                 />
                 {isLocalhost && (
                     <BookingDebugModal
@@ -680,11 +688,13 @@ const BookingsPage = () => {
                         onVerified={() => dispatch(fetchAllBookings())}
                     />
                 )}
+                {canWriteBookings && (
                 <CreateBookingModal
                     open={createOpen}
                     onClose={() => setCreateOpen(false)}
                     onCreated={() => dispatch(fetchAllBookings())}
                 />
+                )}
             </div>
         </AuthGuard>
     );

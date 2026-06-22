@@ -48,6 +48,7 @@ import AuthGuard from "@/components/AuthGuard";
 import AdminPageHeader, { adminHeaderButtonClassName } from "@/components/AdminPageHeader";
 import { ActivationPaymentModal } from "@/components/ActivationPaymentModal";
 import { fetchSettings } from "@/features/settings/settingsSlice";
+import { useAdminPermissions } from "@/hooks/use-admin-permissions";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 
@@ -156,6 +157,7 @@ function SegmentGroup<V extends string>({ label, value, options, onChange }: Seg
 
 const ProvidersPage = () => {
     const dispatch = useAppDispatch();
+    const { canWriteProviders } = useAdminPermissions();
     const { providers, loading, error, serviceCounts } = useAppSelector((state) => state.provider);
 
     type SortKey = "name" | "email" | "services" | "createdAt";
@@ -814,7 +816,7 @@ const ProvidersPage = () => {
                                                                 </Link>
                                                             </DropdownMenuItem>
                                                         ) : null}
-                                                        {!archived && p.id ? (
+                                                        {canWriteProviders && !archived && p.id ? (
                                                             <DropdownMenuItem
                                                                 disabled={rowBusy}
                                                                 onSelect={() => {
@@ -827,7 +829,7 @@ const ProvidersPage = () => {
                                                                 </span>
                                                             </DropdownMenuItem>
                                                         ) : null}
-                                                        {archived && p.id ? (
+                                                        {canWriteProviders && archived && p.id ? (
                                                             <DropdownMenuItem
                                                                 disabled={rowBusy}
                                                                 onSelect={() => {
@@ -840,7 +842,7 @@ const ProvidersPage = () => {
                                                                 </span>
                                                             </DropdownMenuItem>
                                                         ) : null}
-                                                        {p.id ? (
+                                                        {canWriteProviders && p.id ? (
                                                             <>
                                                                 <DropdownMenuSeparator />
                                                                 <DropdownMenuItem
@@ -1045,7 +1047,7 @@ const ProvidersPage = () => {
                                                                                 </Link>
                                                                             </DropdownMenuItem>
                                                                         ) : null}
-                                                                        {!archived && p.id ? (
+                                                                        {canWriteProviders && !archived && p.id ? (
                                                                             <DropdownMenuItem
                                                                                 disabled={rowBusy}
                                                                                 onSelect={() => {
@@ -1058,7 +1060,7 @@ const ProvidersPage = () => {
                                                                                 </span>
                                                                             </DropdownMenuItem>
                                                                         ) : null}
-                                                                        {archived && p.id ? (
+                                                                        {canWriteProviders && archived && p.id ? (
                                                                             <DropdownMenuItem
                                                                                 disabled={rowBusy}
                                                                                 onSelect={() => {
@@ -1071,7 +1073,7 @@ const ProvidersPage = () => {
                                                                                 </span>
                                                                             </DropdownMenuItem>
                                                                         ) : null}
-                                                                        {p.id ? (
+                                                                        {canWriteProviders && p.id ? (
                                                                             <>
                                                                                 <DropdownMenuSeparator />
                                                                                 <DropdownMenuItem

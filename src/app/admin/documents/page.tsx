@@ -7,9 +7,11 @@ import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminP
 import { ArrowLeft, RefreshCw, Plus, Edit, Trash2, X, CheckCircle2, XCircle } from 'lucide-react';
 import Link from 'next/link';
 import { fetchDocuments, createDocument, updateDocument, deleteDocument } from '@/features/document/documentSlice';
+import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 
 const DocumentsPage = () => {
     const dispatch = useAppDispatch();
+    const { canWriteDocuments } = useAdminPermissions();
     const { documents, loading, error } = useAppSelector((state) => state.document);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingDocument, setEditingDocument] = useState<typeof documents[0] | null>(null);
@@ -119,6 +121,7 @@ const DocumentsPage = () => {
                                         <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                                         Refresh
                                     </button>
+                                    {canWriteDocuments && (
                                     <button
                                         type="button"
                                         onClick={() => handleOpenModal()}
@@ -127,6 +130,7 @@ const DocumentsPage = () => {
                                         <Plus className="h-4 w-4" />
                                         Add Document
                                     </button>
+                                    )}
                                 </>
                             }
                         />
@@ -212,6 +216,7 @@ const DocumentsPage = () => {
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                        {canWriteDocuments ? (
                                                         <div className="flex items-center justify-end gap-2">
                                                             <button
                                                                 onClick={() => handleOpenModal(doc)}
@@ -227,6 +232,7 @@ const DocumentsPage = () => {
                                                                 <Trash2 className="h-4 w-4" />
                                                             </button>
                                                         </div>
+                                                        ) : null}
                                                     </td>
                                                 </tr>
                                             ))

@@ -9,9 +9,11 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { fetchBanners, createBanner, updateBanner, deleteBanner } from '@/features/banner/bannerSlice';
 import { uploadFilesToSupabase } from '@/lib/upload';
+import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 
 const BannersPage = () => {
     const dispatch = useAppDispatch();
+    const { canWriteCatalog } = useAdminPermissions();
     const { banners, loading, error } = useAppSelector((state) => state.banner);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingBanner, setEditingBanner] = useState<typeof banners[0] | null>(null);
@@ -178,6 +180,7 @@ const BannersPage = () => {
                                         <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                                         Refresh
                                     </button>
+                                    {canWriteCatalog && (
                                     <button
                                         type="button"
                                         onClick={() => handleOpenModal()}
@@ -186,6 +189,7 @@ const BannersPage = () => {
                                         <Plus className="h-4 w-4" />
                                         Add Banner
                                     </button>
+                                    )}
                                 </>
                             }
                         />
@@ -284,6 +288,7 @@ const BannersPage = () => {
                                                         {formatDate(banner.createdAt)}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                        {canWriteCatalog ? (
                                                         <div className="flex items-center justify-end gap-2">
                                                             <button
                                                                 onClick={() => handleOpenModal(banner)}
@@ -299,6 +304,7 @@ const BannersPage = () => {
                                                                 <Trash2 className="h-4 w-4" />
                                                             </button>
                                                         </div>
+                                                        ) : null}
                                                     </td>
                                                 </tr>
                                             ))

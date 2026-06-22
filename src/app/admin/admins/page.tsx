@@ -41,6 +41,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import type { AdminUser } from '../../../../type/admin';
+import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 
 const PAGE_SIZE = 20;
 
@@ -70,6 +71,7 @@ function getInitials(name: string): string {
 
 function AdminsPage() {
     const dispatch = useAppDispatch();
+    const { canWriteAdmins } = useAdminPermissions();
     const { admins, loading, error } = useAppSelector((state) => state.admin);
     const { roles } = useAppSelector((state) => state.adminRole);
     const [query, setQuery] = useState('');
@@ -260,6 +262,7 @@ function AdminsPage() {
                                         <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                                         Refresh
                                     </button>
+                                    {canWriteAdmins && (
                                     <button
                                         type="button"
                                         onClick={openCreateModal}
@@ -268,6 +271,7 @@ function AdminsPage() {
                                         <Plus className="h-4 w-4" />
                                         Add Admin
                                     </button>
+                                    )}
                                 </>
                             }
                         />
@@ -428,6 +432,7 @@ function AdminsPage() {
                                                         </div>
                                                     </TableCell>
                                                     <TableCell className="text-right">
+                                                        {canWriteAdmins ? (
                                                         <DropdownMenu>
                                                             <DropdownMenuTrigger asChild>
                                                                 <Button
@@ -461,6 +466,7 @@ function AdminsPage() {
                                                                 </DropdownMenuItem>
                                                             </DropdownMenuContent>
                                                         </DropdownMenu>
+                                                        ) : null}
                                                     </TableCell>
                                                 </TableRow>
                                             );

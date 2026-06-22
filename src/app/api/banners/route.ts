@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireAdminPermission } from '@/lib/admin-auth';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
@@ -19,6 +20,9 @@ interface BannerMutationBody {
 }
 
 export async function GET(request: Request) {
+    const auth = await requireAdminPermission(request, 'catalog:read');
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
     const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const { data, error } = await supabaseAdmin
@@ -35,6 +39,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+    const auth = await requireAdminPermission(request, 'catalog:write');
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
     const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const body = (await request.json()) as BannerMutationBody;
@@ -58,6 +65,9 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+    const auth = await requireAdminPermission(request, 'catalog:write');
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
     const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const body = (await request.json()) as BannerMutationBody;
@@ -86,6 +96,9 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+    const auth = await requireAdminPermission(request, 'catalog:write');
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
     const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const body = (await request.json()) as BannerMutationBody;

@@ -22,9 +22,11 @@ import Image from 'next/image';
 import { fetchCategories, createCategory, updateCategory, deleteCategory } from '@/features/category/categorySlice';
 import { fetchSubCategories } from '@/features/subcategory/subcategorySlice';
 import { uploadFilesToSupabase } from '@/lib/upload';
+import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 
 const CategoriesPage = () => {
     const dispatch = useAppDispatch();
+    const { canWriteCatalog } = useAdminPermissions();
     const { categories, loading, error } = useAppSelector((state) => state.category);
     const { subCategories } = useAppSelector((state) => state.subcategory);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -158,6 +160,7 @@ const CategoriesPage = () => {
                                         <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                                         Refresh
                                     </button>
+                                    {canWriteCatalog && (
                                     <button
                                         type="button"
                                         onClick={() => handleOpenModal()}
@@ -166,6 +169,7 @@ const CategoriesPage = () => {
                                         <Plus className="h-4 w-4" />
                                         Add Category
                                     </button>
+                                    )}
                                 </>
                             }
                         />
@@ -187,6 +191,7 @@ const CategoriesPage = () => {
                                         <FolderTree className="h-16 w-16 text-gray-400 mx-auto mb-4" />
                                         <p className="text-lg font-semibold text-gray-900 mb-2">No categories found</p>
                                         <p className="text-sm text-gray-600 mb-4">Get started by creating your first category</p>
+                                        {canWriteCatalog && (
                                         <button
                                             onClick={() => handleOpenModal()}
                                             className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 text-sm font-semibold hover:shadow-lg transition-all"
@@ -194,6 +199,7 @@ const CategoriesPage = () => {
                                             <Plus className="h-4 w-4" />
                                             Add Category
                                         </button>
+                                        )}
                                     </div>
                                 ) : (
                                     <table className="w-full">
@@ -249,6 +255,7 @@ const CategoriesPage = () => {
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
+                                                        {canWriteCatalog ? (
                                                         <button
                                                             onClick={() => toggleActive(category)}
                                                             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all ${
@@ -269,8 +276,18 @@ const CategoriesPage = () => {
                                                                 </>
                                                             )}
                                                         </button>
+                                                        ) : (
+                                                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                                                            category.active
+                                                                ? 'bg-emerald-100 text-emerald-700'
+                                                                : 'bg-gray-100 text-gray-700'
+                                                        }`}>
+                                                            {category.active ? 'Active' : 'Inactive'}
+                                                        </span>
+                                                        )}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                        {canWriteCatalog ? (
                                                         <div className="flex items-center justify-end gap-2">
                                                             <button
                                                                 onClick={() => handleOpenModal(category)}
@@ -292,6 +309,7 @@ const CategoriesPage = () => {
                                                                 )}
                                                             </button>
                                                         </div>
+                                                        ) : null}
                                                     </td>
                                                 </tr>
                                             ))}

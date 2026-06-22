@@ -7,9 +7,11 @@ import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminP
 import { Receipt, ArrowLeft, RefreshCw, Plus, Edit, Trash2, X, CheckCircle2, XCircle } from 'lucide-react';
 import Link from 'next/link';
 import { fetchTaxes, createTax, updateTax, deleteTax } from '@/features/tax/taxSlice';
+import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 
 const TaxesPage = () => {
     const dispatch = useAppDispatch();
+    const { canWriteFinance } = useAdminPermissions();
     const { taxes, loading, error } = useAppSelector((state) => state.tax);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTax, setEditingTax] = useState<typeof taxes[0] | null>(null);
@@ -140,6 +142,7 @@ const TaxesPage = () => {
                                         <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                                         Refresh
                                     </button>
+                                    {canWriteFinance && (
                                     <button
                                         type="button"
                                         onClick={() => handleOpenModal()}
@@ -148,6 +151,7 @@ const TaxesPage = () => {
                                         <Plus className="h-4 w-4" />
                                         Add Tax
                                     </button>
+                                    )}
                                 </>
                             }
                         />
@@ -169,6 +173,7 @@ const TaxesPage = () => {
                                         <Receipt className="h-16 w-16 text-gray-400 mx-auto mb-4" />
                                         <p className="text-lg font-semibold text-gray-900 mb-2">No taxes found</p>
                                         <p className="text-sm text-gray-600 mb-4">Get started by adding your first tax</p>
+                                        {canWriteFinance && (
                                         <button
                                             onClick={() => handleOpenModal()}
                                             className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 text-sm font-semibold hover:shadow-lg transition-all"
@@ -176,6 +181,7 @@ const TaxesPage = () => {
                                             <Plus className="h-4 w-4" />
                                             Add Tax
                                         </button>
+                                        )}
                                     </div>
                                 ) : (
                                     <table className="w-full">
@@ -222,6 +228,7 @@ const TaxesPage = () => {
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
+                                                        {canWriteFinance ? (
                                                         <button
                                                             onClick={() => toggleActive(tax)}
                                                             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all ${
@@ -242,8 +249,16 @@ const TaxesPage = () => {
                                                                 </>
                                                             )}
                                                         </button>
+                                                        ) : (
+                                                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                                                            tax.active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-700'
+                                                        }`}>
+                                                            {tax.active ? 'Active' : 'Inactive'}
+                                                        </span>
+                                                        )}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                        {canWriteFinance ? (
                                                         <div className="flex items-center justify-end gap-2">
                                                             <button
                                                                 onClick={() => handleOpenModal(tax)}
@@ -265,6 +280,7 @@ const TaxesPage = () => {
                                                                 )}
                                                             </button>
                                                         </div>
+                                                        ) : null}
                                                     </td>
                                                 </tr>
                                             ))}

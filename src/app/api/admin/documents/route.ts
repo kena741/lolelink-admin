@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireAdminPermission } from '@/lib/admin-auth';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 import { logAdminActivity } from '@/lib/admin-activity-log';
 
@@ -19,6 +20,9 @@ interface DocumentMutationBody {
 }
 
 export async function GET(request: Request) {
+    const auth = await requireAdminPermission(request, 'documents:read');
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
     const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const { data, error } = await supabaseAdmin
@@ -41,6 +45,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+    const auth = await requireAdminPermission(request, 'documents:write');
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
     const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const body = (await request.json()) as DocumentMutationBody;
@@ -83,6 +90,9 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+    const auth = await requireAdminPermission(request, 'documents:write');
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
     const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const body = (await request.json()) as DocumentMutationBody;
@@ -130,6 +140,9 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+    const auth = await requireAdminPermission(request, 'documents:write');
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
     const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const body = (await request.json()) as DocumentMutationBody;

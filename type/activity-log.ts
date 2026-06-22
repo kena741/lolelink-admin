@@ -8,8 +8,10 @@ export interface AdminActivityLog {
     action: string;
     resource_type: string;
     resource_id: string | null;
+    resource_name?: string | null;
     route: string | null;
     summary: string;
+    display_summary?: string;
     metadata: Record<string, unknown>;
     env: string;
 }

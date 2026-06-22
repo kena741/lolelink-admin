@@ -38,10 +38,7 @@ async function resolveRolePermissions(
     return defaultRole ? [...defaultRole.permissions] : [];
 }
 
-export async function requireAdminPermission(
-    request: Request,
-    permission: string
-): Promise<AdminAuthResult> {
+async function resolveAdminAuthContext(request: Request): Promise<AdminAuthResult> {
     const supabase = await createSupabaseServerClientFromRequest(request);
     const { data: userData, error: userError } = await supabase.auth.getUser();
 
@@ -66,9 +63,6 @@ export async function requireAdminPermission(
     }
 
     const permissions = await resolveRolePermissions(supabaseAdmin, admin.role);
-    if (!hasPermission(permissions, permission)) {
-        return { ok: false, status: 403, error: 'Insufficient permissions' };
-    }
 
     return {
         ok: true,
@@ -78,4 +72,22 @@ export async function requireAdminPermission(
             permissions,
         },
     };
+}
+
+export async function requireAdminSession(request: Request): Promise<AdminAuthResult> {
+    return resolveAdminAuthContext(request);
+}
+
+export async function requireAdminPermission(
+    request: Request,
+    permission: string
+): Promise<AdminAuthResult> {
+    const auth = await resolveAdminAuthContext(request);
+    if (!auth.ok) return auth;
+
+    if (!hasPermission(auth.context.permissions, permission)) {
+        return { ok: false, status: 403, error: 'Insufficient permissions' };
+    }
+
+    return auth;
 }

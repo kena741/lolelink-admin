@@ -14,9 +14,11 @@ import { mapServiceRowToEditServiceModel, openEditModal } from '@/features/servi
 import EditServiceModal from '@/app/admin/providers/[id]/EditServiceModal';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 
 export default function ApproveServicesPage() {
     const dispatch = useAppDispatch();
+    const { canWriteServices } = useAdminPermissions();
     const { services, loading, error, updatedCount } = useAppSelector((s: RootState) => s.approveServices ?? { services: [], loading: false, error: null, updatedCount: 0 });
     const { loading: deleteLoading, error: deleteError } = useAppSelector((s: RootState) => s.deleteService ?? { loading: false, error: null, success: false });
 
@@ -184,7 +186,7 @@ export default function ApproveServicesPage() {
                                                 service={srv}
                                                 onView={onView}
                                                 isActionLoading={loading || deleteLoading}
-                                                onDelete={(serviceId) => setDeleteId(serviceId)}
+                                                onDelete={canWriteServices ? (serviceId) => setDeleteId(serviceId) : undefined}
                                             />
                                         );
                                     })}
@@ -276,8 +278,8 @@ export default function ApproveServicesPage() {
                                                 service={srv}
                                                 onView={onView}
                                                 isActionLoading={loading}
-                                                onApproveFeature={onApprove}
-                                                onRejectFeature={onReject}
+                                                onApproveFeature={canWriteServices ? onApprove : undefined}
+                                                onRejectFeature={canWriteServices ? onReject : undefined}
                                             />
                                         );
                                     })}
@@ -315,7 +317,7 @@ export default function ApproveServicesPage() {
                                                 service={srv}
                                                 onView={onView}
                                                 isActionLoading={loading}
-                                                onRemoveFeatured={onRemoveFeatured}
+                                                onRemoveFeatured={canWriteServices ? onRemoveFeatured : undefined}
                                             />
                                         );
                                     })}
@@ -335,6 +337,7 @@ export default function ApproveServicesPage() {
                 </main>
                 <EditServiceModal />
 
+                {canWriteServices && (
                 <Dialog open={!!deleteId} onClose={() => setDeleteId(null)}>
                     <DialogHeader>
                         <DialogTitle>Delete pending service?</DialogTitle>
@@ -359,6 +362,7 @@ export default function ApproveServicesPage() {
                         </Button>
                     </DialogFooter>
                 </Dialog>
+                )}
             </div>
         </AuthGuard>
     );

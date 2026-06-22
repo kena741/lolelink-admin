@@ -21,9 +21,11 @@ import {
 import Link from 'next/link';
 import Image from 'next/image';
 import { fetchHandymen, createHandyman, updateHandyman, deleteHandyman } from '@/features/handyman/handymanSlice';
+import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 
 const HandymanPage = () => {
     const dispatch = useAppDispatch();
+    const { canWriteProviders } = useAdminPermissions();
     const { handymen, loading, error } = useAppSelector((state) => state.handyman);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingHandyman, setEditingHandyman] = useState<typeof handymen[0] | null>(null);
@@ -171,6 +173,7 @@ const HandymanPage = () => {
                                         <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                                         Refresh
                                     </button>
+                                    {canWriteProviders && (
                                     <button
                                         type="button"
                                         onClick={() => handleOpenModal()}
@@ -179,6 +182,7 @@ const HandymanPage = () => {
                                         <Plus className="h-4 w-4" />
                                         Add Handyman
                                     </button>
+                                    )}
                                 </>
                             }
                         />
@@ -200,6 +204,7 @@ const HandymanPage = () => {
                                         <Wrench className="h-16 w-16 text-gray-400 mx-auto mb-4" />
                                         <p className="text-lg font-semibold text-gray-900 mb-2">No handymen found</p>
                                         <p className="text-sm text-gray-600 mb-4">Get started by adding your first handyman</p>
+                                        {canWriteProviders && (
                                         <button
                                             onClick={() => handleOpenModal()}
                                             className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 text-sm font-semibold hover:shadow-lg transition-all"
@@ -207,6 +212,7 @@ const HandymanPage = () => {
                                             <Plus className="h-4 w-4" />
                                             Add Handyman
                                         </button>
+                                        )}
                                     </div>
                                 ) : (
                                     <div className="overflow-x-auto">
@@ -291,6 +297,7 @@ const HandymanPage = () => {
                                                             </div>
                                                         </td>
                                                         <td className="px-6 py-4 whitespace-nowrap">
+                                                            {canWriteProviders ? (
                                                             <button
                                                                 onClick={() => toggleActive(handyman)}
                                                                 className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all ${
@@ -301,8 +308,18 @@ const HandymanPage = () => {
                                                             >
                                                                 {handyman.active && handyman.isActive ? 'Active' : 'Inactive'}
                                                             </button>
+                                                            ) : (
+                                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                                                                handyman.active && handyman.isActive
+                                                                    ? 'bg-emerald-100 text-emerald-700'
+                                                                    : 'bg-gray-100 text-gray-700'
+                                                            }`}>
+                                                                {handyman.active && handyman.isActive ? 'Active' : 'Inactive'}
+                                                            </span>
+                                                            )}
                                                         </td>
                                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                            {canWriteProviders ? (
                                                             <div className="flex items-center justify-end gap-2">
                                                                 <button
                                                                     onClick={() => handleOpenModal(handyman)}
@@ -324,6 +341,7 @@ const HandymanPage = () => {
                                                                     )}
                                                                 </button>
                                                             </div>
+                                                            ) : null}
                                                         </td>
                                                     </tr>
                                                 ))}

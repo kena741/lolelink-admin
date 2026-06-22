@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireAdminPermission } from '@/lib/admin-auth';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 import { DEFAULT_ADMIN_ROLES } from '@/lib/admin-permissions';
 import { logAdminActivity } from '@/lib/admin-activity-log';
@@ -50,6 +51,9 @@ async function ensureDefaultRoles(supabaseAdmin: ReturnType<typeof getSupabaseAd
 }
 
 export async function GET(request: Request) {
+    const auth = await requireAdminPermission(request, 'roles:read');
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
     const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         await ensureDefaultRoles(supabaseAdmin);
@@ -68,6 +72,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+    const auth = await requireAdminPermission(request, 'roles:write');
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
     const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const body = (await request.json()) as RoleMutationBody;
@@ -112,6 +119,9 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+    const auth = await requireAdminPermission(request, 'roles:write');
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
     const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const body = (await request.json()) as RoleMutationBody;
@@ -164,6 +174,9 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+    const auth = await requireAdminPermission(request, 'roles:write');
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
     const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const body = (await request.json()) as RoleMutationBody;

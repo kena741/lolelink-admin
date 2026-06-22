@@ -47,8 +47,8 @@ function ActivityLogsPage() {
             return (
                 (log.admin_name || '').toLowerCase().includes(q)
                 || (log.admin_email || '').toLowerCase().includes(q)
-                || (log.summary || '').toLowerCase().includes(q)
-                || (log.resource_id || '').toLowerCase().includes(q)
+                || (log.display_summary || log.summary || '').toLowerCase().includes(q)
+                || (log.resource_name || '').toLowerCase().includes(q)
                 || log.action.toLowerCase().includes(q)
                 || log.resource_type.toLowerCase().includes(q)
             );
@@ -191,13 +191,13 @@ function ActivityLogsPage() {
                                                 <TableCell>
                                                     <div className="flex flex-col">
                                                         <span className="text-sm font-medium text-gray-800">{log.resource_type}</span>
-                                                        {log.resource_id && (
-                                                            <span className="font-mono text-xs text-gray-500">{log.resource_id}</span>
+                                                        {log.resource_name && (
+                                                            <span className="text-sm text-gray-700">{log.resource_name}</span>
                                                         )}
                                                     </div>
                                                 </TableCell>
                                                 <TableCell className="max-w-md">
-                                                    <span className="text-sm text-gray-700">{log.summary}</span>
+                                                    <span className="text-sm text-gray-700">{log.display_summary || log.summary}</span>
                                                     {log.route && (
                                                         <span className="mt-1 block font-mono text-[11px] text-gray-400">{log.route}</span>
                                                     )}

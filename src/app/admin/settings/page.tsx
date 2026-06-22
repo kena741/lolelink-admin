@@ -39,11 +39,13 @@ import {
 } from '@/features/settings/settingsSlice';
 import { DEFAULT_CONTACT_US } from '@/features/settings/contactDefaults';
 import HTMLEditor from '@/components/RichTextEditor';
+import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 
 type TabType = 'app' | 'general' | 'policy' | 'contact' | 'commission' | 'status' | 'constants' | 'language';
 
 const SettingsPage = () => {
     const dispatch = useAppDispatch();
+    const { canWriteSettings } = useAdminPermissions();
     const { settings, loading, error } = useAppSelector((state) => state.settings);
     const [activeTab, setActiveTab] = useState<TabType>('app');
     const [saving, setSaving] = useState(false);
@@ -241,6 +243,7 @@ const SettingsPage = () => {
                                         <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                                         Refresh
                                     </button>
+                                    {canWriteSettings && (
                                     <button
                                         type="button"
                                         onClick={handleSave}
@@ -250,6 +253,7 @@ const SettingsPage = () => {
                                         <Save className="h-4 w-4" />
                                         {saving ? 'Saving...' : 'Save Changes'}
                                     </button>
+                                    )}
                                 </>
                             }
                         />
@@ -606,6 +610,7 @@ const SettingsPage = () => {
                                         <ListOrdered className="h-6 w-6 text-indigo-600" />
                                         <h2 className="text-xl font-bold text-gray-900">Booking statuses</h2>
                                     </div>
+                                    {canWriteSettings && (
                                     <button
                                         type="button"
                                         onClick={addStatusRow}
@@ -614,6 +619,7 @@ const SettingsPage = () => {
                                         <Plus className="h-4 w-4" />
                                         Add row
                                     </button>
+                                    )}
                                 </div>
                                 <p className="text-sm text-gray-600 mb-4">
                                     Rows without a <strong>flag</strong> are ignored when saving. Flags should match your backend (
@@ -654,6 +660,7 @@ const SettingsPage = () => {
                                                         />
                                                     </td>
                                                     <td className="px-2 py-2">
+                                                        {canWriteSettings ? (
                                                         <button
                                                             type="button"
                                                             onClick={() => removeStatusRow(index)}
@@ -663,6 +670,7 @@ const SettingsPage = () => {
                                                         >
                                                             <Trash2 className="h-4 w-4" />
                                                         </button>
+                                                        ) : null}
                                                     </td>
                                                 </tr>
                                             ))}
@@ -743,6 +751,7 @@ const SettingsPage = () => {
                                         <Languages className="h-6 w-6 text-indigo-600" />
                                         <h2 className="text-xl font-bold text-gray-900">Language Settings</h2>
                                     </div>
+                                    {canWriteSettings && (
                                     <button
                                         type="button"
                                         onClick={addLanguageRow}
@@ -751,6 +760,7 @@ const SettingsPage = () => {
                                         <Plus className="h-4 w-4" />
                                         Add language
                                     </button>
+                                    )}
                                 </div>
                                 <p className="text-sm text-gray-600 mb-4">
                                     Languages are loaded from{' '}
@@ -804,6 +814,7 @@ const SettingsPage = () => {
                                                             </label>
                                                         </td>
                                                         <td className="px-2 py-2">
+                                                            {canWriteSettings ? (
                                                             <button
                                                                 type="button"
                                                                 onClick={() => removeLanguageRow(index)}
@@ -813,6 +824,7 @@ const SettingsPage = () => {
                                                             >
                                                                 <Trash2 className="h-4 w-4" />
                                                             </button>
+                                                            ) : null}
                                                         </td>
                                                     </tr>
                                                 ))}

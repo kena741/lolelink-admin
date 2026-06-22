@@ -1,7 +1,8 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { canAccessAdminRoute, useAdminPermissions } from '@/hooks/use-admin-permissions';
 import { 
     LayoutDashboard, 
     Users, 
@@ -90,7 +91,49 @@ const financeSubItems = [
 
 const Sidebar = () => {
     const pathname = usePathname();
+    const { can } = useAdminPermissions();
     const [theme, setTheme] = useState<'light' | 'dark'>('light');
+
+    const visibleWorksItems = useMemo(
+        () => worksSubItems.filter(({ href }) => canAccessAdminRoute(href, can)),
+        [can]
+    );
+    const visibleCustomersItems = useMemo(
+        () => customersSubItems.filter(({ href }) => canAccessAdminRoute(href, can)),
+        [can]
+    );
+    const visibleProviderItems = useMemo(
+        () => providerManagementSubItems.filter(({ href }) => canAccessAdminRoute(href, can)),
+        [can]
+    );
+    const visibleCategoryItems = useMemo(
+        () => categorySubItems.filter(({ href }) => canAccessAdminRoute(href, can)),
+        [can]
+    );
+    const visibleServiceItems = useMemo(
+        () =>
+            serviceManagementSubItems.filter(({ href, isCategory }) => {
+                if (isCategory) return visibleCategoryItems.length > 0;
+                return canAccessAdminRoute(href, can);
+            }),
+        [can, visibleCategoryItems.length]
+    );
+    const visibleFinanceItems = useMemo(
+        () => financeSubItems.filter(({ href }) => canAccessAdminRoute(href, can)),
+        [can]
+    );
+    const showSettings = canAccessAdminRoute('/admin/settings', can);
+    const showAdmins = canAccessAdminRoute('/admin/admins', can);
+    const showActivityLogs = canAccessAdminRoute('/admin/activity-logs', can);
+    const showRoles = canAccessAdminRoute('/admin/roles', can);
+    const showContactMessages = canAccessAdminRoute('/admin/contact-messages', can);
+    const showSystemSection =
+        visibleFinanceItems.length > 0 ||
+        showSettings ||
+        showAdmins ||
+        showActivityLogs ||
+        showRoles ||
+        showContactMessages;
     
     // Category sub-section (still collapsible)
     const isCategoryActive = pathname?.startsWith('/admin/categories') || pathname?.startsWith('/admin/subcategories');
@@ -164,13 +207,13 @@ const Sidebar = () => {
                             </Link>
                         </li>
 
-                        {/* Works Section */}
+                        {visibleWorksItems.length > 0 && (
                         <li className="pt-5">
                             <div className="px-3 py-1 mb-1">
                                 <p className="text-[11px] font-semibold uppercase tracking-wider text-text-hint">Works</p>
                             </div>
                             <ul className="space-y-1">
-                                {worksSubItems.map(({ href, label, icon: Icon }) => {
+                                {visibleWorksItems.map(({ href, label, icon: Icon }) => {
                                     const active = pathname === href;
                                     return (
                                         <li key={href}>
@@ -190,14 +233,15 @@ const Sidebar = () => {
                                 })}
                             </ul>
                         </li>
+                        )}
 
-                        {/* Customers Section */}
+                        {visibleCustomersItems.length > 0 && (
                         <li className="pt-5">
                             <div className="px-3 py-1 mb-1">
                                 <p className="text-[11px] font-semibold uppercase tracking-wider text-text-hint">Customers</p>
                             </div>
                             <ul className="space-y-1">
-                                {customersSubItems.map(({ href, label, icon: Icon }) => {
+                                {visibleCustomersItems.map(({ href, label, icon: Icon }) => {
                                     const active = href === '/admin/customers'
                                         ? pathname === '/admin/customers'
                                         : pathname === href;
@@ -219,14 +263,15 @@ const Sidebar = () => {
                                 })}
                             </ul>
                         </li>
+                        )}
 
-                        {/* Provider Management Section */}
+                        {visibleProviderItems.length > 0 && (
                         <li className="pt-5">
                             <div className="px-3 py-1 mb-1">
                                 <p className="text-[11px] font-semibold uppercase tracking-wider text-text-hint">Provider Management</p>
                             </div>
                             <ul className="space-y-1">
-                                {providerManagementSubItems.map(({ href, label, icon: Icon }) => {
+                                {visibleProviderItems.map(({ href, label, icon: Icon }) => {
                                     const active = pathname === href || (href === '/admin/providers' && pathname?.startsWith('/admin/providers/'));
                                     return (
                                         <li key={href}>
@@ -246,14 +291,15 @@ const Sidebar = () => {
                                 })}
                             </ul>
                         </li>
+                        )}
 
-                        {/* Service Management Section */}
+                        {visibleServiceItems.length > 0 && (
                         <li className="pt-5">
                             <div className="px-3 py-1 mb-1">
                                 <p className="text-[11px] font-semibold uppercase tracking-wider text-text-hint">Service Management</p>
                             </div>
                             <ul className="space-y-1">
-                                {serviceManagementSubItems.map(({ href, label, icon: Icon, isCategory }) => {
+                                {visibleServiceItems.map(({ href, label, icon: Icon, isCategory }) => {
                                     if (isCategory) {
                                         // Categories sub-section (still collapsible)
                                         return (
@@ -278,7 +324,7 @@ const Sidebar = () => {
                                                 </button>
                                                 {isCategoryOpen && (
                                                     <ul className="ml-4 mt-0.5 space-y-0.5 border-l border-sidebar-border pl-3">
-                                                        {categorySubItems.map(({ href: catHref, label: catLabel, icon: CatIcon }) => {
+                                                        {visibleCategoryItems.map(({ href: catHref, label: catLabel, icon: CatIcon }) => {
                                                             const active = pathname === catHref || (catHref === '/admin/categories' && pathname?.startsWith('/admin/categories/'));
                                                             return (
                                                                 <li key={catHref}>
@@ -323,14 +369,15 @@ const Sidebar = () => {
                                 })}
                             </ul>
                         </li>
+                        )}
 
-                        {/* System Management Section */}
+                        {showSystemSection && (
                         <li className="pt-5">
                             <div className="px-3 py-1 mb-1">
                                 <p className="text-[11px] font-semibold uppercase tracking-wider text-text-hint">System Management</p>
                             </div>
                             <ul className="space-y-1">
-                                {/* Finance Sub-section (still collapsible) */}
+                                {visibleFinanceItems.length > 0 && (
                                 <li>
                                     <button
                                         onClick={() => setIsFinanceOpen(!isFinanceOpen)}
@@ -352,7 +399,7 @@ const Sidebar = () => {
                                     </button>
                                     {isFinanceOpen && (
                                         <ul className="ml-4 mt-0.5 space-y-0.5 border-l border-sidebar-border pl-3">
-                                            {financeSubItems.map(({ href, label, icon: Icon }) => {
+                                            {visibleFinanceItems.map(({ href, label, icon: Icon }) => {
                                                 const active = pathname === href;
                                                 return (
                                                     <li key={href}>
@@ -373,8 +420,9 @@ const Sidebar = () => {
                                         </ul>
                                     )}
                                 </li>
+                                )}
 
-                                {/* Global Settings */}
+                                {showSettings && (
                                 <li>
                                     <Link
                                         href="/admin/settings"
@@ -388,6 +436,8 @@ const Sidebar = () => {
                                         <span>Global Settings</span>
                                     </Link>
                                 </li>
+                                )}
+                                {showAdmins && (
                                 <li>
                                     <Link
                                         href="/admin/admins"
@@ -401,6 +451,8 @@ const Sidebar = () => {
                                         <span>Admins</span>
                                     </Link>
                                 </li>
+                                )}
+                                {showActivityLogs && (
                                 <li>
                                     <Link
                                         href="/admin/activity-logs"
@@ -414,6 +466,8 @@ const Sidebar = () => {
                                         <span>Activity Logs</span>
                                     </Link>
                                 </li>
+                                )}
+                                {showRoles && (
                                 <li>
                                     <Link
                                         href="/admin/roles"
@@ -427,6 +481,8 @@ const Sidebar = () => {
                                         <span>Roles</span>
                                     </Link>
                                 </li>
+                                )}
+                                {showContactMessages && (
                                 <li>
                                     <Link
                                         href="/admin/contact-messages"
@@ -440,8 +496,10 @@ const Sidebar = () => {
                                         <span>Contact Messages</span>
                                     </Link>
                                 </li>
+                                )}
                             </ul>
                         </li>
+                        )}
                     </ul>
                 </nav>
             </div>

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
+import { requireAdminPermission, requireAdminSession } from '@/lib/admin-auth';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 import { logAdminActivity } from '@/lib/admin-activity-log';
+import { enrichActivityLogs } from '@/lib/activity-log-enrichment';
 import type { AdminActivityLog, CreateActivityLogPayload } from '../../../../../type/activity-log';
 
 export const runtime = 'nodejs';
@@ -22,6 +24,9 @@ interface ActivityLogRow {
 }
 
 export async function GET(request: Request) {
+    const auth = await requireAdminPermission(request, 'logs:read');
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
     const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const { searchParams } = new URL(request.url);
@@ -49,9 +54,11 @@ export async function GET(request: Request) {
             metadata: row.metadata ?? {},
         })) as AdminActivityLog[];
 
+        const enriched = await enrichActivityLogs(supabaseAdmin, rows);
+
         return NextResponse.json({
-            data: rows,
-            total: count ?? rows.length,
+            data: enriched,
+            total: count ?? enriched.length,
             limit,
             offset,
         });
@@ -62,6 +69,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+    const auth = await requireAdminSession(request);
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
     try {
         const body = (await request.json()) as CreateActivityLogPayload;
         const action = (body.action || '').trim();

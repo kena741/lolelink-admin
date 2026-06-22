@@ -34,6 +34,7 @@ import {
     NotificationItem,
 } from "@/features/notification/notificationSlice";
 import { cn } from "@/lib/utils";
+import { useAdminPermissions } from "@/hooks/use-admin-permissions";
 
 interface ReadFilterOption {
     id: "all" | "unread" | "read";
@@ -161,6 +162,7 @@ function formatAdminMessage(baseMessage: string, customerName?: string | null, p
 
 export default function NotificationsPage() {
     const dispatch = useAppDispatch();
+    const { canWriteNotifications } = useAdminPermissions();
     const { items, loading, error } = useAppSelector((state) => state.notification);
     const bookings = useAppSelector((state) => state.bookedService.items);
     const providers = useAppSelector((state) => state.provider.providers);
@@ -291,6 +293,7 @@ export default function NotificationsPage() {
                             description="Track operational updates and respond quickly to new activity."
                             actions={
                                 <>
+                                    {canWriteNotifications && (
                                     <button
                                         type="button"
                                         onClick={onMarkAllRead}
@@ -300,6 +303,7 @@ export default function NotificationsPage() {
                                         <CheckCheck className="h-4 w-4" />
                                         Mark all read
                                     </button>
+                                    )}
                                     <button
                                         type="button"
                                         onClick={onRefresh}
@@ -365,6 +369,7 @@ export default function NotificationsPage() {
                                     >
                                         {areAllFilteredSelected ? "Unselect all" : "Select all"}
                                     </button>
+                                    {canWriteNotifications && (
                                     <button
                                         type="button"
                                         onClick={onDeleteSelected}
@@ -374,6 +379,7 @@ export default function NotificationsPage() {
                                         <Trash2 className="h-4 w-4" />
                                         Delete ({selectedIds.length})
                                     </button>
+                                    )}
                                     {hasActiveFilters && (
                                         <button
                                             type="button"
@@ -524,6 +530,7 @@ export default function NotificationsPage() {
                                                     Open
                                                     <ExternalLink className="h-4 w-4" />
                                                 </Link>
+                                                {canWriteNotifications && (
                                                 <button
                                                     type="button"
                                                     onClick={() => onDeleteOne(item.id)}
@@ -532,6 +539,7 @@ export default function NotificationsPage() {
                                                 >
                                                     <Trash2 className="h-4 w-4" />
                                                 </button>
+                                                )}
                                             </div>
                                         </div>
                                     </article>

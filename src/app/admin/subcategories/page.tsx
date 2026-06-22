@@ -19,9 +19,11 @@ import Link from 'next/link';
 import { fetchSubCategories, createSubCategory, updateSubCategory, deleteSubCategory, fetchAllSubCategoryDocumentIds, fetchSubCategoryDocumentIds } from '@/features/subcategory/subcategorySlice';
 import { fetchCategories } from '@/features/category/categorySlice';
 import { fetchDocuments } from '@/features/document/documentSlice';
+import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 
 const SubCategoriesPage = () => {
     const dispatch = useAppDispatch();
+    const { canWriteCatalog } = useAdminPermissions();
     const { subCategories, loading, error, documentIdsBySubCategoryId } = useAppSelector((state) => state.subcategory);
     const { categories } = useAppSelector((state) => state.category);
     const { documents } = useAppSelector((state) => state.document);
@@ -157,6 +159,7 @@ const SubCategoriesPage = () => {
                                         <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                                         Refresh
                                     </button>
+                                    {canWriteCatalog && (
                                     <button
                                         type="button"
                                         onClick={() => handleOpenModal()}
@@ -165,6 +168,7 @@ const SubCategoriesPage = () => {
                                         <Plus className="h-4 w-4" />
                                         Insert
                                     </button>
+                                    )}
                                 </>
                             }
                         />
@@ -214,6 +218,7 @@ const SubCategoriesPage = () => {
                                         <FolderKanban className="h-16 w-16 text-gray-400 mx-auto mb-4" />
                                         <p className="text-lg font-semibold text-gray-900 mb-2">No subcategories found</p>
                                         <p className="text-sm text-gray-600 mb-4">Get started by creating your first subcategory</p>
+                                        {canWriteCatalog && (
                                         <button
                                             onClick={() => handleOpenModal()}
                                             className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 text-sm font-semibold hover:shadow-lg transition-all"
@@ -221,6 +226,7 @@ const SubCategoriesPage = () => {
                                             <Plus className="h-4 w-4" />
                                             Insert
                                         </button>
+                                        )}
                                     </div>
                                 ) : (
                                     <table className="w-full">
@@ -260,6 +266,7 @@ const SubCategoriesPage = () => {
                     </span>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                        {canWriteCatalog ? (
                                                         <div className="flex items-center justify-end gap-2">
                                                             <button
                                                                 onClick={() => handleOpenModal(subCategory)}
@@ -281,6 +288,7 @@ const SubCategoriesPage = () => {
                                                                 )}
                                                             </button>
                                                         </div>
+                                                        ) : null}
                                                     </td>
                                                 </tr>
                                             ))}

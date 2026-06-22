@@ -7,9 +7,11 @@ import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminP
 import { ArrowLeft, RefreshCw, Plus, Edit, Trash2, X, CheckCircle2, XCircle } from 'lucide-react';
 import Link from 'next/link';
 import { fetchCoupons, createCoupon, updateCoupon, deleteCoupon } from '@/features/coupon/couponSlice';
+import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 
 const CouponsPage = () => {
     const dispatch = useAppDispatch();
+    const { canWriteCatalog } = useAdminPermissions();
     const { coupons, loading, error } = useAppSelector((state) => state.coupon);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingCoupon, setEditingCoupon] = useState<typeof coupons[0] | null>(null);
@@ -162,6 +164,7 @@ const CouponsPage = () => {
                                         <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                                         Refresh
                                     </button>
+                                    {canWriteCatalog && (
                                     <button
                                         type="button"
                                         onClick={() => handleOpenModal()}
@@ -170,6 +173,7 @@ const CouponsPage = () => {
                                         <Plus className="h-4 w-4" />
                                         Add Coupon
                                     </button>
+                                    )}
                                 </>
                             }
                         />
@@ -309,6 +313,7 @@ const CouponsPage = () => {
                                                         )}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                        {canWriteCatalog ? (
                                                         <div className="flex items-center justify-end gap-2">
                                                             <button
                                                                 onClick={() => handleOpenModal(coupon)}
@@ -324,6 +329,7 @@ const CouponsPage = () => {
                                                                 <Trash2 className="h-4 w-4" />
                                                             </button>
                                                         </div>
+                                                        ) : null}
                                                     </td>
                                                 </tr>
                                             ))

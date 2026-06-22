@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireAdminPermission } from '@/lib/admin-auth';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 import { logAdminActivity } from '@/lib/admin-activity-log';
 
@@ -23,6 +24,9 @@ interface CreateAdminBody {
 }
 
 export async function GET(request: Request) {
+    const auth = await requireAdminPermission(request, 'admins:read');
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
     const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const { data: admins, error } = await supabaseAdmin
@@ -65,6 +69,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+    const auth = await requireAdminPermission(request, 'admins:write');
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
     const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const body = (await request.json()) as CreateAdminBody;
