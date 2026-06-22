@@ -25,7 +25,14 @@ import {
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { BookedService } from '@/features/bookedService/bookedServiceSlice';
-import { computeWalletMetrics, parseWalletAmount, type WalletTransactionMetricRow } from '@/lib/wallet-transaction-metrics';
+import {
+    computeWalletMetrics,
+    parseWalletAmount,
+    sumChapaNetFlow,
+    sumManualActivationCredits,
+    sumNonChapaNetFlow,
+    type WalletTransactionMetricRow,
+} from '@/lib/wallet-transaction-metrics';
 import { DashboardBarChart } from '@/components/admin/dashboard-bar-chart';
 
 interface ChartBucket {
@@ -37,8 +44,13 @@ interface AnalyticsData {
     totalRevenue: number;
     totalCredit: number;
     totalNetFlow: number;
+    chapaWalletNet: number;
+    chapaAvailableBalance: number | null;
+    chapaLedgerBalance: number | null;
+    nonChapaWalletNet: number;
     totalTopUp: number;
     totalActivationFee: number;
+    totalManualActivation: number;
     totalCustomerTopUp: number;
     monthlyRevenue: number;
     revenueChange: number;
@@ -341,8 +353,13 @@ function DashboardContent() {
         totalRevenue: 0,
         totalCredit: 0,
         totalNetFlow: 0,
+        chapaWalletNet: 0,
+        chapaAvailableBalance: null,
+        chapaLedgerBalance: null,
+        nonChapaWalletNet: 0,
         totalTopUp: 0,
         totalActivationFee: 0,
+        totalManualActivation: 0,
         totalCustomerTopUp: 0,
         monthlyRevenue: 0,
         revenueChange: 0,
@@ -411,16 +428,38 @@ function DashboardContent() {
             const [
                 walletRows,
                 { data: bookings, error: bookingsError },
+                chapaBalanceResult,
             ] = await Promise.all([
                 fetchWalletRowsForDashboard(),
                 getSupabase()
                     .from('booked_service')
                     .select('*')
                     .order('createdAt', { ascending: false }),
+                fetch('/api/admin/chapa/balance')
+                    .then(async (response) => {
+                        if (!response.ok) return null;
+                        const payload = (await response.json()) as {
+                            data?: { available_balance?: number; ledger_balance?: number };
+                        };
+                        return payload.data ?? null;
+                    })
+                    .catch(() => null),
             ]);
+
+            const chapaAvailableBalance =
+                typeof chapaBalanceResult?.available_balance === 'number'
+                    ? chapaBalanceResult.available_balance
+                    : null;
+            const chapaLedgerBalance =
+                typeof chapaBalanceResult?.ledger_balance === 'number'
+                    ? chapaBalanceResult.ledger_balance
+                    : null;
 
             const rangedWalletRows = walletRows.filter((row) => isDateInRange(row.createdDate));
             const walletMetrics = computeWalletMetrics(rangedWalletRows);
+            const chapaWalletNet = sumChapaNetFlow(rangedWalletRows);
+            const nonChapaWalletNet = sumNonChapaNetFlow(rangedWalletRows);
+            const totalManualActivation = sumManualActivationCredits(rangedWalletRows, { adjusted: true });
             const normalizedProviders = normalizeProviderRows(providersFromRedux(providerSource));
             const rangedProviderCount = normalizedProviders.filter((provider) => {
                 const createdAt = resolveProviderDate(provider);
@@ -445,8 +484,13 @@ function DashboardContent() {
                 ...prev,
                 totalCredit: rangedWalletRows.length,
                 totalNetFlow: walletMetrics.totalNetFlowAdjusted,
+                chapaWalletNet,
+                chapaAvailableBalance,
+                chapaLedgerBalance,
+                nonChapaWalletNet,
                 totalTopUp: walletMetrics.totalTopUpAdjusted,
                 totalActivationFee: walletMetrics.totalActivationFeeAdjusted,
+                totalManualActivation,
                 totalCustomerTopUp: walletMetrics.totalCustomerTopUpAdjusted,
                 paymentChart,
                 providerChart,
@@ -477,8 +521,11 @@ function DashboardContent() {
                 }, 0);
                 const totalCredit = rangedWalletRows.length;
                 const totalNetFlow = walletMetrics.totalNetFlowAdjusted;
+                const chapaWalletNetRanged = sumChapaNetFlow(rangedWalletRows);
+                const nonChapaWalletNetRanged = sumNonChapaNetFlow(rangedWalletRows);
                 const totalTopUp = walletMetrics.totalTopUpAdjusted;
                 const totalActivationFee = walletMetrics.totalActivationFeeAdjusted;
+                const totalManualActivationRanged = sumManualActivationCredits(rangedWalletRows, { adjusted: true });
                 const totalCustomerTopUp = walletMetrics.totalCustomerTopUpAdjusted;
 
                 // Calculate monthly revenue (last 30 days)
@@ -517,8 +564,13 @@ function DashboardContent() {
                     totalRevenue,
                     totalCredit,
                     totalNetFlow,
+                    chapaWalletNet: chapaWalletNetRanged,
+                    chapaAvailableBalance,
+                    chapaLedgerBalance,
+                    nonChapaWalletNet: nonChapaWalletNetRanged,
                     totalTopUp,
                     totalActivationFee,
+                    totalManualActivation: totalManualActivationRanged,
                     totalCustomerTopUp,
                     monthlyRevenue,
                     revenueChange,
@@ -634,6 +686,17 @@ function DashboardContent() {
     }, [dispatch, dashboardRange, isDateInRange, providers]);
 
     const isLoading = providersLoading || countsLoading;
+
+    const chapaSurplus =
+        analytics.chapaAvailableBalance != null
+            ? analytics.chapaAvailableBalance - analytics.chapaWalletNet
+            : null;
+    const chapaNetFlowGap =
+        analytics.chapaAvailableBalance != null
+            ? analytics.chapaAvailableBalance - analytics.totalNetFlow
+            : null;
+    const impliedChapaGap =
+        chapaSurplus != null ? chapaSurplus - analytics.nonChapaWalletNet : null;
 
     // Calculate max value for chart scaling
     const paymentChartData = analytics.paymentChart;
@@ -814,6 +877,14 @@ function DashboardContent() {
                                 iconBg="bg-primary/10"
                             />
                             <StatCard
+                                title="Manual activation"
+                                value={analytics.totalManualActivation}
+                                isCurrency
+                                icon={DollarSign}
+                                iconBg="bg-primary/10"
+                                note="Offline · not in Chapa"
+                            />
+                            <StatCard
                                 title="Customer top up"
                                 value={analytics.totalCustomerTopUp}
                                 isCurrency
@@ -834,6 +905,29 @@ function DashboardContent() {
                                 isCurrency
                                 icon={DollarSign}
                                 iconBg="bg-primary/10"
+                                note="Wallet credits − debits"
+                            />
+                            <StatCard
+                                title="Chapa available"
+                                value={analytics.chapaAvailableBalance ?? analytics.chapaWalletNet}
+                                isCurrency
+                                icon={DollarSign}
+                                iconBg="bg-primary/10"
+                                note={
+                                    analytics.chapaAvailableBalance != null
+                                        ? `Chapa ledger ${analytics.chapaLedgerBalance?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) ?? '0.00'} · App wallet ${analytics.chapaWalletNet.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                        : analytics.chapaWalletNet > 0
+                                            ? 'Live Chapa balance unavailable · showing app wallet records'
+                                            : 'Live from Chapa merchant account'
+                                }
+                            />
+                            <StatCard
+                                title="Non-Chapa net"
+                                value={analytics.nonChapaWalletNet}
+                                isCurrency
+                                icon={DollarSign}
+                                iconBg="bg-primary/10"
+                                note="Manual, wallet, fees"
                             />
                             <StatCard
                                 title="Providers"
@@ -862,6 +956,22 @@ function DashboardContent() {
                                 href="/admin/customers"
                             />
                         </section>
+
+                        {analytics.chapaAvailableBalance != null && chapaSurplus != null && chapaNetFlowGap != null && impliedChapaGap != null && (
+                            <section className="mb-8 rounded-2xl border border-border bg-card p-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)] sm:p-5">
+                                <p className="text-sm font-semibold text-text-primary">Chapa reconciliation</p>
+                                <p className="mt-2 text-sm leading-relaxed text-text-secondary">
+                                    Chapa available ({formatCurrency(analytics.chapaAvailableBalance)}) − Net Flow ({formatCurrency(analytics.totalNetFlow)}) ={' '}
+                                    <span className="font-medium tabular-nums text-text-primary">{formatCurrency(chapaNetFlowGap)}</span>
+                                    {' · '}
+                                    Chapa surplus ({formatCurrency(chapaSurplus)}) − Non-Chapa net ({formatCurrency(analytics.nonChapaWalletNet)}) ={' '}
+                                    <span className="font-medium tabular-nums text-text-primary">{formatCurrency(impliedChapaGap)}</span>
+                                </p>
+                                <p className="mt-1 text-xs text-text-secondary">
+                                    Chapa surplus = live Chapa − app wallet Chapa. Non-Chapa net = manual activation, wallet payouts/refunds, and fees.
+                                </p>
+                            </section>
+                        )}
 
                         <section className="mb-8 rounded-2xl border border-border bg-card p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
                             <div className="mb-5 flex items-center justify-between">

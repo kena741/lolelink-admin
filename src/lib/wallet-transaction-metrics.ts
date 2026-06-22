@@ -6,6 +6,8 @@ export interface WalletTransactionMetricRow {
     type?: string | null;
     userId?: string | null;
     createdDate?: string | null;
+    paymentType?: string | null;
+    payment_type?: string | null;
 }
 
 export interface WalletMetricsSummary {
@@ -28,6 +30,10 @@ function normalizeType(type: string | null | undefined): string {
 export function parseWalletAmount(amount: string | number | null | undefined): number {
     const parsed = Number(amount ?? 0);
     return Number.isFinite(parsed) ? parsed : 0;
+}
+
+export function walletTransactionMagnitude(amount: string | number | null | undefined): number {
+    return Math.abs(parseWalletAmount(amount));
 }
 
 export function isCustomerTransactionType(type: string | null | undefined): boolean {
@@ -96,7 +102,14 @@ export function sumCredits(
         if (options?.adjusted && shouldExcludeFromAdjustedCredit(row, providerActivationUserIds)) {
             return sum;
         }
-        return sum + parseWalletAmount(row.amount);
+        return sum + walletTransactionMagnitude(row.amount);
+    }, 0);
+}
+
+export function sumDebits(rows: WalletTransactionMetricRow[]): number {
+    return rows.reduce((sum, row) => {
+        if (row.isCredit === true) return sum;
+        return sum + walletTransactionMagnitude(row.amount);
     }, 0);
 }
 
@@ -113,7 +126,7 @@ export function sumTopUpCredits(
         if (options?.adjusted && shouldExcludeFromAdjustedCredit(row, providerActivationUserIds)) {
             return sum;
         }
-        return sum + parseWalletAmount(row.amount);
+        return sum + walletTransactionMagnitude(row.amount);
     }, 0);
 }
 
@@ -130,7 +143,7 @@ export function sumActivationCredits(
         if (options?.adjusted && shouldExcludeFromAdjustedCredit(row, providerActivationUserIds)) {
             return sum;
         }
-        return sum + parseWalletAmount(row.amount);
+        return sum + walletTransactionMagnitude(row.amount);
     }, 0);
 }
 
@@ -147,7 +160,7 @@ export function sumCustomerTopUpCredits(
         if (options?.adjusted && shouldExcludeFromAdjustedCredit(row, providerActivationUserIds)) {
             return sum;
         }
-        return sum + parseWalletAmount(row.amount);
+        return sum + walletTransactionMagnitude(row.amount);
     }, 0);
 }
 
@@ -160,14 +173,14 @@ export function sumNetFlow(
         : new Set<string>();
 
     return rows.reduce((sum, row) => {
-        const amount = parseWalletAmount(row.amount);
+        const magnitude = walletTransactionMagnitude(row.amount);
         if (row.isCredit === true) {
             if (options?.adjusted && shouldExcludeFromAdjustedCredit(row, providerActivationUserIds)) {
                 return sum;
             }
-            return sum + amount;
+            return sum + magnitude;
         }
-        return sum - amount;
+        return sum - magnitude;
     }, 0);
 }
 
@@ -188,4 +201,45 @@ export function computeWalletMetrics(rows: WalletTransactionMetricRow[]): Wallet
 
 export function hasCustomerWalletTopUpTransactionId(transactionId: string | null | undefined): boolean {
     return (transactionId ?? '').trim().toLowerCase().startsWith('wallet_');
+}
+
+export function isChapaWalletTransaction(row: WalletTransactionMetricRow & {
+    paymentType?: string | null;
+    payment_type?: string | null;
+}): boolean {
+    const paymentType = String(row.paymentType ?? row.payment_type ?? '').toLowerCase();
+    const note = (row.note ?? '').toLowerCase();
+    const transactionId = (row.transactionId ?? '').toLowerCase();
+    return paymentType.includes('chapa') || note.includes('chapa') || transactionId.includes('chapa');
+}
+
+export function sumChapaNetFlow(rows: WalletTransactionMetricRow[]): number {
+    return sumNetFlow(rows.filter((row) => isChapaWalletTransaction(row)));
+}
+
+export function sumNonChapaNetFlow(rows: WalletTransactionMetricRow[]): number {
+    return sumNetFlow(rows.filter((row) => !isChapaWalletTransaction(row)));
+}
+
+export function isManualActivationCredit(row: WalletTransactionMetricRow): boolean {
+    if (row.isCredit !== true) return false;
+    const paymentType = String(row.paymentType ?? row.payment_type ?? '').toLowerCase();
+    return paymentType === 'manual' && isActivationCredit(row);
+}
+
+export function sumManualActivationCredits(
+    rows: WalletTransactionMetricRow[],
+    options?: { adjusted?: boolean }
+): number {
+    const providerActivationUserIds = options?.adjusted
+        ? buildUserIdsWithProviderActivation(rows)
+        : new Set<string>();
+
+    return rows.reduce((sum, row) => {
+        if (!isManualActivationCredit(row)) return sum;
+        if (options?.adjusted && shouldExcludeFromAdjustedCredit(row, providerActivationUserIds)) {
+            return sum;
+        }
+        return sum + walletTransactionMagnitude(row.amount);
+    }, 0);
 }

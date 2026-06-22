@@ -12,6 +12,8 @@ import {
     buildUserIdsWithProviderActivation,
     parseWalletAmount,
     shouldExcludeFromAdjustedCredit,
+    sumDebits,
+    walletTransactionMagnitude,
     type WalletTransactionMetricRow,
 } from '@/lib/wallet-transaction-metrics';
 
@@ -89,9 +91,9 @@ const WalletTransactionsPage = () => {
 
         const totalCredit = credits.reduce((sum, row) => {
             if (shouldExcludeFromAdjustedCredit(row, providerActivationUserIds)) return sum;
-            return sum + parseWalletAmount(row.amount);
+            return sum + walletTransactionMagnitude(row.amount);
         }, 0);
-        const totalDebit = debits.reduce((sum, row) => sum + parseWalletAmount(row.amount), 0);
+        const totalDebit = sumDebits(filteredRows);
 
         return {
             total: filteredItems.length,
