@@ -17,3 +17,10 @@ export function formatStatusLabel(value: string | null | undefined) {
 export function isLocalhostHostname(hostname: string): boolean {
   return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]"
 }
+
+export function isWalletMetricsDebugHost(hostname: string): boolean {
+  const normalized = hostname.trim().toLowerCase()
+  if (isLocalhostHostname(normalized)) return true
+  if (normalized === "vercel.app" || normalized.endsWith(".vercel.app")) return true
+  return false
+}

@@ -27,13 +27,18 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { BookedService } from '@/features/bookedService/bookedServiceSlice';
 import {
     computeWalletMetrics,
+    computeWalletDashboardBreakdown,
     parseWalletAmount,
     sumChapaNetFlow,
+    sumDebits,
     sumManualActivationCredits,
     sumNonChapaNetFlow,
+    type WalletDashboardBreakdown,
     type WalletTransactionMetricRow,
 } from '@/lib/wallet-transaction-metrics';
 import { DashboardBarChart } from '@/components/admin/dashboard-bar-chart';
+import { WalletMetricBreakdownDebug } from '@/components/admin/wallet-metric-breakdown-debug';
+import { useWalletMetricsDebugVisible } from '@/hooks/use-wallet-metrics-debug-visible';
 
 interface ChartBucket {
     label: string;
@@ -44,6 +49,8 @@ interface AnalyticsData {
     totalRevenue: number;
     totalCredit: number;
     totalNetFlow: number;
+    totalWalletCreditsAdjusted: number;
+    totalWalletDebits: number;
     chapaWalletNet: number;
     chapaAvailableBalance: number | null;
     chapaLedgerBalance: number | null;
@@ -353,6 +360,8 @@ function DashboardContent() {
         totalRevenue: 0,
         totalCredit: 0,
         totalNetFlow: 0,
+        totalWalletCreditsAdjusted: 0,
+        totalWalletDebits: 0,
         chapaWalletNet: 0,
         chapaAvailableBalance: null,
         chapaLedgerBalance: null,
@@ -379,6 +388,7 @@ function DashboardContent() {
         providerChart: []
     });
     const [countsLoading, setCountsLoading] = useState<boolean>(true);
+    const [walletBreakdown, setWalletBreakdown] = useState<WalletDashboardBreakdown | null>(null);
     const initialRange = (() => {
         const range = (searchParams.get('range') || '').toLowerCase();
         if (range === 'today' || range === '7d' || range === '30d' || range === 'all')
@@ -457,9 +467,11 @@ function DashboardContent() {
 
             const rangedWalletRows = walletRows.filter((row) => isDateInRange(row.createdDate));
             const walletMetrics = computeWalletMetrics(rangedWalletRows);
+            setWalletBreakdown(computeWalletDashboardBreakdown(rangedWalletRows));
             const chapaWalletNet = sumChapaNetFlow(rangedWalletRows);
             const nonChapaWalletNet = sumNonChapaNetFlow(rangedWalletRows);
             const totalManualActivation = sumManualActivationCredits(rangedWalletRows, { adjusted: true });
+            const totalWalletDebits = sumDebits(rangedWalletRows);
             const normalizedProviders = normalizeProviderRows(providersFromRedux(providerSource));
             const rangedProviderCount = normalizedProviders.filter((provider) => {
                 const createdAt = resolveProviderDate(provider);
@@ -484,6 +496,8 @@ function DashboardContent() {
                 ...prev,
                 totalCredit: rangedWalletRows.length,
                 totalNetFlow: walletMetrics.totalNetFlowAdjusted,
+                totalWalletCreditsAdjusted: walletMetrics.totalCreditAdjusted,
+                totalWalletDebits,
                 chapaWalletNet,
                 chapaAvailableBalance,
                 chapaLedgerBalance,
@@ -521,6 +535,8 @@ function DashboardContent() {
                 }, 0);
                 const totalCredit = rangedWalletRows.length;
                 const totalNetFlow = walletMetrics.totalNetFlowAdjusted;
+                const totalWalletCreditsAdjusted = walletMetrics.totalCreditAdjusted;
+                const totalWalletDebitsRanged = sumDebits(rangedWalletRows);
                 const chapaWalletNetRanged = sumChapaNetFlow(rangedWalletRows);
                 const nonChapaWalletNetRanged = sumNonChapaNetFlow(rangedWalletRows);
                 const totalTopUp = walletMetrics.totalTopUpAdjusted;
@@ -564,6 +580,8 @@ function DashboardContent() {
                     totalRevenue,
                     totalCredit,
                     totalNetFlow,
+                    totalWalletCreditsAdjusted,
+                    totalWalletDebits: totalWalletDebitsRanged,
                     chapaWalletNet: chapaWalletNetRanged,
                     chapaAvailableBalance,
                     chapaLedgerBalance,
@@ -686,6 +704,7 @@ function DashboardContent() {
     }, [dispatch, dashboardRange, isDateInRange, providers]);
 
     const isLoading = providersLoading || countsLoading;
+    const showWalletMetricsDebug = useWalletMetricsDebugVisible();
 
     const chapaSurplus =
         analytics.chapaAvailableBalance != null
@@ -695,8 +714,11 @@ function DashboardContent() {
         analytics.chapaAvailableBalance != null
             ? analytics.chapaAvailableBalance - analytics.totalNetFlow
             : null;
-    const impliedChapaGap =
-        chapaSurplus != null ? chapaSurplus - analytics.nonChapaWalletNet : null;
+
+    const chapaActivationInWallet =
+        analytics.totalActivationFee - analytics.totalManualActivation;
+    const otherChapaInWallet = Math.max(0, analytics.chapaWalletNet - chapaActivationInWallet);
+    const hasLiveChapaBalance = analytics.chapaAvailableBalance != null;
 
     // Calculate max value for chart scaling
     const paymentChartData = analytics.paymentChart;
@@ -864,10 +886,11 @@ function DashboardContent() {
                         {/* Main Stats Grid */}
                         <section className="mb-8 grid grid-cols-1 items-stretch gap-4 min-w-0 sm:grid-cols-2 lg:grid-cols-4">
                             <StatCard
-                                title="Transactions"
+                                title="Wallet rows"
                                 value={analytics.totalCredit}
-                                icon={DollarSign}
+                                icon={Activity}
                                 iconBg="bg-primary/10"
+                                note="Ledger entry count"
                             />
                             <StatCard
                                 title="Activation fee"
@@ -900,25 +923,39 @@ function DashboardContent() {
                                 note="Provider + customer"
                             />
                             <StatCard
+                                title="Wallet credits"
+                                value={analytics.totalWalletCreditsAdjusted}
+                                isCurrency
+                                icon={TrendingUp}
+                                iconBg="bg-primary/10"
+                                note="Sum of all credit rows"
+                            />
+                            <StatCard
+                                title="Wallet debits"
+                                value={analytics.totalWalletDebits}
+                                isCurrency
+                                icon={TrendingDown}
+                                iconBg="bg-primary/10"
+                                note="Sum of all debit rows"
+                            />
+                            <StatCard
                                 title="Net Flow"
                                 value={analytics.totalNetFlow}
                                 isCurrency
                                 icon={DollarSign}
                                 iconBg="bg-primary/10"
-                                note="Wallet credits − debits"
+                                note={`${formatCurrency(analytics.totalWalletCreditsAdjusted)} − ${formatCurrency(analytics.totalWalletDebits)}`}
                             />
                             <StatCard
-                                title="Chapa available"
+                                title={hasLiveChapaBalance ? 'Chapa available' : 'App wallet Chapa'}
                                 value={analytics.chapaAvailableBalance ?? analytics.chapaWalletNet}
                                 isCurrency
                                 icon={DollarSign}
                                 iconBg="bg-primary/10"
                                 note={
-                                    analytics.chapaAvailableBalance != null
+                                    hasLiveChapaBalance
                                         ? `Chapa ledger ${analytics.chapaLedgerBalance?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) ?? '0.00'} · App wallet ${analytics.chapaWalletNet.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                                        : analytics.chapaWalletNet > 0
-                                            ? 'Live Chapa balance unavailable · showing app wallet records'
-                                            : 'Live from Chapa merchant account'
+                                        : 'Live Chapa unavailable · ledger total below'
                                 }
                             />
                             <StatCard
@@ -927,7 +964,7 @@ function DashboardContent() {
                                 isCurrency
                                 icon={DollarSign}
                                 iconBg="bg-primary/10"
-                                note="Manual, wallet, fees"
+                                note={`Chapa net + this = Net Flow`}
                             />
                             <StatCard
                                 title="Providers"
@@ -957,20 +994,60 @@ function DashboardContent() {
                             />
                         </section>
 
-                        {analytics.chapaAvailableBalance != null && chapaSurplus != null && chapaNetFlowGap != null && impliedChapaGap != null && (
-                            <section className="mb-8 rounded-2xl border border-border bg-card p-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)] sm:p-5">
-                                <p className="text-sm font-semibold text-text-primary">Chapa reconciliation</p>
-                                <p className="mt-2 text-sm leading-relaxed text-text-secondary">
-                                    Chapa available ({formatCurrency(analytics.chapaAvailableBalance)}) − Net Flow ({formatCurrency(analytics.totalNetFlow)}) ={' '}
-                                    <span className="font-medium tabular-nums text-text-primary">{formatCurrency(chapaNetFlowGap)}</span>
-                                    {' · '}
-                                    Chapa surplus ({formatCurrency(chapaSurplus)}) − Non-Chapa net ({formatCurrency(analytics.nonChapaWalletNet)}) ={' '}
-                                    <span className="font-medium tabular-nums text-text-primary">{formatCurrency(impliedChapaGap)}</span>
-                                </p>
-                                <p className="mt-1 text-xs text-text-secondary">
-                                    Chapa surplus = live Chapa − app wallet Chapa. Non-Chapa net = manual activation, wallet payouts/refunds, and fees.
-                                </p>
-                            </section>
+                        {!showWalletMetricsDebug && (
+                        <section className="mb-8 rounded-2xl border border-border bg-card p-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)] sm:p-5">
+                            <div className="flex items-start gap-3">
+                                <CircleHelp className="mt-0.5 h-5 w-5 shrink-0 text-text-secondary" aria-hidden="true" />
+                                <div className="min-w-0 space-y-2 text-sm leading-relaxed text-text-secondary">
+                                    <p>
+                                        <span className="font-medium text-text-primary">Net Flow</span> is only{' '}
+                                        <span className="font-medium tabular-nums text-text-primary">
+                                            {formatCurrency(analytics.totalWalletCreditsAdjusted)} − {formatCurrency(analytics.totalWalletDebits)} = {formatCurrency(analytics.totalNetFlow)}
+                                        </span>
+                                        {' '}— every <span className="font-medium text-text-primary">wallet_transaction</span> credit minus every debit in the selected range.
+                                    </p>
+                                    <p>
+                                        <span className="font-medium text-text-primary">Activation fee</span> and{' '}
+                                        <span className="font-medium text-text-primary">Total top up</span> are subsets of credits only (no debits). They do not add up to Net Flow.
+                                        Net Flow also splits as{' '}
+                                        <span className="font-medium tabular-nums text-text-primary">
+                                            {formatCurrency(analytics.chapaWalletNet)} + ({formatCurrency(analytics.nonChapaWalletNet)})
+                                        </span>
+                                        {' '}(Chapa ledger rows + manual / wallet / fees).
+                                    </p>
+                                </div>
+                            </div>
+                        </section>
+                        )}
+
+                        {showWalletMetricsDebug && walletBreakdown && (
+                            <WalletMetricBreakdownDebug
+                                breakdown={walletBreakdown}
+                                totals={{
+                                    walletRows: analytics.totalCredit,
+                                    activationFee: analytics.totalActivationFee,
+                                    manualActivation: analytics.totalManualActivation,
+                                    customerTopUp: analytics.totalCustomerTopUp,
+                                    totalTopUp: analytics.totalTopUp,
+                                    walletCredits: analytics.totalWalletCreditsAdjusted,
+                                    walletDebits: analytics.totalWalletDebits,
+                                    netFlow: analytics.totalNetFlow,
+                                    chapaWalletNet: analytics.chapaWalletNet,
+                                    chapaActivationInWallet,
+                                    otherChapaInWallet,
+                                    chapaAvailableBalance: analytics.chapaAvailableBalance,
+                                    chapaLedgerBalance: analytics.chapaLedgerBalance,
+                                    chapaSurplus,
+                                    chapaNetFlowGap,
+                                    nonChapaWalletNet: analytics.nonChapaWalletNet,
+                                    providerCount,
+                                    bookingCount,
+                                    completedBookings: analytics.totalCompletedBookings,
+                                    inProgressBookings: analytics.totalInProgressBookings,
+                                    rejectedBookings: analytics.totalRejectedBookings,
+                                    customerCount,
+                                }}
+                            />
                         )}
 
                         <section className="mb-8 rounded-2xl border border-border bg-card p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">

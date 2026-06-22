@@ -243,3 +243,174 @@ export function sumManualActivationCredits(
         return sum + walletTransactionMagnitude(row.amount);
     }, 0);
 }
+
+export interface WalletMetricBreakdownLine {
+    label: string;
+    amount: number;
+    count: number;
+}
+
+export interface WalletDashboardBreakdown {
+    walletRowCounts: {
+        creditRows: number;
+        debitRows: number;
+        totalRows: number;
+    };
+    walletCredits: WalletMetricBreakdownLine[];
+    walletDebits: WalletMetricBreakdownLine[];
+    activationFee: WalletMetricBreakdownLine[];
+    manualActivation: WalletMetricBreakdownLine[];
+    customerTopUp: WalletMetricBreakdownLine[];
+    totalTopUp: WalletMetricBreakdownLine[];
+    chapaWalletNet: WalletMetricBreakdownLine[];
+    nonChapaWalletNet: WalletMetricBreakdownLine[];
+}
+
+export type WalletCreditSegment =
+    | 'manual_activation'
+    | 'chapa_activation'
+    | 'chapa_bookings_upgrades'
+    | 'provider_payout'
+    | 'customer_topup'
+    | 'other_credit';
+
+const WALLET_CREDIT_SEGMENT_LABELS: Record<WalletCreditSegment, string> = {
+    manual_activation: 'Manual activation',
+    chapa_activation: 'Chapa provider activations',
+    chapa_bookings_upgrades: 'Chapa bookings, upgrades & featured',
+    provider_payout: 'Provider payouts (completed jobs)',
+    customer_topup: 'Customer wallet top-ups',
+    other_credit: 'Other credits',
+};
+
+function walletRowDelta(row: WalletTransactionMetricRow): number {
+    const magnitude = walletTransactionMagnitude(row.amount);
+    return row.isCredit === true ? magnitude : -magnitude;
+}
+
+function shortenWalletNote(note: string, maxLength = 72): string {
+    const trimmed = note.trim();
+    if (!trimmed) return '(no note)';
+    if (trimmed.length <= maxLength) return trimmed;
+    return `${trimmed.slice(0, maxLength - 1)}…`;
+}
+
+function pushBreakdownLine(
+    bucket: Map<string, WalletMetricBreakdownLine>,
+    label: string,
+    amount: number
+): void {
+    const existing = bucket.get(label);
+    if (existing) {
+        existing.amount += amount;
+        existing.count += 1;
+        return;
+    }
+    bucket.set(label, { label, amount, count: 1 });
+}
+
+function breakdownLinesFromBucket(bucket: Map<string, WalletMetricBreakdownLine>): WalletMetricBreakdownLine[] {
+    return [...bucket.values()].sort((left, right) => {
+        const amountDelta = Math.abs(right.amount) - Math.abs(left.amount);
+        if (amountDelta !== 0) return amountDelta;
+        return left.label.localeCompare(right.label);
+    });
+}
+
+function aggregateMagnitudeByNote(
+    rows: WalletTransactionMetricRow[],
+    filter: (row: WalletTransactionMetricRow) => boolean,
+    options?: { adjusted?: boolean; creditsOnly?: boolean }
+): WalletMetricBreakdownLine[] {
+    const providerActivationUserIds = options?.adjusted
+        ? buildUserIdsWithProviderActivation(rows)
+        : new Set<string>();
+    const bucket = new Map<string, WalletMetricBreakdownLine>();
+
+    for (const row of rows) {
+        if (!filter(row)) continue;
+        if (options?.creditsOnly && row.isCredit !== true) continue;
+        if (options?.adjusted && shouldExcludeFromAdjustedCredit(row, providerActivationUserIds)) {
+            continue;
+        }
+        pushBreakdownLine(bucket, shortenWalletNote(row.note ?? ''), walletTransactionMagnitude(row.amount));
+    }
+
+    return breakdownLinesFromBucket(bucket);
+}
+
+function aggregateNetByNote(
+    rows: WalletTransactionMetricRow[],
+    filter: (row: WalletTransactionMetricRow) => boolean
+): WalletMetricBreakdownLine[] {
+    const bucket = new Map<string, WalletMetricBreakdownLine>();
+
+    for (const row of rows) {
+        if (!filter(row)) continue;
+        pushBreakdownLine(bucket, shortenWalletNote(row.note ?? ''), walletRowDelta(row));
+    }
+
+    return breakdownLinesFromBucket(bucket);
+}
+
+export function classifyWalletCreditSegment(row: WalletTransactionMetricRow): WalletCreditSegment | null {
+    if (row.isCredit !== true) return null;
+    if (isManualActivationCredit(row)) return 'manual_activation';
+    if (isActivationCredit(row)) {
+        return isChapaWalletTransaction(row) ? 'chapa_activation' : 'chapa_activation';
+    }
+    if (isCustomerTopUpCredit(row)) return 'customer_topup';
+    const note = (row.note ?? '').toLowerCase();
+    if (note.includes('payout') || note.includes('completed (payout')) return 'provider_payout';
+    if (isChapaWalletTransaction(row)) return 'chapa_bookings_upgrades';
+    return 'other_credit';
+}
+
+function aggregateWalletCreditsBySegment(
+    rows: WalletTransactionMetricRow[],
+    options?: { adjusted?: boolean }
+): WalletMetricBreakdownLine[] {
+    const providerActivationUserIds = options?.adjusted
+        ? buildUserIdsWithProviderActivation(rows)
+        : new Set<string>();
+    const bucket = new Map<string, WalletMetricBreakdownLine>();
+
+    for (const row of rows) {
+        if (row.isCredit !== true) continue;
+        if (options?.adjusted && shouldExcludeFromAdjustedCredit(row, providerActivationUserIds)) {
+            continue;
+        }
+        const segment = classifyWalletCreditSegment(row);
+        if (!segment) continue;
+        pushBreakdownLine(
+            bucket,
+            WALLET_CREDIT_SEGMENT_LABELS[segment],
+            walletTransactionMagnitude(row.amount)
+        );
+    }
+
+    return breakdownLinesFromBucket(bucket);
+}
+
+export function computeWalletDashboardBreakdown(
+    rows: WalletTransactionMetricRow[]
+): WalletDashboardBreakdown {
+    const creditRows = rows.filter((row) => row.isCredit === true).length;
+    const debitRows = rows.length - creditRows;
+
+    return {
+        walletRowCounts: {
+            creditRows,
+            debitRows,
+            totalRows: rows.length,
+        },
+        walletCredits: aggregateWalletCreditsBySegment(rows, { adjusted: true }),
+        walletDebits: aggregateMagnitudeByNote(rows, (row) => row.isCredit !== true),
+        activationFee: aggregateMagnitudeByNote(rows, isActivationCredit, { adjusted: true, creditsOnly: true }),
+        manualActivation: aggregateMagnitudeByNote(rows, isManualActivationCredit, { adjusted: true, creditsOnly: true }),
+        customerTopUp: aggregateMagnitudeByNote(rows, isCustomerTopUpCredit, { adjusted: true, creditsOnly: true }),
+        totalTopUp: aggregateMagnitudeByNote(rows, isTopUpCredit, { adjusted: true, creditsOnly: true }),
+        chapaWalletNet: aggregateNetByNote(rows, isChapaWalletTransaction),
+        nonChapaWalletNet: aggregateNetByNote(rows, (row) => !isChapaWalletTransaction(row)),
+    };
+}
