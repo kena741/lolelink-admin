@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
 import { getSupabase } from "@/lib/supabaseClient";
+import { logClientAdminActivity } from "@/lib/record-admin-activity";
 
 export interface Provider {
     id: string;
@@ -307,7 +308,17 @@ export const updateProvider = createAsyncThunk<
     type ProviderRow = Provider & { created_at?: string };
     const row = data as ProviderRow;
         const { created_at, ...rest } = row ?? {};
-        return { ...rest, createdAt: row?.createdAt ?? created_at } as Provider;
+        const updated = { ...rest, createdAt: row?.createdAt ?? created_at } as Provider;
+
+        logClientAdminActivity({
+            action: 'update',
+            resource_type: 'provider',
+            resource_id: id,
+            summary: `Updated provider ${id}`,
+            metadata: { fields: Object.keys(payload) },
+        });
+
+        return updated;
     }
 );
 

@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { getSupabase } from '@/lib/supabaseClient';
+import { logClientAdminActivity } from '@/lib/record-admin-activity';
 
 export interface VerifyDocument {
     id: string;
@@ -216,6 +217,14 @@ export const verifyDocument = createAsyncThunk<
                 return rejectWithValue(msg);
             }
 
+            logClientAdminActivity({
+                action: 'verify',
+                resource_type: 'document',
+                resource_id: id,
+                summary: `Verified provider document ${id}`,
+                metadata: { provider_id: row.providerId },
+            });
+
             return normalizeRows([row])[0];
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to verify document';
@@ -240,6 +249,12 @@ export const rejectDocument = createAsyncThunk<
                 .single();
 
             if (error) throw error;
+            logClientAdminActivity({
+                action: 'reject',
+                resource_type: 'document',
+                resource_id: id,
+                summary: `Rejected provider document ${id}`,
+            });
             return normalizeRows([data as VerifyDocumentRow])[0];
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to reject document';
@@ -284,6 +299,14 @@ export const approveAllDocuments = createAsyncThunk<
                 return rejectWithValue(msg);
             }
 
+            logClientAdminActivity({
+                action: 'verify',
+                resource_type: 'document',
+                resource_id: providerId,
+                summary: `Approved all pending documents for provider ${providerId}`,
+                metadata: { count: rows.length },
+            });
+
             return normalizeRows(rows);
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to approve all documents';
@@ -327,6 +350,14 @@ export const reapproveAllRejectedDocuments = createAsyncThunk<
                         : 'Failed to update provider verified subcategories';
                 return rejectWithValue(msg);
             }
+
+            logClientAdminActivity({
+                action: 'verify',
+                resource_type: 'document',
+                resource_id: providerId,
+                summary: `Re-approved rejected documents for provider ${providerId}`,
+                metadata: { count: rows.length },
+            });
 
             return normalizeRows(rows);
         } catch (e: unknown) {

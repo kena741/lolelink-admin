@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { logAdminActivity } from '@/lib/admin-activity-log';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
@@ -418,6 +419,15 @@ export async function POST(request: Request) {
             type: 'payout_transfer_initiated',
             provider_id: withdrawal.providerId,
             action_url: '/admin/finance/payout-request',
+        });
+
+        await logAdminActivity({
+            request,
+            action: 'transfer',
+            resource_type: 'withdrawal',
+            resource_id: withdrawal.id,
+            summary: `Initiated Chapa transfer for withdrawal ${withdrawal.id}`,
+            metadata: { tx_ref: transferReference, amount: withdrawal.amount, provider_id: withdrawal.providerId },
         });
 
         return NextResponse.json({

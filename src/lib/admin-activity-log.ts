@@ -68,7 +68,7 @@ export async function logAdminActivity(input: LogAdminActivityInput): Promise<vo
         const env = getSupabaseTargetFromRequest(input.request);
         const route = new URL(input.request.url).pathname;
 
-        await supabaseAdmin.from('admin_activity_log').insert({
+        const { error } = await supabaseAdmin.from('admin_activity_log').insert({
             admin_id: actor.admin_id,
             admin_email: actor.admin_email,
             admin_name: actor.admin_name,
@@ -81,6 +81,16 @@ export async function logAdminActivity(input: LogAdminActivityInput): Promise<vo
             metadata: sanitizeLogMetadata(input.metadata ?? {}),
             env,
         });
-    } catch {
+
+        if (error) {
+            if (process.env.NODE_ENV === 'development') {
+                console.warn('[activity-log] insert failed:', error.message);
+            }
+        }
+    } catch (error: unknown) {
+        if (process.env.NODE_ENV === 'development') {
+            const message = error instanceof Error ? error.message : 'unknown error';
+            console.warn('[activity-log] unexpected error:', message);
+        }
     }
 }

@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { getSupabase } from '@/lib/supabaseClient';
+import { logClientAdminActivity } from '@/lib/record-admin-activity';
 
 export interface PayoutRequest {
     id: string;
@@ -331,6 +332,14 @@ export const approvePayoutRequest = createAsyncThunk<
                 if (!bankError && bank) addBankToMap(bankMap, toBankDetailsFromPaymentMethod(bank as ProviderPaymentMethodRow));
             }
 
+            logClientAdminActivity({
+                action: 'approve',
+                resource_type: 'withdrawal',
+                resource_id: id,
+                summary: `Approved withdrawal request ${id}`,
+                metadata: { provider_id: (data as WithdrawalHistoryRow).providerId, amount: (data as WithdrawalHistoryRow).amount },
+            });
+
             return normalizeRows([data as WithdrawalHistoryRow], providerMap, bankMap)[0];
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to approve payout request';
@@ -399,6 +408,14 @@ export const rejectPayoutRequest = createAsyncThunk<
                     .maybeSingle();
                 if (!bankError && bank) addBankToMap(bankMap, toBankDetailsFromPaymentMethod(bank as ProviderPaymentMethodRow));
             }
+
+            logClientAdminActivity({
+                action: 'reject',
+                resource_type: 'withdrawal',
+                resource_id: id,
+                summary: `Rejected withdrawal request ${id}`,
+                metadata: { provider_id: (data as WithdrawalHistoryRow).providerId, amount: (data as WithdrawalHistoryRow).amount },
+            });
 
             return normalizeRows([data as WithdrawalHistoryRow], providerMap, bankMap)[0];
         } catch (e: unknown) {
@@ -469,6 +486,14 @@ export const completePayoutRequest = createAsyncThunk<
                 if (!bankError && bank) addBankToMap(bankMap, toBankDetailsFromPaymentMethod(bank as ProviderPaymentMethodRow));
             }
 
+            logClientAdminActivity({
+                action: 'transfer',
+                resource_type: 'withdrawal',
+                resource_id: id,
+                summary: `Marked withdrawal ${id} as completed`,
+                metadata: { provider_id: (data as WithdrawalHistoryRow).providerId, amount: (data as WithdrawalHistoryRow).amount },
+            });
+
             return normalizeRows([data as WithdrawalHistoryRow], providerMap, bankMap)[0];
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to complete payout request';
@@ -519,6 +544,14 @@ export const sendPayoutViaChapa = createAsyncThunk<
 
             if (!response.ok)
                 return rejectWithValue(toErrorMessage(payload.error, 'Failed to send payout via Chapa'));
+
+            logClientAdminActivity({
+                action: 'transfer',
+                resource_type: 'withdrawal',
+                resource_id: id,
+                summary: `Sent withdrawal ${id} via Chapa`,
+                metadata: { tx_ref: payload.tx_ref, amount: payload.amount },
+            });
 
             return {
                 id,
@@ -613,6 +646,12 @@ export const processBookingPayout = createAsyncThunk<
 
             if (existingError) throw existingError;
             if ((existing as WalletTransactionRow | null)?.id) {
+                logClientAdminActivity({
+                    action: 'transfer',
+                    resource_type: 'booking',
+                    resource_id: bookingId,
+                    summary: `Booking payout already processed for ${bookingId}`,
+                });
                 return { bookingId, processed: true };
             }
 
@@ -631,6 +670,13 @@ export const processBookingPayout = createAsyncThunk<
             });
 
             if (insertError) throw insertError;
+            logClientAdminActivity({
+                action: 'transfer',
+                resource_type: 'booking',
+                resource_id: bookingId,
+                summary: `Processed provider payout for booking ${bookingId}`,
+                metadata: { amount: payoutAmount, provider_id: booking.provider_id },
+            });
             return { bookingId, processed: true };
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to process booking payout';

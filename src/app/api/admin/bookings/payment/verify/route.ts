@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logAdminActivity } from '@/lib/admin-activity-log';
 import { requireAdminPermission } from '@/lib/admin-auth';
 import { isChapaSuccessStatus, loadChapaSecretKey } from '@/lib/chapa-config';
 import { markBookingPaymentCompleted } from '@/lib/booking-payment';
@@ -111,6 +112,15 @@ export async function POST(request: Request) {
         }
 
         const amount = Number(booking.totalAmount ?? booking.price ?? verifyData.data?.amount ?? 0);
+
+        await logAdminActivity({
+            request,
+            action: 'verify',
+            resource_type: 'booking',
+            resource_id: bookingId,
+            summary: `Verified Chapa payment for booking (${amount.toFixed(2)} ETB)`,
+            metadata: { tx_ref: txRef, chapa_reference: verifyData.data?.reference, amount },
+        });
 
         return NextResponse.json({
             status: 'success',

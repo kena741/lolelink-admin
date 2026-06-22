@@ -704,7 +704,27 @@ function DashboardContent() {
     }, [dispatch, dashboardRange, isDateInRange, providers]);
 
     const isLoading = providersLoading || countsLoading;
-    const showWalletMetricsDebug = useWalletMetricsDebugVisible();
+    const isDebugHost = useWalletMetricsDebugVisible();
+    const [financeDebugEnabled, setFinanceDebugEnabled] = useState(false);
+
+    useEffect(() => {
+        if (!isDebugHost) return;
+        try {
+            setFinanceDebugEnabled(localStorage.getItem('dashboard-finance-debug') === 'true');
+        } catch {
+            setFinanceDebugEnabled(false);
+        }
+    }, [isDebugHost]);
+
+    const showFinanceDebug = isDebugHost && financeDebugEnabled;
+
+    function setFinanceDebug(next: boolean) {
+        setFinanceDebugEnabled(next);
+        try {
+            localStorage.setItem('dashboard-finance-debug', next ? 'true' : 'false');
+        } catch {
+        }
+    }
 
     const chapaSurplus =
         analytics.chapaAvailableBalance != null
@@ -863,7 +883,8 @@ function DashboardContent() {
                             }
                         />
 
-                        <div className="mb-6 flex flex-wrap items-center gap-2">
+                        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex flex-wrap items-center gap-2">
                             {[
                                 { id: 'today', label: 'Today' },
                                 { id: '7d', label: '7D' },
@@ -882,8 +903,89 @@ function DashboardContent() {
                                     {range.label}
                                 </button>
                             ))}
+                            </div>
+                            {isDebugHost && (
+                                <div
+                                    className="flex items-center gap-1 rounded-full border border-border bg-card p-1"
+                                    role="group"
+                                    aria-label="Dashboard view"
+                                >
+                                    <button
+                                        type="button"
+                                        onClick={() => setFinanceDebug(false)}
+                                        className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                                            !financeDebugEnabled
+                                                ? 'bg-primary text-primary-foreground'
+                                                : 'text-text-secondary hover:text-text-primary'
+                                        }`}
+                                    >
+                                        Production
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFinanceDebug(true)}
+                                        className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                                            financeDebugEnabled
+                                                ? 'bg-primary text-primary-foreground'
+                                                : 'text-text-secondary hover:text-text-primary'
+                                        }`}
+                                    >
+                                        Finance debug
+                                    </button>
+                                </div>
+                            )}
                         </div>
                         {/* Main Stats Grid */}
+                        <section className="mb-8 grid grid-cols-1 items-stretch gap-4 min-w-0 sm:grid-cols-2 lg:grid-cols-5">
+                            <StatCard
+                                title="Net Flow"
+                                value={analytics.totalNetFlow}
+                                isCurrency
+                                icon={DollarSign}
+                                iconBg="bg-primary/10"
+                                note="Wallet credits − debits"
+                            />
+                            <StatCard
+                                title={hasLiveChapaBalance ? 'Chapa balance' : 'App wallet'}
+                                value={analytics.chapaAvailableBalance ?? analytics.chapaWalletNet}
+                                isCurrency
+                                icon={DollarSign}
+                                iconBg="bg-primary/10"
+                                note={
+                                    hasLiveChapaBalance
+                                        ? 'Live Chapa account'
+                                        : 'Recorded in wallet ledger'
+                                }
+                            />
+                            <StatCard
+                                title="Providers"
+                                value={providerCount}
+                                icon={Users}
+                                iconBg="bg-primary/10"
+                                href="/admin/providers"
+                            />
+                            <StatCard
+                                title="Bookings"
+                                value={bookingCount}
+                                bookingBreakdown={{
+                                    completed: analytics.totalCompletedBookings,
+                                    inProgress: analytics.totalInProgressBookings,
+                                    rejected: analytics.totalRejectedBookings,
+                                }}
+                                icon={CalendarCheck2}
+                                iconBg="bg-primary/10"
+                                href="/admin/bookings"
+                            />
+                            <StatCard
+                                title="Customers"
+                                value={customerCount}
+                                icon={Users}
+                                iconBg="bg-primary/10"
+                                href="/admin/customers"
+                            />
+                        </section>
+
+                        {showFinanceDebug && (
                         <section className="mb-8 grid grid-cols-1 items-stretch gap-4 min-w-0 sm:grid-cols-2 lg:grid-cols-4">
                             <StatCard
                                 title="Wallet rows"
@@ -891,6 +993,27 @@ function DashboardContent() {
                                 icon={Activity}
                                 iconBg="bg-primary/10"
                                 note="Ledger entry count"
+                            />
+                            <StatCard
+                                title="Wallet credits"
+                                value={analytics.totalWalletCreditsAdjusted}
+                                isCurrency
+                                icon={TrendingUp}
+                                iconBg="bg-primary/10"
+                            />
+                            <StatCard
+                                title="Wallet debits"
+                                value={analytics.totalWalletDebits}
+                                isCurrency
+                                icon={TrendingDown}
+                                iconBg="bg-primary/10"
+                            />
+                            <StatCard
+                                title="Non-Chapa net"
+                                value={analytics.nonChapaWalletNet}
+                                isCurrency
+                                icon={DollarSign}
+                                iconBg="bg-primary/10"
                             />
                             <StatCard
                                 title="Activation fee"
@@ -923,104 +1046,21 @@ function DashboardContent() {
                                 note="Provider + customer"
                             />
                             <StatCard
-                                title="Wallet credits"
-                                value={analytics.totalWalletCreditsAdjusted}
-                                isCurrency
-                                icon={TrendingUp}
-                                iconBg="bg-primary/10"
-                                note="Sum of all credit rows"
-                            />
-                            <StatCard
-                                title="Wallet debits"
-                                value={analytics.totalWalletDebits}
-                                isCurrency
-                                icon={TrendingDown}
-                                iconBg="bg-primary/10"
-                                note="Sum of all debit rows"
-                            />
-                            <StatCard
-                                title="Net Flow"
-                                value={analytics.totalNetFlow}
-                                isCurrency
-                                icon={DollarSign}
-                                iconBg="bg-primary/10"
-                                note={`${formatCurrency(analytics.totalWalletCreditsAdjusted)} − ${formatCurrency(analytics.totalWalletDebits)}`}
-                            />
-                            <StatCard
-                                title={hasLiveChapaBalance ? 'Chapa available' : 'App wallet Chapa'}
-                                value={analytics.chapaAvailableBalance ?? analytics.chapaWalletNet}
+                                title="App wallet Chapa"
+                                value={analytics.chapaWalletNet}
                                 isCurrency
                                 icon={DollarSign}
                                 iconBg="bg-primary/10"
                                 note={
-                                    hasLiveChapaBalance
-                                        ? `Chapa ledger ${analytics.chapaLedgerBalance?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) ?? '0.00'} · App wallet ${analytics.chapaWalletNet.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                                        : 'Live Chapa unavailable · ledger total below'
+                                    hasLiveChapaBalance && chapaSurplus != null
+                                        ? `${formatCurrency(chapaSurplus)} not in ledger`
+                                        : undefined
                                 }
                             />
-                            <StatCard
-                                title="Non-Chapa net"
-                                value={analytics.nonChapaWalletNet}
-                                isCurrency
-                                icon={DollarSign}
-                                iconBg="bg-primary/10"
-                                note={`Chapa net + this = Net Flow`}
-                            />
-                            <StatCard
-                                title="Providers"
-                                value={providerCount}
-                                icon={Users}
-                                iconBg="bg-primary/10"
-                                href="/admin/providers"
-                            />
-                            <StatCard
-                                title="Bookings"
-                                value={bookingCount}
-                                bookingBreakdown={{
-                                    completed: analytics.totalCompletedBookings,
-                                    inProgress: analytics.totalInProgressBookings,
-                                    rejected: analytics.totalRejectedBookings,
-                                }}
-                                icon={CalendarCheck2}
-                                iconBg="bg-primary/10"
-                                href="/admin/bookings"
-                            />
-                            <StatCard
-                                title="Customers"
-                                value={customerCount}
-                                icon={Users}
-                                iconBg="bg-primary/10"
-                                href="/admin/customers"
-                            />
-                        </section>
-
-                        {!showWalletMetricsDebug && (
-                        <section className="mb-8 rounded-2xl border border-border bg-card p-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)] sm:p-5">
-                            <div className="flex items-start gap-3">
-                                <CircleHelp className="mt-0.5 h-5 w-5 shrink-0 text-text-secondary" aria-hidden="true" />
-                                <div className="min-w-0 space-y-2 text-sm leading-relaxed text-text-secondary">
-                                    <p>
-                                        <span className="font-medium text-text-primary">Net Flow</span> is only{' '}
-                                        <span className="font-medium tabular-nums text-text-primary">
-                                            {formatCurrency(analytics.totalWalletCreditsAdjusted)} − {formatCurrency(analytics.totalWalletDebits)} = {formatCurrency(analytics.totalNetFlow)}
-                                        </span>
-                                        {' '}— every <span className="font-medium text-text-primary">wallet_transaction</span> credit minus every debit in the selected range.
-                                    </p>
-                                    <p>
-                                        <span className="font-medium text-text-primary">Activation fee</span> and{' '}
-                                        <span className="font-medium text-text-primary">Total top up</span> are subsets of credits only (no debits). They do not add up to Net Flow.
-                                        Net Flow also splits as{' '}
-                                        <span className="font-medium tabular-nums text-text-primary">
-                                            {formatCurrency(analytics.chapaWalletNet)} + ({formatCurrency(analytics.nonChapaWalletNet)})
-                                        </span>
-                                        {' '}(Chapa ledger rows + manual / wallet / fees).
-                                    </p>
-                                </div>
-                            </div>
                         </section>
                         )}
 
-                        {showWalletMetricsDebug && walletBreakdown && (
+                        {showFinanceDebug && walletBreakdown && (
                             <WalletMetricBreakdownDebug
                                 breakdown={walletBreakdown}
                                 totals={{

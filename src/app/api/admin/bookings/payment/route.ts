@@ -5,6 +5,7 @@ import {
     normalizeBoolean,
     resolveChapaConfig,
 } from '@/lib/chapa-config';
+import { logAdminActivity } from '@/lib/admin-activity-log';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 import { BOOKING_PAYMENT_STATUS } from '@/lib/booking-status';
 import { upsertBookingPaymentRecord } from '@/lib/booking-payment-side-effects';
@@ -158,6 +159,16 @@ export async function POST(request: Request) {
                 status: BOOKING_PAYMENT_STATUS.PENDING,
             }
         );
+
+        const customerName = [booking.firstName, booking.lastName].filter(Boolean).join(' ').trim() || 'Customer';
+        await logAdminActivity({
+            request,
+            action: 'transfer',
+            resource_type: 'booking',
+            resource_id: bookingId,
+            summary: `Initiated Chapa payment for ${customerName} (${amount.toFixed(2)} ETB)`,
+            metadata: { tx_ref: txRef, amount },
+        });
 
         return NextResponse.json({
             status: 'success',

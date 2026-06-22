@@ -1,5 +1,6 @@
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { getSupabase } from '@/lib/supabaseClient';
+import { logClientAdminActivity } from '@/lib/record-admin-activity';
 
 export interface Payment {
     id: string;
@@ -183,6 +184,13 @@ export const updatePayment = createAsyncThunk<
             .single();
 
         if (error) throw error;
+        logClientAdminActivity({
+            action: 'update',
+            resource_type: 'booking',
+            resource_id: id,
+            summary: `Updated payment status for booking ${id}`,
+            metadata: { payment_status: payload.paymentStatus },
+        });
         return normalizeRows([data as PaymentRow])[0];
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Failed to update payment';

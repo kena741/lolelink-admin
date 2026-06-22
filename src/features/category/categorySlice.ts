@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { getSupabase } from '@/lib/supabaseClient';
+import { logClientAdminActivity } from '@/lib/record-admin-activity';
 
 export interface Category {
     id: string;
@@ -76,7 +77,14 @@ export const createCategory = createAsyncThunk<
                 .single();
 
             if (error) throw error;
-            return normalizeRows([data as CategoryRow])[0];
+            const created = normalizeRows([data as CategoryRow])[0];
+            logClientAdminActivity({
+                action: 'create',
+                resource_type: 'settings',
+                resource_id: created.id,
+                summary: `Created category ${created.categoryName}`,
+            });
+            return created;
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to create category';
             return rejectWithValue(msg);
@@ -100,7 +108,14 @@ export const updateCategory = createAsyncThunk<
                 .single();
 
             if (error) throw error;
-            return normalizeRows([data as CategoryRow])[0];
+            const updated = normalizeRows([data as CategoryRow])[0];
+            logClientAdminActivity({
+                action: 'update',
+                resource_type: 'settings',
+                resource_id: id,
+                summary: `Updated category ${updated.categoryName ?? id}`,
+            });
+            return updated;
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to update category';
             return rejectWithValue(msg);
@@ -122,6 +137,12 @@ export const deleteCategory = createAsyncThunk<
                 .eq('id', id);
 
             if (error) throw error;
+            logClientAdminActivity({
+                action: 'delete',
+                resource_type: 'settings',
+                resource_id: id,
+                summary: `Deleted category ${id}`,
+            });
             return id;
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to delete category';

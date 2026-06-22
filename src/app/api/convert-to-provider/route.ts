@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logAdminActivity } from '@/lib/admin-activity-log';
 import { getDisplayImageUrl } from '@/lib/media-url';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 
@@ -134,6 +135,16 @@ export async function POST(request: Request) {
                 { status: 500 }
             );
         }
+
+        const customerName = [c.first_name, c.last_name].filter(Boolean).join(' ').trim() || c.email || customerId;
+        await logAdminActivity({
+            request,
+            action: 'update',
+            resource_type: 'customer',
+            resource_id: customerId,
+            summary: `Converted customer ${customerName} to provider`,
+            metadata: { provider_id: customerId },
+        });
 
         return NextResponse.json({ data: provider });
     } catch (error: unknown) {

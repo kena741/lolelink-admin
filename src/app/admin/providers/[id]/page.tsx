@@ -23,7 +23,7 @@ import {
 import { fetchHandymen, updateHandyman, deleteHandyman, type Handyman } from '@/features/handyman/handymanSlice';
 import { fetchCategories } from '@/features/category/categorySlice';
 import { fetchSubCategories } from '@/features/subcategory/subcategorySlice';
-import { Pencil, Trash2, FileText, DollarSign, Wrench, Clock, Briefcase, History, CreditCard } from 'lucide-react';
+import { Pencil, Trash2, FileText, DollarSign, Wrench, Clock, Briefcase, History, CreditCard, Wallet } from 'lucide-react';
 import { ActivationPaymentModal } from '@/components/ActivationPaymentModal';
 import { fetchSettings } from '@/features/settings/settingsSlice';
 import { Button } from '@/components/ui/button';
@@ -99,6 +99,12 @@ export default function ProviderDetailPage() {
     const totalPending = providerWithdrawals
         .filter(req => req.paymentStatus === 'pending')
         .reduce((sum, req) => sum + (typeof req.amount === 'string' ? parseFloat(req.amount) || 0 : req.amount || 0), 0);
+
+    const providerWalletBalance = (() => {
+        const raw = provider?.walletAmount ?? (provider as { wallet_amount?: string | number } | undefined)?.wallet_amount;
+        const parsed = Number(raw ?? 0);
+        return Number.isFinite(parsed) ? parsed : 0;
+    })();
 
     const bannerSrc = provider?.banner || undefined;
     const profileSrc = resolveProfileImageUrl(provider) ?? undefined;
@@ -374,7 +380,20 @@ export default function ProviderDetailPage() {
                             </div>
 
                                     {/* Earnings Summary */}
-                                    <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                                        <div className="rounded-lg bg-white p-6 shadow">
+                                            <div className="flex items-center gap-3">
+                                                <div className="rounded-lg bg-sky-100 p-3">
+                                                    <Wallet className="h-6 w-6 text-sky-600" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm text-gray-600">Wallet Balance</p>
+                                                    <p className="text-2xl font-bold tabular-nums text-gray-900">
+                                                        ETB {providerWalletBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
                                         <div className="bg-white rounded-lg shadow p-6">
                                             <div className="flex items-center gap-3">
                                                 <div className="p-3 bg-emerald-100 rounded-lg">

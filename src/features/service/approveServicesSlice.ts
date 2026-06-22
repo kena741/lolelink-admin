@@ -1,5 +1,6 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import { getSupabase } from '@/lib/supabaseClient';
+import { logClientAdminActivity } from '@/lib/record-admin-activity';
 
 interface ApproveServicesState {
     loading: boolean;
@@ -118,6 +119,14 @@ export const approveServicesByProvider = createAsyncThunk<number, string, { reje
 
             if (updateError) return thunkAPI.rejectWithValue(updateError.message || 'Failed to approve services');
 
+            logClientAdminActivity({
+                action: 'approve',
+                resource_type: 'service',
+                resource_id: providerId,
+                summary: `Approved ${ids.length} service(s) for provider ${providerId}`,
+                metadata: { service_ids: ids },
+            });
+
             return ids.length;
         } catch (err) {
             const msg = err instanceof Error ? err.message : 'Unexpected error';
@@ -139,6 +148,13 @@ export const approveServiceById = createAsyncThunk<number, string, { rejectValue
                 .eq('id', serviceId);
 
             if (updateError) return thunkAPI.rejectWithValue(updateError.message || 'Failed to approve service');
+
+            logClientAdminActivity({
+                action: 'approve',
+                resource_type: 'service',
+                resource_id: serviceId,
+                summary: `Approved service ${serviceId}`,
+            });
 
             return 1;
         } catch (err) {
@@ -173,6 +189,13 @@ export const approveFeatureRequestById = createAsyncThunk<number, string, { reje
                 if (secondError) return thunkAPI.rejectWithValue(secondError.message || 'Failed to approve featured service');
             }
 
+            logClientAdminActivity({
+                action: 'approve',
+                resource_type: 'service',
+                resource_id: serviceId,
+                summary: `Approved featured listing request for service ${serviceId}`,
+            });
+
             return 1;
         } catch (err) {
             const msg = err instanceof Error ? err.message : 'Unexpected error';
@@ -206,6 +229,13 @@ export const rejectFeatureRequestById = createAsyncThunk<number, string, { rejec
                 if (secondError) return thunkAPI.rejectWithValue(secondError.message || 'Failed to reject featured service');
             }
 
+            logClientAdminActivity({
+                action: 'reject',
+                resource_type: 'service',
+                resource_id: serviceId,
+                summary: `Rejected featured listing request for service ${serviceId}`,
+            });
+
             return 1;
         } catch (err) {
             const msg = err instanceof Error ? err.message : 'Unexpected error';
@@ -238,6 +268,13 @@ export const unfeatureServiceById = createAsyncThunk<number, string, { rejectVal
                 const secondError = await tryUpdate('services');
                 if (secondError) return thunkAPI.rejectWithValue(secondError.message || 'Failed to remove featured status');
             }
+
+            logClientAdminActivity({
+                action: 'update',
+                resource_type: 'service',
+                resource_id: serviceId,
+                summary: `Removed featured status from service ${serviceId}`,
+            });
 
             return 1;
         } catch (err) {

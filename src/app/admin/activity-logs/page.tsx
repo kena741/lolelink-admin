@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils';
 const PAGE_SIZE = 30;
 
 const ACTION_OPTIONS = ['create', 'update', 'delete', 'archive', 'restore', 'approve', 'reject', 'transfer', 'verify', 'activate'];
-const RESOURCE_OPTIONS = ['admin', 'role', 'provider', 'customer', 'document', 'banner', 'withdrawal', 'job_request', 'settings', 'service'];
+const RESOURCE_OPTIONS = ['admin', 'role', 'provider', 'customer', 'document', 'banner', 'withdrawal', 'job_request', 'settings', 'service', 'booking'];
 
 function ActivityLogsPage() {
     const dispatch = useAppDispatch();

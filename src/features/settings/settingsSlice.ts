@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { getSupabase } from '@/lib/supabaseClient';
+import { logClientAdminActivity } from '@/lib/record-admin-activity';
 
 export interface AppSettings {
     appColor?: string;
@@ -588,6 +589,16 @@ export const updateSettings = createAsyncThunk<
                 .select('id, code, name, active');
             if (reloadLanguageError)
                 throw reloadLanguageError;
+
+            logClientAdminActivity({
+                action: 'update',
+                resource_type: 'settings',
+                summary: 'Updated platform settings',
+                metadata: {
+                    sections: Object.keys(updates).filter((key) => updates[key as keyof UpdateSettingsPayload] !== undefined),
+                },
+            });
+
             return buildSettingsFromRows(
                 (allRows as AppSettingsRow[]) ?? null,
                 (updatedLanguageRows as LanguageRow[]) ?? null
