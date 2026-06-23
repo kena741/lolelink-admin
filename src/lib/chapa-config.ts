@@ -152,6 +152,188 @@ export function resolveChapaWalletCreditAmount(
     return Number.isFinite(fallback) && fallback > 0 ? fallback.toFixed(2) : '0.00';
 }
 
+export interface ChapaListTransaction {
+    status?: string;
+    ref_id?: string;
+    type?: string;
+    created_at?: string;
+    currency?: string;
+    amount?: string | number;
+    charge?: string | number;
+    trans_id?: string;
+    payment_method?: string;
+    email?: string;
+    mobile?: string;
+    first_name?: string | null;
+    last_name?: string | null;
+}
+
+export interface ChapaTransactionsPagination {
+    per_page: number;
+    current_page: number;
+    first_page_url: string;
+    next_page_url: string | null;
+    prev_page_url: string | null;
+}
+
+export interface ChapaTransactionsPage {
+    transactions: ChapaListTransaction[];
+    pagination: ChapaTransactionsPagination;
+}
+
+export interface ChapaTransferListItem {
+    account_name?: string;
+    account_number?: string;
+    currency?: string;
+    amount?: number | string;
+    charge?: number | string;
+    transfer_type?: string;
+    chapa_reference?: string;
+    bank_code?: number;
+    bank_name?: string;
+    bank_reference?: string;
+    status?: string;
+    reference?: string | null;
+    created_at?: string;
+    updated_at?: string;
+}
+
+export interface ChapaTransfersPagination {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+    next_page_url: string | null;
+    prev_page_url: string | null;
+}
+
+export interface ChapaTransfersPage {
+    transfers: ChapaTransferListItem[];
+    pagination: ChapaTransfersPagination;
+}
+
+function parseChapaMoney(value: string | number | undefined): number {
+    const parsed = Number(value ?? 0);
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
+export function resolveChapaListSettlementAmount(tx: ChapaListTransaction): number {
+    const gross = parseChapaMoney(tx.amount);
+    const charge = parseChapaMoney(tx.charge);
+    if (gross <= 0) return 0;
+    if (charge >= 0) return Math.round((gross - charge) * 100) / 100;
+    return Math.round(gross * 100) / 100;
+}
+
+export function resolveChapaTransferDebitAmount(transfer: ChapaTransferListItem): number {
+    const amount = parseChapaMoney(transfer.amount);
+    const charge = parseChapaMoney(transfer.charge);
+    if (amount <= 0) return 0;
+    return Math.round((amount + charge) * 100) / 100;
+}
+
+export async function fetchChapaTransactionsPage(
+    secretKey: string,
+    page = 1
+): Promise<ChapaTransactionsPage> {
+    const response = await fetch(`https://api.chapa.co/v1/transactions?page=${page}`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${secretKey}` },
+        cache: 'no-store',
+    });
+
+    const payload = (await response.json()) as {
+        status?: string;
+        message?: string;
+        data?: {
+            transactions?: ChapaListTransaction[];
+            pagination?: ChapaTransactionsPagination;
+        };
+    };
+
+    if (!response.ok || payload.status !== 'success') {
+        throw new Error(payload.message || 'Failed to fetch Chapa transactions');
+    }
+
+    const pagination = payload.data?.pagination;
+    if (!pagination) {
+        throw new Error('Chapa transactions response missing pagination');
+    }
+
+    return {
+        transactions: payload.data?.transactions ?? [],
+        pagination,
+    };
+}
+
+export async function fetchAllChapaTransactions(
+    secretKey: string,
+    options?: { onPage?: (page: number, count: number) => void }
+): Promise<ChapaListTransaction[]> {
+    const all: ChapaListTransaction[] = [];
+    let page = 1;
+
+    while (page <= 500) {
+        const { transactions, pagination } = await fetchChapaTransactionsPage(secretKey, page);
+        options?.onPage?.(page, transactions.length);
+        all.push(...transactions);
+        if (!pagination.next_page_url || transactions.length === 0) break;
+        page += 1;
+    }
+
+    return all;
+}
+
+export async function fetchChapaTransfersPage(
+    secretKey: string,
+    page = 1
+): Promise<ChapaTransfersPage> {
+    const response = await fetch(`https://api.chapa.co/v1/transfers?page=${page}`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${secretKey}` },
+        cache: 'no-store',
+    });
+
+    const payload = (await response.json()) as {
+        status?: string;
+        message?: string;
+        data?: ChapaTransferListItem[];
+        meta?: ChapaTransfersPagination;
+    };
+
+    if (!response.ok || payload.status !== 'success') {
+        throw new Error(payload.message || 'Failed to fetch Chapa transfers');
+    }
+
+    const pagination = payload.meta;
+    if (!pagination) {
+        throw new Error('Chapa transfers response missing pagination');
+    }
+
+    return {
+        transfers: payload.data ?? [],
+        pagination,
+    };
+}
+
+export async function fetchAllChapaTransfers(
+    secretKey: string,
+    options?: { onPage?: (page: number, count: number) => void }
+): Promise<ChapaTransferListItem[]> {
+    const all: ChapaTransferListItem[] = [];
+    let page = 1;
+
+    while (page <= 500) {
+        const { transfers, pagination } = await fetchChapaTransfersPage(secretKey, page);
+        options?.onPage?.(page, transfers.length);
+        all.push(...transfers);
+        if (!pagination.next_page_url || page >= pagination.last_page || transfers.length === 0) break;
+        page += 1;
+    }
+
+    return all;
+}
+
 export async function fetchChapaEtbBalance(secretKey: string): Promise<ChapaEtbBalance> {
     const headers = { Authorization: `Bearer ${secretKey}` };
 
