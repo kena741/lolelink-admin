@@ -29,8 +29,31 @@ const allowedDevOrigins = process.env.NEXT_ALLOWED_DEV_ORIGINS?.split(",")
   .map((origin) => origin.trim())
   .filter((origin) => origin.length > 0);
 
+function readMarketingSiteUrl(): string {
+  const value =
+    readEnv("MARKETING_SITE_URL") ||
+    readEnv("NEXT_PUBLIC_MARKETING_SITE_URL") ||
+    "https://zemenservice.com";
+  return value.replace(/\/$/, "");
+}
+
 const nextConfig: NextConfig = {
   ...(allowedDevOrigins?.length ? { allowedDevOrigins } : {}),
+  async redirects() {
+    const marketingBase = readMarketingSiteUrl();
+    return [
+      { source: "/", destination: marketingBase, permanent: false },
+      { source: "/contact-us", destination: `${marketingBase}/contact-us`, permanent: false },
+      { source: "/privacy-policy", destination: `${marketingBase}/privacy-policy`, permanent: false },
+      { source: "/terms-of-service", destination: `${marketingBase}/terms-of-service`, permanent: false },
+      {
+        source: "/software-product-profile",
+        destination: `${marketingBase}/software-product-profile`,
+        permanent: false,
+      },
+      { source: "/customer-app", destination: `${marketingBase}/customer-app`, permanent: false },
+    ];
+  },
   env: {
     ...(resolvedProdUrl ? { NEXT_PUBLIC_SUPABASE_URL: resolvedProdUrl } : {}),
     ...(resolvedProdAnonKey ? { NEXT_PUBLIC_SUPABASE_ANON_KEY: resolvedProdAnonKey } : {}),

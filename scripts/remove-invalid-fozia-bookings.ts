@@ -57,6 +57,8 @@ async function main(): Promise<void> {
         process.exit(1);
     }
 
+    const refundTotal = (debits ?? []).reduce((sum, debit) => sum + Number(debit.amount ?? 0), 0);
+
     console.log('Bookings to delete:', (bookings ?? []).length);
     for (const booking of bookings ?? []) {
         console.log(`  ${booking.id} | ${booking.payment_status} | ${booking.status} | ${booking.createdAt}`);
