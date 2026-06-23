@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAdminPermission } from '@/lib/admin-auth';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 import { logAdminActivity } from '@/lib/admin-activity-log';
+import { buildChangeMetadata, buildUpdateSummary } from '@/lib/activity-log-changes';
 
 export const runtime = 'nodejs';
 
@@ -109,6 +110,18 @@ export async function PATCH(request: Request) {
             return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
         }
 
+        const { data: existing, error: existingError } = await supabaseAdmin
+            .from('documents')
+            .select('*')
+            .eq('id', body.id)
+            .maybeSingle();
+        if (existingError) {
+            return NextResponse.json({ error: existingError.message }, { status: 500 });
+        }
+        if (!existing) {
+            return NextResponse.json({ error: 'Document not found' }, { status: 404 });
+        }
+
         const { data, error } = await supabaseAdmin
             .from('documents')
             .update(updates)
@@ -124,13 +137,19 @@ export async function PATCH(request: Request) {
         }
 
         const row = data as DocumentRow;
+        const metadata = buildChangeMetadata(
+            existing as Record<string, unknown>,
+            row as unknown as Record<string, unknown>,
+            Object.keys(updates)
+        );
+        const changes = Array.isArray(metadata.changes) ? metadata.changes : [];
         await logAdminActivity({
             request,
             action: 'update',
             resource_type: 'document',
             resource_id: body.id,
-            summary: `Updated document type ${row.name || body.id}`,
-            metadata: { ...updates },
+            summary: buildUpdateSummary(`Updated document type ${row.name || body.id}`, changes),
+            metadata,
         });
         return NextResponse.json({ data: row });
     } catch (error: unknown) {

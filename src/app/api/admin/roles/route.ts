@@ -3,6 +3,7 @@ import { requireAdminPermission } from '@/lib/admin-auth';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 import { DEFAULT_ADMIN_ROLES } from '@/lib/admin-permissions';
 import { logAdminActivity } from '@/lib/admin-activity-log';
+import { buildChangeMetadata } from '@/lib/activity-log-changes';
 
 export const runtime = 'nodejs';
 
@@ -148,7 +149,7 @@ export async function PATCH(request: Request) {
 
         const { data: existing, error: existingError } = await supabaseAdmin
             .from('admin_role')
-            .select('is_system')
+            .select('*')
             .eq('id', body.id)
             .maybeSingle();
 
@@ -183,7 +184,11 @@ export async function PATCH(request: Request) {
             resource_type: 'role',
             resource_id: body.id,
             summary: `Updated role ${row.name}`,
-            metadata: updates,
+            metadata: buildChangeMetadata(
+                existing as unknown as Record<string, unknown>,
+                row as unknown as Record<string, unknown>,
+                Object.keys(updates)
+            ),
         });
         return NextResponse.json({ data: row });
     } catch (error: unknown) {

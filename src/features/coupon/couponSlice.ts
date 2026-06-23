@@ -1,5 +1,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { getSupabase } from '@/lib/supabaseClient';
+import { logClientAdminActivity } from '@/lib/record-admin-activity';
+import { buildChangeMetadata } from '@/lib/activity-log-changes';
 
 export interface Coupon {
     id: number;
@@ -109,7 +111,14 @@ export const createCoupon = createAsyncThunk<
                 .single();
 
             if (error) throw error;
-            return normalizeRows([data as CouponRow])[0];
+            const created = normalizeRows([data as CouponRow])[0];
+            logClientAdminActivity({
+                action: 'create',
+                resource_type: 'coupon',
+                resource_id: String(created.id),
+                summary: `Created coupon ${created.code || created.title || created.id}`,
+            });
+            return created;
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to create coupon';
             return rejectWithValue(msg);
@@ -135,6 +144,14 @@ export const updateCoupon = createAsyncThunk<
     'coupon/updateCoupon',
     async ({ id, ...updates }, { rejectWithValue }) => {
         try {
+            const { data: existing, error: existingError } = await getSupabase()
+                .from('coupon')
+                .select('*')
+                .eq('id', id)
+                .maybeSingle();
+            if (existingError) throw existingError;
+            if (!existing) return rejectWithValue('Coupon not found');
+
             const { data, error } = await getSupabase()
                 .from('coupon')
                 .update(updates)
@@ -143,7 +160,19 @@ export const updateCoupon = createAsyncThunk<
                 .single();
 
             if (error) throw error;
-            return normalizeRows([data as CouponRow])[0];
+            const updated = normalizeRows([data as CouponRow])[0];
+            logClientAdminActivity({
+                action: 'update',
+                resource_type: 'coupon',
+                resource_id: String(id),
+                summary: `Updated coupon ${updated.code || updated.title || id}`,
+                metadata: buildChangeMetadata(
+                    existing as Record<string, unknown>,
+                    updated as unknown as Record<string, unknown>,
+                    Object.keys(updates)
+                ),
+            });
+            return updated;
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to update coupon';
             return rejectWithValue(msg);
@@ -159,12 +188,26 @@ export const deleteCoupon = createAsyncThunk<
     'coupon/deleteCoupon',
     async (id, { rejectWithValue }) => {
         try {
+            const { data: existing, error: existingError } = await getSupabase()
+                .from('coupon')
+                .select('code, title')
+                .eq('id', id)
+                .maybeSingle();
+            if (existingError) throw existingError;
+
             const { error } = await getSupabase()
                 .from('coupon')
                 .delete()
                 .eq('id', id);
 
             if (error) throw error;
+            const row = existing as CouponRow | null;
+            logClientAdminActivity({
+                action: 'delete',
+                resource_type: 'coupon',
+                resource_id: String(id),
+                summary: `Deleted coupon ${row?.code || row?.title || id}`,
+            });
             return id;
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to delete coupon';

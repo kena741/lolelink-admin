@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { isChapaSuccessStatus } from '@/lib/chapa-config';
 import { markBookingPaymentCompleted, resolveBookingIdByTxRef } from '@/lib/booking-payment';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
+import { logAdminActivity } from '@/lib/admin-activity-log';
 
 export const runtime = 'nodejs';
 
@@ -36,6 +37,19 @@ export async function POST(request: Request) {
         if (!result.ok) {
             return NextResponse.json({ status: 'error', reason: result.error }, { status: result.status });
         }
+
+        await logAdminActivity({
+            request,
+            action: 'verify',
+            resource_type: 'booking',
+            resource_id: bookingId,
+            summary: `Chapa webhook confirmed booking payment ${txRef}`,
+            metadata: {
+                tx_ref: txRef,
+                chapa_reference: body.reference ?? null,
+                source: 'chapa_webhook',
+            },
+        });
 
         return NextResponse.json({ status: 'success', booking_id: bookingId });
     } catch (error: unknown) {

@@ -2,6 +2,7 @@ import { createSlice as createModalSlice, createAsyncThunk, PayloadAction } from
 import { getSupabase } from '@/lib/supabaseClient';
 import { validateServiceDiscount } from '@/lib/service-discount';
 import { uploadFilesToSupabase } from '@/lib/upload';
+import { logClientAdminActivity } from '@/lib/record-admin-activity';
 
 // Optional: import from a central service model if it exists
 export interface CategoryModel { id: string; name: string }
@@ -75,11 +76,19 @@ export const addService = createAsyncThunk(
         video: videoUrl,
       };
       // Insert into Supabase 'service' table
-      const { error } = await getSupabase().from('service').insert([serviceToSave]);
+      const { data, error } = await getSupabase().from('service').insert([serviceToSave]).select('id, serviceName').single();
       if (error) {
         return thunkAPI.rejectWithValue(error.message);
       }
-      return { ...serviceToSave };
+      const row = data as { id?: string; serviceName?: string };
+      logClientAdminActivity({
+        action: 'create',
+        resource_type: 'service',
+        resource_id: row.id,
+        summary: `Created service ${row.serviceName || serviceToSave.serviceName}`,
+        metadata: { provider_id: serviceToSave.provider_id, categoryId: serviceToSave.categoryId },
+      });
+      return { ...serviceToSave, id: row.id };
     } catch (error) {
       if (error instanceof Error) {
         return thunkAPI.rejectWithValue(error.message);

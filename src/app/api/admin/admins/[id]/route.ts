@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAdminPermission } from '@/lib/admin-auth';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 import { logAdminActivity } from '@/lib/admin-activity-log';
+import { buildFieldChanges, buildUpdateSummary } from '@/lib/activity-log-changes';
 
 export const runtime = 'nodejs';
 
@@ -48,7 +49,7 @@ export async function PATCH(request: Request, context: { params: Promise<RoutePa
 
         const { data: existing, error: existingError } = await supabaseAdmin
             .from('admin')
-            .select('user_id')
+            .select('user_id, full_name, role, is_active')
             .eq('id', id)
             .maybeSingle();
 
@@ -63,7 +64,9 @@ export async function PATCH(request: Request, context: { params: Promise<RoutePa
             if (passwordError) return NextResponse.json({ error: passwordError.message }, { status: 500 });
         }
 
-        if (Object.keys(updates).length === 0 && !body.password) {
+        const passwordChanged = typeof body.password === 'string' && body.password.length >= 6;
+
+        if (Object.keys(updates).length === 0 && !passwordChanged) {
             return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
         }
 
@@ -77,13 +80,30 @@ export async function PATCH(request: Request, context: { params: Promise<RoutePa
                 .single();
 
             if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+            const requestFields = Object.keys(updates).filter((key) => key !== 'updated_at');
+            const changes = buildFieldChanges(
+                existing as Record<string, unknown>,
+                data as Record<string, unknown>,
+                requestFields
+            );
+
+            if (passwordChanged) {
+                changes.push({
+                    field: 'password',
+                    label: 'Password',
+                    before: '[hidden]',
+                    after: '[changed]',
+                });
+            }
+
             await logAdminActivity({
                 request,
                 action: 'update',
                 resource_type: 'admin',
                 resource_id: id,
-                summary: `Updated admin ${data.full_name || id}`,
-                metadata: updates,
+                summary: buildUpdateSummary(`Updated admin ${data.full_name || id}`, changes),
+                metadata: changes.length > 0 ? { changes } : {},
             });
             return NextResponse.json({ data });
         }
@@ -101,7 +121,14 @@ export async function PATCH(request: Request, context: { params: Promise<RoutePa
             resource_type: 'admin',
             resource_id: id,
             summary: `Updated admin password for ${data.full_name || id}`,
-            metadata: { password_reset: true },
+            metadata: {
+                changes: [{
+                    field: 'password',
+                    label: 'Password',
+                    before: '[hidden]',
+                    after: '[changed]',
+                }],
+            },
         });
         return NextResponse.json({ data });
     } catch (error: unknown) {

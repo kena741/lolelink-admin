@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 import { deductProviderWalletForWithdrawal } from '@/lib/withdrawal-wallet-side-effects';
+import { logAdminActivity } from '@/lib/admin-activity-log';
 
 export const runtime = 'nodejs';
 
@@ -126,6 +127,19 @@ export async function POST(request: Request) {
             description: `Chapa transfer ${nextStatus}. reference=${reference}`,
             type: `payout_${nextStatus}`,
             action_url: '/admin/finance/payout-request',
+        });
+
+        await logAdminActivity({
+            request,
+            action: nextStatus === 'completed' ? 'complete' : nextStatus === 'rejected' ? 'reject' : 'update',
+            resource_type: 'payout',
+            resource_id: (withdrawalData as { id: string }).id,
+            summary: `Chapa webhook updated payout to ${nextStatus} (reference ${reference})`,
+            metadata: {
+                reference,
+                transfer_status: transferStatus,
+                source: 'chapa_webhook',
+            },
         });
 
         return NextResponse.json({

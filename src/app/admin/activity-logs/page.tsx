@@ -12,8 +12,10 @@ import {
 import Sidebar from '@/components/Sidebar';
 import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
+import { ActivityLogDetails } from '@/components/ActivityLogDetails';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { fetchActivityLogs } from '@/features/admin/activityLogSlice';
+import { hasActivityDetails } from '@/lib/activity-log-changes';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 
@@ -29,6 +31,7 @@ function ActivityLogsPage() {
     const [actionFilter, setActionFilter] = useState('');
     const [resourceFilter, setResourceFilter] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
+    const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
 
     useEffect(() => {
         const offset = (currentPage - 1) * PAGE_SIZE;
@@ -51,6 +54,7 @@ function ActivityLogsPage() {
                 || (log.resource_name || '').toLowerCase().includes(q)
                 || log.action.toLowerCase().includes(q)
                 || log.resource_type.toLowerCase().includes(q)
+                || JSON.stringify(log.metadata || {}).toLowerCase().includes(q)
             );
         });
     }, [logs, query]);
@@ -158,13 +162,18 @@ function ActivityLogsPage() {
                                             <TableHead className="font-semibold text-gray-700">Action</TableHead>
                                             <TableHead className="font-semibold text-gray-700">Resource</TableHead>
                                             <TableHead className="font-semibold text-gray-700">Summary</TableHead>
+                                            <TableHead className="w-[120px] font-semibold text-gray-700">Details</TableHead>
                                             <TableHead className="font-semibold text-gray-700">When</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {filtered.map((log, idx) => (
+                                        {filtered.map((log, idx) => {
+                                            const isExpanded = expandedLogId === log.id;
+                                            const canExpand = hasActivityDetails(log.metadata) || Boolean(log.resource_id) || Boolean(log.route);
+
+                                            return (
+                                            <React.Fragment key={log.id}>
                                             <TableRow
-                                                key={log.id}
                                                 className="border-b border-white/20 transition-all hover:bg-gradient-to-r hover:from-indigo-50/30 hover:to-purple-50/30"
                                             >
                                                 <TableCell className="text-sm font-medium text-gray-500">
@@ -198,18 +207,42 @@ function ActivityLogsPage() {
                                                 </TableCell>
                                                 <TableCell className="max-w-md">
                                                     <span className="text-sm text-gray-700">{log.display_summary || log.summary}</span>
-                                                    {log.route && (
-                                                        <span className="mt-1 block font-mono text-[11px] text-gray-400">{log.route}</span>
+                                                </TableCell>
+                                                <TableCell>
+                                                    {canExpand ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setExpandedLogId(isExpanded ? null : log.id)}
+                                                            className="inline-flex h-8 items-center rounded-lg border border-indigo-200 bg-white px-3 text-xs font-semibold text-indigo-700 transition-colors hover:bg-indigo-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+                                                        >
+                                                            {isExpanded ? 'Hide' : 'View'}
+                                                        </button>
+                                                    ) : (
+                                                        <span className="text-xs text-gray-400">—</span>
                                                     )}
                                                 </TableCell>
                                                 <TableCell className="whitespace-nowrap text-sm text-gray-600">
                                                     {new Date(log.created_at).toLocaleString()}
                                                 </TableCell>
                                             </TableRow>
-                                        ))}
+                                            {isExpanded ? (
+                                                <TableRow className="border-b border-white/20 bg-white/50">
+                                                    <TableCell colSpan={7} className="px-4 py-4">
+                                                        <ActivityLogDetails
+                                                            metadata={log.metadata}
+                                                            resourceId={log.resource_id}
+                                                            route={log.route}
+                                                            env={log.env}
+                                                        />
+                                                    </TableCell>
+                                                </TableRow>
+                                            ) : null}
+                                            </React.Fragment>
+                                            );
+                                        })}
                                         {filtered.length === 0 && !loading && (
                                             <TableRow>
-                                                <TableCell colSpan={6} className="px-4 py-12 text-center text-gray-500">
+                                                <TableCell colSpan={7} className="px-4 py-12 text-center text-gray-500">
                                                     <div className="flex flex-col items-center gap-3">
                                                         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
                                                             <Search className="h-8 w-8 text-gray-400" />

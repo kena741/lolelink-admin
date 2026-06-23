@@ -1,5 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { getSupabase } from '@/lib/supabaseClient';
+import { logClientAdminActivity } from '@/lib/record-admin-activity';
+import { buildChangeMetadata } from '@/lib/activity-log-changes';
 
 export interface Handyman {
     id: string;
@@ -144,7 +146,15 @@ export const createHandyman = createAsyncThunk<
                 .single();
 
             if (error) throw error;
-            return normalizeRows([data as HandymanRow])[0];
+            const created = normalizeRows([data as HandymanRow])[0];
+            const displayName = [created.firstName, created.lastName].filter(Boolean).join(' ').trim();
+            logClientAdminActivity({
+                action: 'create',
+                resource_type: 'handyman',
+                resource_id: created.id,
+                summary: `Created handyman ${displayName || created.id}`,
+            });
+            return created;
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to create handyman';
             return rejectWithValue(msg);
@@ -160,6 +170,14 @@ export const updateHandyman = createAsyncThunk<
     'handyman/updateHandyman',
     async ({ id, ...updates }, { rejectWithValue }) => {
         try {
+            const { data: existing, error: existingError } = await getSupabase()
+                .from('handyman')
+                .select('*')
+                .eq('id', id)
+                .maybeSingle();
+            if (existingError) throw existingError;
+            if (!existing) return rejectWithValue('Handyman not found');
+
             const updateData: Partial<HandymanRow> = {};
             if (updates.firstName !== undefined) updateData.firstName = updates.firstName;
             if (updates.lastName !== undefined) updateData.lastName = updates.lastName;
@@ -189,7 +207,20 @@ export const updateHandyman = createAsyncThunk<
                 .single();
 
             if (error) throw error;
-            return normalizeRows([data as HandymanRow])[0];
+            const updated = normalizeRows([data as HandymanRow])[0];
+            const displayName = [updated.firstName, updated.lastName].filter(Boolean).join(' ').trim();
+            logClientAdminActivity({
+                action: 'update',
+                resource_type: 'handyman',
+                resource_id: id,
+                summary: `Updated handyman ${displayName || id}`,
+                metadata: buildChangeMetadata(
+                    existing as Record<string, unknown>,
+                    updated as unknown as Record<string, unknown>,
+                    Object.keys(updateData)
+                ),
+            });
+            return updated;
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to update handyman';
             return rejectWithValue(msg);
@@ -205,12 +236,27 @@ export const deleteHandyman = createAsyncThunk<
     'handyman/deleteHandyman',
     async (id, { rejectWithValue }) => {
         try {
+            const { data: existing, error: existingError } = await getSupabase()
+                .from('handyman')
+                .select('firstName, lastName')
+                .eq('id', id)
+                .maybeSingle();
+            if (existingError) throw existingError;
+
             const { error } = await getSupabase()
                 .from('handyman')
                 .delete()
                 .eq('id', id);
 
             if (error) throw error;
+            const row = existing as HandymanRow | null;
+            const displayName = row ? [row.firstName, row.lastName].filter(Boolean).join(' ').trim() : '';
+            logClientAdminActivity({
+                action: 'delete',
+                resource_type: 'handyman',
+                resource_id: id,
+                summary: `Deleted handyman ${displayName || id}`,
+            });
             return id;
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to delete handyman';

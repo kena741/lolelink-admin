@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 import { deductProviderWalletForWithdrawal } from '@/lib/withdrawal-wallet-side-effects';
+import { logAdminActivity } from '@/lib/admin-activity-log';
 
 export const runtime = 'nodejs';
 
@@ -201,6 +202,21 @@ export async function POST(request: Request) {
             if (updateError)
                 return NextResponse.json({ error: 'Failed to update withdrawal note' }, { status: 500 });
         }
+
+        await logAdminActivity({
+            request,
+            action: isSuccess ? 'complete' : 'verify',
+            resource_type: 'payout',
+            resource_id: withdrawalId,
+            summary: isSuccess
+                ? `Verified Chapa transfer ${reference} as completed`
+                : `Checked Chapa transfer ${reference} (status: ${verifyStatus || 'unknown'})`,
+            metadata: {
+                reference,
+                verify_status: verifyStatus,
+                source: isSuccess ? 'admin_verify' : 'admin_verify_pending',
+            },
+        });
 
         return NextResponse.json({
             status: 'ok',
