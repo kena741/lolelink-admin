@@ -42,7 +42,7 @@ const nextConfig: NextConfig = {
   async redirects() {
     const marketingBase = readMarketingSiteUrl();
     return [
-      { source: "/", destination: marketingBase, permanent: false },
+      { source: "/", destination: "/login", permanent: false },
       { source: "/contact-us", destination: `${marketingBase}/contact-us`, permanent: false },
       { source: "/privacy-policy", destination: `${marketingBase}/privacy-policy`, permanent: false },
       { source: "/terms-of-service", destination: `${marketingBase}/terms-of-service`, permanent: false },
