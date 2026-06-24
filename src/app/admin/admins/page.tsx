@@ -71,7 +71,7 @@ function getInitials(name: string): string {
 
 function AdminsPage() {
     const dispatch = useAppDispatch();
-    const { canWriteAdmins } = useAdminPermissions();
+    const { canWriteAdmins, adminId: currentAdminId } = useAdminPermissions();
     const { admins, loading, error } = useAppSelector((state) => state.admin);
     const { roles } = useAppSelector((state) => state.adminRole);
     const [query, setQuery] = useState('');
@@ -228,6 +228,10 @@ function AdminsPage() {
     }
 
     async function handleDelete(id: string) {
+        if (currentAdminId && id === currentAdminId) {
+            alert('You cannot delete your own admin account.');
+            return;
+        }
         if (!confirm('Delete this admin account? This also removes the auth user.')) return;
         setDeletingId(id);
         try {
@@ -452,6 +456,8 @@ function AdminsPage() {
                                                                         Edit admin
                                                                     </span>
                                                                 </DropdownMenuItem>
+                                                                {admin.id !== currentAdminId ? (
+                                                                <>
                                                                 <DropdownMenuSeparator />
                                                                 <DropdownMenuItem
                                                                     disabled={rowBusy}
@@ -464,6 +470,8 @@ function AdminsPage() {
                                                                         Delete
                                                                     </span>
                                                                 </DropdownMenuItem>
+                                                                </>
+                                                                ) : null}
                                                             </DropdownMenuContent>
                                                         </DropdownMenu>
                                                         ) : null}

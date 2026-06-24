@@ -6,6 +6,7 @@ import { getSupabase } from '@/lib/supabaseClient';
 
 interface UseAdminPermissionsResult {
     loading: boolean;
+    adminId: string | null;
     permissions: string[];
     can: (permission: string) => boolean;
     canWriteBookings: boolean;
@@ -41,6 +42,7 @@ async function resolveRolePermissions(roleSlug: string): Promise<string[]> {
 
 export function useAdminPermissions(): UseAdminPermissionsResult {
     const [loading, setLoading] = useState(true);
+    const [adminId, setAdminId] = useState<string | null>(null);
     const [permissions, setPermissions] = useState<string[]>([]);
 
     useEffect(() => {
@@ -53,6 +55,7 @@ export function useAdminPermissions(): UseAdminPermissionsResult {
 
             if (!user) {
                 if (isMounted) {
+                    setAdminId(null);
                     setPermissions([]);
                     setLoading(false);
                 }
@@ -61,13 +64,14 @@ export function useAdminPermissions(): UseAdminPermissionsResult {
 
             const { data: adminRow } = await getSupabase()
                 .from('admin')
-                .select('role, is_active')
+                .select('id, role, is_active')
                 .eq('user_id', user.id)
                 .maybeSingle();
 
             if (!isMounted) return;
 
             if (!adminRow || !adminRow.is_active) {
+                setAdminId(null);
                 setPermissions([]);
                 setLoading(false);
                 return;
@@ -75,6 +79,7 @@ export function useAdminPermissions(): UseAdminPermissionsResult {
 
             const rolePermissions = await resolveRolePermissions(adminRow.role as string);
             if (isMounted) {
+                setAdminId(adminRow.id as string);
                 setPermissions(rolePermissions);
                 setLoading(false);
             }
@@ -98,6 +103,7 @@ export function useAdminPermissions(): UseAdminPermissionsResult {
 
     return {
         loading,
+        adminId,
         permissions,
         can,
         canWriteBookings: can('bookings:write'),

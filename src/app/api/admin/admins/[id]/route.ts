@@ -155,6 +155,10 @@ export async function DELETE(request: Request, context: { params: Promise<RouteP
         if (existingError) return NextResponse.json({ error: existingError.message }, { status: 500 });
         if (!existing) return NextResponse.json({ error: 'Admin not found' }, { status: 404 });
 
+        if (auth.context.adminId === id) {
+            return NextResponse.json({ error: 'You cannot delete your own admin account' }, { status: 403 });
+        }
+
         const { error: deleteAdminError } = await supabaseAdmin.from('admin').delete().eq('id', id);
         if (deleteAdminError) return NextResponse.json({ error: deleteAdminError.message }, { status: 500 });
 
