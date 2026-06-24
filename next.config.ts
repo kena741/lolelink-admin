@@ -40,6 +40,10 @@ function readMarketingSiteUrl(): string {
 const nextConfig: NextConfig = {
   ...(allowedDevOrigins?.length ? { allowedDevOrigins } : {}),
   async redirects() {
+    if (process.env.NODE_ENV !== "production") {
+      return [{ source: "/", destination: "/login", permanent: false }];
+    }
+
     const marketingBase = readMarketingSiteUrl();
     return [
       { source: "/", destination: marketingBase, permanent: false },
