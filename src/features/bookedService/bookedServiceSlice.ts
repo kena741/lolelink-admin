@@ -1,4 +1,6 @@
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { hasBookingCustomerRefund } from '@/lib/booking-display';
+import { BOOKING_PAYMENT_STATUS, resolveBookingPaymentStatus } from '@/lib/booking-status';
 import { getSupabase } from '@/lib/supabaseClient';
 
 export interface BookedService {
@@ -34,8 +36,25 @@ export interface BookedService {
     paymentCompleted?: boolean;
     payment_status?: string | null;
     paymentType?: string | null;
+    payment_id?: string | null;
     providerName?: string;
     customerName?: string;
+    customer_user_id?: string | null;
+    provider_user_id?: string | null;
+    customer_refund_recorded?: boolean;
+    providerMySelf?: boolean;
+    extraChargeAmount?: string | number | null;
+    extraChargeModel?: unknown;
+    coupon?: string | unknown;
+    adminCommission?: string | number | null;
+    bookingAddress?: unknown;
+    serviceDetails?: unknown;
+    otp?: string | null;
+    startTime?: string | null;
+    endTime?: string | null;
+    service_proof?: unknown;
+    countryCode?: string | null;
+    reason?: string | null;
 }
 
 interface BookedServiceState {
@@ -106,37 +125,108 @@ async function enrichBookingsWithNames(rows: BookedService[]): Promise<BookedSer
 
     const [providersResult, customersResult] = await Promise.all([
         providerIds.length > 0
-            ? getSupabase().from('provider').select('id, firstName, lastName, userName').in('id', providerIds)
+            ? getSupabase().from('provider').select('id, firstName, lastName, userName, user_id').in('id', providerIds)
             : Promise.resolve({ data: [], error: null }),
         customerIds.length > 0
-            ? getSupabase().from('customer').select('id, first_name, last_name, user_name').in('id', customerIds)
+            ? getSupabase().from('customer').select('id, first_name, last_name, user_name, user_id').in('id', customerIds)
             : Promise.resolve({ data: [], error: null }),
     ]);
 
     if (providersResult.error) throw providersResult.error;
     if (customersResult.error) throw customersResult.error;
 
-    const providerNameById = new Map<string, string>();
+    const providerMetaById = new Map<string, { name?: string; userId?: string }>();
     for (const provider of (providersResult.data ?? []) as Record<string, unknown>[]) {
         const id = typeof provider.id === 'string' ? provider.id : '';
         if (!id) continue;
         const name = resolveProviderName(provider);
-        if (name) providerNameById.set(id, name);
+        const userId = typeof provider.user_id === 'string' && provider.user_id.trim() ? provider.user_id.trim() : undefined;
+        providerMetaById.set(id, { name: name || undefined, userId });
     }
 
-    const customerNameById = new Map<string, string>();
+    const customerMetaById = new Map<string, { name?: string; userId?: string }>();
     for (const customer of (customersResult.data ?? []) as Record<string, unknown>[]) {
         const id = typeof customer.id === 'string' ? customer.id : '';
         if (!id) continue;
         const name = resolveCustomerName(customer);
-        if (name) customerNameById.set(id, name);
+        const userId = typeof customer.user_id === 'string' && customer.user_id.trim() ? customer.user_id.trim() : undefined;
+        customerMetaById.set(id, { name: name || undefined, userId });
     }
 
-    return rows.map((row) => ({
-        ...row,
-        providerName: providerNameById.get(row.provider_id) || undefined,
-        customerName: row.customer_id ? customerNameById.get(row.customer_id) : undefined,
-    }));
+    return rows.map((row) => {
+        const providerMeta = providerMetaById.get(row.provider_id);
+        const customerMeta = row.customer_id ? customerMetaById.get(row.customer_id) : undefined;
+
+        return {
+            ...row,
+            providerName: providerMeta?.name,
+            customerName: customerMeta?.name,
+            provider_user_id: providerMeta?.userId ?? null,
+            customer_user_id: customerMeta?.userId ?? null,
+        };
+    });
+}
+
+function isRejectedPaidBookingRow(row: BookedService): boolean {
+    if (row.status !== 'rejected') return false;
+    return (
+        resolveBookingPaymentStatus(row.payment_status ?? '', row.paymentCompleted) ===
+        BOOKING_PAYMENT_STATUS.COMPLETED
+    );
+}
+
+async function enrichRejectedPaidRefundStatus(rows: BookedService[]): Promise<BookedService[]> {
+    const rejectedPaid = rows.filter(isRejectedPaidBookingRow);
+    if (rejectedPaid.length === 0) return rows;
+
+    const customerIds = Array.from(
+        new Set(
+            rejectedPaid
+                .map((row) => row.customer_id)
+                .filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+        )
+    );
+
+    if (customerIds.length === 0) return rows;
+
+    const { data, error } = await getSupabase()
+        .from('wallet_transaction')
+        .select('userId, isCredit, note, transactionId')
+        .in('userId', customerIds)
+        .eq('isCredit', true);
+
+    if (error) throw error;
+
+    const creditsByCustomer = new Map<string, Array<{ isCredit?: boolean | null; note?: string | null; transactionId?: string | null }>>();
+    for (const tx of (data ?? []) as Array<{
+        userId?: string | null;
+        isCredit?: boolean | null;
+        note?: string | null;
+        transactionId?: string | null;
+    }>) {
+        const userId = typeof tx.userId === 'string' ? tx.userId : '';
+        if (!userId) continue;
+        const existing = creditsByCustomer.get(userId) ?? [];
+        existing.push(tx);
+        creditsByCustomer.set(userId, existing);
+    }
+
+    return rows.map((row) => {
+        if (!isRejectedPaidBookingRow(row) || !row.customer_id) {
+            return row;
+        }
+
+        const customerCredits = creditsByCustomer.get(row.customer_id) ?? [];
+        return {
+            ...row,
+            customer_refund_recorded: hasBookingCustomerRefund(row.id, customerCredits),
+        };
+    });
+}
+
+async function enrichBookings(rows: BookedService[]): Promise<BookedService[]> {
+    const withNames = await enrichBookingsWithNames(rows);
+    return enrichRejectedPaidRefundStatus(withNames);
 }
 
 export function getBookingProviderDisplayName(booking: BookedService): string {
@@ -167,7 +257,7 @@ export const fetchProviderBookings = createAsyncThunk<
             }
             const { data, error } = await query.order('createdAt', { ascending: false });
             if (error) throw error;
-            return enrichBookingsWithNames(normalizeRows(data as BookedServiceRow[]));
+            return enrichBookings(normalizeRows(data as BookedServiceRow[]));
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to fetch bookings';
             return rejectWithValue(msg);
@@ -191,7 +281,7 @@ export const fetchAllBookings = createAsyncThunk<
             }
             const { data, error } = await query.order('createdAt', { ascending: false });
             if (error) throw error;
-            return enrichBookingsWithNames(normalizeRows(data as BookedServiceRow[]));
+            return enrichBookings(normalizeRows(data as BookedServiceRow[]));
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to fetch bookings';
             return rejectWithValue(msg);
@@ -209,7 +299,7 @@ export const fetchBookingById = createAsyncThunk<
         try {
             const { data, error } = await getSupabase().from('booked_service').select('*').eq('id', id).single();
             if (error) throw error;
-            const [enriched] = await enrichBookingsWithNames(normalizeRows([data as BookedServiceRow]));
+            const [enriched] = await enrichBookings(normalizeRows([data as BookedServiceRow]));
             if (!enriched) throw new Error('Booking not found');
             return enriched;
         } catch (e: unknown) {
