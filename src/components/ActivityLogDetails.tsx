@@ -4,6 +4,7 @@ import {
     changeItemsHaveBeforeValues,
     extractActivityDetails,
     formatActivityValue,
+    getActivityMetadataFieldLabel,
 } from '@/lib/activity-log-changes';
 
 interface ActivityLogDetailsProps {
@@ -109,7 +110,9 @@ export function ActivityLogDetails({ metadata, resourceId, route, env }: Activit
                                 key={item.field}
                                 className="rounded-lg border border-white/80 bg-white/90 px-3 py-2 text-sm"
                             >
-                                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{item.field}</p>
+                                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                    {item.label || getActivityMetadataFieldLabel(item.field)}
+                                </p>
                                 <p className="mt-1 break-words text-gray-800">{formatActivityValue(item.value)}</p>
                             </div>
                         ))}

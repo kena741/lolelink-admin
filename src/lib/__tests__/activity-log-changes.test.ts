@@ -122,9 +122,38 @@ describe('extractActivityDetails', () => {
             full_name: 'Jane Doe',
         });
         expect(items).toEqual([
-            { kind: 'info', field: 'role', value: 'editor' },
-            { kind: 'info', field: 'full_name', value: 'Jane Doe' },
+            { kind: 'info', field: 'role', label: 'role', value: 'editor' },
+            { kind: 'info', field: 'full_name', label: 'full name', value: 'Jane Doe' },
         ]);
+    });
+
+    it('surfaces payout context fields from reserved metadata keys', () => {
+        const items = extractActivityDetails({
+            provider_name: 'Fozia Kassa',
+            provider_email: 'fozia@example.com',
+            amount_etb: 'ETB 237.96',
+            reference: 'wd-abc',
+            verify_status: 'success',
+            source: 'admin_verify',
+        });
+        expect(items).toContainEqual({
+            kind: 'info',
+            field: 'provider_name',
+            label: 'Provider',
+            value: 'Fozia Kassa',
+        });
+        expect(items).toContainEqual({
+            kind: 'info',
+            field: 'amount_etb',
+            label: 'Amount',
+            value: 'ETB 237.96',
+        });
+        expect(items).toContainEqual({
+            kind: 'info',
+            field: 'reference',
+            label: 'Chapa reference',
+            value: 'wd-abc',
+        });
     });
 
     it('expands password_reset flag', () => {

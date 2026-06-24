@@ -84,7 +84,43 @@ const LEGACY_RESERVED_KEYS = new Set([
     'password_reset',
     'service_ids',
     'provider_id',
+    'provider_name',
+    'provider_email',
+    'withdrawal_id',
+    'amount',
+    'amount_etb',
+    'reference',
+    'tx_ref',
+    'verify_status',
+    'transfer_status',
+    'source',
+    'wallet_deducted',
+    'wallet_skipped_reason',
 ]);
+
+const METADATA_FIELD_LABELS: Record<string, string> = {
+    provider_name: 'Provider',
+    provider_email: 'Provider email',
+    provider_id: 'Provider ID',
+    withdrawal_id: 'Withdrawal ID',
+    amount: 'Amount',
+    amount_etb: 'Amount',
+    reference: 'Chapa reference',
+    tx_ref: 'Chapa reference',
+    verify_status: 'Verify status',
+    transfer_status: 'Transfer status',
+    source: 'Source',
+    wallet_deducted: 'Wallet deducted',
+    wallet_skipped_reason: 'Wallet skip reason',
+};
+
+function metadataFieldLabel(field: string): string {
+    return METADATA_FIELD_LABELS[field] ?? field.replace(/_/g, ' ');
+}
+
+export function getActivityMetadataFieldLabel(field: string): string {
+    return metadataFieldLabel(field);
+}
 
 export interface ActivityDetailItem {
     kind: 'change' | 'info';
@@ -103,7 +139,7 @@ function isFieldChange(value: unknown): value is ActivityFieldChange {
 
 function pushInfo(items: ActivityDetailItem[], field: string, value: unknown): void {
     if (value === undefined || value === null) return;
-    items.push({ kind: 'info', field, value });
+    items.push({ kind: 'info', field, label: metadataFieldLabel(field), value });
 }
 
 export function extractActivityDetails(metadata: Record<string, unknown> | null | undefined): ActivityDetailItem[] {
@@ -153,6 +189,42 @@ export function extractActivityDetails(metadata: Record<string, unknown> | null 
             if (field === 'provider_id' && typeof value === 'string') {
                 pushInfo(items, 'provider_id', value);
             }
+            if (field === 'provider_name' && typeof value === 'string') {
+                pushInfo(items, 'provider_name', value);
+            }
+            if (field === 'provider_email' && typeof value === 'string') {
+                pushInfo(items, 'provider_email', value);
+            }
+            if (field === 'withdrawal_id' && typeof value === 'string') {
+                pushInfo(items, 'withdrawal_id', value);
+            }
+            if (field === 'amount' && (typeof value === 'string' || typeof value === 'number')) {
+                pushInfo(items, 'amount', value);
+            }
+            if (field === 'amount_etb' && typeof value === 'string') {
+                pushInfo(items, 'amount_etb', value);
+            }
+            if (field === 'reference' && typeof value === 'string') {
+                pushInfo(items, 'reference', value);
+            }
+            if (field === 'tx_ref' && typeof value === 'string') {
+                pushInfo(items, 'tx_ref', value);
+            }
+            if (field === 'verify_status' && typeof value === 'string') {
+                pushInfo(items, 'verify_status', value);
+            }
+            if (field === 'transfer_status' && typeof value === 'string') {
+                pushInfo(items, 'transfer_status', value);
+            }
+            if (field === 'source' && typeof value === 'string') {
+                pushInfo(items, 'source', value);
+            }
+            if (field === 'wallet_deducted' && typeof value === 'boolean') {
+                pushInfo(items, 'wallet_deducted', value);
+            }
+            if (field === 'wallet_skipped_reason' && typeof value === 'string') {
+                pushInfo(items, 'wallet_skipped_reason', value);
+            }
             continue;
         }
 
@@ -166,7 +238,7 @@ export function extractActivityDetails(metadata: Record<string, unknown> | null 
         }
 
         if (legacySnapshot) {
-            items.push({ kind: 'info', field, value });
+            items.push({ kind: 'info', field, label: metadataFieldLabel(field), value });
             continue;
         }
 

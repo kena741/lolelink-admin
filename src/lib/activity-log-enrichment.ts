@@ -93,6 +93,50 @@ async function fetchRoleNameMap(
     return map;
 }
 
+async function fetchWithdrawalLabelMap(
+    admin: SupabaseClient,
+    ids: string[]
+): Promise<Map<string, string>> {
+    const map = new Map<string, string>();
+    if (ids.length === 0) return map;
+
+    const { data, error } = await admin
+        .from('withdrawal_history')
+        .select('id, amount, providerId')
+        .in('id', ids);
+
+    if (error || !data) return map;
+
+    const providerIds = [
+        ...new Set(
+            data
+                .map((row) => (typeof row.providerId === 'string' ? row.providerId : ''))
+                .filter(Boolean)
+        ),
+    ];
+
+    const providerNames = await fetchNameMap(
+        admin,
+        'provider',
+        providerIds,
+        'id, firstName, lastName, userName, email'
+    );
+
+    for (const row of data) {
+        const id = typeof row.id === 'string' ? row.id : '';
+        if (!id) continue;
+        const providerId = typeof row.providerId === 'string' ? row.providerId : '';
+        const providerName = providerNames.get(providerId) || 'Unknown provider';
+        const amount = Number(row.amount ?? 0);
+        const amountLabel = Number.isFinite(amount)
+            ? `ETB ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+            : 'ETB 0.00';
+        map.set(id, `${providerName} (${amountLabel})`);
+    }
+
+    return map;
+}
+
 function groupIdsByResourceType(logs: AdminActivityLog[]): Map<string, Set<string>> {
     const grouped = new Map<string, Set<string>>();
 
@@ -107,12 +151,41 @@ function groupIdsByResourceType(logs: AdminActivityLog[]): Map<string, Set<strin
     return grouped;
 }
 
+function parseWithdrawalResourceLabel(label: string): { provider_name: string; amount_etb: string } | null {
+    const match = label.match(/^(.+?) \((ETB [^)]+)\)$/);
+    if (!match) return null;
+    return { provider_name: match[1].trim(), amount_etb: match[2].trim() };
+}
+
+function enrichPayoutMetadata(
+    log: AdminActivityLog,
+    resourceName: string | null
+): Record<string, unknown> {
+    const metadata = { ...(log.metadata ?? {}) };
+    const type = log.resource_type.trim().toLowerCase();
+    if (type !== 'payout' && type !== 'withdrawal') return metadata;
+    if (typeof metadata.provider_name === 'string' && metadata.provider_name.trim()) return metadata;
+    if (!resourceName) return metadata;
+
+    const parsed = parseWithdrawalResourceLabel(resourceName);
+    if (!parsed) return metadata;
+
+    return {
+        ...metadata,
+        provider_name: parsed.provider_name,
+        amount_etb: parsed.amount_etb,
+    };
+}
+
 function buildDisplaySummary(summary: string, resourceId: string | null, resourceName: string | null): string {
-    if (!resourceId || !resourceName || resourceId === resourceName) return summary;
-    if (summary.includes(resourceId)) {
-        return summary.split(resourceId).join(resourceName);
+    let result = summary;
+    if (resourceId && resourceName && resourceId !== resourceName && summary.includes(resourceId)) {
+        result = summary.split(resourceId).join(resourceName);
     }
-    return summary;
+    if (resourceName && !result.includes(resourceName)) {
+        result = `${result} · ${resourceName}`;
+    }
+    return result;
 }
 
 export async function enrichActivityLogs(
@@ -131,6 +204,10 @@ export async function enrichActivityLogs(
         ),
     ];
 
+    const withdrawalIds = [
+        ...new Set([...(grouped.get('payout') ?? []), ...(grouped.get('withdrawal') ?? [])]),
+    ];
+
     const [
         adminActorNames,
         adminResourceNames,
@@ -140,6 +217,7 @@ export async function enrichActivityLogs(
         roleNames,
         documentNames,
         serviceNames,
+        withdrawalLabels,
     ] = await Promise.all([
         fetchNameMap(admin, 'admin', adminActorIds, 'id, full_name'),
         fetchNameMap(admin, 'admin', [...(grouped.get('admin') ?? [])], 'id, full_name'),
@@ -159,6 +237,7 @@ export async function enrichActivityLogs(
         fetchRoleNameMap(admin, [...(grouped.get('role') ?? [])]),
         fetchNameMap(admin, 'documents', [...(grouped.get('document') ?? [])], 'id, name'),
         fetchNameMap(admin, 'service', [...(grouped.get('service') ?? [])], 'id, serviceName'),
+        fetchWithdrawalLabelMap(admin, withdrawalIds),
     ]);
 
     function resolveResourceName(type: string, id: string | null): string | null {
@@ -178,6 +257,9 @@ export async function enrichActivityLogs(
                 return documentNames.get(id) ?? null;
             case 'service':
                 return serviceNames.get(id) ?? null;
+            case 'payout':
+            case 'withdrawal':
+                return withdrawalLabels.get(id) ?? null;
             default:
                 return null;
         }
@@ -193,6 +275,7 @@ export async function enrichActivityLogs(
             admin_name: adminName,
             resource_name: resourceName,
             display_summary: buildDisplaySummary(log.summary, log.resource_id, resourceName),
+            metadata: enrichPayoutMetadata(log, resourceName),
         };
     });
 }

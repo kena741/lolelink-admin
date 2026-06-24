@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server';
 import { logAdminActivity } from '@/lib/admin-activity-log';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 import { deductProviderWalletForWithdrawal } from '@/lib/withdrawal-wallet-side-effects';
+import {
+    buildPayoutActivityMetadata,
+    buildPayoutActivitySummary,
+    loadWithdrawalActivityContext,
+} from '@/lib/payout-activity-log';
 
 export const runtime = 'nodejs';
 
@@ -57,18 +62,27 @@ export async function POST(request: Request) {
             );
         }
 
+        const payoutContext = await loadWithdrawalActivityContext(supabaseAdmin, withdrawalId);
+
         await logAdminActivity({
             request,
             action: 'transfer',
             resource_type: 'withdrawal',
             resource_id: withdrawalId,
-            summary: `Marked withdrawal ${withdrawalId} as completed`,
-            metadata: {
-                provider_id: (data as { providerId?: string }).providerId,
-                amount: (data as { amount?: string | number }).amount,
-                wallet_deducted: !walletResult.skipped,
-                wallet_skipped_reason: walletResult.skipped ? walletResult.reason : null,
-            },
+            summary: payoutContext
+                ? buildPayoutActivitySummary('Marked withdrawal as completed', payoutContext)
+                : `Marked withdrawal ${withdrawalId} as completed`,
+            metadata: payoutContext
+                ? buildPayoutActivityMetadata(payoutContext, {
+                      wallet_deducted: !walletResult.skipped,
+                      wallet_skipped_reason: walletResult.skipped ? walletResult.reason : null,
+                  })
+                : {
+                      provider_id: (data as { providerId?: string }).providerId,
+                      amount: (data as { amount?: string | number }).amount,
+                      wallet_deducted: !walletResult.skipped,
+                      wallet_skipped_reason: walletResult.skipped ? walletResult.reason : null,
+                  },
         });
 
         return NextResponse.json({
