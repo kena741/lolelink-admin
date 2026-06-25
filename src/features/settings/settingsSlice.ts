@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { getSupabase } from '@/lib/supabaseClient';
 import { logClientAdminActivity } from '@/lib/record-admin-activity';
+import { buildFieldChanges, type ActivityFieldChange } from '@/lib/activity-log-changes';
 
 export interface AppSettings {
     appColor?: string;
@@ -360,6 +361,18 @@ function buildSettingsFromRows(rows: AppSettingsRow[] | null, languageRows: Lang
     };
 }
 
+function appendSectionChanges(
+    target: ActivityFieldChange[],
+    section: string,
+    before: Record<string, unknown>,
+    after: Record<string, unknown>,
+    fields?: string[]
+): void {
+    for (const change of buildFieldChanges(before, after, fields)) {
+        target.push({ ...change, field: `${section}.${change.field}` });
+    }
+}
+
 export const fetchSettings = createAsyncThunk<
     Settings,
     void,
@@ -397,6 +410,7 @@ export const updateSettings = createAsyncThunk<
     'settings/updateSettings',
     async (updates, { rejectWithValue }) => {
         try {
+            const settingsChanges: ActivityFieldChange[] = [];
             const updateData: Record<string, string | number | boolean | null | undefined> = {};
 
             if (updates.appSettings)
@@ -433,6 +447,14 @@ export const updateSettings = createAsyncThunk<
                     console.error('Error updating app_settings payment:', paymentError);
                     throw paymentError;
                 }
+
+                appendSectionChanges(
+                    settingsChanges,
+                    'payment',
+                    existingPaymentData,
+                    nextPaymentData,
+                    Object.keys(normalizedPaymentSettings ?? {})
+                );
             }
 
             if (updates.policySettings) {
@@ -452,6 +474,14 @@ export const updateSettings = createAsyncThunk<
                         .upsert({ id: 'policy', data: nextPolicyData }, { onConflict: 'id' });
                     if (policyError)
                         throw policyError;
+
+                    appendSectionChanges(
+                        settingsChanges,
+                        'policy',
+                        policyData,
+                        nextPolicyData,
+                        Object.keys(definedPolicyPatch)
+                    );
                 }
             }
 
@@ -467,6 +497,14 @@ export const updateSettings = createAsyncThunk<
                     .upsert({ id: 'contact_us', data: merged }, { onConflict: 'id' });
                 if (contactError)
                     throw contactError;
+
+                appendSectionChanges(
+                    settingsChanges,
+                    'contact_us',
+                    parseObjectValue(existing?.data),
+                    merged,
+                    Object.keys(updates.contactUs)
+                );
             }
 
             if (updates.adminCommission && Object.keys(updates.adminCommission).length > 0) {
@@ -481,6 +519,14 @@ export const updateSettings = createAsyncThunk<
                     .upsert({ id: 'admin_commission', data: merged }, { onConflict: 'id' });
                 if (commissionError)
                     throw commissionError;
+
+                appendSectionChanges(
+                    settingsChanges,
+                    'admin_commission',
+                    parseObjectValue(existing?.data),
+                    merged,
+                    Object.keys(updates.adminCommission)
+                );
             }
 
             if (updates.statusOptions !== undefined) {
@@ -489,6 +535,11 @@ export const updateSettings = createAsyncThunk<
                     .upsert({ id: 'status', data: updates.statusOptions }, { onConflict: 'id' });
                 if (statusError)
                     throw statusError;
+
+                settingsChanges.push({
+                    field: 'status.options',
+                    after: updates.statusOptions,
+                });
             }
 
             if (updates.constants && Object.keys(updates.constants).length > 0) {
@@ -503,6 +554,14 @@ export const updateSettings = createAsyncThunk<
                     .upsert({ id: 'constant', data: merged }, { onConflict: 'id' });
                 if (constantError)
                     throw constantError;
+
+                appendSectionChanges(
+                    settingsChanges,
+                    'constants',
+                    parseObjectValue(existing?.data),
+                    merged,
+                    Object.keys(updates.constants)
+                );
             }
 
             let languageUpserts: { id: string; code: string; name: string; active: boolean }[] = [];
@@ -577,6 +636,13 @@ export const updateSettings = createAsyncThunk<
                     throw rootSettingsError;
                 }
 
+                appendSectionChanges(
+                    settingsChanges,
+                    'settings',
+                    existingRootData,
+                    nextRootData,
+                    Object.keys(updateData)
+                );
             }
 
             const { data: allRows, error: reloadError } = await getSupabase()
@@ -594,9 +660,11 @@ export const updateSettings = createAsyncThunk<
                 action: 'update',
                 resource_type: 'settings',
                 summary: 'Updated platform settings',
-                metadata: {
-                    sections: Object.keys(updates).filter((key) => updates[key as keyof UpdateSettingsPayload] !== undefined),
-                },
+                metadata: settingsChanges.length > 0
+                    ? { changes: settingsChanges }
+                    : {
+                        sections: Object.keys(updates).filter((key) => updates[key as keyof UpdateSettingsPayload] !== undefined),
+                    },
             });
 
             return buildSettingsFromRows(

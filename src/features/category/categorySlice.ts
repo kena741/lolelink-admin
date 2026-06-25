@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { getSupabase } from '@/lib/supabaseClient';
 import { logClientAdminActivity } from '@/lib/record-admin-activity';
+import { buildChangeMetadata } from '@/lib/activity-log-changes';
 
 export interface Category {
     id: string;
@@ -100,6 +101,14 @@ export const updateCategory = createAsyncThunk<
     'category/updateCategory',
     async ({ id, ...updates }, { rejectWithValue }) => {
         try {
+            const { data: existingCategory, error: existingError } = await getSupabase()
+                .from('category')
+                .select('*')
+                .eq('id', id)
+                .maybeSingle();
+            if (existingError) throw existingError;
+            if (!existingCategory) return rejectWithValue('Category not found');
+
             const { data, error } = await getSupabase()
                 .from('category')
                 .update(updates)
@@ -114,6 +123,11 @@ export const updateCategory = createAsyncThunk<
                 resource_type: 'settings',
                 resource_id: id,
                 summary: `Updated category ${updated.categoryName ?? id}`,
+                metadata: buildChangeMetadata(
+                    existingCategory as Record<string, unknown>,
+                    updated as unknown as Record<string, unknown>,
+                    Object.keys(updates)
+                ),
             });
             return updated;
         } catch (e: unknown) {

@@ -16,6 +16,8 @@ import {
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { fetchPayoutRequests, approvePayoutRequest, rejectPayoutRequest, sendPayoutViaChapa, PayoutRequest } from '@/features/payout/payoutSlice';
+import type { ProviderPayoutAnalysis } from '@/lib/provider-payout-analysis';
+import { PayoutWalletAnalysisSheet } from '@/app/admin/finance/payout-request/PayoutWalletAnalysisSheet';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 function PayoutRequestPageContent() {
@@ -26,6 +28,10 @@ function PayoutRequestPageContent() {
     const [confirmingRequest, setConfirmingRequest] = useState<PayoutRequest | null>(null);
     const [modalValidationError, setModalValidationError] = useState<string | null>(null);
     const [debugRequestId, setDebugRequestId] = useState<string | null>(null);
+    const [walletAnalysisRequest, setWalletAnalysisRequest] = useState<PayoutRequest | null>(null);
+    const [walletAnalysis, setWalletAnalysis] = useState<ProviderPayoutAnalysis | null>(null);
+    const [walletAnalysisLoading, setWalletAnalysisLoading] = useState(false);
+    const [walletAnalysisError, setWalletAnalysisError] = useState<string | null>(null);
     const [transferResult, setTransferResult] = useState<{
         message: string;
         txRef: string;
@@ -121,6 +127,47 @@ function PayoutRequestPageContent() {
         } finally {
             setProcessingId(null);
         }
+    };
+
+    const handleOpenWalletAnalysis = async (request: PayoutRequest) => {
+        if (!request.providerId) {
+            setWalletAnalysisError('Provider is missing on this payout request.');
+            setWalletAnalysisRequest(request);
+            setWalletAnalysis(null);
+            return;
+        }
+
+        setWalletAnalysisRequest(request);
+        setWalletAnalysis(null);
+        setWalletAnalysisError(null);
+        setWalletAnalysisLoading(true);
+
+        try {
+            const params = new URLSearchParams({
+                providerId: request.providerId,
+                withdrawalId: request.id,
+            });
+            const response = await fetch(`/api/payout/provider-wallet-analysis?${params.toString()}`);
+            const payload = (await response.json()) as {
+                data?: ProviderPayoutAnalysis;
+                error?: string;
+            };
+            if (!response.ok) {
+                throw new Error(payload.error || 'Failed to analyze provider wallet');
+            }
+            setWalletAnalysis(payload.data ?? null);
+        } catch (error: unknown) {
+            setWalletAnalysisError(error instanceof Error ? error.message : 'Failed to analyze provider wallet');
+        } finally {
+            setWalletAnalysisLoading(false);
+        }
+    };
+
+    const handleCloseWalletAnalysis = () => {
+        setWalletAnalysisRequest(null);
+        setWalletAnalysis(null);
+        setWalletAnalysisError(null);
+        setWalletAnalysisLoading(false);
     };
 
     const autoVerifyCandidateIds = useMemo(() => {
@@ -413,6 +460,9 @@ function PayoutRequestPageContent() {
 
                             {!loading && !error && (
                                 <div className="overflow-x-auto">
+                                    <p className="border-b border-white/20 px-4 py-2 text-xs text-gray-500">
+                                        Click a row to run wallet analysis for that provider before approving payout.
+                                    </p>
                                     <Table>
                                         <TableHeader>
                                             <TableRow className="bg-gradient-to-r from-indigo-50/50 to-purple-50/50 border-b border-white/20">
@@ -459,7 +509,8 @@ function PayoutRequestPageContent() {
                                                     return (
                                                         <TableRow 
                                                             key={request.id} 
-                                                            className="hover:bg-gradient-to-r hover:from-indigo-50/30 hover:to-purple-50/30 transition-all border-b border-white/20"
+                                                            className="cursor-pointer hover:bg-gradient-to-r hover:from-indigo-50/30 hover:to-purple-50/30 transition-all border-b border-white/20"
+                                                            onClick={() => handleOpenWalletAnalysis(request)}
                                                         >
                                                             <TableCell className="font-medium text-gray-900">
                                                                 {request.providerId ? (
@@ -503,7 +554,7 @@ function PayoutRequestPageContent() {
                                                             <TableCell className="text-gray-600">
                                                                 {formatDate(request.createdDate)}
                                                             </TableCell>
-                                                            <TableCell className="text-right">
+                                                            <TableCell className="text-right" onClick={(event) => event.stopPropagation()}>
                                                                 {normalizedPaymentStatus === 'pending' ? (
                                                                     <div className="flex items-center justify-end gap-2">
                                                                         <button
@@ -561,6 +612,14 @@ function PayoutRequestPageContent() {
                                 </div>
                             )}
                         </div>
+                        <PayoutWalletAnalysisSheet
+                            open={walletAnalysisRequest !== null}
+                            onClose={handleCloseWalletAnalysis}
+                            loading={walletAnalysisLoading}
+                            error={walletAnalysisError}
+                            analysis={walletAnalysis}
+                            withdrawalAmount={walletAnalysisRequest?.amount}
+                        />
                         {confirmingRequest && (
                             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
                                 <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl">

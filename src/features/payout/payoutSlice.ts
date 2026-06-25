@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { getSupabase } from '@/lib/supabaseClient';
 import { logClientAdminActivity } from '@/lib/record-admin-activity';
+import { formatWithdrawalAmountEtb } from '@/lib/payout-activity-log';
 
 export interface PayoutRequest {
     id: string;
@@ -332,12 +333,22 @@ export const approvePayoutRequest = createAsyncThunk<
                 if (!bankError && bank) addBankToMap(bankMap, toBankDetailsFromPaymentMethod(bank as ProviderPaymentMethodRow));
             }
 
+            const withdrawalRow = data as WithdrawalHistoryRow;
+            const providerName = providerMap[withdrawalRow.providerId] || 'Unknown provider';
+            const amountEtb = formatWithdrawalAmountEtb(withdrawalRow.amount);
+
             logClientAdminActivity({
                 action: 'approve',
                 resource_type: 'withdrawal',
                 resource_id: id,
-                summary: `Approved withdrawal request ${id}`,
-                metadata: { provider_id: (data as WithdrawalHistoryRow).providerId, amount: (data as WithdrawalHistoryRow).amount },
+                summary: `Approved withdrawal for ${providerName} (${amountEtb})`,
+                metadata: {
+                    withdrawal_id: id,
+                    provider_id: withdrawalRow.providerId,
+                    provider_name: providerName,
+                    amount: withdrawalRow.amount,
+                    amount_etb: amountEtb,
+                },
             });
 
             return normalizeRows([data as WithdrawalHistoryRow], providerMap, bankMap)[0];
@@ -409,12 +420,22 @@ export const rejectPayoutRequest = createAsyncThunk<
                 if (!bankError && bank) addBankToMap(bankMap, toBankDetailsFromPaymentMethod(bank as ProviderPaymentMethodRow));
             }
 
+            const withdrawalRow = data as WithdrawalHistoryRow;
+            const providerName = providerMap[withdrawalRow.providerId] || 'Unknown provider';
+            const amountEtb = formatWithdrawalAmountEtb(withdrawalRow.amount);
+
             logClientAdminActivity({
                 action: 'reject',
                 resource_type: 'withdrawal',
                 resource_id: id,
-                summary: `Rejected withdrawal request ${id}`,
-                metadata: { provider_id: (data as WithdrawalHistoryRow).providerId, amount: (data as WithdrawalHistoryRow).amount },
+                summary: `Rejected withdrawal for ${providerName} (${amountEtb})`,
+                metadata: {
+                    withdrawal_id: id,
+                    provider_id: withdrawalRow.providerId,
+                    provider_name: providerName,
+                    amount: withdrawalRow.amount,
+                    amount_etb: amountEtb,
+                },
             });
 
             return normalizeRows([data as WithdrawalHistoryRow], providerMap, bankMap)[0];
@@ -544,8 +565,14 @@ export const sendPayoutViaChapa = createAsyncThunk<
                 action: 'transfer',
                 resource_type: 'withdrawal',
                 resource_id: id,
-                summary: `Sent withdrawal ${id} via Chapa`,
-                metadata: { tx_ref: payload.tx_ref, amount: payload.amount },
+                summary: `Sent withdrawal via Chapa for ${payload.destination?.provider_name || 'provider'} (${formatWithdrawalAmountEtb(payload.amount)})`,
+                metadata: {
+                    withdrawal_id: id,
+                    provider_name: payload.destination?.provider_name,
+                    amount: payload.amount,
+                    amount_etb: formatWithdrawalAmountEtb(payload.amount),
+                    tx_ref: payload.tx_ref,
+                },
             });
 
             return {

@@ -35,6 +35,7 @@ import {
 	parseWalletAmount,
 	sumChapaNetFlow,
 	sumDebits,
+	sumDirectPaymentCredits,
 	sumManualActivationCredits,
 	sumNonChapaNetFlow,
 	type WalletDashboardBreakdown,
@@ -58,6 +59,7 @@ interface UserAcquisitionChartBucket {
 	label: string;
 	customers: number;
 	providers: number;
+	[key: string]: string | number;
 }
 
 interface AnalyticsData {
@@ -70,6 +72,7 @@ interface AnalyticsData {
 	chapaAvailableBalance: number | null;
 	chapaLedgerBalance: number | null;
 	nonChapaWalletNet: number;
+	directPaymentCredits: number;
 	totalTopUp: number;
 	totalActivationFee: number;
 	totalManualActivation: number;
@@ -274,25 +277,18 @@ function resolveCustomerDate(customer: CustomerLiteRow): Date | null {
 	return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function toCumulativeUserAcquisition(
+function mergeUserAcquisitionBuckets(
 	customerBuckets: ChartBucket[],
 	providerBuckets: ChartBucket[],
 ): UserAcquisitionChartBucket[] {
-	let customerRunning = 0;
-	let providerRunning = 0;
-
-	return customerBuckets.map((bucket, index) => {
-		customerRunning += bucket.value;
-		providerRunning += providerBuckets[index]?.value ?? 0;
-		return {
-			label: bucket.label,
-			customers: customerRunning,
-			providers: providerRunning,
-		};
-	});
+	return customerBuckets.map((bucket, index) => ({
+		label: bucket.label,
+		customers: bucket.value,
+		providers: providerBuckets[index]?.value ?? 0,
+	}));
 }
 
-function buildUserProgressionChart(
+function buildUserAcquisitionChart(
 	customers: CustomerLiteRow[],
 	providers: ProviderLiteRow[],
 	range: DashboardRange,
@@ -310,7 +306,7 @@ function buildUserProgressionChart(
 		range === "all",
 	);
 
-	return toCumulativeUserAcquisition(customerBuckets, providerBuckets);
+	return mergeUserAcquisitionBuckets(customerBuckets, providerBuckets);
 }
 
 function normalizeProviderRows(rows: ProviderLiteRow[]): ProviderLiteRow[] {
@@ -439,13 +435,11 @@ function getUserAcquisitionChartTitle(range: DashboardRange): string {
 }
 
 function getUserAcquisitionChartSubtitle(range: DashboardRange): string {
-	if (range === "today")
-		return "Cumulative customers and providers acquired today";
-	if (range === "7d")
-		return "Cumulative customers and providers over the last 7 days";
+	if (range === "today") return "New customers and providers today";
+	if (range === "7d") return "New customers and providers per day, last 7 days";
 	if (range === "30d")
-		return "Cumulative customers and providers over the last 30 days";
-	return "Cumulative customer and provider growth since March";
+		return "New customers and providers per 5-day period, last 30 days";
+	return "New customers and providers per month since March";
 }
 
 async function fetchWalletRowsForDashboard(): Promise<
@@ -486,6 +480,7 @@ function DashboardContent() {
 		chapaAvailableBalance: null,
 		chapaLedgerBalance: null,
 		nonChapaWalletNet: 0,
+		directPaymentCredits: 0,
 		totalTopUp: 0,
 		totalActivationFee: 0,
 		totalManualActivation: 0,
@@ -606,6 +601,7 @@ function DashboardContent() {
 			setWalletBreakdown(computeWalletDashboardBreakdown(rangedWalletRows));
 			const chapaWalletNet = sumChapaNetFlow(rangedWalletRows);
 			const nonChapaWalletNet = sumNonChapaNetFlow(rangedWalletRows);
+			const directPaymentCredits = sumDirectPaymentCredits(rangedWalletRows);
 			const totalManualActivation = sumManualActivationCredits(
 				rangedWalletRows,
 				{ adjusted: true },
@@ -633,7 +629,7 @@ function DashboardContent() {
 						.length
 				: 0;
 			setCustomerCount(rangedCustomerCount);
-			const userAcquisitionChart = buildUserProgressionChart(
+			const userAcquisitionChart = buildUserAcquisitionChart(
 				normalizedCustomers,
 				normalizedProviders,
 				dashboardRange,
@@ -648,6 +644,7 @@ function DashboardContent() {
 				chapaAvailableBalance,
 				chapaLedgerBalance,
 				nonChapaWalletNet,
+				directPaymentCredits,
 				totalTopUp: walletMetrics.totalTopUpAdjusted,
 				totalActivationFee: walletMetrics.totalActivationFeeAdjusted,
 				totalManualActivation,
@@ -685,7 +682,6 @@ function DashboardContent() {
 					totalCompletedBookings -
 					totalRejectedBookings;
 
-				// Calculate revenue (10% commission on completed + paid bookings)
 				const totalRevenue = rangedCompletedPaidBookings.reduce(
 					(sum, booking) => {
 						return sum + getPlatformRevenueFromBooking(booking);
@@ -704,6 +700,8 @@ function DashboardContent() {
 				const totalWalletDebitsRanged = sumDebits(rangedWalletRows);
 				const chapaWalletNetRanged = sumChapaNetFlow(rangedWalletRows);
 				const nonChapaWalletNetRanged = sumNonChapaNetFlow(rangedWalletRows);
+				const directPaymentCreditsRanged =
+					sumDirectPaymentCredits(rangedWalletRows);
 				const totalTopUp = walletMetrics.totalTopUpAdjusted;
 				const totalActivationFee = walletMetrics.totalActivationFeeAdjusted;
 				const totalManualActivationRanged = sumManualActivationCredits(
@@ -763,6 +761,7 @@ function DashboardContent() {
 					chapaAvailableBalance,
 					chapaLedgerBalance,
 					nonChapaWalletNet: nonChapaWalletNetRanged,
+					directPaymentCredits: directPaymentCreditsRanged,
 					totalTopUp,
 					totalActivationFee,
 					totalManualActivation: totalManualActivationRanged,
@@ -1186,7 +1185,6 @@ function DashboardContent() {
 							)}
 						</div>
 
-						{/* Main Stats Grid */}
 						<section className="mb-8 grid grid-cols-1 items-stretch gap-4 min-w-0 sm:grid-cols-2 lg:grid-cols-3">
 							<StatCard
 								title="Net Flow"
@@ -1198,11 +1196,11 @@ function DashboardContent() {
 							/>
 							<StatCard
 								title="Direct payments"
-								value={analytics.nonChapaWalletNet}
+								value={analytics.directPaymentCredits}
 								isCurrency
 								icon={DollarSign}
 								iconBg="bg-primary/10"
-								note="Offline & non-Chapa ledger"
+								note="Offline & non-Chapa received"
 							/>
 							<StatCard
 								title={
@@ -1250,6 +1248,36 @@ function DashboardContent() {
 								href="/admin/customers"
 							/>
 						</section>
+
+						{showFinanceDebug && walletBreakdown && (
+							<WalletMetricBreakdownDebug
+								breakdown={walletBreakdown}
+								totals={{
+									walletRows: analytics.totalCredit,
+									activationFee: analytics.totalActivationFee,
+									manualActivation: analytics.totalManualActivation,
+									customerTopUp: analytics.totalCustomerTopUp,
+									totalTopUp: analytics.totalTopUp,
+									walletCredits: analytics.totalWalletCreditsAdjusted,
+									walletDebits: analytics.totalWalletDebits,
+									chapaWalletNet: analytics.chapaWalletNet,
+									nonChapaWalletNet: analytics.nonChapaWalletNet,
+									directPaymentCredits: analytics.directPaymentCredits,
+									totalLedgerNet: analytics.totalNetFlow,
+									chapaActivationInWallet,
+									otherChapaInWallet,
+									chapaAvailableBalance: analytics.chapaAvailableBalance,
+									chapaLedgerBalance: analytics.chapaLedgerBalance,
+									chapaSurplus,
+									providerCount,
+									bookingCount,
+									completedBookings: analytics.totalCompletedBookings,
+									inProgressBookings: analytics.totalInProgressBookings,
+									rejectedBookings: analytics.totalRejectedBookings,
+									customerCount,
+								}}
+							/>
+						)}
 
 						<section className="mb-8 rounded-2xl border border-border bg-card p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
 							<div className="mb-5 flex flex-wrap items-center justify-between gap-3">
@@ -1477,35 +1505,6 @@ function DashboardContent() {
 								</ul>
 							</div>
 						</section>
-
-						{showFinanceDebug && walletBreakdown && (
-							<WalletMetricBreakdownDebug
-								breakdown={walletBreakdown}
-								totals={{
-									walletRows: analytics.totalCredit,
-									activationFee: analytics.totalActivationFee,
-									manualActivation: analytics.totalManualActivation,
-									customerTopUp: analytics.totalCustomerTopUp,
-									totalTopUp: analytics.totalTopUp,
-									walletCredits: analytics.totalWalletCreditsAdjusted,
-									walletDebits: analytics.totalWalletDebits,
-									chapaWalletNet: analytics.chapaWalletNet,
-									nonChapaWalletNet: analytics.nonChapaWalletNet,
-									totalLedgerNet: analytics.totalNetFlow,
-									chapaActivationInWallet,
-									otherChapaInWallet,
-									chapaAvailableBalance: analytics.chapaAvailableBalance,
-									chapaLedgerBalance: analytics.chapaLedgerBalance,
-									chapaSurplus,
-									providerCount,
-									bookingCount,
-									completedBookings: analytics.totalCompletedBookings,
-									inProgressBookings: analytics.totalInProgressBookings,
-									rejectedBookings: analytics.totalRejectedBookings,
-									customerCount,
-								}}
-							/>
-						)}
 
 						{/* Status Breakdown & Quick Actions */}
 					</div>

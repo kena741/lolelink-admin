@@ -2,6 +2,12 @@ import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 import { deductProviderWalletForWithdrawal } from '@/lib/withdrawal-wallet-side-effects';
+import { logAdminActivity } from '@/lib/admin-activity-log';
+import {
+    buildPayoutActivityMetadata,
+    buildPayoutActivitySummary,
+    loadWithdrawalActivityContext,
+} from '@/lib/payout-activity-log';
 
 export const runtime = 'nodejs';
 
@@ -126,6 +132,34 @@ export async function POST(request: Request) {
             description: `Chapa transfer ${nextStatus}. reference=${reference}`,
             type: `payout_${nextStatus}`,
             action_url: '/admin/finance/payout-request',
+        });
+
+        const withdrawalId = (withdrawalData as { id: string }).id;
+        const payoutContext = await loadWithdrawalActivityContext(supabaseAdmin, withdrawalId);
+
+        await logAdminActivity({
+            request,
+            action: nextStatus === 'completed' ? 'complete' : nextStatus === 'rejected' ? 'reject' : 'update',
+            resource_type: 'payout',
+            resource_id: withdrawalId,
+            summary: payoutContext
+                ? buildPayoutActivitySummary(
+                      `Chapa webhook updated payout to ${nextStatus}`,
+                      payoutContext,
+                      `ref ${reference}`
+                  )
+                : `Chapa webhook updated payout to ${nextStatus} (reference ${reference})`,
+            metadata: payoutContext
+                ? buildPayoutActivityMetadata(payoutContext, {
+                      reference,
+                      transfer_status: transferStatus,
+                      source: 'chapa_webhook',
+                  })
+                : {
+                      reference,
+                      transfer_status: transferStatus,
+                      source: 'chapa_webhook',
+                  },
         });
 
         return NextResponse.json({

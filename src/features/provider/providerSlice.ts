@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
 import { getSupabase } from "@/lib/supabaseClient";
 import { logClientAdminActivity } from "@/lib/record-admin-activity";
+import { buildChangeMetadata } from "@/lib/activity-log-changes";
 
 export interface Provider {
     id: string;
@@ -298,6 +299,15 @@ export const updateProvider = createAsyncThunk<
         if (Object.keys(payload).length === 0) {
             return rejectWithValue("No valid fields to update");
         }
+
+        const { data: existingProvider, error: existingError } = await getSupabase()
+            .from("provider")
+            .select("*")
+            .eq("id", id)
+            .maybeSingle();
+        if (existingError) return rejectWithValue(existingError.message);
+        if (!existingProvider) return rejectWithValue("Provider not found");
+
         const { data, error } = await getSupabase()
             .from("provider")
             .update(payload)
@@ -314,8 +324,12 @@ export const updateProvider = createAsyncThunk<
             action: 'update',
             resource_type: 'provider',
             resource_id: id,
-            summary: `Updated provider ${id}`,
-            metadata: { fields: Object.keys(payload) },
+            summary: `Updated provider ${updated.firstName || updated.userName || id}`,
+            metadata: buildChangeMetadata(
+                existingProvider as Record<string, unknown>,
+                updated as unknown as Record<string, unknown>,
+                Object.keys(payload)
+            ),
         });
 
         return updated;
@@ -501,7 +515,14 @@ export const createService = createAsyncThunk<
                 .select("*")
                 .single();
             if (error) throw error;
-            return normalizeService([data as ServiceRow])[0];
+            const created = normalizeService([data as ServiceRow])[0];
+            logClientAdminActivity({
+                action: 'create',
+                resource_type: 'service',
+                resource_id: created.id,
+                summary: `Created service ${created.serviceName || created.id} for provider ${provider_id}`,
+            });
+            return created;
     } catch {
             const { data, error } = await getSupabase()
                 .from("services")
@@ -509,7 +530,14 @@ export const createService = createAsyncThunk<
                 .select("*")
                 .single();
             if (error) return rejectWithValue(error.message);
-            return normalizeService([data as ServiceRow])[0];
+            const created = normalizeService([data as ServiceRow])[0];
+            logClientAdminActivity({
+                action: 'create',
+                resource_type: 'service',
+                resource_id: created.id,
+                summary: `Created service ${created.serviceName || created.id} for provider ${provider_id}`,
+            });
+            return created;
         }
     }
 );
@@ -525,6 +553,15 @@ export const updateService = createAsyncThunk<
         if (typeof values.serviceImage === 'string') {
             base.images = [values.serviceImage];
         }
+
+        const { data: existing, error: existingError } = await getSupabase()
+            .from('service')
+            .select('*')
+            .eq('id', id)
+            .maybeSingle();
+        if (existingError) return rejectWithValue(existingError.message);
+        if (!existing) return rejectWithValue('Service not found');
+
         try {
             const { data, error } = await getSupabase()
                 .from("service")
@@ -533,7 +570,19 @@ export const updateService = createAsyncThunk<
                 .select("*")
                 .single();
             if (error) throw error;
-            return normalizeService([data as ServiceRow])[0];
+            const updated = normalizeService([data as ServiceRow])[0];
+            logClientAdminActivity({
+                action: 'update',
+                resource_type: 'service',
+                resource_id: id,
+                summary: `Updated service ${updated.serviceName || id}`,
+                metadata: buildChangeMetadata(
+                    existing as Record<string, unknown>,
+                    updated as unknown as Record<string, unknown>,
+                    Object.keys(base)
+                ),
+            });
+            return updated;
     } catch {
             const { data, error } = await getSupabase()
                 .from("services")
@@ -542,7 +591,19 @@ export const updateService = createAsyncThunk<
                 .select("*")
                 .single();
             if (error) return rejectWithValue(error.message);
-            return normalizeService([data as ServiceRow])[0];
+            const updated = normalizeService([data as ServiceRow])[0];
+            logClientAdminActivity({
+                action: 'update',
+                resource_type: 'service',
+                resource_id: id,
+                summary: `Updated service ${updated.serviceName || id}`,
+                metadata: buildChangeMetadata(
+                    existing as Record<string, unknown>,
+                    updated as unknown as Record<string, unknown>,
+                    Object.keys(base)
+                ),
+            });
+            return updated;
         }
     }
 );

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
+import { logAdminActivity } from '@/lib/admin-activity-log';
 import {
     loadChapaSecretKey,
     resolveChapaSettlementAmount,
@@ -148,7 +149,7 @@ async function handleChapaCheckout(
     provider: ProviderRow,
     feeAmount: string,
     providerName: string,
-    requestUrl: string
+    request: Request
 ) {
     const { data: paymentRow } = await admin
         .from('app_settings')
@@ -168,7 +169,7 @@ async function handleChapaCheckout(
         return NextResponse.json({ error: 'Missing Chapa secret key' }, { status: 500 });
     }
 
-    const origin = new URL(requestUrl).origin;
+    const origin = new URL(request.url).origin;
     const appBaseUrl = (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || origin).trim();
     const txRef = `act-${provider.id.replace(/-/g, '').slice(0, 12)}-${Date.now()}`.slice(0, 50);
 
@@ -217,6 +218,20 @@ async function handleChapaCheckout(
         .update({ activation_tx_ref: txRef })
         .eq('id', provider.id);
 
+    await logAdminActivity({
+        request,
+        action: 'initiate',
+        resource_type: 'provider_activation',
+        resource_id: provider.id,
+        summary: `Initiated Chapa activation payment for ${providerName}`,
+        metadata: {
+            tx_ref: txRef,
+            fee_amount: feeAmount,
+            mode: 'chapa',
+            source: 'admin',
+        },
+    });
+
     return NextResponse.json({
         status: 'success',
         mode: 'chapa',
@@ -233,8 +248,9 @@ async function handleManualMark(
     provider: ProviderRow,
     feeAmount: string,
     providerName: string,
-    txRef?: string,
-    note?: string
+    txRef: string | undefined,
+    note: string | undefined,
+    request: Request
 ) {
     const now = new Date().toISOString();
     const priorTopUp = await findPriorCustomerWalletTopUp(admin, provider.id);
@@ -304,6 +320,22 @@ async function handleManualMark(
         provider_id: provider.id,
     });
 
+    await logAdminActivity({
+        request,
+        action: 'activate',
+        resource_type: 'provider_activation',
+        resource_id: provider.id,
+        summary: `Manually activated provider ${providerName}`,
+        metadata: {
+            tx_ref: ref,
+            fee_amount: feeAmount,
+            mode: 'manual',
+            note: note || null,
+            wallet_skipped: walletSkipped,
+            source: 'admin',
+        },
+    });
+
     return NextResponse.json({
         status: 'success',
         mode: 'manual',
@@ -338,10 +370,10 @@ export async function POST(request: Request) {
         const { provider, feeAmount, providerName } = result;
 
         if (body.mode === 'chapa') {
-            return handleChapaCheckout(supabaseAdmin, provider, feeAmount, providerName, request.url);
+            return handleChapaCheckout(supabaseAdmin, provider, feeAmount, providerName, request);
         }
 
-        return handleManualMark(supabaseAdmin, provider, feeAmount, providerName, body.txRef, body.note);
+        return handleManualMark(supabaseAdmin, provider, feeAmount, providerName, body.txRef, body.note, request);
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unexpected error';
         return NextResponse.json({ error: message }, { status: 500 });

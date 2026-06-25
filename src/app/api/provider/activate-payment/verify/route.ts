@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
+import { logAdminActivity } from '@/lib/admin-activity-log';
 import { findPriorCustomerWalletTopUp } from '@/lib/wallet-transaction-activation';
 import { resolveChapaSettlementAmount } from '@/lib/chapa-config';
 
@@ -215,6 +216,22 @@ export async function POST(request: Request) {
                 is_read: false,
             });
         }
+
+        await logAdminActivity({
+            request,
+            action: 'activate',
+            resource_type: 'provider_activation',
+            resource_id: body.providerId,
+            summary: `Verified activation payment for provider ${body.providerId}`,
+            metadata: {
+                tx_ref: txRef,
+                fee_amount: feeAmount,
+                chapa_reference: verifyData.data?.reference ?? null,
+                wallet_skipped: walletSkipped,
+                wallet_skipped_reason: walletSkippedReason,
+                source: 'admin_verify',
+            },
+        });
 
         return NextResponse.json({
             status: 'success',

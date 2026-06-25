@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { getSupabase } from '@/lib/supabaseClient';
 import { logClientAdminActivity } from '@/lib/record-admin-activity';
+import { buildChangeMetadata } from '@/lib/activity-log-changes';
 
 export interface VerifyDocument {
     id: string;
@@ -193,6 +194,14 @@ export const verifyDocument = createAsyncThunk<
     'verifyDocuments/verifyDocument',
     async (id, { rejectWithValue }) => {
         try {
+            const { data: existingDocument, error: existingError } = await getSupabase()
+                .from('verify_documents')
+                .select('id, isVerify, providerId, documentId')
+                .eq('id', id)
+                .maybeSingle();
+            if (existingError) throw existingError;
+            if (!existingDocument) return rejectWithValue('Document not found');
+
             const { data, error } = await getSupabase()
                 .from('verify_documents')
                 .update({ isVerify: true })
@@ -222,7 +231,14 @@ export const verifyDocument = createAsyncThunk<
                 resource_type: 'document',
                 resource_id: id,
                 summary: `Verified provider document ${id}`,
-                metadata: { provider_id: row.providerId },
+                metadata: {
+                    ...buildChangeMetadata(
+                        existingDocument as Record<string, unknown>,
+                        row as Record<string, unknown>,
+                        ['isVerify']
+                    ),
+                    provider_id: row.providerId,
+                },
             });
 
             return normalizeRows([row])[0];
@@ -241,6 +257,14 @@ export const rejectDocument = createAsyncThunk<
     'verifyDocuments/rejectDocument',
     async (id, { rejectWithValue }) => {
         try {
+            const { data: existingDocument, error: existingError } = await getSupabase()
+                .from('verify_documents')
+                .select('id, isVerify')
+                .eq('id', id)
+                .maybeSingle();
+            if (existingError) throw existingError;
+            if (!existingDocument) return rejectWithValue('Document not found');
+
             const { data, error } = await getSupabase()
                 .from('verify_documents')
                 .update({ isVerify: false })
@@ -254,6 +278,11 @@ export const rejectDocument = createAsyncThunk<
                 resource_type: 'document',
                 resource_id: id,
                 summary: `Rejected provider document ${id}`,
+                metadata: buildChangeMetadata(
+                    existingDocument as Record<string, unknown>,
+                    data as Record<string, unknown>,
+                    ['isVerify']
+                ),
             });
             return normalizeRows([data as VerifyDocumentRow])[0];
         } catch (e: unknown) {

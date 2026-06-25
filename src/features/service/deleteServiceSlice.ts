@@ -1,5 +1,6 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import { getSupabase } from '@/lib/supabaseClient';
+import { logClientAdminActivity } from '@/lib/record-admin-activity';
 
 interface DeleteServiceState {
     loading: boolean;
@@ -42,7 +43,6 @@ export const deleteService = createAsyncThunk<string, string, { rejectValue: str
             const isReferenced = Array.isArray(bookings) && bookings.length > 0;
 
             if (isReferenced) {
-                // 3a. Soft delete instead (e.g., mark as archived)
                 const { error: softDeleteError } = await getSupabase()
                     .from('service')
                     .update({ isArchived: true })
@@ -52,9 +52,16 @@ export const deleteService = createAsyncThunk<string, string, { rejectValue: str
                     return thunkAPI.rejectWithValue(softDeleteError.message || 'Soft delete failed');
                 }
 
+                const serviceName = typeof found.serviceName === 'string' ? found.serviceName : serviceId;
+                logClientAdminActivity({
+                    action: 'archive',
+                    resource_type: 'service',
+                    resource_id: serviceId,
+                    summary: `Archived service ${serviceName} (has bookings)`,
+                });
+
                 return serviceId;
             } else {
-                // 3b. Safe to delete normally
                 const { error: deleteError } = await getSupabase()
                     .from('service')
                     .delete()
@@ -63,6 +70,14 @@ export const deleteService = createAsyncThunk<string, string, { rejectValue: str
                 if (deleteError) {
                     return thunkAPI.rejectWithValue(deleteError.message || 'Delete failed');
                 }
+
+                const serviceName = typeof found.serviceName === 'string' ? found.serviceName : serviceId;
+                logClientAdminActivity({
+                    action: 'delete',
+                    resource_type: 'service',
+                    resource_id: serviceId,
+                    summary: `Deleted service ${serviceName}`,
+                });
 
                 return serviceId;
             }

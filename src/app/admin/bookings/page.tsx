@@ -1,24 +1,23 @@
 "use client";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Image from "next/image";
 import Sidebar from "../../../components/Sidebar";
 import { useAppDispatch, useAppSelector } from "../../../store/hooks";
 import { fetchAllBookings, fetchBookingById, clearSingle, deleteBooking, verifyBookingPayment, getBookingCustomerDisplayName, getBookingProviderDisplayName } from "../../../features/bookedService/bookedServiceSlice";
-import { Plus, RefreshCw, Search, Trash2, Bug, Eye, Loader2 } from "lucide-react";
-import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Plus, RefreshCw, Search } from "lucide-react";
 import AuthGuard from "@/components/AuthGuard";
 import AdminPageHeader, { adminHeaderButtonClassName } from "@/components/AdminPageHeader";
-import { formatServiceDiscountLabel } from "@/lib/service-discount";
-import {
-    formatBookingJobStatusLabel,
-    formatBookingPaymentStatusLabel,
-    resolveBookingPaymentStatus,
-} from "@/lib/booking-status";
 import { getSupabase } from "@/lib/supabaseClient";
 import type { BookedService } from "@/features/bookedService/bookedServiceSlice";
 import { CreateBookingModal } from "./CreateBookingModal";
+import { BookingDetailModal } from "./BookingDetailModal";
+import { BookingsTable } from "./BookingsTable";
 import { useIsLocalhost } from "@/hooks/use-is-localhost";
 import { useAdminPermissions } from "@/hooks/use-admin-permissions";
+import {
+    formatBookingShortId,
+    getBookingAnomalies,
+    resolveBookingServiceName,
+} from "@/lib/booking-display";
 
 function DebugJsonBlock({ title, value }: { title: string; value: unknown }) {
     return (
@@ -41,164 +40,6 @@ interface BookingDebugData {
     };
     fetchedAt: string;
 }
-
-const JobStatusBadge = ({ status }: { status?: string }) => {
-    const color = useMemo(() => {
-        switch (status) {
-            case "completed":
-                return "bg-green-100 text-green-700";
-            case "in_progress":
-            case "on_the_way":
-                return "bg-blue-100 text-blue-700";
-            case "accepted":
-            case "pending_approval":
-                return "bg-indigo-100 text-indigo-700";
-            case "rejected":
-                return "bg-red-100 text-red-700";
-            case "pending_extra_payment":
-            case "hold":
-                return "bg-amber-100 text-amber-700";
-            case "admin_paid":
-                return "bg-emerald-100 text-emerald-700";
-            default:
-                return "bg-gray-100 text-gray-700";
-        }
-    }, [status]);
-    return (
-        <span className={`inline-flex px-2 py-1 rounded text-xs font-medium ${color}`}>
-            {formatBookingJobStatusLabel(status ?? "pending")}
-        </span>
-    );
-};
-
-const PaymentStatusBadge = ({
-    paymentStatus,
-    paymentCompleted,
-}: {
-    paymentStatus?: string | null;
-    paymentCompleted?: boolean | null;
-}) => {
-    const resolved = resolveBookingPaymentStatus(paymentStatus, paymentCompleted);
-    const color = useMemo(() => {
-        switch (resolved) {
-            case "payment_completed":
-                return "bg-green-100 text-green-800";
-            case "payment_approved_by_admin":
-                return "bg-blue-100 text-blue-800";
-            case "pending_payment":
-                return "bg-amber-100 text-amber-900";
-            case "payment_rejected_by_admin":
-            case "payment_cancelled":
-                return "bg-red-100 text-red-800";
-            default:
-                return "bg-gray-100 text-gray-700";
-        }
-    }, [resolved]);
-
-    return (
-        <span className={`inline-flex px-2 py-1 rounded text-xs font-medium ${color}`}>
-            {formatBookingPaymentStatusLabel(paymentStatus, paymentCompleted)}
-        </span>
-    );
-};
-
-const DetailModal: React.FC<{
-    open: boolean;
-    onClose: () => void;
-    onDelete: (id: string) => Promise<void>;
-    deleting: boolean;
-    canDelete: boolean;
-}> = ({ open, onClose, onDelete, deleting, canDelete }) => {
-    const { single, loading } = useAppSelector((s) => s.bookedService);
-
-    if (!open) return null;
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-            <div className="bg-white w-full max-w-2xl rounded shadow-lg overflow-hidden">
-                <div className="flex items-center justify-between px-5 py-3 border-b">
-                    <h3 className="text-lg font-semibold">Booking Details</h3>
-                    <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
-                </div>
-                <div className="p-5">
-                    {loading && <div>Loading...</div>}
-                    {!loading && single && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <div className="text-sm text-gray-500 mb-1">Customer</div>
-                                <div className="font-medium">{getBookingCustomerDisplayName(single)}</div>
-                                <div className="text-sm text-gray-600">{single.email || "—"}</div>
-                                <div className="text-sm text-gray-600">{single.phoneNumber || "—"}</div>
-                            </div>
-                            <div>
-                                <div className="text-sm text-gray-500 mb-1">Provider</div>
-                                <div className="font-medium">{getBookingProviderDisplayName(single)}</div>
-                            </div>
-                            <div>
-                                <div className="text-sm text-gray-500 mb-1">Service</div>
-                                <div className="font-medium">{single.serviceName?.trim() || "—"}</div>
-                                <div className="text-sm text-gray-600">Qty: {single.quantity ?? "1"}</div>
-                                <div className="text-sm text-gray-600">Date: {single.bookingDate ? new Date(single.bookingDate).toLocaleString() : "—"}</div>
-                            </div>
-                            <div>
-                                <div className="text-sm text-gray-500 mb-1">Job status</div>
-                                <JobStatusBadge status={single.status} />
-                            </div>
-                            <div>
-                                <div className="text-sm text-gray-500 mb-1">Payment</div>
-                                <PaymentStatusBadge
-                                    paymentStatus={single.payment_status}
-                                    paymentCompleted={single.paymentCompleted}
-                                />
-                                {single.paymentType && (
-                                    <div className="mt-1 text-xs text-gray-500 capitalize">
-                                        via {single.paymentType}
-                                    </div>
-                                )}
-                            </div>
-                            <div>
-                                <div className="text-sm text-gray-500 mb-1">Amounts</div>
-                                <div className="text-sm text-gray-700">Subtotal: {single.subTotal ?? 0}</div>
-                                <div className="text-sm text-gray-700">Discount: {formatServiceDiscountLabel(single.discount)}</div>
-                                <div className="text-sm text-gray-900 font-semibold">Total: {single.totalAmount ?? single.price ?? 0}</div>
-                            </div>
-                            {single.serviceImage && (
-                                <div className="md:col-span-2">
-                                    <Image
-                                        src={single.serviceImage}
-                                        alt="service"
-                                        width={800}
-                                        height={300}
-                                        className="w-full h-48 object-cover rounded"
-                                    />
-                                </div>
-                            )}
-                            {single.description && (
-                                <div className="md:col-span-2">
-                                    <div className="text-sm text-gray-500 mb-1">Description</div>
-                                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{single.description}</p>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-                <div className="px-5 py-3 border-t flex items-center justify-between gap-2">
-                    {single && canDelete && (
-                        <button
-                            type="button"
-                            onClick={() => void onDelete(single.id)}
-                            disabled={deleting}
-                            className="inline-flex items-center gap-2 px-4 py-2 rounded border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50"
-                        >
-                            <Trash2 className="h-4 w-4" />
-                            {deleting ? 'Deleting...' : 'Delete'}
-                        </button>
-                    )}
-                    <button onClick={onClose} className="ml-auto px-4 py-2 rounded bg-gray-100 hover:bg-gray-200">Close</button>
-                </div>
-            </div>
-        </div>
-    );
-};
 
 const BookingDebugModal: React.FC<{
     open: boolean;
@@ -438,12 +279,16 @@ const BookingsPage = () => {
     const dispatch = useAppDispatch();
     const isLocalhost = useIsLocalhost();
     const { canWriteBookings } = useAdminPermissions();
-    const { items, loading, error } = useAppSelector((s) => s.bookedService);
+    const { items, loading, error, single } = useAppSelector((s) => s.bookedService);
     const [open, setOpen] = useState(false);
     const [createOpen, setCreateOpen] = useState(false);
     const [query, setQuery] = useState("");
+    const [jobStatusFilter, setJobStatusFilter] = useState("all");
+    const [paymentMethodFilter, setPaymentMethodFilter] = useState("all");
+    const [flaggedOnly, setFlaggedOnly] = useState(false);
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [debugBookingId, setDebugBookingId] = useState<string | null>(null);
+    const [highlightIssues, setHighlightIssues] = useState(false);
 
     const debugListRow = useMemo(
         () => items.find((item) => item.id === debugBookingId) ?? null,
@@ -459,13 +304,15 @@ const BookingsPage = () => {
         dispatch(fetchAllBookings());
     };
 
-    const onOpenDetail = (id: string) => {
+    const onOpenDetail = (id: string, options?: { focusIssues?: boolean }) => {
+        setHighlightIssues(options?.focusIssues === true);
         setOpen(true);
         dispatch(fetchBookingById(id));
     };
 
     const onClose = () => {
         setOpen(false);
+        setHighlightIssues(false);
         dispatch(clearSingle());
     };
 
@@ -485,27 +332,40 @@ const BookingsPage = () => {
     };
 
     const filtered = useMemo(() => {
-        if (!query.trim()) return items;
-        const q = query.toLowerCase();
+        const q = query.trim().toLowerCase();
+
         return items.filter((b) => {
+            const bookingRecord = b as unknown as Record<string, unknown>;
+            const serviceName = resolveBookingServiceName(bookingRecord).toLowerCase();
             const customer = getBookingCustomerDisplayName(b).toLowerCase();
             const provider = getBookingProviderDisplayName(b).toLowerCase();
             const email = (b.email ?? "").toLowerCase();
             const phone = (b.phoneNumber ?? "").toLowerCase();
-            const service = (b.serviceName ?? "").toString().toLowerCase();
             const status = (b.status ?? "").toLowerCase();
             const paymentStatus = (b.payment_status ?? "").toLowerCase();
+            const paymentMethod = (b.paymentType ?? "").toLowerCase();
+            const shortId = formatBookingShortId(b.id).toLowerCase();
+
+            if (jobStatusFilter !== "all" && status !== jobStatusFilter) return false;
+            if (paymentMethodFilter !== "all" && paymentMethod !== paymentMethodFilter) return false;
+            if (flaggedOnly && getBookingAnomalies(bookingRecord).length === 0) return false;
+
+            if (!q) return true;
+
             return (
+                b.id.toLowerCase().includes(q) ||
+                shortId.includes(q) ||
                 customer.includes(q) ||
                 provider.includes(q) ||
                 email.includes(q) ||
                 phone.includes(q) ||
-                service.includes(q) ||
+                serviceName.includes(q) ||
                 status.includes(q) ||
-                paymentStatus.includes(q)
+                paymentStatus.includes(q) ||
+                paymentMethod.includes(q)
             );
         });
-    }, [items, query]);
+    }, [items, query, jobStatusFilter, paymentMethodFilter, flaggedOnly]);
 
     return (
         <AuthGuard>
@@ -539,18 +399,58 @@ const BookingsPage = () => {
                                 </>
                             }
                         />
-                        {/* Toolbar */}
-                        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div className="w-full sm:w-96">
-                                <div className="relative">
-                                    <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-                                    <input
-                                        value={query}
-                                        onChange={(e) => setQuery(e.target.value)}
-                                        placeholder="Search customer, provider, service, status..."
-                                        className="w-full rounded-xl border border-white/20 bg-white/80 backdrop-blur-xl py-3 pl-11 pr-4 text-sm text-gray-900 placeholder:text-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200/50 shadow-lg transition-all"
-                                    />
+                        <div className="mb-6 space-y-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                <div className="w-full lg:max-w-md">
+                                    <div className="relative">
+                                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                                        <input
+                                            value={query}
+                                            onChange={(e) => setQuery(e.target.value)}
+                                            placeholder="Search ID, customer, provider, service…"
+                                            className="h-10 w-full rounded-md border border-gray-200 bg-white py-2 pl-10 pr-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                                        />
+                                    </div>
                                 </div>
+                                <div className="text-sm text-gray-500">
+                                    Showing <span className="font-semibold text-gray-900">{filtered.length}</span> of{' '}
+                                    <span className="font-semibold text-gray-900">{items.length}</span> bookings
+                                </div>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2">
+                                <select
+                                    value={jobStatusFilter}
+                                    onChange={(e) => setJobStatusFilter(e.target.value)}
+                                    className="h-9 rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                                >
+                                    <option value="all">All job statuses</option>
+                                    <option value="pending">Awaiting provider</option>
+                                    <option value="completed">Completed</option>
+                                    <option value="rejected">Rejected</option>
+                                    <option value="accepted">Accepted</option>
+                                    <option value="in_progress">In progress</option>
+                                    <option value="on_the_way">On the way</option>
+                                </select>
+                                <select
+                                    value={paymentMethodFilter}
+                                    onChange={(e) => setPaymentMethodFilter(e.target.value)}
+                                    className="h-9 rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                                >
+                                    <option value="all">All payment methods</option>
+                                    <option value="wallet">Wallet</option>
+                                    <option value="chapa">Chapa</option>
+                                    <option value="admin">Admin</option>
+                                </select>
+                                <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-700">
+                                    <input
+                                        type="checkbox"
+                                        checked={flaggedOnly}
+                                        onChange={(e) => setFlaggedOnly(e.target.checked)}
+                                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-200"
+                                    />
+                                    Has issues
+                                </label>
                             </div>
                         </div>
 
@@ -566,114 +466,25 @@ const BookingsPage = () => {
                             </div>
                         )}
 
-                        <div className="rounded-2xl border border-white/20 bg-white/80 backdrop-blur-xl shadow-xl overflow-hidden">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow className="bg-gradient-to-r from-indigo-50/50 to-purple-50/50 border-b border-white/20">
-                                        <TableHead className="font-semibold text-gray-700">Provider</TableHead>
-                                        <TableHead className="font-semibold text-gray-700">Service</TableHead>
-                                        <TableHead className="font-semibold text-gray-700">Customer</TableHead>
-                                        <TableHead className="font-semibold text-gray-700">Amount</TableHead>
-                                        <TableHead className="font-semibold text-gray-700">Job status</TableHead>
-                                        <TableHead className="font-semibold text-gray-700">Payment</TableHead>
-                                        <TableHead className="font-semibold text-gray-700">Date</TableHead>
-                                        <TableHead className="font-semibold text-gray-700"></TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {filtered.map((b) => (
-                                        <TableRow key={b.id} className="hover:bg-gradient-to-r hover:from-indigo-50/30 hover:to-purple-50/30 transition-all border-b border-white/20">
-                                            <TableCell>
-                                                <div className="text-sm font-medium">{getBookingProviderDisplayName(b)}</div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <div className="flex items-center gap-3">
-                                                    {b.serviceImage ? (
-                                                        <Image
-                                                            src={b.serviceImage}
-                                                            alt="service"
-                                                            width={40}
-                                                            height={40}
-                                                            className="h-10 w-10 rounded object-cover ring-1 ring-gray-200"
-                                                        />
-                                                    ) : (
-                                                        <div className="h-10 w-10 rounded bg-gray-200" />
-                                                    )}
-                                                    <div>
-                                                        <div className="font-medium">{b.serviceName?.trim() || '—'}</div>
-                                                    </div>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <div className="font-medium">{getBookingCustomerDisplayName(b)}</div>
-                                                <div className="text-xs text-gray-500">{b.email || b.phoneNumber || '—'}</div>
-                                            </TableCell>
-                                            <TableCell>{b.totalAmount ?? b.price ?? 0}</TableCell>
-                                            <TableCell>
-                                                <JobStatusBadge status={b.status} />
-                                            </TableCell>
-                                            <TableCell>
-                                                <PaymentStatusBadge
-                                                    paymentStatus={b.payment_status}
-                                                    paymentCompleted={b.paymentCompleted}
-                                                />
-                                            </TableCell>
-                                            <TableCell>{b.createdAt ? new Date(b.createdAt).toLocaleString() : '—'}</TableCell>
-                                            <TableCell className="text-right">
-                                                <div className="flex items-center justify-end gap-1">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => onOpenDetail(b.id)}
-                                                        aria-label="View booking details"
-                                                        className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-gray-200 text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                                                    >
-                                                        <Eye className="h-4 w-4" />
-                                                    </button>
-                                                    {canWriteBookings && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => void handleDeleteBooking(b.id)}
-                                                            disabled={deletingId === b.id}
-                                                            aria-label={deletingId === b.id ? 'Deleting booking' : 'Delete booking'}
-                                                            className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-red-200"
-                                                        >
-                                                            {deletingId === b.id ? (
-                                                                <Loader2 className="h-4 w-4 animate-spin" />
-                                                            ) : (
-                                                                <Trash2 className="h-4 w-4" />
-                                                            )}
-                                                        </button>
-                                                    )}
-                                                    {isLocalhost && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setDebugBookingId(b.id)}
-                                                            aria-label="Debug booking"
-                                                            className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-indigo-200 text-indigo-700 hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                                                        >
-                                                            <Bug className="h-4 w-4" />
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                    {filtered.length === 0 && !loading && (
-                                        <TableRow>
-                                            <TableCell className="px-4 py-6 text-center text-gray-500" colSpan={8}>
-                                                No bookings found.
-                                            </TableCell>
-                                        </TableRow>
-                                    )}
-                                </TableBody>
-                                <TableCaption>All bookings</TableCaption>
-                            </Table>
-                        </div>
+                        <BookingsTable
+                            bookings={filtered}
+                            loading={loading}
+                            deletingId={deletingId}
+                            canWriteBookings={canWriteBookings}
+                            isLocalhost={isLocalhost}
+                            onOpenDetail={(id) => onOpenDetail(id)}
+                            onOpenIssues={(id) => onOpenDetail(id, { focusIssues: true })}
+                            onDelete={(id) => void handleDeleteBooking(id)}
+                            onDebug={setDebugBookingId}
+                        />
                     </div>
                 </main>
 
-                <DetailModal
+                <BookingDetailModal
                     open={open}
+                    booking={single}
+                    loading={loading}
+                    highlightIssues={highlightIssues}
                     onClose={onClose}
                     onDelete={handleDeleteBooking}
                     deleting={Boolean(deletingId)}

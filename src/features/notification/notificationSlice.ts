@@ -1,5 +1,6 @@
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { getSupabase } from '@/lib/supabaseClient';
+import { logClientAdminActivity } from '@/lib/record-admin-activity';
 
 export interface NotificationItem {
     id: string;
@@ -78,6 +79,12 @@ export const markNotificationRead = createAsyncThunk<
             .update({ is_read: true, read_at: readAt })
             .eq('id', id);
         if (error) throw error;
+        logClientAdminActivity({
+            action: 'update',
+            resource_type: 'notification',
+            resource_id: id,
+            summary: `Marked notification ${id} as read`,
+        });
         return { id, read_at: readAt };
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Failed to mark notification as read';
@@ -97,6 +104,11 @@ export const markAllNotificationsRead = createAsyncThunk<
             .update({ is_read: true, read_at: readAt })
             .eq('is_read', false);
         if (error) throw error;
+        logClientAdminActivity({
+            action: 'update',
+            resource_type: 'notification',
+            summary: 'Marked all notifications as read',
+        });
         return { read_at: readAt };
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Failed to mark all notifications as read';
@@ -115,6 +127,12 @@ export const deleteNotification = createAsyncThunk<
             .delete()
             .eq('id', id);
         if (error) throw error;
+        logClientAdminActivity({
+            action: 'delete',
+            resource_type: 'notification',
+            resource_id: id,
+            summary: `Deleted notification ${id}`,
+        });
         return { id };
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Failed to delete notification';
@@ -134,6 +152,12 @@ export const deleteNotificationsBulk = createAsyncThunk<
             .delete()
             .in('id', ids);
         if (error) throw error;
+        logClientAdminActivity({
+            action: 'delete',
+            resource_type: 'notification',
+            summary: `Deleted ${ids.length} notification(s)`,
+            metadata: { ids },
+        });
         return { ids };
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Failed to delete selected notifications';

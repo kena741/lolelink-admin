@@ -1,5 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { getSupabase } from '@/lib/supabaseClient';
+import { logClientAdminActivity } from '@/lib/record-admin-activity';
+import { buildChangeMetadata } from '@/lib/activity-log-changes';
 
 export interface SubCategory {
     id: string;
@@ -146,6 +148,13 @@ export const createSubCategory = createAsyncThunk<
                     .insert(documentIds.map((documentId) => ({ subCategoryId: subCategory.id, documentId })));
                 if (junctionError) throw junctionError;
             }
+            logClientAdminActivity({
+                action: 'create',
+                resource_type: 'settings',
+                resource_id: subCategory.id,
+                summary: `Created subcategory ${subCategory.subCategoryName}`,
+                metadata: documentIds?.length ? { documentIds } : undefined,
+            });
             return subCategory;
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to create subcategory';
@@ -162,6 +171,14 @@ export const updateSubCategory = createAsyncThunk<
     'subcategory/updateSubCategory',
     async ({ id, documentIds, ...updates }, { rejectWithValue }) => {
         try {
+            const { data: existing, error: existingError } = await getSupabase()
+                .from('sub_category')
+                .select('*')
+                .eq('id', id)
+                .maybeSingle();
+            if (existingError) throw existingError;
+            if (!existing) return rejectWithValue('Subcategory not found');
+
             const { data, error } = await getSupabase()
                 .from('sub_category')
                 .update(updates)
@@ -184,7 +201,23 @@ export const updateSubCategory = createAsyncThunk<
                     if (junctionError) throw junctionError;
                 }
             }
-            return normalizeRows([data as SubCategoryRow])[0];
+            const updated = normalizeRows([data as SubCategoryRow])[0];
+            const metadata = buildChangeMetadata(
+                existing as Record<string, unknown>,
+                updated as unknown as Record<string, unknown>,
+                Object.keys(updates)
+            );
+            if (documentIds !== undefined) {
+                metadata.documentIds = { before: null, after: documentIds };
+            }
+            logClientAdminActivity({
+                action: 'update',
+                resource_type: 'settings',
+                resource_id: id,
+                summary: `Updated subcategory ${updated.subCategoryName ?? id}`,
+                metadata,
+            });
+            return updated;
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to update subcategory';
             return rejectWithValue(msg);
@@ -200,6 +233,13 @@ export const deleteSubCategory = createAsyncThunk<
     'subcategory/deleteSubCategory',
     async (id, { rejectWithValue }) => {
         try {
+            const { data: existing, error: existingError } = await getSupabase()
+                .from('sub_category')
+                .select('subCategoryName')
+                .eq('id', id)
+                .maybeSingle();
+            if (existingError) throw existingError;
+
             await getSupabase().from(JUNCTION_TABLE).delete().eq('subCategoryId', id);
             const { error } = await getSupabase()
                 .from('sub_category')
@@ -207,6 +247,13 @@ export const deleteSubCategory = createAsyncThunk<
                 .eq('id', id);
 
             if (error) throw error;
+            const row = existing as SubCategoryRow | null;
+            logClientAdminActivity({
+                action: 'delete',
+                resource_type: 'settings',
+                resource_id: id,
+                summary: `Deleted subcategory ${row?.subCategoryName || id}`,
+            });
             return id;
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to delete subcategory';

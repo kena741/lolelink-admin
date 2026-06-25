@@ -2,6 +2,12 @@ import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 import { deductProviderWalletForWithdrawal } from '@/lib/withdrawal-wallet-side-effects';
+import { logAdminActivity } from '@/lib/admin-activity-log';
+import {
+    buildPayoutActivityMetadata,
+    buildPayoutActivitySummary,
+    loadWithdrawalActivityContext,
+} from '@/lib/payout-activity-log';
 
 export const runtime = 'nodejs';
 
@@ -129,7 +135,7 @@ export async function POST(request: Request) {
 
         const { data: withdrawal, error: withdrawalError } = await supabaseAdmin
             .from('withdrawal_history')
-            .select('id, adminNote, paymentStatus')
+            .select('id, providerId, amount, adminNote, paymentStatus')
             .eq('id', withdrawalId)
             .maybeSingle();
         if (withdrawalError || !withdrawal)
@@ -201,6 +207,35 @@ export async function POST(request: Request) {
             if (updateError)
                 return NextResponse.json({ error: 'Failed to update withdrawal note' }, { status: 500 });
         }
+
+        const payoutContext = await loadWithdrawalActivityContext(supabaseAdmin, withdrawalId);
+
+        await logAdminActivity({
+            request,
+            action: isSuccess ? 'complete' : 'verify',
+            resource_type: 'payout',
+            resource_id: withdrawalId,
+            summary: payoutContext
+                ? buildPayoutActivitySummary(
+                      isSuccess ? 'Verified Chapa transfer' : 'Checked Chapa transfer',
+                      payoutContext,
+                      isSuccess ? `ref ${reference}` : `ref ${reference}, status ${verifyStatus || 'unknown'}`
+                  )
+                : isSuccess
+                  ? `Verified Chapa transfer ${reference} as completed`
+                  : `Checked Chapa transfer ${reference} (status: ${verifyStatus || 'unknown'})`,
+            metadata: payoutContext
+                ? buildPayoutActivityMetadata(payoutContext, {
+                      reference,
+                      verify_status: verifyStatus,
+                      source: isSuccess ? 'admin_verify' : 'admin_verify_pending',
+                  })
+                : {
+                      reference,
+                      verify_status: verifyStatus,
+                      source: isSuccess ? 'admin_verify' : 'admin_verify_pending',
+                  },
+        });
 
         return NextResponse.json({
             status: 'ok',

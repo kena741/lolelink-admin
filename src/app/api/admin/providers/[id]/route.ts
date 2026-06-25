@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAdminPermission } from '@/lib/admin-auth';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 import { logAdminActivity } from '@/lib/admin-activity-log';
+import { buildChangeMetadata } from '@/lib/activity-log-changes';
 
 export const runtime = 'nodejs';
 
@@ -44,7 +45,7 @@ export async function PATCH(request: Request, context: { params: Promise<RoutePa
 
         const { data: providerRow, error: providerFetchError } = await supabaseAdmin
             .from('provider')
-            .select('id, firstName, lastName, userName')
+            .select('id, firstName, lastName, userName, archived_at')
             .eq('id', id)
             .maybeSingle();
 
@@ -65,6 +66,11 @@ export async function PATCH(request: Request, context: { params: Promise<RoutePa
             resource_type: 'provider',
             resource_id: id,
             summary: `${action === 'archive' ? 'Archived' : 'Restored'} provider ${providerName}`,
+            metadata: buildChangeMetadata(
+                providerRow as Record<string, unknown>,
+                { ...providerRow, archived_at } as Record<string, unknown>,
+                ['archived_at']
+            ),
         });
 
         return NextResponse.json({ ok: true, archived_at });

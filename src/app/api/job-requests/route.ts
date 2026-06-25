@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
+import { logAdminActivity } from '@/lib/admin-activity-log';
+import { buildChangeMetadata, buildUpdateSummary } from '@/lib/activity-log-changes';
 
 export const runtime = 'nodejs';
 
@@ -137,12 +139,39 @@ export async function PATCH(request: Request) {
             : action === 'reject'
                 ? { accepted: false, status: 'rejected' }
                 : { accepted: false, status: 'pending' };
+
+        const { data: existing, error: existingError } = await supabaseAdmin
+            .from('job_request')
+            .select('id, status, accepted')
+            .eq('id', id)
+            .maybeSingle();
+        if (existingError)
+            return NextResponse.json({ error: existingError.message || 'Failed to fetch job request' }, { status: 500 });
+        if (!existing)
+            return NextResponse.json({ error: 'Job request not found' }, { status: 404 });
+
         const { error } = await supabaseAdmin
             .from('job_request')
             .update(updatePayload)
             .eq('id', id);
         if (error)
             return NextResponse.json({ error: error.message || 'Failed to update job request' }, { status: 500 });
+
+        const logAction = action === 'accept' ? 'approve' : action === 'reject' ? 'reject' : 'update';
+        const metadata = buildChangeMetadata(
+            existing as Record<string, unknown>,
+            { ...existing, ...updatePayload } as Record<string, unknown>,
+            ['status', 'accepted']
+        );
+        const changes = Array.isArray(metadata.changes) ? metadata.changes : [];
+        await logAdminActivity({
+            request,
+            action: logAction,
+            resource_type: 'job_request',
+            resource_id: id,
+            summary: buildUpdateSummary(`${action === 'accept' ? 'Accepted' : action === 'reject' ? 'Rejected' : 'Reset'} job request ${id}`, changes),
+            metadata,
+        });
         return NextResponse.json({ ok: true });
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unexpected error';

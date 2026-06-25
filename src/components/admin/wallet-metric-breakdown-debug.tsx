@@ -17,6 +17,7 @@ interface WalletMetricBreakdownDebugProps {
         walletDebits: number;
         chapaWalletNet: number;
         nonChapaWalletNet: number;
+        directPaymentCredits: number;
         totalLedgerNet: number;
         chapaActivationInWallet: number;
         otherChapaInWallet: number;
@@ -162,7 +163,8 @@ export function WalletMetricBreakdownDebug({ breakdown, totals }: WalletMetricBr
                 <p className="admin-section-desc">
                     Ledger detail for the selected date range. Production{' '}
                     <span className="font-medium text-text-primary">Net Flow</span> is Chapa only;{' '}
-                    <span className="font-medium text-text-primary">Direct payments</span> is tracked separately.
+                    <span className="font-medium text-text-primary">Direct payments</span> counts offline /
+                    non-Chapa inflows only (credits, excluding provider job payouts).
                 </p>
                 <FormulaLine
                     segments={[
@@ -172,8 +174,10 @@ export function WalletMetricBreakdownDebug({ breakdown, totals }: WalletMetricBr
                     ]}
                 />
                 <p className="mt-1 text-xs text-text-secondary">
-                    Chapa ledger + direct / non-Chapa = full ledger net (
+                    Full ledger net = Chapa net + non-Chapa net (
                     {formatCurrency(totals.walletCredits)} credits − {formatCurrency(totals.walletDebits)} debits).
+                    Production Direct payments ({formatCurrency(totals.directPaymentCredits)}) excludes internal
+                    debits and provider payouts.
                 </p>
             </div>
 
@@ -267,8 +271,15 @@ export function WalletMetricBreakdownDebug({ breakdown, totals }: WalletMetricBr
 
                 <MetricBreakdownCard
                     title="Direct payments"
+                    total={totals.directPaymentCredits}
+                    totalLabel="Production Direct payments · offline & non-Chapa received"
+                    lines={breakdown.directPaymentCredits}
+                />
+
+                <MetricBreakdownCard
+                    title="Non-Chapa ledger net"
                     total={totals.nonChapaWalletNet}
-                    totalLabel="Production Direct payments · offline & non-Chapa"
+                    totalLabel="Credits − debits for non-Chapa rows (reconciliation)"
                     lines={breakdown.nonChapaWalletNet}
                     signedAmounts
                 />
@@ -276,7 +287,7 @@ export function WalletMetricBreakdownDebug({ breakdown, totals }: WalletMetricBr
                 <MetricBreakdownCard
                     title="Total ledger"
                     total={totals.totalLedgerNet}
-                    totalLabel="Chapa + direct (full wallet_transaction net)"
+                    totalLabel="Chapa net + non-Chapa net (full wallet_transaction net)"
                     formula={[
                         { value: formatCurrency(totals.chapaWalletNet) },
                         { value: formatSignedCurrency(totals.nonChapaWalletNet), operator: '+' },

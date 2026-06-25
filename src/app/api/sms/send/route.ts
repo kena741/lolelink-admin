@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logAdminActivity } from '@/lib/admin-activity-log';
 
 export const runtime = 'nodejs';
 
@@ -47,6 +48,18 @@ export async function POST(request: Request) {
                 { error: 'SMS upstream failed', status: upstream.status, data: payload },
                 { status: upstream.status }
             );
+
+        await logAdminActivity({
+            request,
+            action: 'send',
+            resource_type: 'sms',
+            summary: `Sent SMS to ${recipient}`,
+            metadata: {
+                recipient,
+                message_length: message.length,
+                message_preview: message.length > 120 ? `${message.slice(0, 120)}…` : message,
+            },
+        });
 
         return NextResponse.json(payload ?? { success: true });
     } catch (e) {

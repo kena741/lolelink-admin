@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
+import { logAdminActivity } from '@/lib/admin-activity-log';
 
 export const runtime = 'nodejs';
 
@@ -59,6 +60,19 @@ export async function POST(request: Request) {
 
         if (error)
             return NextResponse.json({ error: error.message || 'Failed to create notification' }, { status: 500 });
+
+        await logAdminActivity({
+            request,
+            action: 'create',
+            resource_type: 'notification',
+            summary: `Created notification: ${title}`,
+            metadata: {
+                type,
+                provider_id: body.provider_id || null,
+                customer_id: body.customer_id || null,
+                booking_id: body.booking_id || null,
+            },
+        });
 
         return NextResponse.json({ status: 'ok' });
     } catch (error: unknown) {

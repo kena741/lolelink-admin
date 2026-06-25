@@ -3,6 +3,8 @@ import { getSupabase } from '@/lib/supabaseClient';
 import { getRemovedStorageUrls, getServiceImageUrls } from '@/lib/media-url';
 import { validateServiceDiscount } from '@/lib/service-discount';
 import { deleteStorageFilesFromUrls, uploadFilesToSupabase } from '@/lib/upload';
+import { logClientAdminActivity } from '@/lib/record-admin-activity';
+import { buildChangeMetadata } from '@/lib/activity-log-changes';
 
 export type SubCategoryModel = {
     id?: string;
@@ -272,7 +274,20 @@ export const updateService = createAsyncThunk<ServiceModel, UpdateServiceArgs, {
                 return thunkAPI.rejectWithValue(error.message || 'Failed to update service');
             }
 
-            return { ...(original as ServiceModel), ...serviceData, ...data } as ServiceModel;
+            const updated = { ...(original as ServiceModel), ...serviceData, ...data } as ServiceModel;
+            logClientAdminActivity({
+                action: 'update',
+                resource_type: 'service',
+                resource_id: id,
+                summary: `Updated service ${updated.serviceName || id}`,
+                metadata: buildChangeMetadata(
+                    originalRecord,
+                    updated as unknown as Record<string, unknown>,
+                    Object.keys(serviceData)
+                ),
+            });
+
+            return updated;
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : 'Failed to update service';
             return thunkAPI.rejectWithValue(errorMessage);

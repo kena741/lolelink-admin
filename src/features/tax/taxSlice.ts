@@ -1,5 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { getSupabase } from '@/lib/supabaseClient';
+import { logClientAdminActivity } from '@/lib/record-admin-activity';
+import { buildChangeMetadata } from '@/lib/activity-log-changes';
 
 export interface CountryTax {
     id: number;
@@ -91,7 +93,14 @@ export const createTax = createAsyncThunk<
                 .single();
 
             if (error) throw error;
-            return normalizeRows([data as TaxRow])[0];
+            const created = normalizeRows([data as TaxRow])[0];
+            logClientAdminActivity({
+                action: 'create',
+                resource_type: 'tax',
+                resource_id: String(created.id),
+                summary: `Created tax ${created.name || created.country || created.id}`,
+            });
+            return created;
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to create tax';
             return rejectWithValue(msg);
@@ -107,6 +116,14 @@ export const updateTax = createAsyncThunk<
     'tax/updateTax',
     async ({ id, ...updates }, { rejectWithValue }) => {
         try {
+            const { data: existing, error: existingError } = await getSupabase()
+                .from('country_tax')
+                .select('*')
+                .eq('id', id)
+                .maybeSingle();
+            if (existingError) throw existingError;
+            if (!existing) return rejectWithValue('Tax not found');
+
             const { data, error } = await getSupabase()
                 .from('country_tax')
                 .update(updates)
@@ -115,7 +132,19 @@ export const updateTax = createAsyncThunk<
                 .single();
 
             if (error) throw error;
-            return normalizeRows([data as TaxRow])[0];
+            const updated = normalizeRows([data as TaxRow])[0];
+            logClientAdminActivity({
+                action: 'update',
+                resource_type: 'tax',
+                resource_id: String(id),
+                summary: `Updated tax ${updated.name || updated.country || id}`,
+                metadata: buildChangeMetadata(
+                    existing as Record<string, unknown>,
+                    updated as unknown as Record<string, unknown>,
+                    Object.keys(updates)
+                ),
+            });
+            return updated;
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to update tax';
             return rejectWithValue(msg);
@@ -131,12 +160,26 @@ export const deleteTax = createAsyncThunk<
     'tax/deleteTax',
     async (id, { rejectWithValue }) => {
         try {
+            const { data: existing, error: existingError } = await getSupabase()
+                .from('country_tax')
+                .select('name, country')
+                .eq('id', id)
+                .maybeSingle();
+            if (existingError) throw existingError;
+
             const { error } = await getSupabase()
                 .from('country_tax')
                 .delete()
                 .eq('id', id);
 
             if (error) throw error;
+            const row = existing as TaxRow | null;
+            logClientAdminActivity({
+                action: 'delete',
+                resource_type: 'tax',
+                resource_id: String(id),
+                summary: `Deleted tax ${row?.name || row?.country || id}`,
+            });
             return id;
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to delete tax';

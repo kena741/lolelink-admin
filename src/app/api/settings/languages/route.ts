@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
+import { logAdminActivity } from '@/lib/admin-activity-log';
 
 export const runtime = 'nodejs';
 
@@ -48,6 +49,28 @@ export async function POST(request: Request) {
                 if (error)
                     return NextResponse.json({ error: error.message || 'Failed to delete languages' }, { status: 500 });
             }
+        }
+
+        const upsertCount = body.upserts?.length ?? 0;
+        const insertCount = body.inserts?.length ?? 0;
+        const deleteCount = body.deleteIds?.filter((id) => id.trim().length > 0).length ?? 0;
+        if (upsertCount > 0 || insertCount > 0 || deleteCount > 0) {
+            const parts: string[] = [];
+            if (upsertCount > 0) parts.push(`${upsertCount} updated`);
+            if (insertCount > 0) parts.push(`${insertCount} created`);
+            if (deleteCount > 0) parts.push(`${deleteCount} deleted`);
+            await logAdminActivity({
+                request,
+                action: 'update',
+                resource_type: 'settings',
+                resource_id: 'languages',
+                summary: `Updated languages (${parts.join(', ')})`,
+                metadata: {
+                    upserts: body.upserts,
+                    inserts: body.inserts,
+                    deleteIds: body.deleteIds,
+                },
+            });
         }
 
         return NextResponse.json({ ok: true });

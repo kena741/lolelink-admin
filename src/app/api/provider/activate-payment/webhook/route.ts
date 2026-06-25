@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
+import { logAdminActivity } from '@/lib/admin-activity-log';
 
 export const runtime = 'nodejs';
 
@@ -94,6 +95,19 @@ export async function POST(request: Request) {
                 is_read: false,
             });
         }
+
+        await logAdminActivity({
+            request,
+            action: 'activate',
+            resource_type: 'provider_activation',
+            resource_id: provider.id,
+            summary: `Chapa webhook activated provider ${provider.id}`,
+            metadata: {
+                tx_ref: txRef,
+                fee_amount: feeAmount,
+                source: 'chapa_webhook',
+            },
+        });
 
         return NextResponse.json({ status: 'success', provider_id: provider.id });
     } catch (error: unknown) {
