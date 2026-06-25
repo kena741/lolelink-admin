@@ -63,41 +63,41 @@ function getNotificationVisualMeta(notification: NotificationItem): Notification
     if (/(reject|cancel|fail|error|decline)/.test(combined)) {
         return {
             icon: XCircle,
-            accentClass: "border-l-destructive bg-destructive/5",
+            accentClass: "bg-destructive/5 ring-1 ring-destructive/20",
             badgeClass: "border-destructive/30 bg-destructive/10 text-destructive",
         };
     }
     if (/(payout|withdraw|payment|wallet|activation)/.test(combined)) {
         return {
             icon: Wallet,
-            accentClass: "border-l-primary bg-primary/5",
+            accentClass: "bg-primary/5 ring-1 ring-primary/20",
             badgeClass: "border-primary/30 bg-primary/10 text-foreground",
         };
     }
     if (/(accept|approved|complete|success|done)/.test(combined)) {
         return {
             icon: CheckCircle2,
-            accentClass: "border-l-emerald-500 bg-emerald-50/80 dark:bg-emerald-950/20",
+            accentClass: "bg-emerald-50/80 ring-1 ring-emerald-200 dark:bg-emerald-950/20 dark:ring-emerald-800",
             badgeClass: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300",
         };
     }
     if (/(booking|request|assign|job)/.test(combined)) {
         return {
             icon: CalendarCheck2,
-            accentClass: "border-l-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/20",
-            badgeClass: "border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300",
+            accentClass: "bg-primary/5 ring-1 ring-primary/20 dark:bg-primary/10",
+            badgeClass: "border-primary/30 bg-primary/10 text-primary dark:border-primary/40 dark:bg-primary/15 dark:text-primary",
         };
     }
     if (/(pending|review|hold|wait)/.test(combined)) {
         return {
             icon: Clock3,
-            accentClass: "border-l-amber-500 bg-amber-50/70 dark:bg-amber-950/20",
+            accentClass: "bg-amber-50/70 ring-1 ring-amber-200 dark:bg-amber-950/20 dark:ring-amber-800",
             badgeClass: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
         };
     }
     return {
         icon: Bell,
-        accentClass: "border-l-border bg-card",
+        accentClass: "bg-card ring-1 ring-border",
         badgeClass: "border-border bg-secondary text-foreground",
     };
 }
@@ -327,8 +327,8 @@ export default function NotificationsPage() {
                                         className={cn(
                                             "rounded-2xl border p-5 text-left shadow-sm transition-all duration-200",
                                             selected
-                                                ? "border-indigo-300 bg-gradient-to-br from-indigo-50 to-white ring-2 ring-indigo-200 dark:border-indigo-700 dark:from-indigo-950/30 dark:to-card dark:ring-indigo-900"
-                                                : "border-border/80 bg-card hover:border-indigo-200 hover:shadow-md"
+                                                ? "border-primary/40 bg-primary/5 ring-2 ring-primary/20 dark:border-primary/50 dark:bg-primary/10 dark:ring-primary/30"
+                                                : "border-border/80 bg-card hover:border-primary/30 hover:shadow-md"
                                         )}
                                     >
                                         <p className="text-sm font-medium text-muted-foreground">{option.label}</p>
@@ -449,10 +449,10 @@ export default function NotificationsPage() {
                                     <article
                                         key={item.id}
                                         className={cn(
-                                            "overflow-hidden rounded-2xl border border-border/80 border-l-4 shadow-sm transition-all duration-200 hover:shadow-md",
+                                            "overflow-hidden rounded-2xl border border-border/80 shadow-sm transition-all duration-200 hover:shadow-md",
                                             visual.accentClass,
-                                            !item.is_read && "ring-1 ring-indigo-100 dark:ring-indigo-900/40",
-                                            isSelected && "ring-2 ring-indigo-300 dark:ring-indigo-700"
+                                            !item.is_read && "ring-1 ring-primary/20 dark:ring-primary/30",
+                                            isSelected && "ring-2 ring-primary/40 dark:ring-primary/50"
                                         )}
                                     >
                                         <div className="flex flex-col gap-4 p-5 lg:flex-row lg:items-start lg:justify-between">
@@ -462,7 +462,7 @@ export default function NotificationsPage() {
                                                         type="checkbox"
                                                         checked={isSelected}
                                                         onChange={() => toggleSelectOne(item.id)}
-                                                        className="h-4 w-4 rounded border-border accent-indigo-600"
+                                                        className="h-4 w-4 rounded border-border accent-primary"
                                                         aria-label={`Select notification ${item.title || item.id}`}
                                                     />
                                                     <div className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-background/80 shadow-sm">

@@ -269,7 +269,7 @@ function RolesPage() {
                         />
                         <section className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-3">
                             <div className="rounded-2xl border border-white/20 bg-white/80 p-6 shadow-xl backdrop-blur-xl">
-                                <div className="mb-4 inline-flex rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 p-3 shadow-lg">
+                                <div className="mb-4 inline-flex rounded-xl bg-primary p-3 shadow-sm">
                                     <Shield className="h-6 w-6 text-white" />
                                 </div>
                                 <p className="mb-1 text-sm font-medium text-gray-600">Total Roles</p>
@@ -341,7 +341,7 @@ function RolesPage() {
                             <div className="overflow-x-auto">
                                 <Table>
                                     <TableHeader>
-                                        <TableRow className="border-b border-white/20 bg-gradient-to-r from-indigo-50/50 to-purple-50/50">
+                                        <TableRow className="border-b border-white/20 bg-muted/50">
                                             <TableHead className="w-[60px] font-semibold text-gray-700">#</TableHead>
                                             <TableHead className="font-semibold text-gray-700">
                                                 <button
@@ -388,7 +388,7 @@ function RolesPage() {
                                             return (
                                                 <TableRow
                                                     key={role.id}
-                                                    className="border-b border-white/20 transition-all hover:bg-gradient-to-r hover:from-indigo-50/30 hover:to-purple-50/30"
+                                                    className="border-b border-white/20 transition-all hover:bg-muted/40"
                                                 >
                                                     <TableCell className="text-sm font-medium text-gray-500">
                                                         {startIdx + idx + 1}
@@ -409,7 +409,7 @@ function RolesPage() {
                                                             {visiblePermissions.map((permission) => (
                                                                 <span
                                                                     key={permission}
-                                                                    className="inline-flex rounded-full bg-gradient-to-r from-indigo-500/10 to-purple-500/10 px-2.5 py-1 text-[11px] font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-200"
+                                                                    className="inline-flex rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary ring-1 ring-inset ring-primary/20"
                                                                 >
                                                                     {permission}
                                                                 </span>

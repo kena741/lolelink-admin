@@ -221,7 +221,7 @@ export default function CustomersPage() {
                         <div className="rounded-2xl border border-white/20 bg-white/80 backdrop-blur-xl shadow-xl overflow-hidden">
                             <Table>
                                 <TableHeader>
-                                    <TableRow className="bg-gradient-to-r from-indigo-50/50 to-purple-50/50 border-b border-white/20">
+                                    <TableRow className="bg-muted/50 border-b border-white/20">
                                         <TableHead className="font-semibold text-gray-700 w-[60px]">#</TableHead>
                                         <TableHead className="font-semibold text-gray-700">Customer</TableHead>
                                         <TableHead className="font-semibold text-gray-700">Email</TableHead>
@@ -240,7 +240,7 @@ export default function CustomersPage() {
                                         const archived = customerIsArchived(c);
                                         const rowBusy = actionBusyId === c.id;
                                         return (
-                                        <TableRow key={c.id} className={`hover:bg-gradient-to-r hover:from-indigo-50/30 hover:to-purple-50/30 transition-all border-b border-white/20 ${archived ? 'opacity-75' : ''}`}>
+                                        <TableRow key={c.id} className={`hover:bg-muted/40 transition-all border-b border-white/20 ${archived ? 'opacity-75' : ''}`}>
                                             <TableCell className="text-sm font-medium text-gray-500">
                                                 {startIdx + idx + 1}
                                             </TableCell>

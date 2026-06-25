@@ -281,7 +281,7 @@ function AdminsPage() {
                         />
                         <section className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-3">
                             <div className="rounded-2xl border border-white/20 bg-white/80 p-6 shadow-xl backdrop-blur-xl">
-                                <div className="mb-4 inline-flex rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 p-3 shadow-lg">
+                                <div className="mb-4 inline-flex rounded-xl bg-primary p-3 shadow-sm">
                                     <Users className="h-6 w-6 text-white" />
                                 </div>
                                 <p className="mb-1 text-sm font-medium text-gray-600">Total Admins</p>
@@ -353,7 +353,7 @@ function AdminsPage() {
                             <div className="overflow-x-auto">
                                 <Table>
                                     <TableHeader>
-                                        <TableRow className="border-b border-white/20 bg-gradient-to-r from-indigo-50/50 to-purple-50/50">
+                                        <TableRow className="border-b border-white/20 bg-muted/50">
                                             <TableHead className="w-[60px] font-semibold text-gray-700">#</TableHead>
                                             <TableHead className="font-semibold text-gray-700">Admin</TableHead>
                                             <TableHead className="font-semibold text-gray-700">
@@ -396,13 +396,13 @@ function AdminsPage() {
                                             return (
                                                 <TableRow
                                                     key={admin.id}
-                                                    className="border-b border-white/20 transition-all hover:bg-gradient-to-r hover:from-indigo-50/30 hover:to-purple-50/30"
+                                                    className="border-b border-white/20 transition-all hover:bg-muted/40"
                                                 >
                                                     <TableCell className="text-sm font-medium text-gray-500">
                                                         {startIdx + idx + 1}
                                                     </TableCell>
                                                     <TableCell>
-                                                        <div className="grid h-12 w-12 place-items-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-sm font-bold text-white shadow-md ring-2 ring-white/50">
+                                                        <div className="grid h-12 w-12 place-items-center rounded-xl bg-primary text-sm font-bold text-primary-foreground shadow-sm ring-2 ring-border">
                                                             {getInitials(label)}
                                                         </div>
                                                     </TableCell>
@@ -416,7 +416,7 @@ function AdminsPage() {
                                                         </div>
                                                     </TableCell>
                                                     <TableCell>
-                                                        <span className="inline-flex items-center rounded-full bg-gradient-to-r from-indigo-500/10 to-purple-500/10 px-3 py-1 text-xs font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-200">
+                                                        <span className="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary ring-1 ring-inset ring-primary/20">
                                                             {roleName}
                                                         </span>
                                                     </TableCell>

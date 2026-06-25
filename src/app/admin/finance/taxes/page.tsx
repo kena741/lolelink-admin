@@ -176,7 +176,7 @@ const TaxesPage = () => {
                                         {canWriteFinance && (
                                         <button
                                             onClick={() => handleOpenModal()}
-                                            className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 text-sm font-semibold hover:shadow-lg transition-all"
+                                            className="inline-flex items-center gap-2 rounded-lg inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-accent"
                                         >
                                             <Plus className="h-4 w-4" />
                                             Add Tax
@@ -250,9 +250,13 @@ const TaxesPage = () => {
                                                             )}
                                                         </button>
                                                         ) : (
-                                                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
-                                                            tax.active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-700'
-                                                        }`}>
+                                                        <span
+                                                            className={
+                                                                tax.active
+                                                                    ? 'inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800'
+                                                                    : 'inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs font-semibold text-text-secondary'
+                                                            }
+                                                        >
                                                             {tax.active ? 'Active' : 'Inactive'}
                                                         </span>
                                                         )}
@@ -406,7 +410,7 @@ const TaxesPage = () => {
                                         <button
                                             type="submit"
                                             disabled={!formData.name.trim() || !formData.value}
-                                            className="flex-1 px-4 py-2.5 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                                            className="flex-1 rounded-lg bg-primary px-4 py-2.5 font-semibold text-primary-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
                                         >
                                             {editingTax ? 'Update Tax' : 'Create Tax'}
                                         </button>

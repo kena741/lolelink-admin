@@ -156,7 +156,7 @@ function ActivityLogsPage() {
                             <div className="overflow-x-auto">
                                 <Table>
                                     <TableHeader>
-                                        <TableRow className="border-b border-white/20 bg-gradient-to-r from-indigo-50/50 to-purple-50/50">
+                                        <TableRow className="border-b border-white/20 bg-muted/50">
                                             <TableHead className="w-[60px] font-semibold text-gray-700">#</TableHead>
                                             <TableHead className="font-semibold text-gray-700">Admin</TableHead>
                                             <TableHead className="font-semibold text-gray-700">Action</TableHead>
@@ -174,7 +174,7 @@ function ActivityLogsPage() {
                                             return (
                                             <React.Fragment key={log.id}>
                                             <TableRow
-                                                className="border-b border-white/20 transition-all hover:bg-gradient-to-r hover:from-indigo-50/30 hover:to-purple-50/30"
+                                                className="border-b border-white/20 transition-all hover:bg-muted/40"
                                             >
                                                 <TableCell className="text-sm font-medium text-gray-500">
                                                     {(currentPage - 1) * PAGE_SIZE + idx + 1}

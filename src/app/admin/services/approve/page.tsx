@@ -110,7 +110,7 @@ export default function ApproveServicesPage() {
                                 <button
                                     className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                                         activeTab === 'services'
-                                            ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg'
+                                            ? 'bg-primary text-primary-foreground shadow-sm'
                                             : 'text-gray-700 hover:text-gray-900'
                                     }`}
                                     onClick={() => setActiveTab('services')}
@@ -120,7 +120,7 @@ export default function ApproveServicesPage() {
                                 <button
                                     className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                                         activeTab === 'featured'
-                                            ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg'
+                                            ? 'bg-primary text-primary-foreground shadow-sm'
                                             : 'text-gray-700 hover:text-gray-900'
                                     }`}
                                     onClick={() => setActiveTab('featured')}
@@ -147,7 +147,7 @@ export default function ApproveServicesPage() {
                             <button
                                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                                     servicesSubTab === 'pending'
-                                        ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg'
+                                        ? 'bg-primary text-primary-foreground shadow-sm'
                                         : 'text-gray-700 hover:text-gray-900'
                                 }`}
                                 onClick={() => setServicesSubTab('pending')}
@@ -157,7 +157,7 @@ export default function ApproveServicesPage() {
                             <button
                                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                                     servicesSubTab === 'approved'
-                                        ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg'
+                                        ? 'bg-primary text-primary-foreground shadow-sm'
                                         : 'text-gray-700 hover:text-gray-900'
                                 }`}
                                 onClick={() => setServicesSubTab('approved')}
@@ -220,7 +220,7 @@ export default function ApproveServicesPage() {
                             <button
                                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                                     featuredSubTab === 'pending'
-                                        ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg'
+                                        ? 'bg-primary text-primary-foreground shadow-sm'
                                         : 'text-gray-700 hover:text-gray-900'
                                 }`}
                                 onClick={() => setFeaturedSubTab('pending')}
@@ -230,7 +230,7 @@ export default function ApproveServicesPage() {
                             <button
                                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                                     featuredSubTab === 'existing'
-                                        ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg'
+                                        ? 'bg-primary text-primary-foreground shadow-sm'
                                         : 'text-gray-700 hover:text-gray-900'
                                 }`}
                                 onClick={() => setFeaturedSubTab('existing')}

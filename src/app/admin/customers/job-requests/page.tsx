@@ -208,7 +208,7 @@ const JobRequestsPage = () => {
                             ) : (
                                 <Table>
                                     <TableHeader>
-                                        <TableRow className="bg-gradient-to-r from-indigo-50/50 to-purple-50/50 border-b border-white/20">
+                                        <TableRow className="bg-muted/50 border-b border-white/20">
                                             <TableHead className="font-semibold text-gray-700">Title</TableHead>
                                             <TableHead className="font-semibold text-gray-700">Customer</TableHead>
                                             <TableHead className="font-semibold text-gray-700">Service</TableHead>
@@ -224,7 +224,7 @@ const JobRequestsPage = () => {
                                             const bidsCount = Array.isArray(item.bidList) ? item.bidList.length : 0;
                                             const displayStatus = item.accepted ? 'accepted' : (item.status || 'pending');
                                             return (
-                                                <TableRow key={item.id} className="hover:bg-gradient-to-r hover:from-indigo-50/30 hover:to-purple-50/30 transition-all border-b border-white/20 align-top">
+                                                <TableRow key={item.id} className="hover:bg-muted/40 transition-all border-b border-white/20 align-top">
                                                     <TableCell className="max-w-[280px] text-gray-700">
                                                         <p className="font-semibold text-gray-900">{item.title || 'Untitled'}</p>
                                                         <p className="mt-1 text-xs">{item.description || 'No description'}</p>

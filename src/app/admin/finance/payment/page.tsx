@@ -139,7 +139,7 @@ const PaymentPage = () => {
                                 <div className="overflow-x-auto">
                                     <Table>
                                         <TableHeader>
-                                            <TableRow className="border-b border-white/20 bg-gradient-to-r from-indigo-50/50 to-purple-50/50">
+                                            <TableRow className="border-b border-white/20 bg-muted/50">
                                                 <TableHead className="font-semibold text-gray-700">Booking ID</TableHead>
                                                 <TableHead className="font-semibold text-gray-700">Customer ID</TableHead>
                                                 <TableHead className="font-semibold text-gray-700">Method</TableHead>
@@ -172,7 +172,7 @@ const PaymentPage = () => {
                                                     return (
                                                         <TableRow
                                                             key={payment.id}
-                                                            className="border-b border-white/20 transition-all hover:bg-gradient-to-r hover:from-indigo-50/30 hover:to-purple-50/30"
+                                                            className="border-b border-white/20 transition-all hover:bg-muted/40"
                                                         >
                                                             <TableCell className="max-w-[180px] truncate font-medium text-gray-900">{payment.id}</TableCell>
                                                             <TableCell className="max-w-[180px] truncate text-gray-700">{payment.customerId}</TableCell>

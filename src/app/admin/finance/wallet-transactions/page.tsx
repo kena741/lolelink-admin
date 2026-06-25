@@ -186,7 +186,7 @@ const WalletTransactionsPage = () => {
                                 <div className="overflow-x-auto">
                                     <Table>
                                         <TableHeader>
-                                            <TableRow className="border-b border-white/20 bg-gradient-to-r from-indigo-50/50 to-purple-50/50">
+                                            <TableRow className="border-b border-white/20 bg-muted/50">
                                                 <TableHead className="font-semibold text-gray-700">Date</TableHead>
                                                 <TableHead className="font-semibold text-gray-700">Direction</TableHead>
                                                 <TableHead className="font-semibold text-gray-700">Amount</TableHead>
@@ -211,7 +211,7 @@ const WalletTransactionsPage = () => {
                                                     return (
                                                         <TableRow
                                                             key={item.id}
-                                                            className="border-b border-white/20 transition-all hover:bg-gradient-to-r hover:from-indigo-50/30 hover:to-purple-50/30"
+                                                            className="border-b border-white/20 transition-all hover:bg-muted/40"
                                                         >
                                                             <TableCell className="text-gray-700">{formatDate(item.createdDate)}</TableCell>
                                                             <TableCell>

@@ -4,12 +4,11 @@ import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import Sidebar from '@/components/Sidebar';
 import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
-import { 
-    DollarSign, 
-    CheckCircle2, 
-    XCircle, 
-    Clock, 
-    ArrowLeft,
+import {
+    DollarSign,
+    CheckCircle2,
+    XCircle,
+    Clock,
     RefreshCw,
     TrendingUp
 } from 'lucide-react';
@@ -19,6 +18,49 @@ import { fetchPayoutRequests, approvePayoutRequest, rejectPayoutRequest, sendPay
 import type { ProviderPayoutAnalysis } from '@/lib/provider-payout-analysis';
 import { PayoutWalletAnalysisSheet } from '@/app/admin/finance/payout-request/PayoutWalletAnalysisSheet';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+
+const primaryButtonClassName =
+    'inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
+
+const destructiveButtonClassName =
+    'inline-flex h-9 items-center rounded-md bg-destructive px-4 text-sm font-semibold text-destructive-foreground transition-colors hover:bg-destructive/90 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
+
+const secondaryButtonClassName =
+    'inline-flex h-9 items-center rounded-md border border-border bg-card px-4 text-sm font-semibold text-text-primary transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
+
+function PayoutStatCard({
+    title,
+    value,
+    loading,
+    icon: Icon,
+    iconBg,
+}: {
+    title: string;
+    value: React.ReactNode;
+    loading: boolean;
+    icon: React.ElementType;
+    iconBg: string;
+}) {
+    return (
+        <div className="flex h-full min-w-0 flex-col rounded-2xl border border-border bg-card p-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-all duration-150 hover:bg-muted/40 hover:shadow-[0_2px_8px_rgba(0,0,0,0.08)] sm:p-5">
+            <div className="flex items-center justify-between gap-2">
+                <p className="min-w-0 truncate text-sm font-medium text-text-secondary">{title}</p>
+                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${iconBg}`}>
+                    <Icon className="h-4 w-4 text-primary" />
+                </div>
+            </div>
+            <div className="mt-3 min-w-0">
+                {loading ? (
+                    <span className="inline-block h-8 w-24 animate-pulse rounded bg-muted" />
+                ) : (
+                    <p className="truncate font-heading text-xl font-bold tabular-nums tracking-normal text-text-primary sm:text-2xl">
+                        {value}
+                    </p>
+                )}
+            </div>
+        </div>
+    );
+}
 
 function PayoutRequestPageContent() {
     const dispatch = useAppDispatch();
@@ -224,10 +266,10 @@ function PayoutRequestPageContent() {
     const formatDate = (dateString?: string) => {
         if (!dateString) return '—';
         const date = new Date(dateString);
-        return date.toLocaleDateString('en-GB', { 
-            day: 'numeric', 
-            month: 'long', 
-            year: 'numeric' 
+        return date.toLocaleDateString('en-GB', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
         });
     };
 
@@ -322,74 +364,42 @@ function PayoutRequestPageContent() {
                             }
                         />
                         {segmentLabel && (
-                            <div className="mb-4 flex items-center justify-between rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3">
-                                <p className="text-sm font-semibold text-indigo-700">Active segment: {segmentLabel}</p>
-                                <Link href="/admin/finance/payout-request" className="text-sm font-semibold text-indigo-700 hover:text-indigo-900">
+                            <div className="mb-4 flex items-center justify-between rounded-xl border border-border bg-muted px-4 py-3">
+                                <p className="text-sm font-semibold text-text-primary">Active segment: {segmentLabel}</p>
+                                <Link href="/admin/finance/payout-request" className="text-sm font-semibold text-primary transition-colors hover:text-accent">
                                     Clear filter
                                 </Link>
                             </div>
                         )}
-                        {/* Statistics Cards */}
-                        <section className="mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                            <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-white/80 to-white/40 backdrop-blur-xl border border-white/20 p-6 shadow-xl transition-all duration-300 hover:shadow-2xl hover:scale-[1.02]">
-                                <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                                <div className="relative z-10">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div className="p-3 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-xl shadow-lg">
-                                            <Clock className="h-6 w-6 text-white" />
-                                        </div>
-                                    </div>
-                                    <p className="text-sm font-medium text-gray-600 mb-1">Pending Requests</p>
-                                    <p className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-                                        {loading ? <span className="inline-block h-8 w-24 animate-pulse rounded bg-gray-200" /> : pendingRequests.length}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-white/80 to-white/40 backdrop-blur-xl border border-white/20 p-6 shadow-xl transition-all duration-300 hover:shadow-2xl hover:scale-[1.02]">
-                                <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-pink-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                                <div className="relative z-10">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div className="p-3 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl shadow-lg">
-                                            <DollarSign className="h-6 w-6 text-white" />
-                                        </div>
-                                    </div>
-                                    <p className="text-sm font-medium text-gray-600 mb-1">Pending Amount</p>
-                                    <p className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-                                        {loading ? <span className="inline-block h-8 w-24 animate-pulse rounded bg-gray-200" /> : formatCurrency(totalPendingAmount)}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-white/80 to-white/40 backdrop-blur-xl border border-white/20 p-6 shadow-xl transition-all duration-300 hover:shadow-2xl hover:scale-[1.02]">
-                                <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 to-teal-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                                <div className="relative z-10">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div className="p-3 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl shadow-lg">
-                                            <CheckCircle2 className="h-6 w-6 text-white" />
-                                        </div>
-                                    </div>
-                                    <p className="text-sm font-medium text-gray-600 mb-1">Approved</p>
-                                    <p className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-                                        {loading ? <span className="inline-block h-8 w-24 animate-pulse rounded bg-gray-200" /> : approvedRequests}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-white/80 to-white/40 backdrop-blur-xl border border-white/20 p-6 shadow-xl transition-all duration-300 hover:shadow-2xl hover:scale-[1.02]">
-                                <div className="absolute inset-0 bg-gradient-to-br from-fuchsia-500/10 to-rose-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                                <div className="relative z-10">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div className="p-3 bg-gradient-to-br from-fuchsia-500 to-rose-600 rounded-xl shadow-lg">
-                                            <TrendingUp className="h-6 w-6 text-white" />
-                                        </div>
-                                    </div>
-                                    <p className="text-sm font-medium text-gray-600 mb-1">Total Requests</p>
-                                    <p className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-                                        {loading ? <span className="inline-block h-8 w-24 animate-pulse rounded bg-gray-200" /> : totalRequests}
-                                    </p>
-                                </div>
-                            </div>
+                        <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">
+                            <PayoutStatCard
+                                title="Pending Requests"
+                                value={pendingRequests.length}
+                                loading={loading}
+                                icon={Clock}
+                                iconBg="bg-primary/10"
+                            />
+                            <PayoutStatCard
+                                title="Pending Amount"
+                                value={formatCurrency(totalPendingAmount)}
+                                loading={loading}
+                                icon={DollarSign}
+                                iconBg="bg-primary/10"
+                            />
+                            <PayoutStatCard
+                                title="Approved"
+                                value={approvedRequests}
+                                loading={loading}
+                                icon={CheckCircle2}
+                                iconBg="bg-primary/10"
+                            />
+                            <PayoutStatCard
+                                title="Total Requests"
+                                value={totalRequests}
+                                loading={loading}
+                                icon={TrendingUp}
+                                iconBg="bg-primary/10"
+                            />
                         </section>
 
                         {debugRequest && (
@@ -403,34 +413,34 @@ function PayoutRequestPageContent() {
                                     </div>
                                     <button
                                         onClick={() => setDebugRequestId(null)}
-                                        className="rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition-colors"
+                                        className="rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-800 transition-colors hover:bg-amber-100"
                                     >
                                         Hide Debug
                                     </button>
                                 </div>
-                                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                                <div className="mt-4 grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
                                     <div className="rounded-lg border border-amber-200 bg-white px-3 py-2">
-                                        <p className="text-amber-700 font-medium">Holder Name</p>
+                                        <p className="font-medium text-amber-700">Holder Name</p>
                                         <p className="text-amber-900">{debugRequest.bankDetails?.holderName || 'null'}</p>
                                     </div>
                                     <div className="rounded-lg border border-amber-200 bg-white px-3 py-2">
-                                        <p className="text-amber-700 font-medium">Bank Name</p>
+                                        <p className="font-medium text-amber-700">Bank Name</p>
                                         <p className="text-amber-900">{debugRequest.bankDetails?.bankName || 'null'}</p>
                                     </div>
                                     <div className="rounded-lg border border-amber-200 bg-white px-3 py-2">
-                                        <p className="text-amber-700 font-medium">Account Number</p>
+                                        <p className="font-medium text-amber-700">Account Number</p>
                                         <p className="text-amber-900">{debugRequest.bankDetails?.accountNumber || 'null'}</p>
                                     </div>
                                     <div className="rounded-lg border border-amber-200 bg-white px-3 py-2">
-                                        <p className="text-amber-700 font-medium">Bank Code</p>
+                                        <p className="font-medium text-amber-700">Bank Code</p>
                                         <p className="text-amber-900">{debugRequest.bankDetails?.bankCode || 'null'}</p>
                                     </div>
                                     <div className="rounded-lg border border-amber-200 bg-white px-3 py-2">
-                                        <p className="text-amber-700 font-medium">SWIFT</p>
+                                        <p className="font-medium text-amber-700">SWIFT</p>
                                         <p className="text-amber-900">{debugRequest.bankDetails?.swiftCode || 'null'}</p>
                                     </div>
                                     <div className="rounded-lg border border-amber-200 bg-white px-3 py-2">
-                                        <p className="text-amber-700 font-medium">Branch</p>
+                                        <p className="font-medium text-amber-700">Branch</p>
                                         <p className="text-amber-900">
                                             {debugRequest.bankDetails?.branchCity || 'null'}
                                             {debugRequest.bankDetails?.branchCountry ? `, ${debugRequest.bankDetails.branchCountry}` : ''}
@@ -443,48 +453,47 @@ function PayoutRequestPageContent() {
                             </div>
                         )}
 
-                        {/* Payout Requests Table */}
-                        <div className="rounded-2xl border border-white/20 bg-white/80 backdrop-blur-xl shadow-xl overflow-hidden">
+                        <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
                             {loading && (
                                 <div className="p-8 text-center">
-                                    <RefreshCw className="h-8 w-8 animate-spin text-indigo-600 mx-auto mb-4" />
-                                    <p className="text-gray-600">Loading payout requests...</p>
+                                    <RefreshCw className="mx-auto mb-4 h-8 w-8 animate-spin text-primary" />
+                                    <p className="text-text-secondary">Loading payout requests...</p>
                                 </div>
                             )}
 
                             {error && (
-                                <div className="p-4 m-6 rounded-xl bg-red-50 border border-red-200 text-red-600">
+                                <div className="m-6 rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-destructive">
                                     {typeof error === 'string' ? error : 'Something went wrong'}
                                 </div>
                             )}
 
                             {!loading && !error && (
                                 <div className="overflow-x-auto">
-                                    <p className="border-b border-white/20 px-4 py-2 text-xs text-gray-500">
+                                    <p className="border-b border-border px-4 py-2 text-xs text-text-secondary">
                                         Click a row to run wallet analysis for that provider before approving payout.
                                     </p>
                                     <Table>
                                         <TableHeader>
-                                            <TableRow className="bg-gradient-to-r from-indigo-50/50 to-purple-50/50 border-b border-white/20">
-                                                <TableHead className="font-semibold text-gray-700">Provider Name</TableHead>
-                                                <TableHead className="font-semibold text-gray-700">Note</TableHead>
-                                                <TableHead className="font-semibold text-gray-700">Payment Status</TableHead>
-                                                <TableHead className="font-semibold text-gray-700">Bank Details</TableHead>
-                                                <TableHead className="font-semibold text-gray-700">Amount</TableHead>
-                                                <TableHead className="font-semibold text-gray-700">Create Date</TableHead>
-                                                <TableHead className="font-semibold text-gray-700 text-right">Action</TableHead>
+                                            <TableRow className="border-b border-border bg-muted/50 hover:bg-muted/50">
+                                                <TableHead className="font-semibold text-text-primary">Provider Name</TableHead>
+                                                <TableHead className="font-semibold text-text-primary">Note</TableHead>
+                                                <TableHead className="font-semibold text-text-primary">Payment Status</TableHead>
+                                                <TableHead className="font-semibold text-text-primary">Bank Details</TableHead>
+                                                <TableHead className="font-semibold text-text-primary">Amount</TableHead>
+                                                <TableHead className="font-semibold text-text-primary">Create Date</TableHead>
+                                                <TableHead className="text-right font-semibold text-text-primary">Action</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
                                             {filteredRequests.length === 0 ? (
                                                 <TableRow>
-                                                    <TableCell colSpan={7} className="px-4 py-12 text-center text-gray-500">
+                                                    <TableCell colSpan={7} className="px-4 py-12 text-center text-text-secondary">
                                                         <div className="flex flex-col items-center gap-3">
-                                                            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
-                                                                <DollarSign className="h-8 w-8 text-gray-400" />
+                                                            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+                                                                <DollarSign className="h-8 w-8 text-muted-foreground" />
                                                             </div>
-                                                            <p className="text-lg font-semibold text-gray-900">No payout requests found</p>
-                                                            <p className="text-sm text-gray-600">All requests have been processed</p>
+                                                            <p className="text-lg font-semibold text-text-primary">No payout requests found</p>
+                                                            <p className="text-sm text-text-secondary">All requests have been processed</p>
                                                         </div>
                                                     </TableCell>
                                                 </TableRow>
@@ -501,22 +510,22 @@ function PayoutRequestPageContent() {
                                                         pending: { color: 'text-amber-600', bg: 'bg-amber-500/10', icon: Clock },
                                                         approved: { color: 'text-emerald-600', bg: 'bg-emerald-500/10', icon: CheckCircle2 },
                                                         completed: { color: 'text-emerald-600', bg: 'bg-emerald-500/10', icon: CheckCircle2 },
-                                                        rejected: { color: 'text-red-600', bg: 'bg-red-500/10', icon: XCircle },
+                                                        rejected: { color: 'text-destructive', bg: 'bg-destructive/10', icon: XCircle },
                                                     };
                                                     const statusInfo = statusConfig[normalizedPaymentStatus] || statusConfig.pending;
                                                     const StatusIcon = statusInfo.icon;
 
                                                     return (
-                                                        <TableRow 
-                                                            key={request.id} 
-                                                            className="cursor-pointer hover:bg-gradient-to-r hover:from-indigo-50/30 hover:to-purple-50/30 transition-all border-b border-white/20"
+                                                        <TableRow
+                                                            key={request.id}
+                                                            className="cursor-pointer border-b border-border transition-colors hover:bg-muted/40"
                                                             onClick={() => handleOpenWalletAnalysis(request)}
                                                         >
-                                                            <TableCell className="font-medium text-gray-900">
+                                                            <TableCell className="font-medium text-text-primary">
                                                                 {request.providerId ? (
-                                                                    <Link 
+                                                                    <Link
                                                                         href={`/admin/providers/${request.providerId}`}
-                                                                        className="text-indigo-700 hover:text-indigo-900 hover:underline font-semibold transition-colors"
+                                                                        className="font-semibold text-primary transition-colors hover:text-accent hover:underline"
                                                                     >
                                                                         {request.provider_name || 'Unknown Provider'}
                                                                     </Link>
@@ -524,19 +533,19 @@ function PayoutRequestPageContent() {
                                                                     <span>{request.provider_name || 'Unknown Provider'}</span>
                                                                 )}
                                                             </TableCell>
-                                                            <TableCell className="text-gray-700">
+                                                            <TableCell className="text-text-secondary">
                                                                 {request.note || '—'}
                                                             </TableCell>
                                                             <TableCell>
-                                                                <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold ${statusInfo.bg} ${statusInfo.color} border border-current/20`}>
+                                                                <span className={`inline-flex items-center gap-2 rounded-full border border-current/20 px-3 py-1.5 text-xs font-semibold ${statusInfo.bg} ${statusInfo.color}`}>
                                                                     <StatusIcon className="h-3.5 w-3.5" />
                                                                     {normalizedPaymentStatus.charAt(0).toUpperCase() + normalizedPaymentStatus.slice(1)}
                                                                 </span>
                                                             </TableCell>
-                                                            <TableCell className="text-gray-700">
+                                                            <TableCell className="text-text-secondary">
                                                                 {request.bankDetails ? (
                                                                     <div className="space-y-0.5 text-xs">
-                                                                        <p className="font-semibold text-gray-900">{request.bankDetails.bankName || 'Bank not set'}</p>
+                                                                        <p className="font-semibold text-text-primary">{request.bankDetails.bankName || 'Bank not set'}</p>
                                                                         <p>Acct: {request.bankDetails.accountNumber || '—'}</p>
                                                                         <p>Holder: {request.bankDetails.holderName || '—'}</p>
                                                                         <p>
@@ -545,13 +554,13 @@ function PayoutRequestPageContent() {
                                                                         </p>
                                                                     </div>
                                                                 ) : (
-                                                                    <span className="text-xs text-gray-500">No bank details</span>
+                                                                    <span className="text-xs text-muted-foreground">No bank details</span>
                                                                 )}
                                                             </TableCell>
-                                                            <TableCell className="font-semibold text-gray-900">
+                                                            <TableCell className="font-semibold text-text-primary">
                                                                 {formatCurrency(request.amount)}
                                                             </TableCell>
-                                                            <TableCell className="text-gray-600">
+                                                            <TableCell className="text-text-secondary">
                                                                 {formatDate(request.createdDate)}
                                                             </TableCell>
                                                             <TableCell className="text-right" onClick={(event) => event.stopPropagation()}>
@@ -560,14 +569,14 @@ function PayoutRequestPageContent() {
                                                                         <button
                                                                             onClick={() => handleApprove(request.id)}
                                                                             disabled={isProcessing}
-                                                                            className="px-4 py-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-sm font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                                                                            className={primaryButtonClassName}
                                                                         >
                                                                             {isProcessing ? 'Processing...' : 'Allow'}
                                                                         </button>
                                                                         <button
                                                                             onClick={() => handleReject(request.id)}
                                                                             disabled={isProcessing}
-                                                                            className="px-4 py-2 rounded-lg bg-gradient-to-r from-red-500 to-rose-600 text-white text-sm font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                                                                            className={destructiveButtonClassName}
                                                                         >
                                                                             Reject
                                                                         </button>
@@ -576,14 +585,14 @@ function PayoutRequestPageContent() {
                                                                     <div className="flex items-center justify-end gap-2">
                                                                         <button
                                                                             onClick={() => setDebugRequestId(request.id)}
-                                                                            className="px-3 py-2 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 text-xs font-semibold hover:bg-amber-100 transition-colors"
+                                                                            className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 transition-colors hover:bg-amber-100"
                                                                         >
                                                                             Debug Bank
                                                                         </button>
                                                                         <button
                                                                             onClick={() => handleSendWithChapa(request)}
                                                                             disabled={isProcessing}
-                                                                            className="px-4 py-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-sm font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                                                                            className={primaryButtonClassName}
                                                                         >
                                                                             {isProcessing ? 'Processing...' : 'Send with Chapa'}
                                                                         </button>
@@ -593,14 +602,14 @@ function PayoutRequestPageContent() {
                                                                         <button
                                                                             onClick={() => handleVerifyChapaTransfer(request.id)}
                                                                             disabled={isProcessing}
-                                                                            className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 text-sm font-semibold hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                            className={secondaryButtonClassName}
                                                                         >
                                                                             {isProcessing ? 'Verifying...' : 'Verify status'}
                                                                         </button>
-                                                                        <span className="text-sm text-gray-500 italic">Waiting confirmation</span>
+                                                                        <span className="text-sm italic text-text-secondary">Waiting confirmation</span>
                                                                     </div>
                                                                 ) : (
-                                                                    <span className="text-sm text-gray-500 italic">Processed</span>
+                                                                    <span className="text-sm italic text-text-secondary">Processed</span>
                                                                 )}
                                                             </TableCell>
                                                         </TableRow>
@@ -622,71 +631,71 @@ function PayoutRequestPageContent() {
                         />
                         {confirmingRequest && (
                             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                                <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl">
-                                    <h3 className="text-xl font-bold text-gray-900">Confirm Chapa Transfer</h3>
-                                    <p className="mt-2 text-sm text-gray-600">
+                                <div className="w-full max-w-xl rounded-2xl border border-border bg-card p-6 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
+                                    <h3 className="font-heading text-xl font-bold text-text-primary">Confirm Chapa Transfer</h3>
+                                    <p className="mt-2 text-sm text-text-secondary">
                                         Review payout details before sending money to the provider bank account.
                                     </p>
-                                    <div className="mt-5 space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
+                                    <div className="mt-5 space-y-3 rounded-xl border border-border bg-muted p-4">
                                         <div className="flex items-center justify-between gap-3 text-sm">
-                                            <span className="font-medium text-gray-600">From</span>
-                                            <span className="font-semibold text-gray-900">Platform Chapa Account</span>
+                                            <span className="font-medium text-text-secondary">From</span>
+                                            <span className="font-semibold text-text-primary">Platform Chapa Account</span>
                                         </div>
                                         <div className="flex items-center justify-between gap-3 text-sm">
-                                            <span className="font-medium text-gray-600">To Provider</span>
-                                            <span className="font-semibold text-gray-900">
+                                            <span className="font-medium text-text-secondary">To Provider</span>
+                                            <span className="font-semibold text-text-primary">
                                                 {confirmingRequest.provider_name || 'Unknown Provider'}
                                             </span>
                                         </div>
                                         <div className="flex items-center justify-between gap-3 text-sm">
-                                            <span className="font-medium text-gray-600">Beneficiary Name</span>
-                                            <span className="font-semibold text-gray-900">
+                                            <span className="font-medium text-text-secondary">Beneficiary Name</span>
+                                            <span className="font-semibold text-text-primary">
                                                 {confirmingRequest.bankDetails?.holderName || 'Unknown Holder'}
                                             </span>
                                         </div>
                                         <div className="flex items-center justify-between gap-3 text-sm">
-                                            <span className="font-medium text-gray-600">Bank</span>
-                                            <span className="font-semibold text-gray-900">
+                                            <span className="font-medium text-text-secondary">Bank</span>
+                                            <span className="font-semibold text-text-primary">
                                                 {confirmingRequest.bankDetails?.bankName || 'Unknown Bank'}
                                             </span>
                                         </div>
                                         <div className="flex items-center justify-between gap-3 text-sm">
-                                            <span className="font-medium text-gray-600">Account</span>
-                                            <span className="font-semibold text-gray-900">
+                                            <span className="font-medium text-text-secondary">Account</span>
+                                            <span className="font-semibold text-text-primary">
                                                 {maskAccountNumber(confirmingRequest.bankDetails?.accountNumber)}
                                             </span>
                                         </div>
                                         <div className="flex items-center justify-between gap-3 text-sm">
-                                            <span className="font-medium text-gray-600">Account Holder</span>
-                                            <span className="font-semibold text-gray-900">
+                                            <span className="font-medium text-text-secondary">Account Holder</span>
+                                            <span className="font-semibold text-text-primary">
                                                 {confirmingRequest.bankDetails?.holderName || 'Unknown Holder'}
                                             </span>
                                         </div>
                                         <div className="flex items-center justify-between gap-3 text-sm">
-                                            <span className="font-medium text-gray-600">Bank Code / SWIFT</span>
-                                            <span className="font-semibold text-gray-900">
+                                            <span className="font-medium text-text-secondary">Bank Code / SWIFT</span>
+                                            <span className="font-semibold text-text-primary">
                                                 {confirmingRequest.bankDetails?.bankCode || confirmingRequest.bankDetails?.swiftCode || 'Missing'}
                                             </span>
                                         </div>
                                         <div className="flex items-center justify-between gap-3 text-sm">
-                                            <span className="font-medium text-gray-600">Amount</span>
-                                            <span className="font-semibold text-gray-900">
+                                            <span className="font-medium text-text-secondary">Amount</span>
+                                            <span className="font-semibold text-text-primary">
                                                 {formatCurrency(confirmingRequest.amount)}
                                             </span>
                                         </div>
                                         <div className="flex items-center justify-between gap-3 text-sm">
-                                            <span className="font-medium text-gray-600">Requested Date</span>
-                                            <span className="font-semibold text-gray-900">
+                                            <span className="font-medium text-text-secondary">Requested Date</span>
+                                            <span className="font-semibold text-text-primary">
                                                 {formatDate(confirmingRequest.createdDate)}
                                             </span>
                                         </div>
                                         <div className="text-sm">
-                                            <p className="font-medium text-gray-600">Request Note</p>
-                                            <p className="mt-1 text-gray-900">{confirmingRequest.note || '—'}</p>
+                                            <p className="font-medium text-text-secondary">Request Note</p>
+                                            <p className="mt-1 text-text-primary">{confirmingRequest.note || '—'}</p>
                                         </div>
                                     </div>
                                     {modalValidationError && (
-                                        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                                        <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
                                             {modalValidationError}
                                         </div>
                                     )}
@@ -696,13 +705,13 @@ function PayoutRequestPageContent() {
                                                 setConfirmingRequest(null);
                                                 setModalValidationError(null);
                                             }}
-                                            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 transition-colors"
+                                            className={secondaryButtonClassName}
                                         >
                                             Cancel
                                         </button>
                                         <button
                                             onClick={handleConfirmSendWithChapa}
-                                            className="rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-lg hover:shadow-xl transition-all"
+                                            className={primaryButtonClassName}
                                         >
                                             Confirm Transfer
                                         </button>
@@ -712,56 +721,56 @@ function PayoutRequestPageContent() {
                         )}
                         {transferResult && (
                             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                                <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl">
+                                <div className="w-full max-w-xl rounded-2xl border border-border bg-card p-6 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
                                     <div className="flex items-start justify-between gap-4">
                                         <div>
-                                            <h3 className="text-xl font-bold text-gray-900">Transfer Submitted</h3>
-                                            <p className="mt-2 text-sm text-gray-600">{transferResult.message}</p>
+                                            <h3 className="font-heading text-xl font-bold text-text-primary">Transfer Submitted</h3>
+                                            <p className="mt-2 text-sm text-text-secondary">{transferResult.message}</p>
                                         </div>
                                         <button
                                             onClick={() => setTransferResult(null)}
-                                            className="rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+                                            className="rounded-md border border-border bg-card px-3 py-1.5 text-xs font-semibold text-text-primary transition-colors hover:bg-muted"
                                         >
                                             Close
                                         </button>
                                     </div>
 
-                                    <div className="mt-5 space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
+                                    <div className="mt-5 space-y-3 rounded-xl border border-border bg-muted p-4">
                                         <div className="flex items-center justify-between gap-3 text-sm">
-                                            <span className="font-medium text-gray-600">From</span>
-                                            <span className="font-semibold text-gray-900">{transferResult.sourceAccount}</span>
+                                            <span className="font-medium text-text-secondary">From</span>
+                                            <span className="font-semibold text-text-primary">{transferResult.sourceAccount}</span>
                                         </div>
                                         <div className="flex items-center justify-between gap-3 text-sm">
-                                            <span className="font-medium text-gray-600">To</span>
-                                            <span className="font-semibold text-gray-900">
+                                            <span className="font-medium text-text-secondary">To</span>
+                                            <span className="font-semibold text-text-primary">
                                                 {transferResult.destinationProviderName}
                                             </span>
                                         </div>
                                         <div className="flex items-center justify-between gap-3 text-sm">
-                                            <span className="font-medium text-gray-600">Bank</span>
-                                            <span className="font-semibold text-gray-900">
+                                            <span className="font-medium text-text-secondary">Bank</span>
+                                            <span className="font-semibold text-text-primary">
                                                 {transferResult.destinationBankName || '—'}
                                             </span>
                                         </div>
                                         <div className="flex items-center justify-between gap-3 text-sm">
-                                            <span className="font-medium text-gray-600">Account</span>
-                                            <span className="font-semibold text-gray-900">
+                                            <span className="font-medium text-text-secondary">Account</span>
+                                            <span className="font-semibold text-text-primary">
                                                 {transferResult.destinationAccountNumber || '—'}
                                             </span>
                                         </div>
                                         <div className="flex items-center justify-between gap-3 text-sm">
-                                            <span className="font-medium text-gray-600">Amount</span>
-                                            <span className="font-semibold text-gray-900">
+                                            <span className="font-medium text-text-secondary">Amount</span>
+                                            <span className="font-semibold text-text-primary">
                                                 {transferResult.amount ? `ETB ${transferResult.amount}` : '—'}
                                             </span>
                                         </div>
                                         <div className="flex items-center justify-between gap-3 text-sm">
-                                            <span className="font-medium text-gray-600">Reference</span>
-                                            <span className="font-semibold text-gray-900">{transferResult.txRef || '—'}</span>
+                                            <span className="font-medium text-text-secondary">Reference</span>
+                                            <span className="font-semibold text-text-primary">{transferResult.txRef || '—'}</span>
                                         </div>
                                         <div className="flex items-center justify-between gap-3 text-sm">
-                                            <span className="font-medium text-gray-600">Transfer ID</span>
-                                            <span className="font-semibold text-gray-900">{transferResult.transferId || '—'}</span>
+                                            <span className="font-medium text-text-secondary">Transfer ID</span>
+                                            <span className="font-semibold text-text-primary">{transferResult.transferId || '—'}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -783,4 +792,3 @@ const PayoutRequestPage = () => {
 };
 
 export default PayoutRequestPage;
-

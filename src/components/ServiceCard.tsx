@@ -101,8 +101,9 @@ const ServiceCard: React.FC<ServiceCardProps> = ({
                                 <span
                                     aria-label={`Approved: ${Boolean(service.approved)}`}
                                     className={
-                                        `text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap ` +
-                                        (service.approved ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700')
+                                        service.approved
+                                            ? 'whitespace-nowrap rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800'
+                                            : 'whitespace-nowrap rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-text-secondary'
                                     }
                                 >
                                     {` ${service.approved ? 'Approved:' : 'Not approved'}`}

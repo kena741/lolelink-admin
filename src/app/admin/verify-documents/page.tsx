@@ -341,7 +341,7 @@ const VerifyDocumentsPage = () => {
                                         className={cn(
                                             'inline-flex h-9 items-center rounded-lg px-3 text-sm font-medium transition-colors',
                                             statusFilter === value
-                                                ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white'
+                                                ? 'bg-primary text-primary-foreground'
                                                 : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50',
                                         )}
                                     >
@@ -425,7 +425,7 @@ const VerifyDocumentsPage = () => {
                                                 className="rounded-2xl bg-white/80 backdrop-blur-xl border border-white/20 shadow-xl overflow-hidden"
                                             >
                                                 {/* Provider Header */}
-                                                <div className="bg-gradient-to-r from-indigo-50/50 to-purple-50/50 border-b border-white/20 p-6">
+                                                <div className="bg-muted/50 border-b border-white/20 p-6">
                                                     <div className="flex items-center justify-between flex-wrap gap-4">
                                                         <div className="flex-1">
                                                             <div className="flex items-center gap-3 mb-2">
