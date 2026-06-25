@@ -1,38 +1,115 @@
 "use client";
 
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
+import { CartesianGrid, Legend, Line, LineChart, XAxis, YAxis } from "recharts";
 import {
     ChartConfig,
     ChartContainer,
+    ChartLegendContent,
     ChartTooltip,
     ChartTooltipContent,
 } from "@/components/ui/chart";
 
+export interface DashboardLineChartSeries {
+    key: string;
+    label: string;
+    color: string;
+}
+
+export const USER_ACQUISITION_SERIES: DashboardLineChartSeries[] = [
+    {
+        key: "customers",
+        label: "Customers",
+        color: "#2563EB",
+    },
+    {
+        key: "providers",
+        label: "Providers",
+        color: "#EA580C",
+    },
+];
+
+interface UserAcquisitionLegendProps {
+    customerCount: number;
+    providerCount: number;
+}
+
+export function UserAcquisitionLegend({
+    customerCount,
+    providerCount,
+}: UserAcquisitionLegendProps) {
+    const counts: Record<string, number> = {
+        customers: customerCount,
+        providers: providerCount,
+    };
+
+    return (
+        <div className="flex flex-col items-end gap-1.5 text-xs leading-tight text-text-secondary">
+            <p className="inline-flex items-center gap-2 font-medium text-text-primary">
+                <span className="h-2 w-2 shrink-0" aria-hidden="true" />
+                <span>
+                    <span className="font-semibold tabular-nums">
+                        {(customerCount + providerCount).toLocaleString("en-US")}
+                    </span>{" "}
+                    new users
+                </span>
+            </p>
+
+            {USER_ACQUISITION_SERIES.map((line) => (
+                <p key={line.key} className="inline-flex items-center gap-2">
+                    <span
+                        className="h-2 w-2 shrink-0 rounded-full"
+                        style={{ backgroundColor: line.color }}
+                        aria-hidden="true"
+                    />
+                    <span>
+                        <span
+                            className="font-semibold tabular-nums"
+                            style={{ color: line.color }}
+                        >
+                            {counts[line.key].toLocaleString("en-US")}
+                        </span>{" "}
+                        {line.label.toLowerCase()}
+                    </span>
+                </p>
+            ))}
+        </div>
+    );
+}
+
+export interface DashboardLineChartBucket {
+    label: string;
+    [key: string]: string | number;
+}
+
 interface DashboardLineChartProps {
-    buckets: Array<{ label: string; value: number }>;
+    buckets: DashboardLineChartBucket[];
+    series: DashboardLineChartSeries[];
     emptyLabel: string;
-    valueLabel: string;
-    lineColor: string;
+    showLegend?: boolean;
 }
 
 export function DashboardLineChart({
     buckets,
+    series,
     emptyLabel,
-    valueLabel,
-    lineColor,
+    showLegend = false,
 }: DashboardLineChartProps) {
-    const hasData = buckets.some((bucket) => bucket.value > 0);
+    const hasData = buckets.some((bucket) =>
+        series.some((line) => Number(bucket[line.key] ?? 0) > 0)
+    );
+
     const chartData = buckets.map((bucket) => ({
         period: bucket.label,
-        value: bucket.value,
+        ...Object.fromEntries(series.map((line) => [line.key, Number(bucket[line.key] ?? 0)])),
     }));
 
-    const chartConfig = {
-        value: {
-            label: valueLabel,
-            color: lineColor,
-        },
-    } satisfies ChartConfig;
+    const chartConfig = series.reduce<ChartConfig>((config, line) => {
+        config[line.key] = {
+            label: line.label,
+            color: line.color,
+        };
+        return config;
+    }, {});
 
     if (!hasData) {
         return (
@@ -69,14 +146,19 @@ export function DashboardLineChart({
                     cursor={{ stroke: "var(--muted-foreground)", strokeWidth: 1, strokeDasharray: "4 4" }}
                     content={<ChartTooltipContent />}
                 />
-                <Line
-                    type="monotone"
-                    dataKey="value"
-                    stroke="var(--color-value)"
-                    strokeWidth={2.5}
-                    dot={{ fill: "var(--color-value)", r: 4, strokeWidth: 0 }}
-                    activeDot={{ r: 6, strokeWidth: 0 }}
-                />
+                {showLegend ? <Legend content={<ChartLegendContent />} /> : null}
+                {series.map((line) => (
+                    <Line
+                        key={line.key}
+                        type="monotone"
+                        dataKey={line.key}
+                        name={line.key}
+                        stroke={line.color}
+                        strokeWidth={3}
+                        dot={{ fill: line.color, r: 4, strokeWidth: 0 }}
+                        activeDot={{ r: 6, strokeWidth: 0, fill: line.color }}
+                    />
+                ))}
             </LineChart>
         </ChartContainer>
     );

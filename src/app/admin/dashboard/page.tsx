@@ -41,13 +41,23 @@ import {
 	type WalletTransactionMetricRow,
 } from "@/lib/wallet-transaction-metrics";
 import { DashboardBarChart } from "@/components/admin/dashboard-bar-chart";
-import { DashboardLineChart } from "@/components/admin/dashboard-line-chart";
+import {
+	DashboardLineChart,
+	UserAcquisitionLegend,
+	USER_ACQUISITION_SERIES,
+} from "@/components/admin/dashboard-line-chart";
 import { WalletMetricBreakdownDebug } from "@/components/admin/wallet-metric-breakdown-debug";
 import { useWalletMetricsDebugVisible } from "@/hooks/use-wallet-metrics-debug-visible";
 
 interface ChartBucket {
 	label: string;
 	value: number;
+}
+
+interface UserAcquisitionChartBucket {
+	label: string;
+	customers: number;
+	providers: number;
 }
 
 interface AnalyticsData {
@@ -79,7 +89,7 @@ interface AnalyticsData {
 	bookingsByStatus: Record<string, number>;
 	recentBookings: BookedService[];
 	paymentChart: ChartBucket[];
-	userAcquisitionChart: ChartBucket[];
+	userAcquisitionChart: UserAcquisitionChartBucket[];
 }
 
 interface CustomerLiteRow {
@@ -258,38 +268,27 @@ function resolveProviderDate(provider: ProviderLiteRow): Date | null {
 	return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function buildUserAcquisitionChart(
-	customers: CustomerLiteRow[],
-	providers: ProviderLiteRow[],
-	range: DashboardRange,
-): ChartBucket[] {
-	type AcquisitionRow = { createdAt: string | null };
-	const rows: AcquisitionRow[] = [
-		...customers.map((customer) => ({
-			createdAt: customer.created_at ?? null,
-		})),
-		...providers.map((provider) => ({
-			createdAt: provider.createdAt ?? provider.created_at ?? null,
-		})),
-	];
-
-	return buildTimeSeriesChart(
-		rows,
-		range,
-		(row) => {
-			if (!row.createdAt) return null;
-			const date = new Date(row.createdAt);
-			return Number.isNaN(date.getTime()) ? null : date;
-		},
-		range === "all",
-	);
+function resolveCustomerDate(customer: CustomerLiteRow): Date | null {
+	if (!customer.created_at) return null;
+	const date = new Date(customer.created_at);
+	return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function toCumulativeProgression(buckets: ChartBucket[]): ChartBucket[] {
-	let runningTotal = 0;
-	return buckets.map((bucket) => {
-		runningTotal += bucket.value;
-		return { label: bucket.label, value: runningTotal };
+function toCumulativeUserAcquisition(
+	customerBuckets: ChartBucket[],
+	providerBuckets: ChartBucket[],
+): UserAcquisitionChartBucket[] {
+	let customerRunning = 0;
+	let providerRunning = 0;
+
+	return customerBuckets.map((bucket, index) => {
+		customerRunning += bucket.value;
+		providerRunning += providerBuckets[index]?.value ?? 0;
+		return {
+			label: bucket.label,
+			customers: customerRunning,
+			providers: providerRunning,
+		};
 	});
 }
 
@@ -297,9 +296,21 @@ function buildUserProgressionChart(
 	customers: CustomerLiteRow[],
 	providers: ProviderLiteRow[],
 	range: DashboardRange,
-): ChartBucket[] {
-	const periodBuckets = buildUserAcquisitionChart(customers, providers, range);
-	return toCumulativeProgression(periodBuckets);
+): UserAcquisitionChartBucket[] {
+	const customerBuckets = buildTimeSeriesChart(
+		customers,
+		range,
+		resolveCustomerDate,
+		range === "all",
+	);
+	const providerBuckets = buildTimeSeriesChart(
+		providers,
+		range,
+		resolveProviderDate,
+		range === "all",
+	);
+
+	return toCumulativeUserAcquisition(customerBuckets, providerBuckets);
 }
 
 function normalizeProviderRows(rows: ProviderLiteRow[]): ProviderLiteRow[] {
@@ -428,10 +439,13 @@ function getUserAcquisitionChartTitle(range: DashboardRange): string {
 }
 
 function getUserAcquisitionChartSubtitle(range: DashboardRange): string {
-	if (range === "today") return "Cumulative new users acquired today";
-	if (range === "7d") return "Cumulative new users over the last 7 days";
-	if (range === "30d") return "Cumulative new users over the last 30 days";
-	return "Cumulative user growth since March";
+	if (range === "today")
+		return "Cumulative customers and providers acquired today";
+	if (range === "7d")
+		return "Cumulative customers and providers over the last 7 days";
+	if (range === "30d")
+		return "Cumulative customers and providers over the last 30 days";
+	return "Cumulative customer and provider growth since March";
 }
 
 async function fetchWalletRowsForDashboard(): Promise<
@@ -1253,23 +1267,16 @@ function DashboardContent() {
 									</div>
 								</div>
 								{!isLoading && (
-									<p className="text-sm text-text-secondary">
-										<span className="font-semibold tabular-nums text-text-primary">
-											{(customerCount + providerCount).toLocaleString("en-US")}
-										</span>{" "}
-										new users
-										<span className="mx-1.5 text-border">·</span>
-										{customerCount.toLocaleString("en-US")} customers
-										<span className="mx-1.5 text-border">·</span>
-										{providerCount.toLocaleString("en-US")} providers
-									</p>
+									<UserAcquisitionLegend
+										customerCount={customerCount}
+										providerCount={providerCount}
+									/>
 								)}
 							</div>
 							<DashboardLineChart
 								buckets={userAcquisitionChartData}
+								series={USER_ACQUISITION_SERIES}
 								emptyLabel="No new users in this period"
-								valueLabel="Users"
-								lineColor="var(--chart-2)"
 							/>
 						</section>
 
