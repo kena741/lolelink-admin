@@ -20,6 +20,10 @@
 # production
 /build
 
+# python
+.venv-favicon/
+.venv/
+
 # misc
 .DS_Store
 *.pem
