@@ -110,6 +110,7 @@ export default function CustomersPage() {
         const q = query.toLowerCase();
         return sorted.filter((c) => {
             const name = `${c.first_name ?? ''} ${c.last_name ?? ''}`.toLowerCase();
+            const userId = (c.id ?? '').toLowerCase();
             const email = (c.email ?? '').toLowerCase();
             const phone = ((c.phoneNumber ?? c.mobile_number ?? c.phone) ?? '').toLowerCase();
             const address = (() => {
@@ -132,7 +133,13 @@ export default function CustomersPage() {
                 }
                 return (c.address || '').toString().toLowerCase();
             })();
-            return name.includes(q) || email.includes(q) || phone.includes(q) || address.includes(q);
+            return (
+                name.includes(q) ||
+                userId.includes(q) ||
+                email.includes(q) ||
+                phone.includes(q) ||
+                address.includes(q)
+            );
         });
     }, [customers, query, showArchived]);
 
@@ -172,7 +179,7 @@ export default function CustomersPage() {
                                     <input
                                         value={query}
                                         onChange={(e) => setQuery(e.target.value)}
-                                        placeholder="Search name, email, phone, address..."
+                                        placeholder="Search name, email, phone, user ID, address..."
                                         className="w-full rounded-xl border border-white/20 bg-white/80 backdrop-blur-xl py-3 pl-11 pr-4 text-sm text-gray-900 placeholder:text-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200/50 shadow-lg transition-all"
                                     />
                                 </div>

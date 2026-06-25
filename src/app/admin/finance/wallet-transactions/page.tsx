@@ -1,35 +1,19 @@
 'use client';
 import React, { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
-import { ArrowLeft, ArrowDownLeft, ArrowUpRight, RefreshCw, Wallet } from 'lucide-react';
+import { RefreshCw, Search } from 'lucide-react';
 import AuthGuard from '@/components/AuthGuard';
 import Sidebar from '@/components/Sidebar';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { fetchWalletTransactions } from '@/features/walletTransaction/walletTransactionSlice';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import {
     buildUserIdsWithProviderActivation,
-    parseWalletAmount,
     shouldExcludeFromAdjustedCredit,
     sumDebits,
     walletTransactionMagnitude,
     type WalletTransactionMetricRow,
 } from '@/lib/wallet-transaction-metrics';
-
-function formatDate(value: string) {
-    if (!value) return '—';
-    return new Date(value).toLocaleDateString('en-GB', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-    });
-}
-
-function toAmount(value: string): number {
-    const parsed = Number.parseFloat(value);
-    return Number.isFinite(parsed) ? parsed : 0;
-}
+import { WalletTransactionsTable } from '@/app/admin/finance/wallet-transactions/WalletTransactionsTable';
 
 function formatAmount(value: number) {
     return `ETB ${value.toLocaleString('en-US', {
@@ -38,11 +22,29 @@ function formatAmount(value: number) {
     })}`;
 }
 
+function StatCard({
+    title,
+    value,
+    valueClassName,
+}: {
+    title: string;
+    value: string;
+    valueClassName?: string;
+}) {
+    return (
+        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+            <p className="mb-1 text-sm font-medium text-gray-500">{title}</p>
+            <p className={`text-2xl font-bold tabular-nums text-gray-900 ${valueClassName ?? ''}`}>{value}</p>
+        </div>
+    );
+}
+
 const WalletTransactionsPage = () => {
     const dispatch = useAppDispatch();
     const { items, loading, error } = useAppSelector((state) => state.walletTransaction);
     const [query, setQuery] = useState('');
     const [directionFilter, setDirectionFilter] = useState<'all' | 'credit' | 'debit'>('all');
+    const [typeFilter, setTypeFilter] = useState<'all' | 'customer' | 'provider'>('all');
 
     useEffect(() => {
         dispatch(fetchWalletTransactions());
@@ -56,7 +58,10 @@ const WalletTransactionsPage = () => {
                 (directionFilter === 'credit' && item.isCredit) ||
                 (directionFilter === 'debit' && !item.isCredit);
 
-            if (!matchesDirection) return false;
+            const matchesType =
+                typeFilter === 'all' || item.type.toLowerCase() === typeFilter;
+
+            if (!matchesDirection || !matchesType) return false;
             if (!lowerQuery) return true;
 
             return (
@@ -69,7 +74,7 @@ const WalletTransactionsPage = () => {
                 item.note.toLowerCase().includes(lowerQuery)
             );
         });
-    }, [items, query, directionFilter]);
+    }, [items, query, directionFilter, typeFilter]);
 
     const stats = useMemo(() => {
         const toMetricRow = (item: (typeof items)[number]): WalletTransactionMetricRow => ({
@@ -112,6 +117,7 @@ const WalletTransactionsPage = () => {
                     <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
                         <AdminPageHeader
                             title="Wallet Transactions"
+                            description="Ledger credits and debits across customers and providers"
                             breadcrumbs={[
                                 { label: 'Dashboard', href: '/admin/dashboard' },
                                 { label: 'Wallet Transactions' },
@@ -127,127 +133,78 @@ const WalletTransactionsPage = () => {
                                 </button>
                             }
                         />
-                        <section className="mb-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-6">
-                            <div className="rounded-2xl border border-white/20 bg-gradient-to-br from-white/80 to-white/40 p-6 shadow-xl backdrop-blur-xl">
-                                <p className="mb-1 text-sm font-medium text-gray-600">Transactions</p>
-                                <p className="text-3xl font-bold text-gray-900">{loading ? '...' : stats.total}</p>
-                            </div>
-                            <div className="rounded-2xl border border-white/20 bg-gradient-to-br from-white/80 to-white/40 p-6 shadow-xl backdrop-blur-xl">
-                                <p className="mb-1 text-sm font-medium text-gray-600">Credits</p>
-                                <p className="text-3xl font-bold text-gray-900">{loading ? '...' : stats.creditCount}</p>
-                            </div>
-                            <div className="rounded-2xl border border-white/20 bg-gradient-to-br from-white/80 to-white/40 p-6 shadow-xl backdrop-blur-xl">
-                                <p className="mb-1 text-sm font-medium text-gray-600">Debits</p>
-                                <p className="text-3xl font-bold text-gray-900">{loading ? '...' : stats.debitCount}</p>
-                            </div>
-                            <div className="rounded-2xl border border-white/20 bg-gradient-to-br from-white/80 to-white/40 p-6 shadow-xl backdrop-blur-xl">
-                                <p className="mb-1 text-sm font-medium text-gray-600">Total Credit</p>
-                                <p className="text-xl font-bold text-emerald-700">
-                                    {loading ? '...' : formatAmount(stats.totalCredit)}
-                                </p>
-                            </div>
-                            <div className="rounded-2xl border border-white/20 bg-gradient-to-br from-white/80 to-white/40 p-6 shadow-xl backdrop-blur-xl">
-                                <p className="mb-1 text-sm font-medium text-gray-600">Total Debit</p>
-                                <p className="text-xl font-bold text-red-700">{loading ? '...' : formatAmount(stats.totalDebit)}</p>
-                            </div>
+
+                        <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                            <StatCard title="Transactions" value={loading ? '…' : String(stats.total)} />
+                            <StatCard title="Credits" value={loading ? '…' : String(stats.creditCount)} />
+                            <StatCard title="Debits" value={loading ? '…' : String(stats.debitCount)} />
+                            <StatCard
+                                title="Total credit"
+                                value={loading ? '…' : formatAmount(stats.totalCredit)}
+                                valueClassName="text-xl text-emerald-700"
+                            />
+                            <StatCard
+                                title="Total debit"
+                                value={loading ? '…' : formatAmount(stats.totalDebit)}
+                                valueClassName="text-xl text-rose-600"
+                            />
                         </section>
 
-                        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <input
-                                value={query}
-                                onChange={(event) => setQuery(event.target.value)}
-                                placeholder="Search name, phone, transactionId, type, note..."
-                                className="w-full sm:w-[460px] rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                            />
-                            <select
-                                value={directionFilter}
-                                onChange={(event) => setDirectionFilter(event.target.value as 'all' | 'credit' | 'debit')}
-                                className="h-10 rounded-xl border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                            >
-                                <option value="all">All</option>
-                                <option value="credit">Credits</option>
-                                <option value="debit">Debits</option>
-                            </select>
+                        <div className="mb-6 space-y-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                <div className="w-full lg:max-w-md">
+                                    <div className="relative">
+                                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                                        <input
+                                            value={query}
+                                            onChange={(event) => setQuery(event.target.value)}
+                                            placeholder="Search user ID, name, phone, transaction ID, note…"
+                                            className="h-10 w-full rounded-md border border-gray-200 bg-white py-2 pl-10 pr-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="text-sm text-gray-500">
+                                    Showing <span className="font-semibold text-gray-900">{filteredItems.length}</span> of{' '}
+                                    <span className="font-semibold text-gray-900">{items.length}</span> transactions
+                                </div>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2">
+                                <select
+                                    value={directionFilter}
+                                    onChange={(event) => setDirectionFilter(event.target.value as 'all' | 'credit' | 'debit')}
+                                    className="h-9 rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                                >
+                                    <option value="all">All directions</option>
+                                    <option value="credit">Credits only</option>
+                                    <option value="debit">Debits only</option>
+                                </select>
+                                <select
+                                    value={typeFilter}
+                                    onChange={(event) => setTypeFilter(event.target.value as 'all' | 'customer' | 'provider')}
+                                    className="h-9 rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                                >
+                                    <option value="all">All user types</option>
+                                    <option value="customer">Customer</option>
+                                    <option value="provider">Provider</option>
+                                </select>
+                            </div>
                         </div>
 
-                        <div className="overflow-hidden rounded-2xl border border-white/20 bg-white/80 shadow-xl backdrop-blur-xl">
-                            {error && (
-                                <div className="m-6 rounded-xl border border-red-200 bg-red-50 p-4 text-red-600">
-                                    {error}
-                                </div>
-                            )}
+                        {loading && (
+                            <div className="mb-4 flex items-center gap-2 text-sm text-gray-600">
+                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
+                                Loading wallet transactions…
+                            </div>
+                        )}
 
-                            {loading ? (
-                                <div className="p-8 text-center">
-                                    <RefreshCw className="mx-auto mb-4 h-8 w-8 animate-spin text-indigo-600" />
-                                    <p className="text-gray-600">Loading wallet transactions...</p>
-                                </div>
-                            ) : (
-                                <div className="overflow-x-auto">
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow className="border-b border-white/20 bg-muted/50">
-                                                <TableHead className="font-semibold text-gray-700">Date</TableHead>
-                                                <TableHead className="font-semibold text-gray-700">Direction</TableHead>
-                                                <TableHead className="font-semibold text-gray-700">Amount</TableHead>
-                                                <TableHead className="font-semibold text-gray-700">Type</TableHead>
-                                                <TableHead className="font-semibold text-gray-700">Payment Type</TableHead>
-                                                <TableHead className="font-semibold text-gray-700">Name</TableHead>
-                                                <TableHead className="font-semibold text-gray-700">Phone</TableHead>
-                                                <TableHead className="font-semibold text-gray-700">Transaction ID</TableHead>
-                                                <TableHead className="font-semibold text-gray-700">Note</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {filteredItems.length === 0 ? (
-                                                <TableRow>
-                                                    <TableCell colSpan={9} className="px-4 py-12 text-center text-gray-500">
-                                                        No wallet transactions found.
-                                                    </TableCell>
-                                                </TableRow>
-                                            ) : (
-                                                filteredItems.map((item) => {
-                                                    const amount = toAmount(item.amount);
-                                                    return (
-                                                        <TableRow
-                                                            key={item.id}
-                                                            className="border-b border-white/20 transition-all hover:bg-muted/40"
-                                                        >
-                                                            <TableCell className="text-gray-700">{formatDate(item.createdDate)}</TableCell>
-                                                            <TableCell>
-                                                                <span
-                                                                    className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold ${
-                                                                        item.isCredit
-                                                                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                                                                            : 'border-red-200 bg-red-50 text-red-700'
-                                                                    }`}
-                                                                >
-                                                                    {item.isCredit ? <ArrowDownLeft className="h-3.5 w-3.5" /> : <ArrowUpRight className="h-3.5 w-3.5" />}
-                                                                    {item.isCredit ? 'Credit' : 'Debit'}
-                                                                </span>
-                                                            </TableCell>
-                                                            <TableCell className={`font-semibold ${item.isCredit ? 'text-emerald-700' : 'text-red-700'}`}>
-                                                                {formatAmount(amount)}
-                                                            </TableCell>
-                                                            <TableCell className="text-gray-700">{item.type || '—'}</TableCell>
-                                                            <TableCell className="text-gray-700">{item.paymentType || '—'}</TableCell>
-                                                            <TableCell className="max-w-[180px] truncate font-medium text-gray-900">
-                                                                {item.providerName || '—'}
-                                                            </TableCell>
-                                                            <TableCell className="max-w-[160px] truncate text-gray-700">
-                                                                {item.providerPhone || '—'}
-                                                            </TableCell>
-                                                            <TableCell className="max-w-[220px] truncate text-gray-700">{item.transactionId || '—'}</TableCell>
-                                                            <TableCell className="max-w-[260px] truncate text-gray-700">{item.note || '—'}</TableCell>
-                                                        </TableRow>
-                                                    );
-                                                })
-                                            )}
-                                        </TableBody>
-                                    </Table>
-                                </div>
-                            )}
-                        </div>
+                        {error && (
+                            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+                                {error}
+                            </div>
+                        )}
+
+                        <WalletTransactionsTable items={filteredItems} loading={loading} />
                     </div>
                 </main>
             </div>

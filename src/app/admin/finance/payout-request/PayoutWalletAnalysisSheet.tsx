@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { AlertTriangle, CheckCircle2, Loader2, ShieldAlert, XCircle } from 'lucide-react';
 import type { ProviderPayoutAnalysis, ProviderWalletTransactionLine } from '@/lib/provider-payout-analysis';
+import { formatAdminDateTimeUtc } from '@/lib/admin-datetime';
 import { Sheet, SheetBody, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 
 interface PayoutWalletAnalysisSheetProps {
@@ -19,16 +20,7 @@ function formatCurrency(value: number): string {
 }
 
 function formatDate(value: string | null): string {
-    if (!value) return '—';
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return value;
-    return date.toLocaleString('en-GB', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-    });
+    return formatAdminDateTimeUtc(value);
 }
 
 function riskStyles(risk: ProviderPayoutAnalysis['risk']): {

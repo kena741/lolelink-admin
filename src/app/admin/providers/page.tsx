@@ -267,10 +267,17 @@ const ProvidersPage = () => {
         const q = query.toLowerCase();
         return sortedProviders.filter((p) => {
             const name = getName(p);
+            const userId = (p.id ?? "").toLowerCase();
             const email = (p.email ?? "").toLowerCase();
             const phone = (p.phoneNumber ?? p.phone ?? "").toString().toLowerCase();
             const address = (p.address ?? "").toLowerCase();
-            return name.includes(q) || email.includes(q) || phone.includes(q) || address.includes(q);
+            return (
+                name.includes(q) ||
+                userId.includes(q) ||
+                email.includes(q) ||
+                phone.includes(q) ||
+                address.includes(q)
+            );
         });
     }, [sortedProviders, query]);
 
@@ -480,7 +487,7 @@ const ProvidersPage = () => {
                                     <input
                                         value={query}
                                         onChange={(e) => setQuery(e.target.value)}
-                                        placeholder="Search name, email, phone, address…"
+                                        placeholder="Search name, email, phone, user ID, address…"
                                         className={cn(
                                             "h-10 w-full rounded-md border border-border bg-card py-2 pl-11 text-sm text-foreground shadow-[0_1px_3px_rgba(0,0,0,0.06)] placeholder:text-muted-foreground transition-colors",
                                             "focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/30",
