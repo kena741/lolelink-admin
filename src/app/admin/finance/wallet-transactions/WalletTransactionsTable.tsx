@@ -14,20 +14,26 @@ function toAmount(value: string): number {
     return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function formatAmount(value: number): string {
-    return `ETB ${value.toLocaleString('en-US', {
+function formatSignedAmount(value: number, isCredit: boolean): string {
+    const formatted = value.toLocaleString('en-US', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
-    })}`;
+    });
+    const prefix = isCredit ? '+' : '−';
+    return `${prefix}ETB ${formatted}`;
+}
+
+function directionTone(isCredit: boolean): string {
+    return isCredit ? 'text-emerald-600' : 'text-red-600';
 }
 
 function DirectionBadge({ isCredit }: { isCredit: boolean }) {
     return (
         <span
-            className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ring-inset ${
+            className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 ring-inset ${
                 isCredit
-                    ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20'
-                    : 'bg-rose-50 text-rose-700 ring-rose-600/20'
+                    ? 'bg-emerald-50 text-emerald-600 ring-emerald-600/25'
+                    : 'bg-red-50 text-red-600 ring-red-600/25'
             }`}
         >
             {isCredit ? <ArrowDownLeft className="h-3 w-3" /> : <ArrowUpRight className="h-3 w-3" />}
@@ -139,11 +145,9 @@ export function WalletTransactionsTable({ items, loading }: WalletTransactionsTa
                                     </td>
                                     <td className="whitespace-nowrap px-4 py-3 align-top text-sm">
                                         <span
-                                            className={`tabular-nums font-semibold ${
-                                                item.isCredit ? 'text-emerald-700' : 'text-rose-600'
-                                            }`}
+                                            className={`tabular-nums text-sm font-bold ${directionTone(item.isCredit)}`}
                                         >
-                                            {formatAmount(amount)}
+                                            {formatSignedAmount(amount, item.isCredit)}
                                         </span>
                                     </td>
                                     <td className="px-4 py-3 align-top">

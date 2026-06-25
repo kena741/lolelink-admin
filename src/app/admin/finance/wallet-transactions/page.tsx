@@ -25,16 +25,18 @@ function formatAmount(value: number) {
 function StatCard({
     title,
     value,
+    titleClassName,
     valueClassName,
 }: {
     title: string;
     value: string;
+    titleClassName?: string;
     valueClassName?: string;
 }) {
     return (
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-            <p className="mb-1 text-sm font-medium text-gray-500">{title}</p>
-            <p className={`text-2xl font-bold tabular-nums text-gray-900 ${valueClassName ?? ''}`}>{value}</p>
+            <p className={`mb-1 text-sm font-semibold ${titleClassName ?? 'text-gray-500'}`}>{title}</p>
+            <p className={`text-2xl font-bold tabular-nums ${valueClassName ?? 'text-gray-900'}`}>{value}</p>
         </div>
     );
 }
@@ -136,17 +138,29 @@ const WalletTransactionsPage = () => {
 
                         <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
                             <StatCard title="Transactions" value={loading ? '…' : String(stats.total)} />
-                            <StatCard title="Credits" value={loading ? '…' : String(stats.creditCount)} />
-                            <StatCard title="Debits" value={loading ? '…' : String(stats.debitCount)} />
+                            <StatCard
+                                title="Credits"
+                                value={loading ? '…' : String(stats.creditCount)}
+                                titleClassName="text-emerald-600"
+                                valueClassName="text-emerald-600"
+                            />
+                            <StatCard
+                                title="Debits"
+                                value={loading ? '…' : String(stats.debitCount)}
+                                titleClassName="text-red-600"
+                                valueClassName="text-red-600"
+                            />
                             <StatCard
                                 title="Total credit"
                                 value={loading ? '…' : formatAmount(stats.totalCredit)}
-                                valueClassName="text-xl text-emerald-700"
+                                titleClassName="text-emerald-600"
+                                valueClassName="text-xl text-emerald-600"
                             />
                             <StatCard
                                 title="Total debit"
                                 value={loading ? '…' : formatAmount(stats.totalDebit)}
-                                valueClassName="text-xl text-rose-600"
+                                titleClassName="text-red-600"
+                                valueClassName="text-xl text-red-600"
                             />
                         </section>
 
