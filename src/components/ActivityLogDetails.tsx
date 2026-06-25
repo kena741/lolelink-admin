@@ -81,15 +81,15 @@ export function ActivityLogDetails({ metadata, resourceId, route, env }: Activit
                                         </td>
                                         {hasBeforeValues ? (
                                             <>
-                                                <td className="max-w-xs px-3 py-2 break-words text-gray-600">
+                                                <td className="max-w-xs px-3 py-2 wrap-break-words text-gray-600">
                                                     {formatActivityValue(item.before)}
                                                 </td>
-                                                <td className="max-w-xs px-3 py-2 break-words text-gray-900">
+                                                <td className="max-w-xs px-3 py-2 wrap-break-word text-gray-900">
                                                     {formatActivityValue(item.after)}
                                                 </td>
                                             </>
                                         ) : (
-                                            <td className="max-w-xs px-3 py-2 break-words text-gray-900">
+                                            <td className="max-w-xs px-3 py-2 wrap-break-word text-gray-900">
                                                 {formatActivityValue(item.after)}
                                             </td>
                                         )}

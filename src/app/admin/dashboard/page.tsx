@@ -31,6 +31,7 @@ import {
     parseWalletAmount,
     sumChapaNetFlow,
     sumDebits,
+    sumDirectPaymentCredits,
     sumManualActivationCredits,
     sumNonChapaNetFlow,
     type WalletDashboardBreakdown,
@@ -55,6 +56,7 @@ interface AnalyticsData {
     chapaAvailableBalance: number | null;
     chapaLedgerBalance: number | null;
     nonChapaWalletNet: number;
+    directPaymentCredits: number;
     totalTopUp: number;
     totalActivationFee: number;
     totalManualActivation: number;
@@ -377,6 +379,7 @@ function DashboardContent() {
         chapaAvailableBalance: null,
         chapaLedgerBalance: null,
         nonChapaWalletNet: 0,
+        directPaymentCredits: 0,
         totalTopUp: 0,
         totalActivationFee: 0,
         totalManualActivation: 0,
@@ -481,6 +484,7 @@ function DashboardContent() {
             setWalletBreakdown(computeWalletDashboardBreakdown(rangedWalletRows));
             const chapaWalletNet = sumChapaNetFlow(rangedWalletRows);
             const nonChapaWalletNet = sumNonChapaNetFlow(rangedWalletRows);
+            const directPaymentCredits = sumDirectPaymentCredits(rangedWalletRows);
             const totalManualActivation = sumManualActivationCredits(rangedWalletRows, { adjusted: true });
             const totalWalletDebits = sumDebits(rangedWalletRows);
             const normalizedProviders = normalizeProviderRows(providersFromRedux(providerSource));
@@ -513,6 +517,7 @@ function DashboardContent() {
                 chapaAvailableBalance,
                 chapaLedgerBalance,
                 nonChapaWalletNet,
+                directPaymentCredits,
                 totalTopUp: walletMetrics.totalTopUpAdjusted,
                 totalActivationFee: walletMetrics.totalActivationFeeAdjusted,
                 totalManualActivation,
@@ -550,6 +555,7 @@ function DashboardContent() {
                 const totalWalletDebitsRanged = sumDebits(rangedWalletRows);
                 const chapaWalletNetRanged = sumChapaNetFlow(rangedWalletRows);
                 const nonChapaWalletNetRanged = sumNonChapaNetFlow(rangedWalletRows);
+                const directPaymentCreditsRanged = sumDirectPaymentCredits(rangedWalletRows);
                 const totalTopUp = walletMetrics.totalTopUpAdjusted;
                 const totalActivationFee = walletMetrics.totalActivationFeeAdjusted;
                 const totalManualActivationRanged = sumManualActivationCredits(rangedWalletRows, { adjusted: true });
@@ -597,6 +603,7 @@ function DashboardContent() {
                     chapaAvailableBalance,
                     chapaLedgerBalance,
                     nonChapaWalletNet: nonChapaWalletNetRanged,
+                    directPaymentCredits: directPaymentCreditsRanged,
                     totalTopUp,
                     totalActivationFee,
                     totalManualActivation: totalManualActivationRanged,
@@ -954,11 +961,11 @@ function DashboardContent() {
                             />
                             <StatCard
                                 title="Direct payments"
-                                value={analytics.nonChapaWalletNet}
+                                value={analytics.directPaymentCredits}
                                 isCurrency
                                 icon={DollarSign}
                                 iconBg="bg-primary/10"
-                                note="Offline & non-Chapa ledger"
+                                note="Offline & non-Chapa received"
                             />
                             <StatCard
                                 title={hasLiveChapaBalance ? 'Chapa balance' : 'App wallet Chapa'}
@@ -1016,6 +1023,7 @@ function DashboardContent() {
                                     walletDebits: analytics.totalWalletDebits,
                                     chapaWalletNet: analytics.chapaWalletNet,
                                     nonChapaWalletNet: analytics.nonChapaWalletNet,
+                                    directPaymentCredits: analytics.directPaymentCredits,
                                     totalLedgerNet: analytics.totalNetFlow,
                                     chapaActivationInWallet,
                                     otherChapaInWallet,

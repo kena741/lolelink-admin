@@ -221,6 +221,26 @@ export function sumNonChapaNetFlow(rows: WalletTransactionMetricRow[]): number {
     return sumNetFlow(rows.filter((row) => !isChapaWalletTransaction(row)));
 }
 
+export function isProviderPayoutCredit(row: WalletTransactionMetricRow): boolean {
+    if (row.isCredit !== true) return false;
+    const note = (row.note ?? '').toLowerCase();
+    return note.includes('payout') || note.includes('completed (payout');
+}
+
+export function isDirectPaymentCredit(row: WalletTransactionMetricRow): boolean {
+    if (row.isCredit !== true) return false;
+    if (isChapaWalletTransaction(row)) return false;
+    if (isProviderPayoutCredit(row)) return false;
+    return true;
+}
+
+export function sumDirectPaymentCredits(rows: WalletTransactionMetricRow[]): number {
+    return rows.reduce((sum, row) => {
+        if (!isDirectPaymentCredit(row)) return sum;
+        return sum + walletTransactionMagnitude(row.amount);
+    }, 0);
+}
+
 export function isManualActivationCredit(row: WalletTransactionMetricRow): boolean {
     if (row.isCredit !== true) return false;
     const paymentType = String(row.paymentType ?? row.payment_type ?? '').toLowerCase();
@@ -264,6 +284,7 @@ export interface WalletDashboardBreakdown {
     totalTopUp: WalletMetricBreakdownLine[];
     chapaWalletNet: WalletMetricBreakdownLine[];
     nonChapaWalletNet: WalletMetricBreakdownLine[];
+    directPaymentCredits: WalletMetricBreakdownLine[];
 }
 
 export type WalletCreditSegment =
@@ -360,8 +381,7 @@ export function classifyWalletCreditSegment(row: WalletTransactionMetricRow): Wa
         return isChapaWalletTransaction(row) ? 'chapa_activation' : 'chapa_activation';
     }
     if (isCustomerTopUpCredit(row)) return 'customer_topup';
-    const note = (row.note ?? '').toLowerCase();
-    if (note.includes('payout') || note.includes('completed (payout')) return 'provider_payout';
+    if (isProviderPayoutCredit(row)) return 'provider_payout';
     if (isChapaWalletTransaction(row)) return 'chapa_bookings_upgrades';
     return 'other_credit';
 }
@@ -412,5 +432,6 @@ export function computeWalletDashboardBreakdown(
         totalTopUp: aggregateMagnitudeByNote(rows, isTopUpCredit, { adjusted: true, creditsOnly: true }),
         chapaWalletNet: aggregateNetByNote(rows, isChapaWalletTransaction),
         nonChapaWalletNet: aggregateNetByNote(rows, (row) => !isChapaWalletTransaction(row)),
+        directPaymentCredits: aggregateMagnitudeByNote(rows, isDirectPaymentCredit, { creditsOnly: true }),
     };
 }
