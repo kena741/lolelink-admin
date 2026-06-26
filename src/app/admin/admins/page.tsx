@@ -3,7 +3,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
-    ArrowLeft,
     Calendar,
     ChevronLeft,
     ChevronRight,
@@ -17,13 +16,18 @@ import {
     Search,
     Shield,
     Trash2,
-    UserCog,
-    Users,
-    X,
 } from 'lucide-react';
-import Sidebar from '@/components/Sidebar';
 import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
+import {
+    AdminErrorAlert,
+    AdminFilterPanel,
+    AdminLoadingRow,
+    AdminSearchInput,
+    AdminShell,
+    AdminStatCard,
+} from '@/components/admin/admin-layout';
+import { AdminTableShell } from '@/components/admin/data-table';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { createAdmin, deleteAdmin, fetchAdmins, updateAdmin } from '@/features/admin/adminSlice';
 import { fetchAdminRoles } from '@/features/admin/adminRoleSlice';
@@ -39,7 +43,6 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { cn } from '@/lib/utils';
 import type { AdminUser } from '../../../../type/admin';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 
@@ -246,10 +249,7 @@ function AdminsPage() {
 
     return (
         <AuthGuard>
-            <div className="flex min-h-screen">
-                <Sidebar />
-                <main className="ml-64 w-full min-h-screen">
-                    <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+            <AdminShell>
                         <AdminPageHeader
                             title="Admin Management"
                             description="Create admin accounts and assign roles"
@@ -279,84 +279,41 @@ function AdminsPage() {
                                 </>
                             }
                         />
-                        <section className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-3">
-                            <div className="rounded-2xl border border-white/20 bg-white/80 p-6 shadow-xl backdrop-blur-xl">
-                                <div className="mb-4 inline-flex rounded-xl bg-primary p-3 shadow-sm">
-                                    <Users className="h-6 w-6 text-white" />
-                                </div>
-                                <p className="mb-1 text-sm font-medium text-gray-600">Total Admins</p>
-                                <p className="text-3xl font-bold text-gray-900">{loading ? '—' : stats.total}</p>
-                            </div>
-                            <div className="rounded-2xl border border-white/20 bg-white/80 p-6 shadow-xl backdrop-blur-xl">
-                                <div className="mb-4 inline-flex rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 p-3 shadow-lg">
-                                    <UserCog className="h-6 w-6 text-white" />
-                                </div>
-                                <p className="mb-1 text-sm font-medium text-gray-600">Active</p>
-                                <p className="text-3xl font-bold text-gray-900">{loading ? '—' : stats.active}</p>
-                            </div>
-                            <div className="rounded-2xl border border-white/20 bg-white/80 p-6 shadow-xl backdrop-blur-xl">
-                                <div className="mb-4 inline-flex rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 p-3 shadow-lg">
-                                    <Shield className="h-6 w-6 text-white" />
-                                </div>
-                                <p className="mb-1 text-sm font-medium text-gray-600">Inactive</p>
-                                <p className="text-3xl font-bold text-gray-900">{loading ? '—' : stats.inactive}</p>
-                            </div>
+                        <section className="mb-6 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+                            <AdminStatCard title="Total Admins" value={loading ? '…' : String(stats.total)} />
+                            <AdminStatCard title="Active" value={loading ? '…' : String(stats.active)} />
+                            <AdminStatCard title="Inactive" value={loading ? '…' : String(stats.inactive)} />
                         </section>
 
-                        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                            <div className="relative w-full max-w-md flex-1">
-                                <Search className="pointer-events-none absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-                                <input
+                        <AdminFilterPanel>
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                <AdminSearchInput
                                     value={query}
-                                    onChange={(event) => setQuery(event.target.value)}
+                                    onChange={setQuery}
                                     placeholder="Search name, email, or role…"
-                                    className={cn(
-                                        'w-full rounded-xl border border-white/20 bg-white/80 py-3 pl-12 text-sm text-gray-900 shadow-lg backdrop-blur-xl placeholder:text-gray-500 transition-all',
-                                        'focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200/50',
-                                        query.trim() ? 'pr-12' : 'pr-5'
-                                    )}
+                                    className="sm:max-w-md"
                                 />
-                                {query.trim() ? (
-                                    <button
-                                        type="button"
-                                        aria-label="Clear search"
-                                        onClick={() => setQuery('')}
-                                        className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800"
-                                    >
-                                        <X className="h-4 w-4" />
-                                    </button>
-                                ) : null}
+                                <Link
+                                    href="/admin/roles"
+                                    className="inline-flex h-10 items-center gap-2 rounded-md border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+                                >
+                                    <Shield className="h-4 w-4" />
+                                    Manage Roles
+                                </Link>
                             </div>
-                            <Link
-                                href="/admin/roles"
-                                className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/80 px-4 py-3 text-sm font-semibold text-gray-700 shadow-lg backdrop-blur-xl transition-colors hover:bg-white"
-                            >
-                                <Shield className="h-4 w-4" />
-                                Manage Roles
-                            </Link>
-                        </div>
+                        </AdminFilterPanel>
 
-                        {error && (
-                            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                                {error}
-                            </div>
-                        )}
+                        {loading ? <AdminLoadingRow label="Loading admins…" /> : null}
+                        {error ? <AdminErrorAlert message={error} /> : null}
 
-                        {loading && (
-                            <div className="mb-4 flex items-center gap-2 text-sm text-gray-600">
-                                <RefreshCw className="h-4 w-4 animate-spin" />
-                                Loading admins...
-                            </div>
-                        )}
-
-                        <div className="overflow-hidden rounded-2xl border border-white/20 bg-white/80 shadow-xl backdrop-blur-xl">
+                        <AdminTableShell>
                             <div className="overflow-x-auto">
                                 <Table>
                                     <TableHeader>
-                                        <TableRow className="border-b border-white/20 bg-muted/50">
-                                            <TableHead className="w-[60px] font-semibold text-gray-700">#</TableHead>
-                                            <TableHead className="font-semibold text-gray-700">Admin</TableHead>
-                                            <TableHead className="font-semibold text-gray-700">
+                                        <TableRow>
+                                            <TableHead className="w-[60px]">#</TableHead>
+                                            <TableHead>Admin</TableHead>
+                                            <TableHead>
                                                 <button
                                                     className="inline-flex items-center gap-1 transition-colors hover:text-indigo-600"
                                                     onClick={() => toggleSort('name')}
@@ -365,7 +322,7 @@ function AdminsPage() {
                                                     <ChevronsUpDown className="h-4 w-4 opacity-60" />
                                                 </button>
                                             </TableHead>
-                                            <TableHead className="font-semibold text-gray-700">
+                                            <TableHead>
                                                 <button
                                                     className="inline-flex items-center gap-1 transition-colors hover:text-indigo-600"
                                                     onClick={() => toggleSort('role')}
@@ -374,8 +331,8 @@ function AdminsPage() {
                                                     <ChevronsUpDown className="h-4 w-4 opacity-60" />
                                                 </button>
                                             </TableHead>
-                                            <TableHead className="font-semibold text-gray-700">Status</TableHead>
-                                            <TableHead className="font-semibold text-gray-700">
+                                            <TableHead>Status</TableHead>
+                                            <TableHead>
                                                 <button
                                                     className="inline-flex items-center gap-1 transition-colors hover:text-indigo-600"
                                                     onClick={() => toggleSort('created_at')}
@@ -384,7 +341,7 @@ function AdminsPage() {
                                                     <ChevronsUpDown className="h-4 w-4 opacity-60" />
                                                 </button>
                                             </TableHead>
-                                            <TableHead className="text-right font-semibold text-gray-700">Actions</TableHead>
+                                            <TableHead className="text-right">Actions</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -394,10 +351,7 @@ function AdminsPage() {
                                             const rowBusy = deletingId === admin.id;
 
                                             return (
-                                                <TableRow
-                                                    key={admin.id}
-                                                    className="border-b border-white/20 transition-all hover:bg-muted/40"
-                                                >
+                                                <TableRow key={admin.id}>
                                                     <TableCell className="text-sm font-medium text-gray-500">
                                                         {startIdx + idx + 1}
                                                     </TableCell>
@@ -495,10 +449,10 @@ function AdminsPage() {
                                     </TableBody>
                                 </Table>
                             </div>
-                        </div>
+                        </AdminTableShell>
 
                         {filtered.length > 0 && (
-                            <div className="mt-4 flex items-center justify-between rounded-xl border border-white/20 bg-white/80 px-6 py-3 shadow-lg backdrop-blur-xl">
+                            <div className="mt-4 flex items-center justify-between rounded-xl border border-gray-200 bg-white px-6 py-3 shadow-sm">
                                 <p className="text-sm text-gray-600">
                                     Showing <span className="font-semibold text-gray-900">{startIdx + 1}</span>–<span className="font-semibold text-gray-900">{Math.min(startIdx + PAGE_SIZE, filtered.length)}</span> of{' '}
                                     <span className="font-semibold text-gray-900">{filtered.length}</span>
@@ -524,8 +478,6 @@ function AdminsPage() {
                                 </div>
                             </div>
                         )}
-                    </div>
-
                     <Dialog open={isModalOpen} onClose={closeModal} className="max-w-xl">
                         <DialogHeader>
                             <DialogTitle>{editingAdmin ? 'Edit Admin' : 'Add Admin'}</DialogTitle>
@@ -604,8 +556,7 @@ function AdminsPage() {
                             </DialogFooter>
                         </form>
                     </Dialog>
-                </main>
-            </div>
+            </AdminShell>
         </AuthGuard>
     );
 }

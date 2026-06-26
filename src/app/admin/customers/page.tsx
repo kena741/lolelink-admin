@@ -1,9 +1,9 @@
-"use client";
+'use client';
+
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import Sidebar from '@/components/Sidebar';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { fetchAllCustomers, convertToProvider, resetConvertState, archiveCustomer, restoreCustomer, deleteCustomer } from '@/features/customer/customerSlice';
-import { ChevronLeft, ChevronRight, Download, Search, Users, ArrowRightLeft, CheckCircle2, Loader2, Archive, ArchiveRestore, Trash2, MoreVertical, ExternalLink } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Users, ArrowRightLeft, CheckCircle2, Loader2, Archive, ArchiveRestore, Trash2, MoreVertical, ExternalLink } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,6 +15,14 @@ import {
 } from '@/components/ui/dropdown-menu';
 import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader from '@/components/AdminPageHeader';
+import {
+    AdminErrorAlert,
+    AdminFilterPanel,
+    AdminLoadingRow,
+    AdminSearchInput,
+    AdminShell,
+} from '@/components/admin/admin-layout';
+import { AdminTableShell } from '@/components/admin/data-table';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
@@ -164,26 +172,18 @@ export default function CustomersPage() {
 
     return (
         <AuthGuard>
-            <div className="flex min-h-screen">
-                <Sidebar />
-                <main className="ml-64 w-full min-h-screen">
-                    <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+            <AdminShell>
                         <AdminPageHeader
                             title="Customers"
                             description="Directory of customers and their recent activity"
                         />
-                        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div className="w-full sm:w-96">
-                                <div className="relative">
-                                    <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-                                    <input
-                                        value={query}
-                                        onChange={(e) => setQuery(e.target.value)}
-                                        placeholder="Search name, email, phone, user ID, address..."
-                                        className="w-full rounded-xl border border-white/20 bg-white/80 backdrop-blur-xl py-3 pl-11 pr-4 text-sm text-gray-900 placeholder:text-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200/50 shadow-lg transition-all"
-                                    />
-                                </div>
-                            </div>
+                        <AdminFilterPanel className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <AdminSearchInput
+                                className="w-full sm:w-96"
+                                value={query}
+                                onChange={setQuery}
+                                placeholder="Search name, email, phone, user ID, address..."
+                            />
                             <div className="flex flex-wrap items-center gap-3">
                                 <button
                                     type="button"
@@ -199,47 +199,34 @@ export default function CustomersPage() {
                                 <button
                                     onClick={exportToXlsx}
                                     disabled={filtered.length === 0}
-                                    className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/80 backdrop-blur-xl px-4 py-3 text-sm font-semibold text-gray-700 shadow-lg transition-all hover:bg-white hover:shadow-xl disabled:opacity-40 disabled:cursor-not-allowed"
+                                    className="inline-flex h-[40px] items-center gap-2 rounded-md border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
                                 >
                                     <Download className="h-4 w-4" />
                                     Export XLSX
                                 </button>
                             </div>
-                        </div>
+                        </AdminFilterPanel>
 
-                        {actionError && (
-                            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                                {actionError}
-                            </div>
-                        )}
+                        {actionError ? <AdminErrorAlert message={actionError} /> : null}
 
-                        {loading && (
-                            <div className="mb-4 text-sm text-gray-600 flex items-center gap-2">
-                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
-                                Loading customers...
-                            </div>
-                        )}
-                        {error && (
-                            <div className="mb-4 rounded-xl bg-red-50 border border-red-200 p-4 text-sm text-red-600">
-                                {error}
-                            </div>
-                        )}
+                        {loading ? <AdminLoadingRow label="Loading customers..." /> : null}
+                        {error ? <AdminErrorAlert message={error} /> : null}
 
-                        <div className="rounded-2xl border border-white/20 bg-white/80 backdrop-blur-xl shadow-xl overflow-hidden">
+                        <AdminTableShell>
                             <Table>
                                 <TableHeader>
-                                    <TableRow className="bg-muted/50 border-b border-white/20">
-                                        <TableHead className="font-semibold text-gray-700 w-[60px]">#</TableHead>
-                                        <TableHead className="font-semibold text-gray-700">Customer</TableHead>
-                                        <TableHead className="font-semibold text-gray-700">Email</TableHead>
-                                        <TableHead className="font-semibold text-gray-700">Phone</TableHead>
-                                        <TableHead className="font-semibold text-gray-700">Gender</TableHead>
-                                        <TableHead className="font-semibold text-gray-700">Wallet</TableHead>
-                                        <TableHead className="font-semibold text-gray-700">Status</TableHead>
-                                        <TableHead className="font-semibold text-gray-700">Address</TableHead>
-                                        <TableHead className="font-semibold text-gray-700">Created</TableHead>
-                                        <TableHead className="font-semibold text-gray-700">Last Request</TableHead>
-                                        <TableHead className="font-semibold text-gray-700 text-right">Actions</TableHead>
+                                    <TableRow>
+                                        <TableHead className="w-[60px]">#</TableHead>
+                                        <TableHead>Customer</TableHead>
+                                        <TableHead>Email</TableHead>
+                                        <TableHead>Phone</TableHead>
+                                        <TableHead>Gender</TableHead>
+                                        <TableHead>Wallet</TableHead>
+                                        <TableHead>Status</TableHead>
+                                        <TableHead>Address</TableHead>
+                                        <TableHead>Created</TableHead>
+                                        <TableHead>Last Request</TableHead>
+                                        <TableHead className="text-right">Actions</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -247,7 +234,7 @@ export default function CustomersPage() {
                                         const archived = customerIsArchived(c);
                                         const rowBusy = actionBusyId === c.id;
                                         return (
-                                        <TableRow key={c.id} className={`hover:bg-muted/40 transition-all border-b border-white/20 ${archived ? 'opacity-75' : ''}`}>
+                                        <TableRow key={c.id} className={archived ? 'opacity-75' : undefined}>
                                             <TableCell className="text-sm font-medium text-gray-500">
                                                 {startIdx + idx + 1}
                                             </TableCell>
@@ -433,10 +420,10 @@ export default function CustomersPage() {
                                     )}
                                 </TableBody>
                             </Table>
-                        </div>
+                        </AdminTableShell>
 
                         {filtered.length > 0 && (
-                            <div className="mt-4 flex items-center justify-between rounded-xl border border-white/20 bg-white/80 backdrop-blur-xl px-6 py-3 shadow-lg">
+                            <div className="mt-4 flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
                                 <p className="text-sm text-gray-600">
                                     Showing <span className="font-semibold text-gray-900">{startIdx + 1}</span>–<span className="font-semibold text-gray-900">{Math.min(startIdx + PAGE_SIZE, filtered.length)}</span> of{' '}
                                     <span className="font-semibold text-gray-900">{filtered.length}</span>
@@ -462,7 +449,6 @@ export default function CustomersPage() {
                                 </div>
                             </div>
                         )}
-                    </div>
                     {pendingDeleteCustomerId && (
                         <div
                             className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
@@ -600,8 +586,7 @@ export default function CustomersPage() {
                             </div>
                         </div>
                     )}
-                </main>
-            </div>
+            </AdminShell>
         </AuthGuard>
     );
 }

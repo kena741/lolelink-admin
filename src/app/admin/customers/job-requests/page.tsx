@@ -1,11 +1,17 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
-import { ArrowLeft, RefreshCw, Search, FileText, X } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import AuthGuard from '@/components/AuthGuard';
-import Sidebar from '@/components/Sidebar';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
+import {
+    AdminErrorAlert,
+    AdminFilterPanel,
+    AdminLoadingRow,
+    AdminSearchInput,
+    AdminShell,
+} from '@/components/admin/admin-layout';
+import { AdminDataTableEmpty, AdminTableShell } from '@/components/admin/data-table';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface JobRequestBid {
@@ -122,10 +128,7 @@ const JobRequestsPage = () => {
 
     return (
         <AuthGuard>
-            <div className="flex min-h-screen">
-                <Sidebar />
-                <main className="ml-64 w-full min-h-screen">
-                    <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+            <AdminShell>
                         <AdminPageHeader
                             title="Customer Job Requests"
                             backHref="/admin/customers"
@@ -145,26 +148,13 @@ const JobRequestsPage = () => {
                                 </button>
                             }
                         />
-                        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div className="relative w-full sm:max-w-[440px]">
-                                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-secondary" />
-                                <input
-                                    value={query}
-                                    onChange={(event) => setQuery(event.target.value)}
-                                    placeholder="Search title, description, customer, phone, service..."
-                                    className="w-full rounded-full border border-subtle bg-base py-2 pl-10 pr-10 text-sm text-primary shadow-[0_1px_3px_rgba(0,0,0,0.06)] focus:outline-none focus:ring-2 focus:ring-accent-info"
-                                />
-                                {query ? (
-                                    <button
-                                        type="button"
-                                        onClick={() => setQuery('')}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-secondary hover:bg-subtle hover:text-primary"
-                                        aria-label="Clear search"
-                                    >
-                                        <X className="h-3.5 w-3.5" />
-                                    </button>
-                                ) : null}
-                            </div>
+
+                        <AdminFilterPanel>
+                            <AdminSearchInput
+                                value={query}
+                                onChange={setQuery}
+                                placeholder="Search title, description, customer, phone, service..."
+                            />
                             <div className="flex flex-wrap items-center gap-2">
                                 {[
                                     { id: 'all', label: 'All' },
@@ -176,47 +166,42 @@ const JobRequestsPage = () => {
                                         key={option.id}
                                         type="button"
                                         onClick={() => setStatusFilter(option.id as 'all' | 'pending' | 'accepted' | 'rejected')}
-                                        className={`h-[32px] rounded-full border px-3 text-[13px] font-semibold transition-all duration-150 ${
+                                        className={`h-8 rounded-md border px-3 text-sm font-semibold transition-colors ${
                                             statusFilter === option.id
-                                                ? 'border-strong bg-subtle text-primary'
-                                                : 'border-subtle bg-base text-secondary hover:bg-subtle hover:text-primary'
+                                                ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
+                                                : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
                                         }`}
                                     >
                                         {option.label}
                                     </button>
                                 ))}
-                                <span className="rounded-full bg-subtle px-3 py-1 text-[13px] font-semibold text-primary">
+                                <span className="rounded-md bg-gray-100 px-3 py-1 text-sm font-semibold text-gray-700">
                                     {filteredItems.length} results
                                 </span>
                             </div>
-                        </div>
+                        </AdminFilterPanel>
 
-                        <div className="rounded-2xl border border-white/20 bg-white/80 backdrop-blur-xl shadow-xl overflow-hidden">
-                            {error ? (
-                                <div className="m-4 rounded-xl bg-red-50 border border-red-200 p-4 text-sm text-red-600">
-                                    {error}
-                                </div>
-                            ) : loading ? (
-                                <div className="p-8 text-center">
-                                    <RefreshCw className="mx-auto mb-4 h-8 w-8 animate-spin text-indigo-600" />
-                                    <p className="text-gray-600">Loading job requests...</p>
-                                </div>
-                            ) : filteredItems.length === 0 ? (
-                                <div className="px-4 py-12 text-center text-gray-500">
-                                    No job requests found.
-                                </div>
-                            ) : (
+                        {loading ? <AdminLoadingRow label="Loading job requests…" /> : null}
+                        {error ? <AdminErrorAlert message={error} /> : null}
+
+                        <AdminTableShell>
+                            {!loading && filteredItems.length === 0 ? (
+                                <AdminDataTableEmpty
+                                    title="No job requests found"
+                                    description="Try adjusting your search or filters"
+                                />
+                            ) : !loading ? (
                                 <Table>
                                     <TableHeader>
-                                        <TableRow className="bg-muted/50 border-b border-white/20">
-                                            <TableHead className="font-semibold text-gray-700">Title</TableHead>
-                                            <TableHead className="font-semibold text-gray-700">Customer</TableHead>
-                                            <TableHead className="font-semibold text-gray-700">Service</TableHead>
-                                            <TableHead className="font-semibold text-gray-700">Price</TableHead>
-                                            <TableHead className="font-semibold text-gray-700">Bids</TableHead>
-                                            <TableHead className="font-semibold text-gray-700">Payment</TableHead>
-                                            <TableHead className="font-semibold text-gray-700">Status</TableHead>
-                                            <TableHead className="font-semibold text-gray-700">Created</TableHead>
+                                        <TableRow>
+                                            <TableHead>Title</TableHead>
+                                            <TableHead>Customer</TableHead>
+                                            <TableHead>Service</TableHead>
+                                            <TableHead>Price</TableHead>
+                                            <TableHead>Bids</TableHead>
+                                            <TableHead>Payment</TableHead>
+                                            <TableHead>Status</TableHead>
+                                            <TableHead>Created</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -224,12 +209,12 @@ const JobRequestsPage = () => {
                                             const bidsCount = Array.isArray(item.bidList) ? item.bidList.length : 0;
                                             const displayStatus = item.accepted ? 'accepted' : (item.status || 'pending');
                                             return (
-                                                <TableRow key={item.id} className="hover:bg-muted/40 transition-all border-b border-white/20 align-top">
-                                                    <TableCell className="max-w-[280px] text-gray-700">
+                                                <TableRow key={item.id} className="align-top">
+                                                    <TableCell className="max-w-[280px]">
                                                         <p className="font-semibold text-gray-900">{item.title || 'Untitled'}</p>
-                                                        <p className="mt-1 text-xs">{item.description || 'No description'}</p>
+                                                        <p className="mt-1 text-xs text-gray-600">{item.description || 'No description'}</p>
                                                     </TableCell>
-                                                    <TableCell className="text-gray-700">
+                                                    <TableCell>
                                                         <div className="font-medium text-gray-900">
                                                             {item.customerDisplayName?.trim() || '—'}
                                                         </div>
@@ -237,15 +222,15 @@ const JobRequestsPage = () => {
                                                             {item.customerDisplayPhone?.trim() || '—'}
                                                         </div>
                                                     </TableCell>
-                                                    <TableCell className="text-gray-700">{item.serviceModelList?.[0]?.serviceName || '—'}</TableCell>
-                                                    <TableCell className="text-gray-700">{item.price || '—'}</TableCell>
-                                                    <TableCell className="text-gray-700">{bidsCount}</TableCell>
-                                                    <TableCell className="text-gray-700">
-                                                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${item.is_paid === true ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                                                    <TableCell>{item.serviceModelList?.[0]?.serviceName || '—'}</TableCell>
+                                                    <TableCell>{item.price || '—'}</TableCell>
+                                                    <TableCell>{bidsCount}</TableCell>
+                                                    <TableCell>
+                                                        <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${item.is_paid === true ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
                                                             {item.is_paid === true ? 'Paid' : 'Unpaid'}
                                                         </span>
                                                     </TableCell>
-                                                    <TableCell className="text-gray-700">
+                                                    <TableCell>
                                                         <select
                                                             disabled={updatingId === item.id}
                                                             value={
@@ -271,17 +256,15 @@ const JobRequestsPage = () => {
                                                             <option value="rejected">Rejected</option>
                                                         </select>
                                                     </TableCell>
-                                                    <TableCell className="whitespace-nowrap text-gray-700">{formatDate(item.createdAt)}</TableCell>
+                                                    <TableCell className="whitespace-nowrap">{formatDate(item.createdAt)}</TableCell>
                                                 </TableRow>
                                             );
                                         })}
                                     </TableBody>
                                 </Table>
-                            )}
-                        </div>
-                    </div>
-                </main>
-            </div>
+                            ) : null}
+                        </AdminTableShell>
+            </AdminShell>
         </AuthGuard>
     );
 };

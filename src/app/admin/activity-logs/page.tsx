@@ -2,22 +2,27 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-    Activity,
     ChevronLeft,
     ChevronRight,
     RefreshCw,
     Search,
-    X,
 } from 'lucide-react';
-import Sidebar from '@/components/Sidebar';
 import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
+import {
+    AdminErrorAlert,
+    AdminFilterPanel,
+    AdminLoadingRow,
+    AdminSearchInput,
+    AdminSelect,
+    AdminShell,
+} from '@/components/admin/admin-layout';
+import { AdminTableShell } from '@/components/admin/data-table';
 import { ActivityLogDetails } from '@/components/ActivityLogDetails';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { fetchActivityLogs } from '@/features/admin/activityLogSlice';
 import { hasActivityDetails } from '@/lib/activity-log-changes';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { cn } from '@/lib/utils';
 
 const PAGE_SIZE = 30;
 
@@ -67,10 +72,7 @@ function ActivityLogsPage() {
 
     return (
         <AuthGuard>
-            <div className="flex min-h-screen">
-                <Sidebar />
-                <main className="ml-64 w-full min-h-screen">
-                    <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+            <AdminShell>
                         <AdminPageHeader
                             title="Activity Logs"
                             description="Track actions performed by admin users"
@@ -93,77 +95,44 @@ function ActivityLogsPage() {
                                 </button>
                             }
                         />
-                        <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center">
-                            <div className="relative w-full max-w-md flex-1">
-                                <Search className="pointer-events-none absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-                                <input
+                        <AdminFilterPanel>
+                            <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                                <AdminSearchInput
                                     value={query}
-                                    onChange={(event) => setQuery(event.target.value)}
+                                    onChange={setQuery}
                                     placeholder="Search admin, summary, resource…"
-                                    className={cn(
-                                        'w-full rounded-xl border border-white/20 bg-white/80 py-3 pl-12 text-sm text-gray-900 shadow-lg backdrop-blur-xl placeholder:text-gray-500 transition-all',
-                                        'focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200/50',
-                                        query.trim() ? 'pr-12' : 'pr-5'
-                                    )}
+                                    className="flex-1"
                                 />
-                                {query.trim() ? (
-                                    <button
-                                        type="button"
-                                        aria-label="Clear search"
-                                        onClick={() => setQuery('')}
-                                        className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800"
-                                    >
-                                        <X className="h-4 w-4" />
-                                    </button>
-                                ) : null}
+                                <AdminSelect value={actionFilter} onChange={setActionFilter}>
+                                    <option value="">All actions</option>
+                                    {ACTION_OPTIONS.map((action) => (
+                                        <option key={action} value={action}>{action}</option>
+                                    ))}
+                                </AdminSelect>
+                                <AdminSelect value={resourceFilter} onChange={setResourceFilter}>
+                                    <option value="">All resources</option>
+                                    {RESOURCE_OPTIONS.map((resource) => (
+                                        <option key={resource} value={resource}>{resource}</option>
+                                    ))}
+                                </AdminSelect>
                             </div>
-                            <select
-                                value={actionFilter}
-                                onChange={(event) => setActionFilter(event.target.value)}
-                                className="h-11 rounded-xl border border-white/20 bg-white/80 px-4 text-sm text-gray-900 shadow-lg"
-                            >
-                                <option value="">All actions</option>
-                                {ACTION_OPTIONS.map((action) => (
-                                    <option key={action} value={action}>{action}</option>
-                                ))}
-                            </select>
-                            <select
-                                value={resourceFilter}
-                                onChange={(event) => setResourceFilter(event.target.value)}
-                                className="h-11 rounded-xl border border-white/20 bg-white/80 px-4 text-sm text-gray-900 shadow-lg"
-                            >
-                                <option value="">All resources</option>
-                                {RESOURCE_OPTIONS.map((resource) => (
-                                    <option key={resource} value={resource}>{resource}</option>
-                                ))}
-                            </select>
-                        </div>
+                        </AdminFilterPanel>
 
-                        {error && (
-                            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                                {error}
-                            </div>
-                        )}
+                        {loading ? <AdminLoadingRow label="Loading activity logs…" /> : null}
+                        {error ? <AdminErrorAlert message={error} /> : null}
 
-                        {loading && (
-                            <div className="mb-4 flex items-center gap-2 text-sm text-gray-600">
-                                <RefreshCw className="h-4 w-4 animate-spin" />
-                                Loading activity logs...
-                            </div>
-                        )}
-
-                        <div className="overflow-hidden rounded-2xl border border-white/20 bg-white/80 shadow-xl backdrop-blur-xl">
+                        <AdminTableShell>
                             <div className="overflow-x-auto">
                                 <Table>
                                     <TableHeader>
-                                        <TableRow className="border-b border-white/20 bg-muted/50">
-                                            <TableHead className="w-[60px] font-semibold text-gray-700">#</TableHead>
-                                            <TableHead className="font-semibold text-gray-700">Admin</TableHead>
-                                            <TableHead className="font-semibold text-gray-700">Action</TableHead>
-                                            <TableHead className="font-semibold text-gray-700">Resource</TableHead>
-                                            <TableHead className="font-semibold text-gray-700">Summary</TableHead>
-                                            <TableHead className="w-[120px] font-semibold text-gray-700">Details</TableHead>
-                                            <TableHead className="font-semibold text-gray-700">When</TableHead>
+                                        <TableRow>
+                                            <TableHead className="w-[60px]">#</TableHead>
+                                            <TableHead>Admin</TableHead>
+                                            <TableHead>Action</TableHead>
+                                            <TableHead>Resource</TableHead>
+                                            <TableHead>Summary</TableHead>
+                                            <TableHead className="w-[120px]">Details</TableHead>
+                                            <TableHead>When</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -173,9 +142,7 @@ function ActivityLogsPage() {
 
                                             return (
                                             <React.Fragment key={log.id}>
-                                            <TableRow
-                                                className="border-b border-white/20 transition-all hover:bg-muted/40"
-                                            >
+                                            <TableRow>
                                                 <TableCell className="text-sm font-medium text-gray-500">
                                                     {(currentPage - 1) * PAGE_SIZE + idx + 1}
                                                 </TableCell>
@@ -226,7 +193,7 @@ function ActivityLogsPage() {
                                                 </TableCell>
                                             </TableRow>
                                             {isExpanded ? (
-                                                <TableRow className="border-b border-white/20 bg-white/50">
+                                                <TableRow className="bg-gray-50/80">
                                                     <TableCell colSpan={7} className="px-4 py-4">
                                                         <ActivityLogDetails
                                                             metadata={log.metadata}
@@ -256,10 +223,10 @@ function ActivityLogsPage() {
                                     </TableBody>
                                 </Table>
                             </div>
-                        </div>
+                        </AdminTableShell>
 
                         {total > 0 && (
-                            <div className="mt-4 flex items-center justify-between rounded-xl border border-white/20 bg-white/80 px-6 py-3 shadow-lg backdrop-blur-xl">
+                            <div className="mt-4 flex items-center justify-between rounded-xl border border-gray-200 bg-white px-6 py-3 shadow-sm">
                                 <p className="text-sm text-gray-600">
                                     Total <span className="font-semibold text-gray-900">{total}</span> log entries
                                 </p>
@@ -284,9 +251,7 @@ function ActivityLogsPage() {
                                 </div>
                             </div>
                         )}
-                    </div>
-                </main>
-            </div>
+            </AdminShell>
         </AuthGuard>
     );
 }

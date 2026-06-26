@@ -2,8 +2,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Download, Filter, RefreshCw, X } from 'lucide-react';
 import AuthGuard from '@/components/AuthGuard';
-import Sidebar from '@/components/Sidebar';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
+import {
+    AdminErrorAlert,
+    AdminFilterPanel,
+    AdminLoadingRow,
+    AdminShell,
+    AdminStatCard,
+} from '@/components/admin/admin-layout';
 import { fetchWalletTransactions } from '@/features/walletTransaction/walletTransactionSlice';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import {
@@ -34,25 +40,6 @@ function formatAmount(value: number) {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
     })}`;
-}
-
-function StatCard({
-    title,
-    value,
-    titleClassName,
-    valueClassName,
-}: {
-    title: string;
-    value: string;
-    titleClassName?: string;
-    valueClassName?: string;
-}) {
-    return (
-        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm min-w-0 sm:p-5">
-            <p className={`mb-1 text-sm font-semibold ${titleClassName ?? 'text-gray-500'}`}>{title}</p>
-            <p className={`text-2xl font-bold tabular-nums truncate ${valueClassName ?? 'text-gray-900'}`}>{value}</p>
-        </div>
-    );
 }
 
 const WalletTransactionsPage = () => {
@@ -136,10 +123,7 @@ const WalletTransactionsPage = () => {
 
     return (
         <AuthGuard>
-            <div className="flex min-h-screen overflow-x-hidden">
-                <Sidebar />
-                <main className="ml-64 min-h-screen w-[calc(100vw-16rem)] min-w-0 max-w-full overflow-x-hidden">
-                    <div className="mx-auto min-w-0 max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+            <AdminShell>
                         <AdminPageHeader
                             title="Wallet Transactions"
                             description="Ledger credits and debits across customers and providers"
@@ -172,26 +156,26 @@ const WalletTransactionsPage = () => {
                         />
 
                         <section className="mb-6 grid min-w-0 grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5 xl:gap-4">
-                            <StatCard title="Transactions" value={loading ? '…' : String(stats.total)} />
-                            <StatCard
+                            <AdminStatCard title="Transactions" value={loading ? '…' : String(stats.total)} />
+                            <AdminStatCard
                                 title="Credits"
                                 value={loading ? '…' : String(stats.creditCount)}
                                 titleClassName="text-emerald-600"
                                 valueClassName="text-emerald-600"
                             />
-                            <StatCard
+                            <AdminStatCard
                                 title="Debits"
                                 value={loading ? '…' : String(stats.debitCount)}
                                 titleClassName="text-red-600"
                                 valueClassName="text-red-600"
                             />
-                            <StatCard
+                            <AdminStatCard
                                 title="Total credit"
                                 value={loading ? '…' : formatAmount(stats.totalCredit)}
                                 titleClassName="text-emerald-600"
                                 valueClassName="text-xl text-emerald-600"
                             />
-                            <StatCard
+                            <AdminStatCard
                                 title="Total debit"
                                 value={loading ? '…' : formatAmount(stats.totalDebit)}
                                 titleClassName="text-red-600"
@@ -199,7 +183,7 @@ const WalletTransactionsPage = () => {
                             />
                         </section>
 
-                        <div className="mb-6 min-w-0 space-y-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                        <AdminFilterPanel>
                             <WalletTransactionSearch
                                 query={query}
                                 activeColumnIds={searchColumnIds}
@@ -251,20 +235,10 @@ const WalletTransactionsPage = () => {
                                     onChange={setFilters}
                                 />
                             ) : null}
-                        </div>
+                        </AdminFilterPanel>
 
-                        {loading && (
-                            <div className="mb-4 flex items-center gap-2 text-sm text-gray-600">
-                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
-                                Loading wallet transactions…
-                            </div>
-                        )}
-
-                        {error && (
-                            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
-                                {error}
-                            </div>
-                        )}
+                        {loading ? <AdminLoadingRow label="Loading wallet transactions…" /> : null}
+                        {error ? <AdminErrorAlert message={error} /> : null}
 
                         <div className="min-w-0">
                             <WalletTransactionsTable items={pagination.pageItems} loading={loading} />
@@ -280,9 +254,7 @@ const WalletTransactionsPage = () => {
                                 onPageSizeChange={setPageSize}
                             />
                         </div>
-                    </div>
-                </main>
-            </div>
+            </AdminShell>
         </AuthGuard>
     );
 };

@@ -1,10 +1,15 @@
 'use client';
 import React, { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
-import { ArrowLeft, CheckCircle2, Clock, CreditCard, RefreshCw, XCircle } from 'lucide-react';
+import { CheckCircle2, Clock, CreditCard, RefreshCw, XCircle } from 'lucide-react';
 import AuthGuard from '@/components/AuthGuard';
-import Sidebar from '@/components/Sidebar';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
+import {
+    AdminErrorAlert,
+    AdminLoadingRow,
+    AdminShell,
+    AdminStatCard,
+} from '@/components/admin/admin-layout';
+import { AdminTableShell } from '@/components/admin/data-table';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { fetchPayments, updatePayment } from '@/features/payments/paymentsSlice';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
@@ -81,10 +86,7 @@ const PaymentPage = () => {
 
     return (
         <AuthGuard>
-            <div className="flex min-h-screen">
-                <Sidebar />
-                <main className="ml-64 w-full min-h-screen">
-                    <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+            <AdminShell>
                         <AdminPageHeader
                             title="Payments"
                             breadcrumbs={[
@@ -102,52 +104,33 @@ const PaymentPage = () => {
                                 </button>
                             }
                         />
-                        <section className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-                            <div className="group relative overflow-hidden rounded-2xl border border-white/20 bg-gradient-to-br from-white/80 to-white/40 p-6 shadow-xl backdrop-blur-xl transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl">
-                                <p className="mb-1 text-sm font-medium text-gray-600">Pending</p>
-                                <p className="text-3xl font-bold text-gray-900">{loading ? '...' : stats.pending}</p>
-                            </div>
-                            <div className="group relative overflow-hidden rounded-2xl border border-white/20 bg-gradient-to-br from-white/80 to-white/40 p-6 shadow-xl backdrop-blur-xl transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl">
-                                <p className="mb-1 text-sm font-medium text-gray-600">Successful</p>
-                                <p className="text-3xl font-bold text-gray-900">{loading ? '...' : stats.successful}</p>
-                            </div>
-                            <div className="group relative overflow-hidden rounded-2xl border border-white/20 bg-gradient-to-br from-white/80 to-white/40 p-6 shadow-xl backdrop-blur-xl transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl">
-                                <p className="mb-1 text-sm font-medium text-gray-600">Failed</p>
-                                <p className="text-3xl font-bold text-gray-900">{loading ? '...' : stats.failed}</p>
-                            </div>
-                            <div className="group relative overflow-hidden rounded-2xl border border-white/20 bg-gradient-to-br from-white/80 to-white/40 p-6 shadow-xl backdrop-blur-xl transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl">
-                                <p className="mb-1 text-sm font-medium text-gray-600">Total Amount</p>
-                                <p className="text-3xl font-bold text-gray-900">
-                                    {loading ? '...' : `ETB ${stats.totalAmount.toLocaleString('en-US', { maximumFractionDigits: 2 })}`}
-                                </p>
-                            </div>
+                        <section className="mb-6 grid min-w-0 grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
+                            <AdminStatCard title="Pending" value={loading ? '…' : String(stats.pending)} />
+                            <AdminStatCard title="Successful" value={loading ? '…' : String(stats.successful)} />
+                            <AdminStatCard title="Failed" value={loading ? '…' : String(stats.failed)} />
+                            <AdminStatCard
+                                title="Total Amount"
+                                value={loading ? '…' : `ETB ${stats.totalAmount.toLocaleString('en-US', { maximumFractionDigits: 2 })}`}
+                            />
                         </section>
 
-                        <div className="overflow-hidden rounded-2xl border border-white/20 bg-white/80 shadow-xl backdrop-blur-xl">
-                            {error && (
-                                <div className="m-6 rounded-xl border border-red-200 bg-red-50 p-4 text-red-600">
-                                    {error}
-                                </div>
-                            )}
+                        {loading ? <AdminLoadingRow label="Loading payments…" /> : null}
+                        {error ? <AdminErrorAlert message={error} /> : null}
 
-                            {loading ? (
-                                <div className="p-8 text-center">
-                                    <RefreshCw className="mx-auto mb-4 h-8 w-8 animate-spin text-indigo-600" />
-                                    <p className="text-gray-600">Loading payments...</p>
-                                </div>
-                            ) : (
+                        <AdminTableShell>
+                            {!loading ? (
                                 <div className="overflow-x-auto">
                                     <Table>
                                         <TableHeader>
-                                            <TableRow className="border-b border-white/20 bg-muted/50">
-                                                <TableHead className="font-semibold text-gray-700">Booking ID</TableHead>
-                                                <TableHead className="font-semibold text-gray-700">Customer ID</TableHead>
-                                                <TableHead className="font-semibold text-gray-700">Method</TableHead>
-                                                <TableHead className="font-semibold text-gray-700">Provider Ref</TableHead>
-                                                <TableHead className="font-semibold text-gray-700">Amount</TableHead>
-                                                <TableHead className="font-semibold text-gray-700">Status</TableHead>
-                                                <TableHead className="font-semibold text-gray-700">Created</TableHead>
-                                                <TableHead className="text-right font-semibold text-gray-700">Action</TableHead>
+                                            <TableRow>
+                                                <TableHead>Booking ID</TableHead>
+                                                <TableHead>Customer ID</TableHead>
+                                                <TableHead>Method</TableHead>
+                                                <TableHead>Provider Ref</TableHead>
+                                                <TableHead>Amount</TableHead>
+                                                <TableHead>Status</TableHead>
+                                                <TableHead>Created</TableHead>
+                                                <TableHead className="text-right">Action</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -170,10 +153,7 @@ const PaymentPage = () => {
                                                     const badgeClass = statusClassMap[currentStatus] || statusClassMap.pending_payment;
 
                                                     return (
-                                                        <TableRow
-                                                            key={payment.id}
-                                                            className="border-b border-white/20 transition-all hover:bg-muted/40"
-                                                        >
+                                                        <TableRow key={payment.id}>
                                                             <TableCell className="max-w-[180px] truncate font-medium text-gray-900">{payment.id}</TableCell>
                                                             <TableCell className="max-w-[180px] truncate text-gray-700">{payment.customerId}</TableCell>
                                                             <TableCell className="text-gray-700">{payment.paymentType || '—'}</TableCell>
@@ -214,11 +194,9 @@ const PaymentPage = () => {
                                         </TableBody>
                                     </Table>
                                 </div>
-                            )}
-                        </div>
-                    </div>
-                </main>
-            </div>
+                            ) : null}
+                        </AdminTableShell>
+            </AdminShell>
         </AuthGuard>
     );
 };

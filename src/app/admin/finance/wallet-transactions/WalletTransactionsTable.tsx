@@ -6,6 +6,7 @@ import { ArrowDownLeft, ArrowUpRight, Check, Copy } from 'lucide-react';
 import type { WalletTransaction } from '@/features/walletTransaction/walletTransactionSlice';
 import { walletProfileAndAuthShareId } from '@/lib/wallet-transaction-auth-resolve';
 import { formatAdminDateTimeUtc } from '@/lib/admin-datetime';
+import { AdminDataTableEmpty, AdminTableShell } from '@/components/admin/data-table';
 
 function formatShortId(value: string): string {
     if (!value) return '—';
@@ -213,15 +214,17 @@ interface WalletTransactionsTableProps {
 export function WalletTransactionsTable({ items, loading }: WalletTransactionsTableProps) {
     if (!loading && items.length === 0) {
         return (
-            <div className="rounded-xl border border-gray-200 bg-white px-6 py-16 text-center">
-                <p className="text-base font-medium text-gray-900">No wallet transactions found</p>
-                <p className="mt-1 text-sm text-gray-500">Try adjusting your search or filters.</p>
-            </div>
+            <AdminTableShell>
+                <AdminDataTableEmpty
+                    title="No wallet transactions found"
+                    description="Try adjusting your search or filters."
+                />
+            </AdminTableShell>
         );
     }
 
     return (
-        <div className="min-w-0 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <AdminTableShell>
             <div className="overflow-x-auto">
                 <table className="w-full min-w-[1440px] table-fixed border-collapse text-left">
                     <colgroup>
@@ -339,6 +342,6 @@ export function WalletTransactionsTable({ items, loading }: WalletTransactionsTa
                     </tbody>
                 </table>
             </div>
-        </div>
+        </AdminTableShell>
     );
 }

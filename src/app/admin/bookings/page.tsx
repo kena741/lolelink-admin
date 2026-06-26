@@ -1,11 +1,18 @@
 "use client";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Sidebar from "../../../components/Sidebar";
 import { useAppDispatch, useAppSelector } from "../../../store/hooks";
 import { fetchAllBookings, fetchBookingById, clearSingle, deleteBooking, verifyBookingPayment, getBookingCustomerDisplayName, getBookingProviderDisplayName } from "../../../features/bookedService/bookedServiceSlice";
-import { Plus, RefreshCw, Search } from "lucide-react";
+import { Plus, RefreshCw } from "lucide-react";
 import AuthGuard from "@/components/AuthGuard";
 import AdminPageHeader, { adminHeaderButtonClassName } from "@/components/AdminPageHeader";
+import {
+    AdminErrorAlert,
+    AdminFilterPanel,
+    AdminLoadingRow,
+    AdminSearchInput,
+    AdminSelect,
+    AdminShell,
+} from "@/components/admin/admin-layout";
 import { getSupabase } from "@/lib/supabaseClient";
 import type { BookedService } from "@/features/bookedService/bookedServiceSlice";
 import { CreateBookingModal } from "./CreateBookingModal";
@@ -199,7 +206,7 @@ const BookingDebugModal: React.FC<{
     if (!open || !bookingId) return null;
 
     return (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/50 p-4">
             <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg bg-white shadow-lg">
                 <div className="flex items-center justify-between border-b px-5 py-3">
                     <div>
@@ -369,10 +376,7 @@ const BookingsPage = () => {
 
     return (
         <AuthGuard>
-            <div className="flex min-h-screen">
-                <Sidebar />
-                <main className="ml-64 w-full min-h-screen">
-                    <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+            <AdminShell>
                         <AdminPageHeader
                             title="Bookings"
                             description="All booked services from customers across providers"
@@ -399,19 +403,14 @@ const BookingsPage = () => {
                                 </>
                             }
                         />
-                        <div className="mb-6 space-y-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                        <AdminFilterPanel>
                             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                                <div className="w-full lg:max-w-md">
-                                    <div className="relative">
-                                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                                        <input
-                                            value={query}
-                                            onChange={(e) => setQuery(e.target.value)}
-                                            placeholder="Search ID, customer, provider, service…"
-                                            className="h-10 w-full rounded-md border border-gray-200 bg-white py-2 pl-10 pr-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                                        />
-                                    </div>
-                                </div>
+                                <AdminSearchInput
+                                    className="w-full lg:max-w-md"
+                                    value={query}
+                                    onChange={setQuery}
+                                    placeholder="Search ID, customer, provider, service…"
+                                />
                                 <div className="text-sm text-gray-500">
                                     Showing <span className="font-semibold text-gray-900">{filtered.length}</span> of{' '}
                                     <span className="font-semibold text-gray-900">{items.length}</span> bookings
@@ -419,11 +418,7 @@ const BookingsPage = () => {
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2">
-                                <select
-                                    value={jobStatusFilter}
-                                    onChange={(e) => setJobStatusFilter(e.target.value)}
-                                    className="h-9 rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                                >
+                                <AdminSelect value={jobStatusFilter} onChange={setJobStatusFilter}>
                                     <option value="all">All job statuses</option>
                                     <option value="pending">Awaiting provider</option>
                                     <option value="completed">Completed</option>
@@ -431,17 +426,13 @@ const BookingsPage = () => {
                                     <option value="accepted">Accepted</option>
                                     <option value="in_progress">In progress</option>
                                     <option value="on_the_way">On the way</option>
-                                </select>
-                                <select
-                                    value={paymentMethodFilter}
-                                    onChange={(e) => setPaymentMethodFilter(e.target.value)}
-                                    className="h-9 rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                                >
+                                </AdminSelect>
+                                <AdminSelect value={paymentMethodFilter} onChange={setPaymentMethodFilter}>
                                     <option value="all">All payment methods</option>
                                     <option value="wallet">Wallet</option>
                                     <option value="chapa">Chapa</option>
                                     <option value="admin">Admin</option>
-                                </select>
+                                </AdminSelect>
                                 <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-700">
                                     <input
                                         type="checkbox"
@@ -452,19 +443,10 @@ const BookingsPage = () => {
                                     Has issues
                                 </label>
                             </div>
-                        </div>
+                        </AdminFilterPanel>
 
-                        {loading && (
-                            <div className="mb-4 text-sm text-gray-600 flex items-center gap-2">
-                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
-                                Loading bookings...
-                            </div>
-                        )}
-                        {error && (
-                            <div className="mb-4 rounded-xl bg-red-50 border border-red-200 p-4 text-sm text-red-600">
-                                {error}
-                            </div>
-                        )}
+                        {loading ? <AdminLoadingRow label="Loading bookings..." /> : null}
+                        {error ? <AdminErrorAlert message={error} /> : null}
 
                         <BookingsTable
                             bookings={filtered}
@@ -477,8 +459,6 @@ const BookingsPage = () => {
                             onDelete={(id) => void handleDeleteBooking(id)}
                             onDebug={setDebugBookingId}
                         />
-                    </div>
-                </main>
 
                 <BookingDetailModal
                     open={open}
@@ -506,7 +486,7 @@ const BookingsPage = () => {
                     onCreated={() => dispatch(fetchAllBookings())}
                 />
                 )}
-            </div>
+            </AdminShell>
         </AuthGuard>
     );
 };

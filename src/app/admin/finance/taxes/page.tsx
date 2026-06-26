@@ -1,11 +1,16 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import Sidebar from '@/components/Sidebar';
 import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
-import { Receipt, ArrowLeft, RefreshCw, Plus, Edit, Trash2, X, CheckCircle2, XCircle } from 'lucide-react';
-import Link from 'next/link';
+import {
+    AdminErrorAlert,
+    AdminLoadingRow,
+    AdminShell,
+} from '@/components/admin/admin-layout';
+import { AdminDataTableEmpty, AdminTableShell } from '@/components/admin/data-table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { RefreshCw, Plus, Edit, Trash2, X, CheckCircle2, XCircle } from 'lucide-react';
 import { fetchTaxes, createTax, updateTax, deleteTax } from '@/features/tax/taxSlice';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 
@@ -121,10 +126,7 @@ const TaxesPage = () => {
 
     return (
         <AuthGuard>
-            <div className="flex min-h-screen">
-                <Sidebar />
-                <main className="ml-64 w-full min-h-screen">
-                    <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+            <AdminShell>
                         <AdminPageHeader
                             title="Tax Settings"
                             breadcrumbs={[
@@ -155,83 +157,75 @@ const TaxesPage = () => {
                                 </>
                             }
                         />
-                        {error && (
-                            <div className="mb-6 rounded-xl bg-red-50 border border-red-200 p-4 text-sm text-red-600">
-                                {error}
-                            </div>
-                        )}
-
                         {loading && taxes.length === 0 ? (
-                            <div className="text-center py-12">
-                                <RefreshCw className="h-8 w-8 animate-spin text-indigo-600 mx-auto mb-4" />
-                                <p className="text-gray-600">Loading taxes...</p>
-                            </div>
-                        ) : (
-                            <div className="rounded-xl bg-white/80 backdrop-blur-xl border border-white/20 shadow-lg overflow-hidden">
-                                {taxes.length === 0 ? (
-                                    <div className="p-12 text-center">
-                                        <Receipt className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                                        <p className="text-lg font-semibold text-gray-900 mb-2">No taxes found</p>
-                                        <p className="text-sm text-gray-600 mb-4">Get started by adding your first tax</p>
-                                        {canWriteFinance && (
-                                        <button
-                                            onClick={() => handleOpenModal()}
-                                            className="inline-flex items-center gap-2 rounded-lg inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-accent"
-                                        >
-                                            <Plus className="h-4 w-4" />
-                                            Add Tax
-                                        </button>
-                                        )}
-                                    </div>
-                                ) : (
-                                    <table className="w-full">
-                                        <thead className="bg-gray-50/50 border-b border-gray-200">
-                                            <tr>
-                                                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                            <AdminLoadingRow label="Loading taxes…" />
+                        ) : null}
+                        {error ? <AdminErrorAlert message={error} /> : null}
+
+                        <AdminTableShell>
+                            {taxes.length === 0 && !loading ? (
+                                <AdminDataTableEmpty
+                                    title="No taxes found"
+                                    description="Get started by adding your first tax"
+                                    action={
+                                        canWriteFinance ? (
+                                            <button
+                                                onClick={() => handleOpenModal()}
+                                                className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-accent"
+                                            >
+                                                <Plus className="h-4 w-4" />
+                                                Add Tax
+                                            </button>
+                                        ) : undefined
+                                    }
+                                />
+                            ) : !loading ? (
+                                <div className="overflow-x-auto">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead className="w-10">
                                                     <input type="checkbox" className="rounded border-gray-300" />
-                                                </th>
-                                                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Country</th>
-                                                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Name</th>
-                                                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Value</th>
-                                                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Type</th>
-                                                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
-                                                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-gray-200/50">
+                                                </TableHead>
+                                                <TableHead>Country</TableHead>
+                                                <TableHead>Name</TableHead>
+                                                <TableHead>Value</TableHead>
+                                                <TableHead>Type</TableHead>
+                                                <TableHead>Status</TableHead>
+                                                <TableHead className="text-right">Actions</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
                                             {taxes.map((tax) => (
-                                                <tr 
-                                                    key={tax.id}
-                                                    className="hover:bg-gray-50/50 transition-colors"
-                                                >
-                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                <TableRow key={tax.id}>
+                                                    <TableCell>
                                                         <input type="checkbox" className="rounded border-gray-300" />
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        <span className="text-sm font-medium text-gray-900">{tax.country || '—'}</span>
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        <span className="text-sm font-medium text-gray-900">{tax.name || '—'}</span>
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        <span className="text-sm text-gray-900">
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <span className="text-sm font-medium">{tax.country || '—'}</span>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <span className="text-sm font-medium">{tax.name || '—'}</span>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <span className="text-sm">
                                                             {tax.value !== undefined ? tax.value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}
                                                         </span>
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <span className={`rounded-full px-2 py-1 text-xs font-semibold ${
                                                             tax.type === 'fixed' || tax.isFix
                                                                 ? 'bg-blue-100 text-blue-700'
                                                                 : 'bg-purple-100 text-purple-700'
                                                         }`}>
                                                             {tax.type === 'fixed' || tax.isFix ? 'Fixed' : 'Percentage'}
                                                         </span>
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                    </TableCell>
+                                                    <TableCell>
                                                         {canWriteFinance ? (
                                                         <button
                                                             onClick={() => toggleActive(tax)}
-                                                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all ${
+                                                            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold transition-all ${
                                                                 tax.active
                                                                     ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
                                                                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -254,19 +248,19 @@ const TaxesPage = () => {
                                                             className={
                                                                 tax.active
                                                                     ? 'inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800'
-                                                                    : 'inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs font-semibold text-text-secondary'
+                                                                    : 'inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600'
                                                             }
                                                         >
                                                             {tax.active ? 'Active' : 'Inactive'}
                                                         </span>
                                                         )}
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                    </TableCell>
+                                                    <TableCell className="text-right">
                                                         {canWriteFinance ? (
                                                         <div className="flex items-center justify-end gap-2">
                                                             <button
                                                                 onClick={() => handleOpenModal(tax)}
-                                                                className="p-2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"
+                                                                className="rounded-lg p-2 text-indigo-600 transition-colors hover:bg-indigo-50 hover:text-indigo-700"
                                                                 title="Edit"
                                                             >
                                                                 <Edit className="h-4 w-4" />
@@ -274,7 +268,7 @@ const TaxesPage = () => {
                                                             <button
                                                                 onClick={() => handleDelete(tax.id)}
                                                                 disabled={deletingId === tax.id}
-                                                                className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                                                                className="rounded-lg p-2 text-red-600 transition-colors hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
                                                                 title="Delete"
                                                             >
                                                                 {deletingId === tax.id ? (
@@ -285,17 +279,14 @@ const TaxesPage = () => {
                                                             </button>
                                                         </div>
                                                         ) : null}
-                                                    </td>
-                                                </tr>
+                                                    </TableCell>
+                                                </TableRow>
                                             ))}
-                                        </tbody>
-                                    </table>
-                                )}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Add/Edit Modal */}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            ) : null}
+                        </AdminTableShell>
                     {isModalOpen && (
                         <div 
                             className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
@@ -426,8 +417,7 @@ const TaxesPage = () => {
                             </div>
                         </div>
                     )}
-                </main>
-            </div>
+            </AdminShell>
         </AuthGuard>
     );
 };

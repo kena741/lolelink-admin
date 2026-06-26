@@ -1,11 +1,17 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
-import { ArrowLeft, Mail, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import AuthGuard from '@/components/AuthGuard';
-import Sidebar from '@/components/Sidebar';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
+import {
+    AdminErrorAlert,
+    AdminFilterPanel,
+    AdminLoadingRow,
+    AdminSearchInput,
+    AdminShell,
+} from '@/components/admin/admin-layout';
+import { AdminDataTableEmpty, AdminTableShell } from '@/components/admin/data-table';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface ContactMessageRow {
@@ -68,10 +74,7 @@ const ContactMessagesPage = () => {
 
     return (
         <AuthGuard>
-            <div className="flex min-h-screen">
-                <Sidebar />
-                <main className="ml-64 w-full min-h-screen">
-                    <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+            <AdminShell>
                         <AdminPageHeader
                             title="Contact Messages"
                             breadcrumbs={[
@@ -89,53 +92,54 @@ const ContactMessagesPage = () => {
                                 </button>
                             }
                         />
-                        <div className="mb-4">
-                            <input
+
+                        <AdminFilterPanel>
+                            <AdminSearchInput
                                 value={query}
-                                onChange={(event) => setQuery(event.target.value)}
+                                onChange={setQuery}
                                 placeholder="Search by name, email, subject, message..."
-                                className="w-full rounded-md border border-subtle bg-base px-4 py-2 text-sm text-primary focus:outline-none focus:ring-2 focus:ring-accent-info"
                             />
-                        </div>
-                        <section className="rounded-2xl border border-subtle bg-surface p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-                            {error ? (
-                                <p className="text-sm font-medium text-accent-error">{error}</p>
-                            ) : loading ? (
-                                <p className="text-sm text-secondary">Loading messages...</p>
-                            ) : filteredMessages.length === 0 ? (
-                                <p className="text-sm text-secondary">No messages found.</p>
-                            ) : (
-                                <div className="overflow-hidden rounded-md border border-subtle bg-base">
+                        </AdminFilterPanel>
+
+                        {loading ? <AdminLoadingRow label="Loading messages…" /> : null}
+                        {error ? <AdminErrorAlert message={error} /> : null}
+
+                        <AdminTableShell>
+                            {!loading && filteredMessages.length === 0 ? (
+                                <AdminDataTableEmpty
+                                    title="No messages found"
+                                    description="Contact form submissions will appear here"
+                                />
+                            ) : !loading ? (
+                                <div className="overflow-x-auto">
                                     <Table>
                                         <TableHeader>
-                                            <TableRow className="bg-subtle/70">
-                                                <TableHead className="text-primary">Name</TableHead>
-                                                <TableHead className="text-primary">Email</TableHead>
-                                                <TableHead className="text-primary">Subject</TableHead>
-                                                <TableHead className="text-primary">Message</TableHead>
-                                                <TableHead className="text-primary">Date</TableHead>
+                                            <TableRow>
+                                                <TableHead>Name</TableHead>
+                                                <TableHead>Email</TableHead>
+                                                <TableHead>Subject</TableHead>
+                                                <TableHead>Message</TableHead>
+                                                <TableHead>Date</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
                                             {filteredMessages.map((item) => (
                                                 <TableRow key={item.id} className="align-top">
-                                                    <TableCell className="font-medium text-primary">{item.name || 'Unknown'}</TableCell>
-                                                    <TableCell className="text-primary">{item.email || 'No email'}</TableCell>
-                                                    <TableCell className="text-primary">{item.subject || 'No subject'}</TableCell>
-                                                    <TableCell className="max-w-[440px] whitespace-pre-wrap text-primary">
+                                                    <TableCell className="font-medium">{item.name || 'Unknown'}</TableCell>
+                                                    <TableCell>{item.email || 'No email'}</TableCell>
+                                                    <TableCell>{item.subject || 'No subject'}</TableCell>
+                                                    <TableCell className="max-w-[440px] whitespace-pre-wrap">
                                                         {item.message || 'No message'}
                                                     </TableCell>
-                                                    <TableCell className="whitespace-nowrap text-primary">{formatDate(item.created_at)}</TableCell>
+                                                    <TableCell className="whitespace-nowrap">{formatDate(item.created_at)}</TableCell>
                                                 </TableRow>
                                             ))}
                                         </TableBody>
                                     </Table>
                                 </div>
-                            )}
-                        </section>
-                    </div>
-                </main>
-            </div>
+                            ) : null}
+                        </AdminTableShell>
+            </AdminShell>
         </AuthGuard>
     );
 };

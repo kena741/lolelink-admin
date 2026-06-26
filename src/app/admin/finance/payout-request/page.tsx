@@ -1,16 +1,21 @@
 'use client';
 import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import Sidebar from '@/components/Sidebar';
 import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
+import {
+    AdminErrorAlert,
+    AdminLoadingRow,
+    AdminShell,
+    AdminStatCard,
+} from '@/components/admin/admin-layout';
+import { AdminTableShell } from '@/components/admin/data-table';
 import {
     DollarSign,
     CheckCircle2,
     XCircle,
     Clock,
     RefreshCw,
-    TrendingUp
 } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -27,40 +32,6 @@ const destructiveButtonClassName =
 
 const secondaryButtonClassName =
     'inline-flex h-9 items-center rounded-md border border-border bg-card px-4 text-sm font-semibold text-text-primary transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
-
-function PayoutStatCard({
-    title,
-    value,
-    loading,
-    icon: Icon,
-    iconBg,
-}: {
-    title: string;
-    value: React.ReactNode;
-    loading: boolean;
-    icon: React.ElementType;
-    iconBg: string;
-}) {
-    return (
-        <div className="flex h-full min-w-0 flex-col rounded-2xl border border-border bg-card p-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-all duration-150 hover:bg-muted/40 hover:shadow-[0_2px_8px_rgba(0,0,0,0.08)] sm:p-5">
-            <div className="flex items-center justify-between gap-2">
-                <p className="min-w-0 truncate text-sm font-medium text-text-secondary">{title}</p>
-                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${iconBg}`}>
-                    <Icon className="h-4 w-4 text-primary" />
-                </div>
-            </div>
-            <div className="mt-3 min-w-0">
-                {loading ? (
-                    <span className="inline-block h-8 w-24 animate-pulse rounded bg-muted" />
-                ) : (
-                    <p className="truncate font-heading text-xl font-bold tabular-nums tracking-normal text-text-primary sm:text-2xl">
-                        {value}
-                    </p>
-                )}
-            </div>
-        </div>
-    );
-}
 
 function PayoutRequestPageContent() {
     const dispatch = useAppDispatch();
@@ -334,10 +305,7 @@ function PayoutRequestPageContent() {
 
     return (
         <AuthGuard>
-            <div className="flex min-h-screen">
-                <Sidebar />
-                <main className="ml-64 w-full min-h-screen">
-                    <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+            <AdminShell>
                         <AdminPageHeader
                             title="Payout Request"
                             breadcrumbs={[
@@ -371,34 +339,22 @@ function PayoutRequestPageContent() {
                                 </Link>
                             </div>
                         )}
-                        <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">
-                            <PayoutStatCard
+                        <section className="mb-6 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:gap-4">
+                            <AdminStatCard
                                 title="Pending Requests"
-                                value={pendingRequests.length}
-                                loading={loading}
-                                icon={Clock}
-                                iconBg="bg-primary/10"
+                                value={loading ? '…' : String(pendingRequests.length)}
                             />
-                            <PayoutStatCard
+                            <AdminStatCard
                                 title="Pending Amount"
-                                value={formatCurrency(totalPendingAmount)}
-                                loading={loading}
-                                icon={DollarSign}
-                                iconBg="bg-primary/10"
+                                value={loading ? '…' : formatCurrency(totalPendingAmount)}
                             />
-                            <PayoutStatCard
+                            <AdminStatCard
                                 title="Approved"
-                                value={approvedRequests}
-                                loading={loading}
-                                icon={CheckCircle2}
-                                iconBg="bg-primary/10"
+                                value={loading ? '…' : String(approvedRequests)}
                             />
-                            <PayoutStatCard
+                            <AdminStatCard
                                 title="Total Requests"
-                                value={totalRequests}
-                                loading={loading}
-                                icon={TrendingUp}
-                                iconBg="bg-primary/10"
+                                value={loading ? '…' : String(totalRequests)}
                             />
                         </section>
 
@@ -453,47 +409,37 @@ function PayoutRequestPageContent() {
                             </div>
                         )}
 
-                        <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-                            {loading && (
-                                <div className="p-8 text-center">
-                                    <RefreshCw className="mx-auto mb-4 h-8 w-8 animate-spin text-primary" />
-                                    <p className="text-text-secondary">Loading payout requests...</p>
-                                </div>
-                            )}
+                        {loading ? <AdminLoadingRow label="Loading payout requests…" /> : null}
+                        {error ? <AdminErrorAlert message={typeof error === 'string' ? error : 'Something went wrong'} /> : null}
 
-                            {error && (
-                                <div className="m-6 rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-destructive">
-                                    {typeof error === 'string' ? error : 'Something went wrong'}
-                                </div>
-                            )}
-
-                            {!loading && !error && (
+                        <AdminTableShell>
+                            {!loading && !error ? (
                                 <div className="overflow-x-auto">
-                                    <p className="border-b border-border px-4 py-2 text-xs text-text-secondary">
+                                    <p className="border-b border-gray-200 px-4 py-2 text-xs text-gray-500">
                                         Click a row to run wallet analysis for that provider before approving payout.
                                     </p>
                                     <Table>
                                         <TableHeader>
-                                            <TableRow className="border-b border-border bg-muted/50 hover:bg-muted/50">
-                                                <TableHead className="font-semibold text-text-primary">Provider Name</TableHead>
-                                                <TableHead className="font-semibold text-text-primary">Note</TableHead>
-                                                <TableHead className="font-semibold text-text-primary">Payment Status</TableHead>
-                                                <TableHead className="font-semibold text-text-primary">Bank Details</TableHead>
-                                                <TableHead className="font-semibold text-text-primary">Amount</TableHead>
-                                                <TableHead className="font-semibold text-text-primary">Create Date</TableHead>
-                                                <TableHead className="text-right font-semibold text-text-primary">Action</TableHead>
+                                            <TableRow>
+                                                <TableHead>Provider Name</TableHead>
+                                                <TableHead>Note</TableHead>
+                                                <TableHead>Payment Status</TableHead>
+                                                <TableHead>Bank Details</TableHead>
+                                                <TableHead>Amount</TableHead>
+                                                <TableHead>Create Date</TableHead>
+                                                <TableHead className="text-right">Action</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
                                             {filteredRequests.length === 0 ? (
                                                 <TableRow>
-                                                    <TableCell colSpan={7} className="px-4 py-12 text-center text-text-secondary">
+                                                    <TableCell colSpan={7} className="px-4 py-12 text-center text-gray-500">
                                                         <div className="flex flex-col items-center gap-3">
-                                                            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
-                                                                <DollarSign className="h-8 w-8 text-muted-foreground" />
+                                                            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
+                                                                <DollarSign className="h-8 w-8 text-gray-400" />
                                                             </div>
-                                                            <p className="text-lg font-semibold text-text-primary">No payout requests found</p>
-                                                            <p className="text-sm text-text-secondary">All requests have been processed</p>
+                                                            <p className="text-lg font-semibold text-gray-900">No payout requests found</p>
+                                                            <p className="text-sm text-gray-600">All requests have been processed</p>
                                                         </div>
                                                     </TableCell>
                                                 </TableRow>
@@ -518,7 +464,7 @@ function PayoutRequestPageContent() {
                                                     return (
                                                         <TableRow
                                                             key={request.id}
-                                                            className="cursor-pointer border-b border-border transition-colors hover:bg-muted/40"
+                                                            className="cursor-pointer"
                                                             onClick={() => handleOpenWalletAnalysis(request)}
                                                         >
                                                             <TableCell className="font-medium text-text-primary">
@@ -619,8 +565,8 @@ function PayoutRequestPageContent() {
                                         </TableBody>
                                     </Table>
                                 </div>
-                            )}
-                        </div>
+                            ) : null}
+                        </AdminTableShell>
                         <PayoutWalletAnalysisSheet
                             open={walletAnalysisRequest !== null}
                             onClose={handleCloseWalletAnalysis}
@@ -776,9 +722,7 @@ function PayoutRequestPageContent() {
                                 </div>
                             </div>
                         )}
-                    </div>
-                </main>
-            </div>
+            </AdminShell>
         </AuthGuard>
     );
 }

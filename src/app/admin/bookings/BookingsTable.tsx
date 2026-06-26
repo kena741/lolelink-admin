@@ -24,6 +24,7 @@ import {
     resolveBookingPaymentStatus,
 } from '@/lib/booking-status';
 import { BookingFlagsCell } from './BookingFlagsCell';
+import { AdminDataTableEmpty, AdminIconActionButton, AdminTableShell } from '@/components/admin/data-table';
 
 function JobStatusBadge({ status }: { status?: string }) {
     const normalized = status ?? 'pending';
@@ -145,15 +146,17 @@ export function BookingsTable({
 }: BookingsTableProps) {
     if (!loading && bookings.length === 0) {
         return (
-            <div className="rounded-xl border border-gray-200 bg-white px-6 py-16 text-center">
-                <p className="text-base font-medium text-gray-900">No bookings found</p>
-                <p className="mt-1 text-sm text-gray-500">Try adjusting your search or filters.</p>
-            </div>
+            <AdminTableShell>
+                <AdminDataTableEmpty
+                    title="No bookings found"
+                    description="Try adjusting your search or filters."
+                />
+            </AdminTableShell>
         );
     }
 
     return (
-        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <AdminTableShell>
             <div className="overflow-x-auto">
                 <table className="w-full min-w-[1320px] table-fixed border-collapse text-left">
                     <colgroup>
@@ -270,38 +273,34 @@ export function BookingsTable({
                                     </td>
                                     <td className="px-4 py-3 align-top">
                                         <div className="flex items-center justify-end gap-1">
-                                            <button
-                                                type="button"
+                                            <AdminIconActionButton
                                                 onClick={() => onOpenDetail(booking.id)}
                                                 aria-label="View booking details"
-                                                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                                             >
                                                 <Eye className="h-4 w-4" />
-                                            </button>
+                                            </AdminIconActionButton>
                                             {canWriteBookings && (
-                                                <button
-                                                    type="button"
+                                                <AdminIconActionButton
+                                                    tone="danger"
                                                     onClick={() => onDelete(booking.id)}
                                                     disabled={deletingId === booking.id}
                                                     aria-label="Delete booking"
-                                                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-rose-200 text-rose-600 hover:bg-rose-50 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-rose-200"
                                                 >
                                                     {deletingId === booking.id ? (
                                                         <Loader2 className="h-4 w-4 animate-spin" />
                                                     ) : (
                                                         <Trash2 className="h-4 w-4" />
                                                     )}
-                                                </button>
+                                                </AdminIconActionButton>
                                             )}
                                             {isLocalhost && (
-                                                <button
-                                                    type="button"
+                                                <AdminIconActionButton
+                                                    tone="info"
                                                     onClick={() => onDebug(booking.id)}
                                                     aria-label="Debug booking"
-                                                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-indigo-200 text-indigo-600 hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                                                 >
                                                     <Bug className="h-4 w-4" />
-                                                </button>
+                                                </AdminIconActionButton>
                                             )}
                                         </div>
                                     </td>
@@ -311,6 +310,6 @@ export function BookingsTable({
                     </tbody>
                 </table>
             </div>
-        </div>
+        </AdminTableShell>
     );
 }
