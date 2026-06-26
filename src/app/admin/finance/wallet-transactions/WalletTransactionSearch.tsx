@@ -135,14 +135,15 @@ export function WalletTransactionSearch({
     const placeholder =
         activeColumnIds.length > 0
             ? `Search ${activeColumnIds.map((id) => walletSearchColumnById(id).label).join(', ')}…`
-            : 'Type a column name and press Tab to tag, then search…';
+            : 'Tag a column (Tab), then search…';
 
     const hasValue = activeColumnIds.length > 0 || inputValue.length > 0;
+    const showHint = isFocused || isSelectingTag || activeColumnIds.length > 0;
 
     return (
-        <div ref={containerRef} className="relative">
+        <div ref={containerRef} className="relative min-w-0">
             <div
-                className={`flex min-h-10 w-full flex-wrap items-center gap-1.5 rounded-md border bg-white py-1.5 pl-10 pr-10 text-sm transition-colors ${
+                className={`flex min-h-10 w-full flex-wrap items-center gap-1.5 rounded-md border bg-white py-1.5 pl-10 pr-3 text-sm transition-colors ${
                     isFocused
                         ? 'border-indigo-500 ring-2 ring-indigo-200'
                         : 'border-gray-200'
@@ -182,20 +183,23 @@ export function WalletTransactionSearch({
                     onKeyDown={handleKeyDown}
                     onFocus={() => setIsFocused(true)}
                     placeholder={activeColumnIds.length === 0 ? placeholder : 'Search…'}
-                    className="min-w-32 flex-1 border-0 bg-transparent py-1 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-0"
+                    className="min-w-0 flex-1 border-0 bg-transparent py-1 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-0"
                 />
-            </div>
 
-            {hasValue ? (
-                <button
-                    type="button"
-                    onClick={clearAll}
-                    className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-                    aria-label="Clear search"
-                >
-                    <X className="h-4 w-4" />
-                </button>
-            ) : null}
+                {hasValue ? (
+                    <button
+                        type="button"
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            clearAll();
+                        }}
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                        aria-label="Clear search"
+                    >
+                        <X className="h-4 w-4" />
+                    </button>
+                ) : null}
+            </div>
 
             {showSuggestions ? (
                 <ul
@@ -223,25 +227,24 @@ export function WalletTransactionSearch({
                 </ul>
             ) : null}
 
-            {isSelectingTag ? (
-                <p className="mt-1.5 text-xs text-gray-500">
-                    Tab or Enter to tag{' '}
-                    <span className="font-semibold text-gray-700">
-                        {suggestions[highlightedIndex]?.label ?? 'column'}
-                    </span>
-                    . Add multiple tags to search across several columns.
-                </p>
-            ) : activeColumnIds.length > 0 ? (
-                <p className="mt-1.5 text-xs text-gray-500">
-                    Searching{' '}
-                    {activeColumnIds.map((id) => walletSearchColumnById(id).label).join(', ')}.
-                    Type a column name and Tab to add another tag.
-                </p>
-            ) : (
-                <p className="mt-1.5 text-xs text-gray-500">
-                    Type a column name (e.g. customer, auth, note) and press Tab to tag it inline.
-                </p>
-            )}
+            {showHint ? (
+                isSelectingTag ? (
+                    <p className="mt-1.5 text-xs leading-relaxed text-gray-500">
+                        Press Tab to tag{' '}
+                        <span className="font-semibold text-gray-700">
+                            {suggestions[highlightedIndex]?.label ?? 'column'}
+                        </span>
+                    </p>
+                ) : activeColumnIds.length > 0 ? (
+                    <p className="mt-1.5 text-xs leading-relaxed text-gray-500">
+                        Scoped to {activeColumnIds.map((id) => walletSearchColumnById(id).label).join(', ')}.
+                    </p>
+                ) : (
+                    <p className="mt-1.5 text-xs leading-relaxed text-gray-500">
+                        Type a column name (customer, note, auth…) and press Tab.
+                    </p>
+                )
+            ) : null}
         </div>
     );
 }

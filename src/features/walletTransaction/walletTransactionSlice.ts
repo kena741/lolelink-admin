@@ -10,6 +10,8 @@ export interface WalletTransaction {
     transactionId: string;
     type: string;
     userId: string;
+    authUserId: string;
+    userIdStoredAsProfile: boolean;
     provider_id: string;
     customer_id: string;
     providerProfileId: string;
@@ -35,6 +37,8 @@ interface WalletTransactionRow {
     transactionId?: string | null;
     type?: string | null;
     userId?: string | null;
+    authUserId?: string | null;
+    userIdStoredAsProfile?: boolean | null;
     provider_id?: string | null;
     customer_id?: string | null;
     providerProfileId?: string | null;
@@ -73,6 +77,8 @@ function normalizeRows(rows: WalletTransactionRow[] | null | undefined): WalletT
         transactionId: row.transactionId ?? '',
         type: row.type ?? '',
         userId: row.userId ?? '',
+        authUserId: row.authUserId ?? row.userId ?? '',
+        userIdStoredAsProfile: row.userIdStoredAsProfile ?? false,
         provider_id: row.provider_id ?? '',
         customer_id: row.customer_id ?? '',
         providerProfileId: row.providerProfileId ?? '',

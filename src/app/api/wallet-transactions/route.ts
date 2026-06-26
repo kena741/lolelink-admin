@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
+import {
+    resolveWalletAuthUserId,
+} from '@/lib/wallet-transaction-auth-resolve';
 import { buildWalletProfileLookupsByProfileId } from '@/lib/wallet-transaction-profile';
 import {
     buildAuthUserLookup,
@@ -18,11 +21,36 @@ interface WalletTransactionRow {
 }
 
 function emptyProfile() {
-    return { name: '', email: '', phone: '', profileId: '' };
+    return { name: '', email: '', phone: '', profileId: '', authUserId: '' };
 }
 
 function emptyAuthUser() {
     return { name: '', email: '', phone: '' };
+}
+
+function collectAuthUserIdsForLookup(
+    rows: WalletTransactionRow[],
+    providerById: Record<string, { authUserId: string }>,
+    customerById: Record<string, { authUserId: string }>
+): string[] {
+    const ids = new Set<string>();
+
+    for (const row of rows) {
+        const raw = readAuthUserId(row.userId);
+        if (raw) ids.add(raw);
+    }
+
+    for (const profile of Object.values(providerById)) {
+        const authUserId = readAuthUserId(profile.authUserId);
+        if (authUserId) ids.add(authUserId);
+    }
+
+    for (const profile of Object.values(customerById)) {
+        const authUserId = readAuthUserId(profile.authUserId);
+        if (authUserId) ids.add(authUserId);
+    }
+
+    return [...ids];
 }
 
 export async function GET(request: Request) {
@@ -38,15 +66,14 @@ export async function GET(request: Request) {
         }
 
         const rows = (data ?? []) as WalletTransactionRow[];
-        const authUserIds = rows
-            .map((row) => readAuthUserId(row.userId))
-            .filter((id): id is string => Boolean(id));
 
-        const [{ providerById, customerById }, profileByAuthUserId, authUserById] = await Promise.all([
-            buildWalletProfileLookupsByProfileId(supabaseAdmin, rows),
-            buildWalletProfileLookupByAuthUserId(supabaseAdmin, rows),
-            buildAuthUserLookup(supabaseAdmin, authUserIds),
-        ]);
+        const { providerById, customerById } = await buildWalletProfileLookupsByProfileId(supabaseAdmin, rows);
+
+        const preliminaryAuthIds = collectAuthUserIdsForLookup(rows, providerById, customerById);
+        const authUserById = await buildAuthUserLookup(supabaseAdmin, preliminaryAuthIds);
+        const knownAuthUserIds = new Set(Object.keys(authUserById));
+
+        const profileByAuthUserId = await buildWalletProfileLookupByAuthUserId(supabaseAdmin, rows);
 
         const enriched = rows.map((row) => {
             const providerProfileId =
@@ -57,8 +84,8 @@ export async function GET(request: Request) {
             const providerFromProfile = providerProfileId ? providerById[providerProfileId] : undefined;
             const customerFromProfile = customerProfileId ? customerById[customerProfileId] : undefined;
 
-            const authUserId = readAuthUserId(row.userId);
-            const authLookup = authUserId ? profileByAuthUserId[authUserId] : undefined;
+            const rawUserId = readAuthUserId(row.userId);
+            const authLookup = rawUserId ? profileByAuthUserId[rawUserId] : undefined;
 
             const provider =
                 providerFromProfile ??
@@ -70,6 +97,7 @@ export async function GET(request: Request) {
             const providerInfo = provider
                 ? {
                       profileId: provider.profileId,
+                      authUserId: provider.authUserId,
                       name: provider.name,
                       email: provider.email,
                       phone: provider.phone,
@@ -79,13 +107,25 @@ export async function GET(request: Request) {
             const customerInfo = customer
                 ? {
                       profileId: customer.profileId,
+                      authUserId: customer.authUserId,
                       name: customer.name,
                       email: customer.email,
                       phone: customer.phone,
                   }
                 : emptyProfile();
 
-            const authUser = authUserId ? authUserById[authUserId] : undefined;
+            const { authUserId: resolvedAuthUserId, userIdStoredAsProfile } = resolveWalletAuthUserId({
+                rawUserId: row.userId,
+                customerProfile: customerInfo.profileId
+                    ? { profileId: customerInfo.profileId, authUserId: customerInfo.authUserId }
+                    : null,
+                providerProfile: providerInfo.profileId
+                    ? { profileId: providerInfo.profileId, authUserId: providerInfo.authUserId }
+                    : null,
+                knownAuthUserIds,
+            });
+
+            const authUser = resolvedAuthUserId ? authUserById[resolvedAuthUserId] : undefined;
             const authUserInfo = authUser
                 ? {
                       name: authUser.name,
@@ -104,9 +144,11 @@ export async function GET(request: Request) {
                 customerEmail: customerInfo.email,
                 customerPhone: customerInfo.phone,
                 customerProfileId: customerInfo.profileId,
+                authUserId: resolvedAuthUserId,
                 authUserName: authUserInfo.name,
                 authUserEmail: authUserInfo.email,
                 authUserPhone: authUserInfo.phone,
+                userIdStoredAsProfile,
             };
         });
 

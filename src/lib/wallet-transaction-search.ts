@@ -88,6 +88,7 @@ export function walletSearchColumnValues(
                 item.authUserName,
                 item.authUserEmail,
                 item.authUserPhone,
+                item.authUserId,
                 item.userId
             );
         case 'transaction':
