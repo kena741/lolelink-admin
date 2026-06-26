@@ -311,6 +311,8 @@ CREATE TABLE public.booked_service (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   provider_id uuid NOT NULL,
   customer_id uuid,
+  provider_user_id uuid,
+  customer_user_id uuid,
   service_id uuid,
   serviceName text,
   firstName text NOT NULL,
@@ -354,6 +356,8 @@ CREATE TABLE public.booked_service (
   status USER-DEFINED,
   CONSTRAINT booked_service_pkey PRIMARY KEY (id),
   CONSTRAINT booked_service_provider_id_fkey1 FOREIGN KEY (provider_id) REFERENCES public.provider(id),
+  CONSTRAINT booked_service_provider_user_id_fkey FOREIGN KEY (provider_user_id) REFERENCES auth.users(id),
+  CONSTRAINT booked_service_customer_user_id_fkey FOREIGN KEY (customer_user_id) REFERENCES auth.users(id),
   CONSTRAINT booked_service_handyman_id_fkey FOREIGN KEY (handyman_id) REFERENCES public.handyman(id),
   CONSTRAINT booked_service_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customer(id),
   CONSTRAINT booked_service_service_id_fkey FOREIGN KEY (service_id) REFERENCES public.service(id)
@@ -395,9 +399,13 @@ CREATE TABLE public.wallet_transaction (
   transactionId text,
   type text,
   userId uuid,
+  provider_id uuid,
+  customer_id uuid,
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   CONSTRAINT wallet_transaction_pkey PRIMARY KEY (id),
-  CONSTRAINT wallet_transaction_userId_fkey FOREIGN KEY (userId) REFERENCES auth.users(id)
+  CONSTRAINT wallet_transaction_userId_fkey FOREIGN KEY (userId) REFERENCES auth.users(id),
+  CONSTRAINT wallet_transaction_provider_id_fkey FOREIGN KEY (provider_id) REFERENCES public.provider(id),
+  CONSTRAINT wallet_transaction_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customer(id)
 );
 CREATE TABLE public.withdrawal_history (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

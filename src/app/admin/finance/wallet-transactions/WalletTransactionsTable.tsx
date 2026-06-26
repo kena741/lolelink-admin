@@ -6,7 +6,8 @@ import { formatAdminDateTimeUtc } from '@/lib/admin-datetime';
 
 function formatShortId(value: string): string {
     if (!value) return '—';
-    return value.length > 10 ? `${value.slice(0, 8)}…` : value;
+    if (value.length <= 13) return value;
+    return `${value.slice(0, 8)}…${value.slice(-4)}`;
 }
 
 function toAmount(value: string): number {
@@ -47,7 +48,7 @@ function TypeBadge({ type }: { type: string }) {
     const style =
         normalized === 'customer'
             ? 'bg-sky-50 text-sky-700 ring-sky-600/20'
-            : normalized === 'provider'
+            : normalized === 'provider' || normalized === 'provider_payout'
               ? 'bg-violet-50 text-violet-700 ring-violet-600/20'
               : 'bg-gray-50 text-gray-700 ring-gray-500/20';
 
@@ -76,15 +77,62 @@ function PaymentTypeBadge({ paymentType }: { paymentType: string }) {
     );
 }
 
-function PersonCell({ name, meta }: { name: string; meta?: string }) {
+function ProfileCell({
+    name,
+    email,
+    phone,
+    profileId,
+}: {
+    name: string;
+    email?: string;
+    phone?: string;
+    profileId?: string;
+}) {
+    if (!name && !email && !phone && !profileId) {
+        return <span className="text-sm text-gray-400">—</span>;
+    }
+
+    const title = [name, email, phone, profileId].filter(Boolean).join(' · ');
+
     return (
-        <div className="min-w-0 max-w-[168px]">
-            <div className="truncate text-sm font-medium text-gray-900" title={name}>
-                {name}
-            </div>
-            {meta ? (
-                <div className="mt-0.5 truncate text-xs text-gray-500" title={meta}>
-                    {meta}
+        <div className="min-w-0 max-w-[188px]" title={title}>
+            <div className="truncate text-sm font-medium text-gray-900">{name || 'Unknown'}</div>
+            {email ? <div className="mt-0.5 truncate text-xs text-gray-600">{email}</div> : null}
+            {phone ? <div className="mt-0.5 truncate text-xs text-gray-500">{phone}</div> : null}
+            {profileId ? (
+                <div className="mt-0.5 truncate font-mono text-[11px] text-gray-400" title={profileId}>
+                    profile {formatShortId(profileId)}
+                </div>
+            ) : null}
+        </div>
+    );
+}
+
+function AuthUserCell({
+    name,
+    email,
+    phone,
+    userId,
+}: {
+    name: string;
+    email?: string;
+    phone?: string;
+    userId: string;
+}) {
+    if (!userId.trim() && !name && !email && !phone) {
+        return <span className="text-sm text-gray-400">—</span>;
+    }
+
+    const title = [name, email, phone, userId].filter(Boolean).join(' · ');
+
+    return (
+        <div className="min-w-0 max-w-[188px]" title={title}>
+            <div className="truncate text-sm font-medium text-gray-900">{name || 'Unknown auth user'}</div>
+            {email ? <div className="mt-0.5 truncate text-xs text-gray-600">{email}</div> : null}
+            {phone ? <div className="mt-0.5 truncate text-xs text-gray-500">{phone}</div> : null}
+            {userId ? (
+                <div className="mt-0.5 truncate font-mono text-[11px] text-gray-400" title={userId}>
+                    auth {formatShortId(userId)}
                 </div>
             ) : null}
         </div>
@@ -109,20 +157,33 @@ export function WalletTransactionsTable({ items, loading }: WalletTransactionsTa
     return (
         <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
             <div className="overflow-x-auto">
-                <table className="w-full min-w-[1180px] table-fixed border-collapse text-left">
+                <table className="w-full min-w-[1440px] table-fixed border-collapse text-left">
                     <colgroup>
                         <col className="w-[168px]" />
                         <col className="w-[96px]" />
                         <col className="w-[120px]" />
+                        <col className="w-[108px]" />
                         <col className="w-[96px]" />
-                        <col className="w-[96px]" />
-                        <col className="w-[168px]" />
-                        <col className="w-[148px]" />
+                        <col className="w-[188px]" />
+                        <col className="w-[188px]" />
+                        <col className="w-[120px]" />
+                        <col className="w-[120px]" />
                         <col />
                     </colgroup>
                     <thead>
                         <tr className="border-b border-gray-200 bg-gray-50">
-                            {['Date', 'Direction', 'Amount', 'Type', 'Payment', 'User', 'Transaction', 'Note'].map((heading) => (
+                            {[
+                                'Date',
+                                'Direction',
+                                'Amount',
+                                'Type',
+                                'Payment',
+                                'Customer',
+                                'Provider',
+                                'Auth user',
+                                'Transaction',
+                                'Note',
+                            ].map((heading) => (
                                 <th
                                     key={heading}
                                     className="sticky top-0 z-10 bg-gray-50 px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-gray-500"
@@ -157,9 +218,27 @@ export function WalletTransactionsTable({ items, loading }: WalletTransactionsTa
                                         <PaymentTypeBadge paymentType={item.paymentType} />
                                     </td>
                                     <td className="px-4 py-3 align-top">
-                                        <PersonCell
-                                            name={item.providerName || 'Unknown user'}
-                                            meta={item.providerPhone || item.userId || undefined}
+                                        <ProfileCell
+                                            name={item.customerName}
+                                            email={item.customerEmail || undefined}
+                                            phone={item.customerPhone || undefined}
+                                            profileId={item.customerProfileId || item.customer_id || undefined}
+                                        />
+                                    </td>
+                                    <td className="px-4 py-3 align-top">
+                                        <ProfileCell
+                                            name={item.providerName}
+                                            email={item.providerEmail || undefined}
+                                            phone={item.providerPhone || undefined}
+                                            profileId={item.providerProfileId || item.provider_id || undefined}
+                                        />
+                                    </td>
+                                    <td className="px-4 py-3 align-top">
+                                        <AuthUserCell
+                                            name={item.authUserName}
+                                            email={item.authUserEmail || undefined}
+                                            phone={item.authUserPhone || undefined}
+                                            userId={item.userId}
                                         />
                                     </td>
                                     <td className="px-4 py-3 align-top">

@@ -1,6 +1,6 @@
 'use client';
 import React, { useEffect, useMemo, useState } from 'react';
-import { RefreshCw, Search } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import AuthGuard from '@/components/AuthGuard';
 import Sidebar from '@/components/Sidebar';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
@@ -14,6 +14,11 @@ import {
     type WalletTransactionMetricRow,
 } from '@/lib/wallet-transaction-metrics';
 import { WalletTransactionsTable } from '@/app/admin/finance/wallet-transactions/WalletTransactionsTable';
+import { WalletTransactionSearch } from '@/app/admin/finance/wallet-transactions/WalletTransactionSearch';
+import {
+    matchesWalletSearch,
+    type WalletSearchColumnId,
+} from '@/lib/wallet-transaction-search';
 
 function formatAmount(value: number) {
     return `ETB ${value.toLocaleString('en-US', {
@@ -45,6 +50,7 @@ const WalletTransactionsPage = () => {
     const dispatch = useAppDispatch();
     const { items, loading, error } = useAppSelector((state) => state.walletTransaction);
     const [query, setQuery] = useState('');
+    const [searchColumnIds, setSearchColumnIds] = useState<WalletSearchColumnId[]>([]);
     const [directionFilter, setDirectionFilter] = useState<'all' | 'credit' | 'debit'>('all');
     const [typeFilter, setTypeFilter] = useState<'all' | 'customer' | 'provider'>('all');
 
@@ -53,7 +59,7 @@ const WalletTransactionsPage = () => {
     }, [dispatch]);
 
     const filteredItems = useMemo(() => {
-        const lowerQuery = query.trim().toLowerCase();
+        const searchTerm = query.trim().toLowerCase();
         return items.filter((item) => {
             const matchesDirection =
                 directionFilter === 'all' ||
@@ -64,19 +70,10 @@ const WalletTransactionsPage = () => {
                 typeFilter === 'all' || item.type.toLowerCase() === typeFilter;
 
             if (!matchesDirection || !matchesType) return false;
-            if (!lowerQuery) return true;
 
-            return (
-                item.transactionId.toLowerCase().includes(lowerQuery) ||
-                item.userId.toLowerCase().includes(lowerQuery) ||
-                item.providerName.toLowerCase().includes(lowerQuery) ||
-                item.providerPhone.toLowerCase().includes(lowerQuery) ||
-                item.type.toLowerCase().includes(lowerQuery) ||
-                item.paymentType.toLowerCase().includes(lowerQuery) ||
-                item.note.toLowerCase().includes(lowerQuery)
-            );
+            return matchesWalletSearch(item, searchTerm, searchColumnIds);
         });
-    }, [items, query, directionFilter, typeFilter]);
+    }, [items, query, searchColumnIds, directionFilter, typeFilter]);
 
     const stats = useMemo(() => {
         const toMetricRow = (item: (typeof items)[number]): WalletTransactionMetricRow => ({
@@ -165,17 +162,14 @@ const WalletTransactionsPage = () => {
                         </section>
 
                         <div className="mb-6 space-y-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-                            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                                <div className="w-full lg:max-w-md">
-                                    <div className="relative">
-                                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                                        <input
-                                            value={query}
-                                            onChange={(event) => setQuery(event.target.value)}
-                                            placeholder="Search user ID, name, phone, transaction ID, note…"
-                                            className="h-10 w-full rounded-md border border-gray-200 bg-white py-2 pl-10 pr-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                                        />
-                                    </div>
+                            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                                <div className="w-full lg:max-w-2xl">
+                                    <WalletTransactionSearch
+                                        query={query}
+                                        activeColumnIds={searchColumnIds}
+                                        onQueryChange={setQuery}
+                                        onActiveColumnIdsChange={setSearchColumnIds}
+                                    />
                                 </div>
                                 <div className="text-sm text-gray-500">
                                     Showing <span className="font-semibold text-gray-900">{filteredItems.length}</span> of{' '}

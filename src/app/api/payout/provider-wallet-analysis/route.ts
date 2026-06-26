@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAdminPermission } from '@/lib/admin-auth';
 import { analyzeProviderPayoutWallet } from '@/lib/provider-payout-analysis';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
+import { readAuthUserId } from '@/lib/wallet-transaction-user';
 
 export const runtime = 'nodejs';
 
@@ -36,26 +37,11 @@ export async function GET(request: Request) {
     try {
         const supabaseAdmin = getSupabaseAdminFromRequest(request);
 
-        const [
-            providerResult,
-            walletResult,
-            bookingsResult,
-        ] = await Promise.all([
-            supabaseAdmin
-                .from('provider')
-                .select('id, email, firstName, lastName, userName, walletAmount, user_id')
-                .eq('id', providerId)
-                .maybeSingle(),
-            supabaseAdmin
-                .from('wallet_transaction')
-                .select('id, amount, isCredit, note, paymentType, transactionId, createdDate')
-                .eq('userId', providerId)
-                .order('createdDate', { ascending: false }),
-            supabaseAdmin
-                .from('booked_service')
-                .select('id, customer_id, status, totalAmount, payment_status, paymentCompleted')
-                .eq('provider_id', providerId),
-        ]);
+        const providerResult = await supabaseAdmin
+            .from('provider')
+            .select('id, email, firstName, lastName, userName, walletAmount, user_id')
+            .eq('id', providerId)
+            .maybeSingle();
 
         if (providerResult.error) {
             return NextResponse.json({ error: providerResult.error.message }, { status: 500 });
@@ -63,6 +49,25 @@ export async function GET(request: Request) {
         if (!providerResult.data) {
             return NextResponse.json({ error: 'Provider not found' }, { status: 404 });
         }
+
+        const provider = providerResult.data as Record<string, unknown>;
+        const providerAuthUserId = readAuthUserId(provider.user_id);
+        if (!providerAuthUserId) {
+            return NextResponse.json({ error: 'Provider is not linked to an auth account' }, { status: 400 });
+        }
+
+        const [walletResult, bookingsResult] = await Promise.all([
+            supabaseAdmin
+                .from('wallet_transaction')
+                .select('id, amount, isCredit, note, paymentType, transactionId, createdDate')
+                .eq('userId', providerAuthUserId)
+                .order('createdDate', { ascending: false }),
+            supabaseAdmin
+                .from('booked_service')
+                .select('id, customer_id, customer_user_id, status, totalAmount, payment_status, paymentCompleted')
+                .eq('provider_id', providerId),
+        ]);
+
         if (walletResult.error) {
             return NextResponse.json({ error: walletResult.error.message }, { status: 500 });
         }
@@ -70,7 +75,6 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: bookingsResult.error.message }, { status: 500 });
         }
 
-        const provider = providerResult.data as Record<string, unknown>;
         const bookings = bookingsResult.data ?? [];
         const customerIds = Array.from(
             new Set(
@@ -101,14 +105,35 @@ export async function GET(request: Request) {
         }
 
         const [customersResult, customerWalletResult] = customerIds.length
-            ? await Promise.all([
-                supabaseAdmin.from('customer').select('id, user_id').in('id', customerIds),
-                supabaseAdmin
-                    .from('wallet_transaction')
-                    .select('userId, isCredit, note, transactionId')
-                    .in('userId', customerIds)
-                    .eq('isCredit', true),
-            ])
+            ? await (async () => {
+                const customersResultInner = await supabaseAdmin
+                    .from('customer')
+                    .select('id, user_id')
+                    .in('id', customerIds);
+
+                if (customersResultInner.error) {
+                    return [customersResultInner, { data: [], error: null }] as const;
+                }
+
+                const customerAuthUserIds = Array.from(
+                    new Set(
+                        (customersResultInner.data ?? [])
+                            .map((customer) => readAuthUserId((customer as { user_id?: string | null }).user_id))
+                            .filter((id): id is string => Boolean(id))
+                    )
+                );
+
+                const customerWalletResultInner =
+                    customerAuthUserIds.length > 0
+                        ? await supabaseAdmin
+                              .from('wallet_transaction')
+                              .select('userId, isCredit, note, transactionId')
+                              .in('userId', customerAuthUserIds)
+                              .eq('isCredit', true)
+                        : { data: [], error: null };
+
+                return [customersResultInner, customerWalletResultInner] as const;
+            })()
             : [{ data: [], error: null }, { data: [], error: null }];
 
         if (customersResult.error) {
@@ -127,7 +152,7 @@ export async function GET(request: Request) {
             walletTransactions: walletResult.data ?? [],
             bookings,
             customers: customersResult.data ?? [],
-            customerWalletCredits: customerWalletResult.data ?? [],
+            customerWalletCredits: [...(customerWalletResult.data ?? [])],
             requestedWithdrawalAmount,
         });
 

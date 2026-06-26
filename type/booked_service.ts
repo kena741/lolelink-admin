@@ -2,6 +2,8 @@ export interface BookedServiceSchema {
   id: string;
   provider_id: string;
   customer_id?: string | null;
+  provider_user_id?: string | null;
+  customer_user_id?: string | null;
   firstName?: string;
   lastName?: string;
   email?: string;

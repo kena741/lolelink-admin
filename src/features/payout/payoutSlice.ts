@@ -2,6 +2,8 @@ import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { getSupabase } from '@/lib/supabaseClient';
 import { logClientAdminActivity } from '@/lib/record-admin-activity';
 import { formatWithdrawalAmountEtb } from '@/lib/payout-activity-log';
+import { resolveProviderAuthUserId } from '@/lib/wallet-transaction-user';
+import { walletTransactionProfileColumns } from '@/lib/wallet-transaction-profile';
 
 export interface PayoutRequest {
     id: string;
@@ -658,6 +660,9 @@ export const processBookingPayout = createAsyncThunk<
 
             if (!booking.provider_id) return rejectWithValue('Provider is missing for this booking');
 
+            const authUser = await resolveProviderAuthUserId(getSupabase(), booking.provider_id);
+            if (!authUser.ok) return rejectWithValue(authUser.error);
+
             const transactionId = `provider-payout:${bookingId}`;
             const { data: existing, error: existingError } = await getSupabase()
                 .from('wallet_transaction')
@@ -688,7 +693,11 @@ export const processBookingPayout = createAsyncThunk<
                 paymentType: 'wallet_topup',
                 transactionId,
                 type: 'provider_payout',
-                userId: booking.provider_id,
+                ...walletTransactionProfileColumns({
+                    type: 'provider_payout',
+                    authUserId: authUser.authUserId,
+                    providerId: booking.provider_id,
+                }),
             });
 
             if (insertError) throw insertError;

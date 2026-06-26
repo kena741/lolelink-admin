@@ -12,12 +12,15 @@ export interface PriorCustomerWalletTopUp {
 
 export async function findPriorCustomerWalletTopUp(
     admin: SupabaseClient,
-    userId: string
+    authUserId: string
 ): Promise<PriorCustomerWalletTopUp | null> {
+    const normalizedAuthUserId = authUserId.trim();
+    if (!normalizedAuthUserId) return null;
+
     const { data, error } = await admin
         .from('wallet_transaction')
         .select('transactionId, isCredit')
-        .eq('userId', userId)
+        .eq('userId', normalizedAuthUserId)
         .eq('isCredit', true);
 
     if (error || !data) return null;

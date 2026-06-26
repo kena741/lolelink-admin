@@ -2,11 +2,13 @@ import { NextResponse } from 'next/server';
 import { logAdminActivity } from '@/lib/admin-activity-log';
 import { getDisplayImageUrl } from '@/lib/media-url';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
+import { readAuthUserId } from '@/lib/wallet-transaction-user';
 
 export const runtime = 'nodejs';
 
 interface CustomerRow {
     id: string;
+    user_id?: string | null;
     first_name?: string;
     last_name?: string;
     email?: string;
@@ -65,6 +67,14 @@ export async function POST(request: Request) {
             );
         }
 
+        const customerAuthUserId = readAuthUserId(c.user_id);
+        if (!customerAuthUserId) {
+            return NextResponse.json(
+                { error: 'Customer is not linked to an auth account and cannot be converted' },
+                { status: 400 }
+            );
+        }
+
         const phoneNumber = c.phoneNumber || c.mobile_number || c.phone || '';
         const slug = [c.first_name, c.last_name]
             .filter(Boolean)
@@ -79,7 +89,7 @@ export async function POST(request: Request) {
 
         const providerRow = {
             id: c.id,
-            user_id: c.id,
+            user_id: customerAuthUserId,
             firstName: c.first_name || '',
             lastName: c.last_name || '',
             email: c.email || '',
@@ -109,10 +119,11 @@ export async function POST(request: Request) {
             );
         }
 
+        const walletUserIds = Array.from(new Set([customerAuthUserId, customerId]));
         const { error: walletRetagError } = await supabaseAdmin
             .from('wallet_transaction')
-            .update({ type: 'provider' })
-            .eq('userId', customerId)
+            .update({ type: 'provider', userId: customerAuthUserId })
+            .in('userId', walletUserIds)
             .eq('type', 'customer');
 
         if (walletRetagError) {

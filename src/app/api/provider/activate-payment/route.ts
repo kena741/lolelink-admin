@@ -10,6 +10,8 @@ import {
 } from '@/lib/chapa-config';
 import { findPriorCustomerWalletTopUp } from '@/lib/wallet-transaction-activation';
 import { hasCustomerWalletTopUpTransactionId } from '@/lib/wallet-transaction-metrics';
+import { readAuthUserId } from '@/lib/wallet-transaction-user';
+import { walletTransactionProfileColumns } from '@/lib/wallet-transaction-profile';
 
 export const runtime = 'nodejs';
 
@@ -22,6 +24,7 @@ interface ActivatePaymentBody {
 
 interface ProviderRow {
     id: string;
+    user_id?: string;
     email?: string;
     firstName?: string;
     lastName?: string;
@@ -115,6 +118,7 @@ async function loadProviderAndFee(admin: SupabaseClient, providerId: string) {
     const raw = providerData as Record<string, unknown>;
     const provider: ProviderRow = {
         id: raw.id as string,
+        user_id: readAuthUserId(raw.user_id) ?? undefined,
         email: (raw.email as string) || undefined,
         firstName: (raw.firstName as string) || (raw.first_name as string) || undefined,
         lastName: (raw.lastName as string) || (raw.last_name as string) || undefined,
@@ -123,6 +127,10 @@ async function loadProviderAndFee(admin: SupabaseClient, providerId: string) {
         activation_paid_at: (raw.activation_paid_at as string) || undefined,
         activation_tx_ref: (raw.activation_tx_ref as string) || undefined,
     };
+
+    if (!provider.user_id) {
+        return { error: 'Provider is not linked to an auth account', status: 400 } as const;
+    }
 
     if (provider.activation_paid) {
         return { error: 'Activation fee already paid', status: 409, activation_paid_at: provider.activation_paid_at } as const;
@@ -252,8 +260,12 @@ async function handleManualMark(
     note: string | undefined,
     request: Request
 ) {
-    const now = new Date().toISOString();
-    const priorTopUp = await findPriorCustomerWalletTopUp(admin, provider.id);
+        if (!provider.user_id) {
+            return NextResponse.json({ error: 'Provider is not linked to an auth account' }, { status: 400 });
+        }
+
+        const now = new Date().toISOString();
+        const priorTopUp = await findPriorCustomerWalletTopUp(admin, provider.user_id);
     const ref = priorTopUp?.transactionId
         ?? ((txRef || '').trim() || `manual-${provider.id.slice(0, 8)}-${Date.now()}`);
 
@@ -300,7 +312,11 @@ async function handleManualMark(
             paymentType,
             transactionId: ref,
             type: 'provider',
-            userId: provider.id,
+            ...walletTransactionProfileColumns({
+                type: 'provider',
+                authUserId: provider.user_id,
+                providerId: provider.id,
+            }),
         });
 
         if (walletError) {

@@ -6,6 +6,7 @@ import {
     resolveServiceUnitPrice,
 } from '@/lib/booking-pricing';
 import { resolveInitialBookingStatus, BOOKING_PAYMENT_STATUS, type BookingPaymentMode } from '@/lib/booking-status';
+import { readAuthUserId } from '@/lib/wallet-transaction-user';
 
 export type { BookingPaymentMode };
 
@@ -24,6 +25,7 @@ export interface CouponInput {
 
 interface CustomerRow {
     id: string;
+    user_id?: string | null;
     first_name?: string | null;
     last_name?: string | null;
     firstName?: string | null;
@@ -171,6 +173,22 @@ export async function buildBookingPayload(
 
     const customer = customerRaw as CustomerRow;
 
+    const { data: providerRaw, error: providerError } = await admin
+        .from('provider')
+        .select('user_id')
+        .eq('id', input.providerId)
+        .maybeSingle();
+
+    if (providerError) throw new Error(providerError.message);
+    if (!providerRaw) throw new Error('Provider not found');
+
+    const providerAuthUserId = readAuthUserId((providerRaw as { user_id?: string | null }).user_id);
+    if (!providerAuthUserId) {
+        throw new Error('Provider is not linked to an auth account');
+    }
+
+    const customerAuthUserId = readAuthUserId(customer.user_id);
+
     const { data: serviceRaw, error: serviceError } = await admin
         .from('service')
         .select('*')
@@ -212,6 +230,8 @@ export async function buildBookingPayload(
         id: bookingId,
         customer_id: input.customerId,
         provider_id: input.providerId,
+        customer_user_id: customerAuthUserId,
+        provider_user_id: providerAuthUserId,
         service_id: input.serviceId,
         firstName: readField(customer as unknown as Record<string, unknown>, ['firstName', 'first_name']),
         lastName: readField(customer as unknown as Record<string, unknown>, ['lastName', 'last_name']),

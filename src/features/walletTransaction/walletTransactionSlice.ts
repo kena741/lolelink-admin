@@ -10,8 +10,19 @@ export interface WalletTransaction {
     transactionId: string;
     type: string;
     userId: string;
+    provider_id: string;
+    customer_id: string;
+    providerProfileId: string;
     providerName: string;
+    providerEmail: string;
     providerPhone: string;
+    customerProfileId: string;
+    customerName: string;
+    customerEmail: string;
+    customerPhone: string;
+    authUserName: string;
+    authUserEmail: string;
+    authUserPhone: string;
 }
 
 interface WalletTransactionRow {
@@ -24,8 +35,19 @@ interface WalletTransactionRow {
     transactionId?: string | null;
     type?: string | null;
     userId?: string | null;
+    provider_id?: string | null;
+    customer_id?: string | null;
+    providerProfileId?: string | null;
     providerName?: string | null;
+    providerEmail?: string | null;
     providerPhone?: string | null;
+    customerProfileId?: string | null;
+    customerName?: string | null;
+    customerEmail?: string | null;
+    customerPhone?: string | null;
+    authUserName?: string | null;
+    authUserEmail?: string | null;
+    authUserPhone?: string | null;
 }
 
 interface WalletTransactionState {
@@ -51,8 +73,19 @@ function normalizeRows(rows: WalletTransactionRow[] | null | undefined): WalletT
         transactionId: row.transactionId ?? '',
         type: row.type ?? '',
         userId: row.userId ?? '',
+        provider_id: row.provider_id ?? '',
+        customer_id: row.customer_id ?? '',
+        providerProfileId: row.providerProfileId ?? '',
         providerName: row.providerName ?? '',
+        providerEmail: row.providerEmail ?? '',
         providerPhone: row.providerPhone ?? '',
+        customerProfileId: row.customerProfileId ?? '',
+        customerName: row.customerName ?? '',
+        customerEmail: row.customerEmail ?? '',
+        customerPhone: row.customerPhone ?? '',
+        authUserName: row.authUserName ?? '',
+        authUserEmail: row.authUserEmail ?? '',
+        authUserPhone: row.authUserPhone ?? '',
     }));
 }
 

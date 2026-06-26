@@ -3,6 +3,8 @@ import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 import { logAdminActivity } from '@/lib/admin-activity-log';
 import { findPriorCustomerWalletTopUp } from '@/lib/wallet-transaction-activation';
 import { resolveChapaSettlementAmount } from '@/lib/chapa-config';
+import { readAuthUserId } from '@/lib/wallet-transaction-user';
+import { walletTransactionProfileColumns } from '@/lib/wallet-transaction-profile';
 
 const MIN_ACTIVATION_SETTLEMENT_ETB = 50;
 
@@ -162,11 +164,16 @@ export async function POST(request: Request) {
             ? settlementAmount.toFixed(2)
             : configuredFeeRaw;
 
+        const providerAuthUserId = readAuthUserId(provider.user_id);
+        if (!providerAuthUserId) {
+            return NextResponse.json({ error: 'Provider is not linked to an auth account' }, { status: 400 });
+        }
+
         let walletSkipped = Boolean(existingWalletTx);
         let walletSkippedReason: string | null = existingWalletTx ? 'existing_wallet_transaction' : null;
 
         if (!existingWalletTx) {
-            const priorTopUp = await findPriorCustomerWalletTopUp(supabaseAdmin, body.providerId);
+            const priorTopUp = await findPriorCustomerWalletTopUp(supabaseAdmin, providerAuthUserId);
 
             if (priorTopUp) {
                 walletSkipped = true;
@@ -184,7 +191,11 @@ export async function POST(request: Request) {
                     paymentType: 'chapa',
                     transactionId: txRef,
                     type: 'provider',
-                    userId: body.providerId,
+                    ...walletTransactionProfileColumns({
+                        type: 'provider',
+                        authUserId: providerAuthUserId,
+                        providerId: body.providerId,
+                    }),
                 });
 
                 if (walletError) {

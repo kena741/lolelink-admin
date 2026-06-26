@@ -1,6 +1,7 @@
 import { BOOKING_PAYMENT_STATUS, resolveBookingPaymentStatus } from '@/lib/booking-status';
 import { hasBookingCustomerRefund, parseBookingAmount } from '@/lib/booking-display';
 import { isActivationCredit, walletTransactionMagnitude } from '@/lib/wallet-transaction-metrics';
+import { readAuthUserId } from '@/lib/wallet-transaction-user';
 
 export type PayoutAnalysisRisk = 'clean' | 'review' | 'high';
 
@@ -66,6 +67,7 @@ interface WalletRow {
 interface BookingRow {
     id: string;
     customer_id?: string | null;
+    customer_user_id?: string | null;
     status?: string | null;
     totalAmount?: string | number | null;
     payment_status?: string | null;
@@ -261,14 +263,26 @@ export function analyzeProviderPayoutWallet(input: {
         - breakdown.declineFees
         - breakdown.otherDebits;
 
+    const customerAuthUserIdByProfileId = new Map<string, string>();
+    for (const customer of input.customers) {
+        const authUserId = readAuthUserId(customer.user_id);
+        if (authUserId) {
+            customerAuthUserIdByProfileId.set(customer.id, authUserId);
+        }
+    }
+
     const rejectedPaidWithoutRefund = input.bookings.filter((booking) => {
         if (booking.status !== 'rejected') return false;
         const paid =
             resolveBookingPaymentStatus(booking.payment_status ?? '', booking.paymentCompleted)
             === BOOKING_PAYMENT_STATUS.COMPLETED;
         if (!paid || !booking.customer_id) return false;
+        const customerAuthUserId =
+            readAuthUserId(booking.customer_user_id) ??
+            customerAuthUserIdByProfileId.get(booking.customer_id);
+        if (!customerAuthUserId) return false;
         const customerCredits = input.customerWalletCredits.filter(
-            (tx) => tx.userId === booking.customer_id
+            (tx) => tx.userId === customerAuthUserId
         );
         return !hasBookingCustomerRefund(booking.id, customerCredits);
     }).length;

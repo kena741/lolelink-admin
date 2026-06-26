@@ -123,6 +123,22 @@ async function main(): Promise<void> {
             continue;
         }
 
+        const { data: customerRow } = await admin
+            .from('customer')
+            .select('user_id')
+            .eq('id', target.customerId)
+            .maybeSingle();
+        const customerAuthUserId =
+            typeof (customerRow as { user_id?: string } | null)?.user_id === 'string'
+                ? (customerRow as { user_id: string }).user_id.trim()
+                : '';
+        if (!customerAuthUserId) {
+            console.log(`SKIP ${target.bookingId.slice(0, 8)}… — customer has no auth user_id`);
+            target.skip = true;
+            target.skipReason = 'missing_customer_auth_user_id';
+            continue;
+        }
+
         const amount = verified.amount.toFixed(2);
         const note = `Booking payment (Chapa backfill) ${target.bookingId}`;
 
@@ -139,7 +155,7 @@ async function main(): Promise<void> {
                 paymentType: 'chapa',
                 transactionId: target.providerRef,
                 type: 'customer',
-                userId: target.customerId,
+                userId: customerAuthUserId,
             });
 
             if (error) {

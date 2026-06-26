@@ -1,4 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { resolveProviderAuthUserId } from '@/lib/wallet-transaction-user';
+import { walletTransactionProfileColumns } from '@/lib/wallet-transaction-profile';
 
 function parseAmount(value: string | number | null | undefined): number {
     const parsed = Number(value ?? 0);
@@ -73,6 +75,11 @@ export async function deductProviderWalletForWithdrawal(
         return { ok: false, error: 'Provider is missing on withdrawal request' };
     }
 
+    const authUser = await resolveProviderAuthUserId(admin, providerId);
+    if (!authUser.ok) {
+        return { ok: false, error: authUser.error };
+    }
+
     const { data: providerRaw, error: providerError } = await admin
         .from('provider')
         .select('id, walletAmount')
@@ -98,7 +105,11 @@ export async function deductProviderWalletForWithdrawal(
         paymentType: 'wallet',
         transactionId,
         type: 'provider',
-        userId: providerId,
+        ...walletTransactionProfileColumns({
+            type: 'provider',
+            authUserId: authUser.authUserId,
+            providerId,
+        }),
     });
 
     if (walletTxError) {

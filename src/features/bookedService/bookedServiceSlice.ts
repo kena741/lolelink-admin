@@ -2,6 +2,7 @@ import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { hasBookingCustomerRefund } from '@/lib/booking-display';
 import { BOOKING_PAYMENT_STATUS, resolveBookingPaymentStatus } from '@/lib/booking-status';
 import { getSupabase } from '@/lib/supabaseClient';
+import { readAuthUserId } from '@/lib/wallet-transaction-user';
 
 export interface BookedService {
     id: string;
@@ -161,8 +162,8 @@ async function enrichBookingsWithNames(rows: BookedService[]): Promise<BookedSer
             ...row,
             providerName: providerMeta?.name,
             customerName: customerMeta?.name,
-            provider_user_id: providerMeta?.userId ?? null,
-            customer_user_id: customerMeta?.userId ?? null,
+            provider_user_id: readAuthUserId(row.provider_user_id) ?? providerMeta?.userId ?? null,
+            customer_user_id: readAuthUserId(row.customer_user_id) ?? customerMeta?.userId ?? null,
         };
     });
 }
@@ -179,44 +180,45 @@ async function enrichRejectedPaidRefundStatus(rows: BookedService[]): Promise<Bo
     const rejectedPaid = rows.filter(isRejectedPaidBookingRow);
     if (rejectedPaid.length === 0) return rows;
 
-    const customerIds = Array.from(
+    const customerAuthUserIds = Array.from(
         new Set(
             rejectedPaid
-                .map((row) => row.customer_id)
-                .filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+                .map((row) => readAuthUserId(row.customer_user_id))
+                .filter((id): id is string => Boolean(id))
         )
     );
 
-    if (customerIds.length === 0) return rows;
+    if (customerAuthUserIds.length === 0) return rows;
 
     const { data, error } = await getSupabase()
         .from('wallet_transaction')
         .select('userId, isCredit, note, transactionId')
-        .in('userId', customerIds)
+        .in('userId', customerAuthUserIds)
         .eq('isCredit', true);
 
     if (error) throw error;
 
-    const creditsByCustomer = new Map<string, Array<{ isCredit?: boolean | null; note?: string | null; transactionId?: string | null }>>();
+    const creditsByAuthUserId = new Map<string, Array<{ isCredit?: boolean | null; note?: string | null; transactionId?: string | null }>>();
     for (const tx of (data ?? []) as Array<{
         userId?: string | null;
         isCredit?: boolean | null;
         note?: string | null;
         transactionId?: string | null;
     }>) {
-        const userId = typeof tx.userId === 'string' ? tx.userId : '';
-        if (!userId) continue;
-        const existing = creditsByCustomer.get(userId) ?? [];
+        const authUserId = readAuthUserId(tx.userId);
+        if (!authUserId) continue;
+        const existing = creditsByAuthUserId.get(authUserId) ?? [];
         existing.push(tx);
-        creditsByCustomer.set(userId, existing);
+        creditsByAuthUserId.set(authUserId, existing);
     }
 
     return rows.map((row) => {
-        if (!isRejectedPaidBookingRow(row) || !row.customer_id) {
+        if (!isRejectedPaidBookingRow(row)) {
             return row;
         }
 
-        const customerCredits = creditsByCustomer.get(row.customer_id) ?? [];
+        const customerAuthUserId = readAuthUserId(row.customer_user_id);
+        const customerCredits = customerAuthUserId ? creditsByAuthUserId.get(customerAuthUserId) ?? [] : [];
         return {
             ...row,
             customer_refund_recorded: hasBookingCustomerRefund(row.id, customerCredits),

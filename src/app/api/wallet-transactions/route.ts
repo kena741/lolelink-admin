@@ -1,53 +1,28 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
+import { buildWalletProfileLookupsByProfileId } from '@/lib/wallet-transaction-profile';
+import {
+    buildAuthUserLookup,
+    buildWalletProfileLookupByAuthUserId,
+    isCustomerWalletTransactionType,
+    readAuthUserId,
+} from '@/lib/wallet-transaction-user';
 
 export const runtime = 'nodejs';
 
 interface WalletTransactionRow {
     userId?: string | null;
+    provider_id?: string | null;
+    customer_id?: string | null;
     type?: string | null;
 }
 
-function isCustomerTransactionType(type: string | undefined | null): boolean {
-    return typeof type === 'string' && type.trim().toLowerCase() === 'customer';
+function emptyProfile() {
+    return { name: '', email: '', phone: '', profileId: '' };
 }
 
-function providerDisplayName(raw: Record<string, unknown>): string {
-    const first =
-        (typeof raw.firstName === 'string' && raw.firstName) ||
-        (typeof raw.first_name === 'string' && raw.first_name) ||
-        '';
-    const last =
-        (typeof raw.lastName === 'string' && raw.lastName) ||
-        (typeof raw.last_name === 'string' && raw.last_name) ||
-        '';
-    return [first, last].filter(Boolean).join(' ');
-}
-
-function providerDisplayPhone(raw: Record<string, unknown>): string {
-    if (typeof raw.phoneNumber === 'string' && raw.phoneNumber) return raw.phoneNumber;
-    if (typeof raw.phone === 'string' && raw.phone) return raw.phone;
-    return '';
-}
-
-function customerDisplayName(raw: Record<string, unknown>): string {
-    const first =
-        (typeof raw.first_name === 'string' && raw.first_name) ||
-        (typeof raw.firstName === 'string' && raw.firstName) ||
-        '';
-    const last =
-        (typeof raw.last_name === 'string' && raw.last_name) ||
-        (typeof raw.lastName === 'string' && raw.lastName) ||
-        '';
-    return [first, last].filter(Boolean).join(' ');
-}
-
-function customerDisplayPhone(raw: Record<string, unknown>): string {
-    const candidates = [raw.phoneNumber, raw.phone, raw.mobile_number, raw.mobileNumber];
-    for (const value of candidates) {
-        if (typeof value === 'string' && value.trim()) return value.trim();
-    }
-    return '';
+function emptyAuthUser() {
+    return { name: '', email: '', phone: '' };
 }
 
 export async function GET(request: Request) {
@@ -63,73 +38,75 @@ export async function GET(request: Request) {
         }
 
         const rows = (data ?? []) as WalletTransactionRow[];
+        const authUserIds = rows
+            .map((row) => readAuthUserId(row.userId))
+            .filter((id): id is string => Boolean(id));
 
-        const providerIds = [
-            ...new Set(
-                rows
-                    .filter((row) => !isCustomerTransactionType(row.type))
-                    .map((row) => row.userId)
-                    .filter((id): id is string => Boolean(id))
-            ),
-        ];
-        const customerIds = [
-            ...new Set(
-                rows
-                    .filter((row) => isCustomerTransactionType(row.type))
-                    .map((row) => row.userId)
-                    .filter((id): id is string => Boolean(id))
-            ),
-        ];
-
-        const providerById: Record<string, { name: string; phone: string }> = {};
-        if (providerIds.length > 0) {
-            const { data: providers, error: providerError } = await supabaseAdmin
-                .from('provider')
-                .select('*')
-                .in('id', providerIds);
-
-            if (providerError) {
-                return NextResponse.json({ error: providerError.message }, { status: 500 });
-            }
-
-            (providers as Record<string, unknown>[] | null)?.forEach((provider) => {
-                const id = typeof provider.id === 'string' ? provider.id : '';
-                if (!id) return;
-                providerById[id] = {
-                    name: providerDisplayName(provider),
-                    phone: providerDisplayPhone(provider),
-                };
-            });
-        }
-
-        const customerById: Record<string, { name: string; phone: string }> = {};
-        if (customerIds.length > 0) {
-            const { data: customers, error: customerError } = await supabaseAdmin
-                .from('customer')
-                .select('*')
-                .in('id', customerIds);
-
-            if (customerError) {
-                return NextResponse.json({ error: customerError.message }, { status: 500 });
-            }
-
-            (customers as Record<string, unknown>[] | null)?.forEach((customer) => {
-                const id = typeof customer.id === 'string' ? customer.id : '';
-                if (!id) return;
-                customerById[id] = {
-                    name: customerDisplayName(customer),
-                    phone: customerDisplayPhone(customer),
-                };
-            });
-        }
+        const [{ providerById, customerById }, profileByAuthUserId, authUserById] = await Promise.all([
+            buildWalletProfileLookupsByProfileId(supabaseAdmin, rows),
+            buildWalletProfileLookupByAuthUserId(supabaseAdmin, rows),
+            buildAuthUserLookup(supabaseAdmin, authUserIds),
+        ]);
 
         const enriched = rows.map((row) => {
-            const lookupMap = isCustomerTransactionType(row.type) ? customerById : providerById;
-            const lookup = row.userId ? lookupMap[row.userId] : undefined;
+            const providerProfileId =
+                typeof row.provider_id === 'string' && row.provider_id.trim() ? row.provider_id.trim() : '';
+            const customerProfileId =
+                typeof row.customer_id === 'string' && row.customer_id.trim() ? row.customer_id.trim() : '';
+
+            const providerFromProfile = providerProfileId ? providerById[providerProfileId] : undefined;
+            const customerFromProfile = customerProfileId ? customerById[customerProfileId] : undefined;
+
+            const authUserId = readAuthUserId(row.userId);
+            const authLookup = authUserId ? profileByAuthUserId[authUserId] : undefined;
+
+            const provider =
+                providerFromProfile ??
+                (!isCustomerWalletTransactionType(row.type) ? authLookup : undefined);
+            const customer =
+                customerFromProfile ??
+                (isCustomerWalletTransactionType(row.type) ? authLookup : undefined);
+
+            const providerInfo = provider
+                ? {
+                      profileId: provider.profileId,
+                      name: provider.name,
+                      email: provider.email,
+                      phone: provider.phone,
+                  }
+                : emptyProfile();
+
+            const customerInfo = customer
+                ? {
+                      profileId: customer.profileId,
+                      name: customer.name,
+                      email: customer.email,
+                      phone: customer.phone,
+                  }
+                : emptyProfile();
+
+            const authUser = authUserId ? authUserById[authUserId] : undefined;
+            const authUserInfo = authUser
+                ? {
+                      name: authUser.name,
+                      email: authUser.email,
+                      phone: authUser.phone,
+                  }
+                : emptyAuthUser();
+
             return {
                 ...row,
-                providerName: lookup?.name ?? '',
-                providerPhone: lookup?.phone ?? '',
+                providerName: providerInfo.name,
+                providerEmail: providerInfo.email,
+                providerPhone: providerInfo.phone,
+                providerProfileId: providerInfo.profileId,
+                customerName: customerInfo.name,
+                customerEmail: customerInfo.email,
+                customerPhone: customerInfo.phone,
+                customerProfileId: customerInfo.profileId,
+                authUserName: authUserInfo.name,
+                authUserEmail: authUserInfo.email,
+                authUserPhone: authUserInfo.phone,
             };
         });
 

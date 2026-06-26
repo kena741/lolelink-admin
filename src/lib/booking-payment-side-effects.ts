@@ -1,5 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { BOOKING_PAYMENT_STATUS } from '@/lib/booking-status';
+import { resolveCustomerAuthUserId } from '@/lib/wallet-transaction-user';
+import { walletTransactionProfileColumns } from '@/lib/wallet-transaction-profile';
 
 const SMS_UPSTREAM = 'https://betegna-ai.vercel.app/sms/send';
 
@@ -97,6 +99,11 @@ export async function debitCustomerWalletForBooking(
     customerId: string,
     amount: number
 ): Promise<{ ok: true; paymentId: string } | { ok: false; error: string; status: number }> {
+    const authUser = await resolveCustomerAuthUserId(admin, customerId);
+    if (!authUser.ok) {
+        return { ok: false, error: authUser.error, status: authUser.status };
+    }
+
     const { data: customerRaw, error: customerError } = await admin
         .from('customer')
         .select('id, wallet_amount')
@@ -127,7 +134,11 @@ export async function debitCustomerWalletForBooking(
         paymentType: 'wallet',
         transactionId: txRef,
         type: 'customer',
-        userId: customerId,
+        ...walletTransactionProfileColumns({
+            type: 'customer',
+            authUserId: authUser.authUserId,
+            customerId,
+        }),
     });
 
     if (walletTxError) {
