@@ -9,20 +9,20 @@ import {
     AdminShell,
     AdminStatCard,
 } from '@/components/admin/admin-layout';
-import { AdminTableShell } from '@/components/admin/data-table';
-import {
-    DollarSign,
-    CheckCircle2,
-    XCircle,
-    Clock,
-    RefreshCw,
-} from 'lucide-react';
+import { AdminDataTableEmpty, AdminPersonCell, AdminStatusBadge, AdminTableShell } from '@/components/admin/data-table';
+import { RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { fetchPayoutRequests, approvePayoutRequest, rejectPayoutRequest, sendPayoutViaChapa, PayoutRequest } from '@/features/payout/payoutSlice';
 import type { ProviderPayoutAnalysis } from '@/lib/provider-payout-analysis';
 import { PayoutWalletAnalysisSheet } from '@/app/admin/finance/payout-request/PayoutWalletAnalysisSheet';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { PayoutRequestActions } from '@/app/admin/finance/payout-request/PayoutRequestActions';
+import {
+    maskAccountNumber,
+    sanitizeDisplayText,
+} from '@/app/admin/finance/payout-request/payout-request-display';
+import { formatAdminDateTimeUtc } from '@/lib/admin-datetime';
+import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const primaryButtonClassName =
     'inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
@@ -40,7 +40,6 @@ function PayoutRequestPageContent() {
     const [processingId, setProcessingId] = useState<string | null>(null);
     const [confirmingRequest, setConfirmingRequest] = useState<PayoutRequest | null>(null);
     const [modalValidationError, setModalValidationError] = useState<string | null>(null);
-    const [debugRequestId, setDebugRequestId] = useState<string | null>(null);
     const [walletAnalysisRequest, setWalletAnalysisRequest] = useState<PayoutRequest | null>(null);
     const [walletAnalysis, setWalletAnalysis] = useState<ProviderPayoutAnalysis | null>(null);
     const [walletAnalysisLoading, setWalletAnalysisLoading] = useState(false);
@@ -67,6 +66,9 @@ function PayoutRequestPageContent() {
         try {
             await dispatch(approvePayoutRequest({ id })).unwrap();
             dispatch(fetchPayoutRequests());
+            if (walletAnalysisRequest?.id === id) {
+                handleCloseWalletAnalysis();
+            }
         } catch (err) {
             console.error('Failed to approve payout:', err);
         } finally {
@@ -79,6 +81,9 @@ function PayoutRequestPageContent() {
         try {
             await dispatch(rejectPayoutRequest({ id })).unwrap();
             dispatch(fetchPayoutRequests());
+            if (walletAnalysisRequest?.id === id) {
+                handleCloseWalletAnalysis();
+            }
         } catch (err) {
             console.error('Failed to reject payout:', err);
         } finally {
@@ -234,16 +239,6 @@ function PayoutRequestPageContent() {
         return () => window.clearInterval(timerId);
     }, [autoVerifyCandidateIds, dispatch]);
 
-    const formatDate = (dateString?: string) => {
-        if (!dateString) return '—';
-        const date = new Date(dateString);
-        return date.toLocaleDateString('en-GB', {
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric'
-        });
-    };
-
     const formatCurrency = (amount: string | number) => {
         const numAmount = typeof amount === 'string' ? parseFloat(amount) || 0 : amount;
         return `ETB ${numAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -253,14 +248,16 @@ function PayoutRequestPageContent() {
         return typeof amount === 'string' ? parseFloat(amount) || 0 : amount;
     };
 
-    const maskAccountNumber = (accountNumber?: string) => {
-        if (!accountNumber) return 'Unknown Account';
-        const normalized = accountNumber.trim();
-        if (normalized.length <= 4) return normalized;
-        return `${'*'.repeat(Math.max(normalized.length - 4, 2))}${normalized.slice(-4)}`;
-    };
-
     const pendingRequests = requests.filter(r => r.paymentStatus === 'pending');
+
+    function paymentStatusTone(status: string): 'warning' | 'success' | 'danger' | 'neutral' | 'info' {
+        const normalized = status.trim().toLowerCase();
+        if (normalized === 'pending') return 'warning';
+        if (normalized === 'approved') return 'info';
+        if (normalized === 'completed') return 'success';
+        if (normalized === 'rejected') return 'danger';
+        return 'neutral';
+    }
     const segment = (searchParams.get('segment') || '').trim().toLowerCase();
     const isToday = (value?: string) => {
         if (!value) return false;
@@ -289,7 +286,6 @@ function PayoutRequestPageContent() {
         .reduce((sum, r) => sum + getAmountAsNumber(r.amount), 0);
     const totalRequests = filteredRequests.length;
     const approvedRequests = filteredRequests.filter(r => r.paymentStatus === 'approved' || r.paymentStatus === 'completed').length;
-    const debugRequest = debugRequestId ? requests.find((request) => request.id === debugRequestId) || null : null;
     const segmentLabel = segment === 'waiting_confirmation'
         ? 'Waiting Confirmation'
         : segment === 'failed_rejected'
@@ -358,89 +354,39 @@ function PayoutRequestPageContent() {
                             />
                         </section>
 
-                        {debugRequest && (
-                            <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-5">
-                                <div className="flex items-center justify-between gap-3">
-                                    <div>
-                                        <p className="text-sm font-semibold text-amber-800">Bank Details Debug</p>
-                                        <p className="text-xs text-amber-700">
-                                            Request ID: {debugRequest.id} | Provider ID: {debugRequest.providerId}
-                                        </p>
-                                    </div>
-                                    <button
-                                        onClick={() => setDebugRequestId(null)}
-                                        className="rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-800 transition-colors hover:bg-amber-100"
-                                    >
-                                        Hide Debug
-                                    </button>
-                                </div>
-                                <div className="mt-4 grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
-                                    <div className="rounded-lg border border-amber-200 bg-white px-3 py-2">
-                                        <p className="font-medium text-amber-700">Holder Name</p>
-                                        <p className="text-amber-900">{debugRequest.bankDetails?.holderName || 'null'}</p>
-                                    </div>
-                                    <div className="rounded-lg border border-amber-200 bg-white px-3 py-2">
-                                        <p className="font-medium text-amber-700">Bank Name</p>
-                                        <p className="text-amber-900">{debugRequest.bankDetails?.bankName || 'null'}</p>
-                                    </div>
-                                    <div className="rounded-lg border border-amber-200 bg-white px-3 py-2">
-                                        <p className="font-medium text-amber-700">Account Number</p>
-                                        <p className="text-amber-900">{debugRequest.bankDetails?.accountNumber || 'null'}</p>
-                                    </div>
-                                    <div className="rounded-lg border border-amber-200 bg-white px-3 py-2">
-                                        <p className="font-medium text-amber-700">Bank Code</p>
-                                        <p className="text-amber-900">{debugRequest.bankDetails?.bankCode || 'null'}</p>
-                                    </div>
-                                    <div className="rounded-lg border border-amber-200 bg-white px-3 py-2">
-                                        <p className="font-medium text-amber-700">SWIFT</p>
-                                        <p className="text-amber-900">{debugRequest.bankDetails?.swiftCode || 'null'}</p>
-                                    </div>
-                                    <div className="rounded-lg border border-amber-200 bg-white px-3 py-2">
-                                        <p className="font-medium text-amber-700">Branch</p>
-                                        <p className="text-amber-900">
-                                            {debugRequest.bankDetails?.branchCity || 'null'}
-                                            {debugRequest.bankDetails?.branchCountry ? `, ${debugRequest.bankDetails.branchCountry}` : ''}
-                                        </p>
-                                    </div>
-                                </div>
-                                <pre className="mt-4 overflow-x-auto rounded-lg border border-amber-200 bg-white p-3 text-xs text-amber-900">
-                                    {JSON.stringify(debugRequest.bankDetails, null, 2)}
-                                </pre>
-                            </div>
-                        )}
-
                         {loading ? <AdminLoadingRow label="Loading payout requests…" /> : null}
                         {error ? <AdminErrorAlert message={typeof error === 'string' ? error : 'Something went wrong'} /> : null}
 
-                        <AdminTableShell>
+                        <AdminTableShell className="min-w-0">
                             {!loading && !error ? (
-                                <div className="overflow-x-auto">
-                                    <p className="border-b border-gray-200 px-4 py-2 text-xs text-gray-500">
-                                        Click a row to run wallet analysis for that provider before approving payout.
+                                <div className="max-w-full overflow-x-auto">
+                                    <p className="border-b border-gray-100 bg-gray-50/80 px-4 py-2.5 text-xs text-gray-600">
+                                        Click a row to review wallet analysis. Approve or reject from the sheet footer or the Actions column.
                                     </p>
-                                    <Table>
+                                    <table className="w-full border-collapse text-left">
                                         <TableHeader>
                                             <TableRow>
-                                                <TableHead>Provider Name</TableHead>
+                                                <TableHead>Provider</TableHead>
                                                 <TableHead>Note</TableHead>
-                                                <TableHead>Payment Status</TableHead>
-                                                <TableHead>Bank Details</TableHead>
-                                                <TableHead>Amount</TableHead>
-                                                <TableHead>Create Date</TableHead>
-                                                <TableHead className="text-right">Action</TableHead>
+                                                <TableHead>Status</TableHead>
+                                                <TableHead>Bank details</TableHead>
+                                                <TableHead className="text-right">Amount</TableHead>
+                                                <TableHead>Requested</TableHead>
+                                                <TableHead
+                                                    className="sticky right-0 z-20 w-[100px] bg-gray-50 px-2 text-right shadow-[-6px_0_10px_-8px_rgba(0,0,0,0.25)]"
+                                                >
+                                                    Actions
+                                                </TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
                                             {filteredRequests.length === 0 ? (
                                                 <TableRow>
-                                                    <TableCell colSpan={7} className="px-4 py-12 text-center text-gray-500">
-                                                        <div className="flex flex-col items-center gap-3">
-                                                            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
-                                                                <DollarSign className="h-8 w-8 text-gray-400" />
-                                                            </div>
-                                                            <p className="text-lg font-semibold text-gray-900">No payout requests found</p>
-                                                            <p className="text-sm text-gray-600">All requests have been processed</p>
-                                                        </div>
+                                                    <TableCell colSpan={7} className="p-0">
+                                                        <AdminDataTableEmpty
+                                                            title="No payout requests found"
+                                                            description="All requests in this view have been processed."
+                                                        />
                                                     </TableCell>
                                                 </TableRow>
                                             ) : (
@@ -452,118 +398,84 @@ function PayoutRequestPageContent() {
                                                         (request.adminNote || '').toLowerCase().includes('chapa transfer reference:') ||
                                                         (request.adminNote || '').toLowerCase().includes('reference=')
                                                     );
-                                                    const statusConfig: Record<string, { color: string; bg: string; icon: React.ElementType }> = {
-                                                        pending: { color: 'text-amber-600', bg: 'bg-amber-500/10', icon: Clock },
-                                                        approved: { color: 'text-emerald-600', bg: 'bg-emerald-500/10', icon: CheckCircle2 },
-                                                        completed: { color: 'text-emerald-600', bg: 'bg-emerald-500/10', icon: CheckCircle2 },
-                                                        rejected: { color: 'text-destructive', bg: 'bg-destructive/10', icon: XCircle },
-                                                    };
-                                                    const statusInfo = statusConfig[normalizedPaymentStatus] || statusConfig.pending;
-                                                    const StatusIcon = statusInfo.icon;
+                                                    const providerName = sanitizeDisplayText(
+                                                        request.provider_name,
+                                                        'Unknown provider'
+                                                    );
 
                                                     return (
                                                         <TableRow
                                                             key={request.id}
-                                                            className="cursor-pointer"
+                                                            className="group cursor-pointer align-top"
                                                             onClick={() => handleOpenWalletAnalysis(request)}
                                                         >
-                                                            <TableCell className="font-medium text-text-primary">
+                                                            <TableCell>
                                                                 {request.providerId ? (
                                                                     <Link
                                                                         href={`/admin/providers/${request.providerId}`}
-                                                                        className="font-semibold text-primary transition-colors hover:text-accent hover:underline"
+                                                                        className="block min-w-0"
+                                                                        onClick={(event) => event.stopPropagation()}
                                                                     >
-                                                                        {request.provider_name || 'Unknown Provider'}
+                                                                        <AdminPersonCell
+                                                                            name={providerName}
+                                                                            meta={request.providerId.slice(0, 8)}
+                                                                        />
                                                                     </Link>
                                                                 ) : (
-                                                                    <span>{request.provider_name || 'Unknown Provider'}</span>
+                                                                    <AdminPersonCell name={providerName} />
                                                                 )}
                                                             </TableCell>
-                                                            <TableCell className="text-text-secondary">
-                                                                {request.note || '—'}
-                                                            </TableCell>
                                                             <TableCell>
-                                                                <span className={`inline-flex items-center gap-2 rounded-full border border-current/20 px-3 py-1.5 text-xs font-semibold ${statusInfo.bg} ${statusInfo.color}`}>
-                                                                    <StatusIcon className="h-3.5 w-3.5" />
-                                                                    {normalizedPaymentStatus.charAt(0).toUpperCase() + normalizedPaymentStatus.slice(1)}
+                                                                <span className="inline-flex rounded-md bg-gray-100 px-2 py-1 text-[11px] font-semibold text-gray-700">
+                                                                    {request.note?.trim() || 'Withdrawal'}
                                                                 </span>
                                                             </TableCell>
-                                                            <TableCell className="text-text-secondary">
+                                                            <TableCell>
+                                                                <AdminStatusBadge tone={paymentStatusTone(normalizedPaymentStatus)}>
+                                                                    {normalizedPaymentStatus.charAt(0).toUpperCase() +
+                                                                        normalizedPaymentStatus.slice(1)}
+                                                                </AdminStatusBadge>
+                                                            </TableCell>
+                                                            <TableCell>
                                                                 {request.bankDetails ? (
-                                                                    <div className="space-y-0.5 text-xs">
-                                                                        <p className="font-semibold text-text-primary">{request.bankDetails.bankName || 'Bank not set'}</p>
-                                                                        <p>Acct: {request.bankDetails.accountNumber || '—'}</p>
-                                                                        <p>Holder: {request.bankDetails.holderName || '—'}</p>
-                                                                        <p>
-                                                                            {request.bankDetails.branchCity || '—'}
-                                                                            {request.bankDetails.branchCountry ? `, ${request.bankDetails.branchCountry}` : ''}
+                                                                    <div className="min-w-0 text-xs leading-relaxed">
+                                                                        <p className="truncate font-semibold text-gray-900">
+                                                                            {request.bankDetails.bankName || 'Bank not set'}
+                                                                        </p>
+                                                                        <p className="font-mono text-gray-600">
+                                                                            {maskAccountNumber(request.bankDetails.accountNumber)}
                                                                         </p>
                                                                     </div>
                                                                 ) : (
-                                                                    <span className="text-xs text-muted-foreground">No bank details</span>
+                                                                    <AdminStatusBadge tone="danger">Missing bank</AdminStatusBadge>
                                                                 )}
                                                             </TableCell>
-                                                            <TableCell className="font-semibold text-text-primary">
+                                                            <TableCell className="text-right font-semibold tabular-nums text-gray-900">
                                                                 {formatCurrency(request.amount)}
                                                             </TableCell>
-                                                            <TableCell className="text-text-secondary">
-                                                                {formatDate(request.createdDate)}
+                                                            <TableCell className="text-xs text-gray-600">
+                                                                {formatAdminDateTimeUtc(request.createdDate)}
                                                             </TableCell>
-                                                            <TableCell className="text-right" onClick={(event) => event.stopPropagation()}>
-                                                                {normalizedPaymentStatus === 'pending' ? (
-                                                                    <div className="flex items-center justify-end gap-2">
-                                                                        <button
-                                                                            onClick={() => handleApprove(request.id)}
-                                                                            disabled={isProcessing}
-                                                                            className={primaryButtonClassName}
-                                                                        >
-                                                                            {isProcessing ? 'Processing...' : 'Allow'}
-                                                                        </button>
-                                                                        <button
-                                                                            onClick={() => handleReject(request.id)}
-                                                                            disabled={isProcessing}
-                                                                            className={destructiveButtonClassName}
-                                                                        >
-                                                                            Reject
-                                                                        </button>
-                                                                    </div>
-                                                                ) : normalizedPaymentStatus === 'approved' && !hasChapaTransferStarted ? (
-                                                                    <div className="flex items-center justify-end gap-2">
-                                                                        <button
-                                                                            onClick={() => setDebugRequestId(request.id)}
-                                                                            className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 transition-colors hover:bg-amber-100"
-                                                                        >
-                                                                            Debug Bank
-                                                                        </button>
-                                                                        <button
-                                                                            onClick={() => handleSendWithChapa(request)}
-                                                                            disabled={isProcessing}
-                                                                            className={primaryButtonClassName}
-                                                                        >
-                                                                            {isProcessing ? 'Processing...' : 'Send with Chapa'}
-                                                                        </button>
-                                                                    </div>
-                                                                ) : normalizedPaymentStatus === 'approved' && hasChapaTransferStarted ? (
-                                                                    <div className="flex items-center justify-end gap-2">
-                                                                        <button
-                                                                            onClick={() => handleVerifyChapaTransfer(request.id)}
-                                                                            disabled={isProcessing}
-                                                                            className={secondaryButtonClassName}
-                                                                        >
-                                                                            {isProcessing ? 'Verifying...' : 'Verify status'}
-                                                                        </button>
-                                                                        <span className="text-sm italic text-text-secondary">Waiting confirmation</span>
-                                                                    </div>
-                                                                ) : (
-                                                                    <span className="text-sm italic text-text-secondary">Processed</span>
-                                                                )}
+                                                            <TableCell
+                                                                className="sticky right-0 z-10 w-[100px] bg-white px-2 text-right shadow-[-6px_0_10px_-8px_rgba(0,0,0,0.25)] group-hover:bg-gray-50/80"
+                                                                onClick={(event) => event.stopPropagation()}
+                                                            >
+                                                                <PayoutRequestActions
+                                                                    paymentStatus={normalizedPaymentStatus}
+                                                                    hasChapaTransferStarted={hasChapaTransferStarted}
+                                                                    isProcessing={isProcessing}
+                                                                    onApprove={() => handleApprove(request.id)}
+                                                                    onReject={() => handleReject(request.id)}
+                                                                    onSendWithChapa={() => handleSendWithChapa(request)}
+                                                                    onVerifyTransfer={() => handleVerifyChapaTransfer(request.id)}
+                                                                />
                                                             </TableCell>
                                                         </TableRow>
                                                     );
                                                 })
                                             )}
                                         </TableBody>
-                                    </Table>
+                                    </table>
                                 </div>
                             ) : null}
                         </AdminTableShell>
@@ -574,6 +486,20 @@ function PayoutRequestPageContent() {
                             error={walletAnalysisError}
                             analysis={walletAnalysis}
                             withdrawalAmount={walletAnalysisRequest?.amount}
+                            requestId={walletAnalysisRequest?.id}
+                            bankDetails={walletAnalysisRequest?.bankDetails}
+                            paymentStatus={walletAnalysisRequest?.paymentStatus}
+                            isProcessing={walletAnalysisRequest ? processingId === walletAnalysisRequest.id : false}
+                            onApprove={
+                                walletAnalysisRequest
+                                    ? () => handleApprove(walletAnalysisRequest.id)
+                                    : undefined
+                            }
+                            onReject={
+                                walletAnalysisRequest
+                                    ? () => handleReject(walletAnalysisRequest.id)
+                                    : undefined
+                            }
                         />
                         {confirmingRequest && (
                             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -632,7 +558,7 @@ function PayoutRequestPageContent() {
                                         <div className="flex items-center justify-between gap-3 text-sm">
                                             <span className="font-medium text-text-secondary">Requested Date</span>
                                             <span className="font-semibold text-text-primary">
-                                                {formatDate(confirmingRequest.createdDate)}
+                                                {formatAdminDateTimeUtc(confirmingRequest.createdDate)}
                                             </span>
                                         </div>
                                         <div className="text-sm">

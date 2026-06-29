@@ -13,6 +13,7 @@ import {
 } from '@/components/admin/admin-layout';
 import { AdminDataTableEmpty, AdminTableShell } from '@/components/admin/data-table';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { formatBookingAmount } from '@/lib/booking-display';
 
 interface JobRequestBid {
     price?: string | null;
@@ -223,7 +224,7 @@ const JobRequestsPage = () => {
                                                         </div>
                                                     </TableCell>
                                                     <TableCell>{item.serviceModelList?.[0]?.serviceName || '—'}</TableCell>
-                                                    <TableCell>{item.price || '—'}</TableCell>
+                                                    <TableCell>{formatBookingAmount(item.price)}</TableCell>
                                                     <TableCell>{bidsCount}</TableCell>
                                                     <TableCell>
                                                         <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${item.is_paid === true ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>

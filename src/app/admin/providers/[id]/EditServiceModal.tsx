@@ -382,8 +382,8 @@ export default function EditServiceModal() {
                             </select>
                         </div>
                         <div>
-                            <label className="text-sm font-medium" htmlFor="svc-price">Price</label>
-                            <input id="svc-price" name="price" value={form.price} onChange={onChange} className="mt-1 w-full rounded-md border px-3 py-2 text-sm" inputMode="decimal" />
+                            <label className="text-sm font-medium" htmlFor="svc-price">Price (ETB)</label>
+                            <input id="svc-price" name="price" value={form.price} onChange={onChange} className="mt-1 w-full rounded-md border px-3 py-2 text-sm" inputMode="decimal" placeholder="1000" />
                         </div>
                         <div>
                             <label className="text-sm font-medium" htmlFor="svc-discount">Discount (%) (optional)</label>

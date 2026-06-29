@@ -1,10 +1,21 @@
 'use client';
 
 import Link from 'next/link';
-import { AlertTriangle, CheckCircle2, Loader2, ShieldAlert, XCircle } from 'lucide-react';
+import { AlertTriangle, Check, CheckCircle2, Loader2, ShieldAlert, X, XCircle } from 'lucide-react';
 import type { ProviderPayoutAnalysis, ProviderWalletTransactionLine } from '@/lib/provider-payout-analysis';
 import { formatAdminDateTimeUtc } from '@/lib/admin-datetime';
-import { Sheet, SheetBody, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { maskAccountNumber } from '@/app/admin/finance/payout-request/payout-request-display';
+import { Sheet, SheetBody, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+
+interface PayoutBankDetails {
+    bankName?: string;
+    bankCode?: string;
+    accountNumber?: string;
+    holderName?: string;
+    swiftCode?: string;
+    branchCity?: string;
+    branchCountry?: string;
+}
 
 interface PayoutWalletAnalysisSheetProps {
     open: boolean;
@@ -13,6 +24,12 @@ interface PayoutWalletAnalysisSheetProps {
     error: string | null;
     analysis: ProviderPayoutAnalysis | null;
     withdrawalAmount?: string | number | null;
+    requestId?: string | null;
+    bankDetails?: PayoutBankDetails | null;
+    paymentStatus?: string | null;
+    isProcessing?: boolean;
+    onApprove?: () => void;
+    onReject?: () => void;
 }
 
 function formatCurrency(value: number): string {
@@ -63,6 +80,28 @@ function severityClass(severity: 'info' | 'warning' | 'error'): string {
     return 'border-sky-200 bg-sky-50 text-sky-900';
 }
 
+function BankSummary({ bankDetails }: { bankDetails: PayoutBankDetails }) {
+    const bankName = bankDetails.bankName?.trim() || 'Bank not set';
+    const account = bankDetails.accountNumber?.trim()
+        ? maskAccountNumber(bankDetails.accountNumber)
+        : 'Account missing';
+    const holder = bankDetails.holderName?.trim();
+
+    return (
+        <p className="text-sm text-text-primary">
+            <span className="font-semibold">{bankName}</span>
+            <span className="text-text-secondary"> · </span>
+            <span className="font-mono">{account}</span>
+            {holder ? (
+                <>
+                    <span className="text-text-secondary"> · </span>
+                    <span>{holder}</span>
+                </>
+            ) : null}
+        </p>
+    );
+}
+
 export function PayoutWalletAnalysisSheet({
     open,
     onClose,
@@ -70,9 +109,17 @@ export function PayoutWalletAnalysisSheet({
     error,
     analysis,
     withdrawalAmount,
+    requestId,
+    bankDetails,
+    paymentStatus,
+    isProcessing = false,
+    onApprove,
+    onReject,
 }: PayoutWalletAnalysisSheetProps) {
     const risk = analysis ? riskStyles(analysis.risk) : null;
     const RiskIcon = risk?.icon ?? Loader2;
+    const normalizedStatus = (paymentStatus || '').trim().toLowerCase();
+    const showPendingActions = normalizedStatus === 'pending' && onApprove && onReject;
 
     return (
         <Sheet open={open} onClose={onClose} widthClassName="max-w-2xl lg:max-w-3xl">
@@ -91,6 +138,16 @@ export function PayoutWalletAnalysisSheet({
                     <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
                         {error}
                     </div>
+                )}
+
+                {(requestId || bankDetails) && (
+                    <Section title="Payout request">
+                        {bankDetails ? (
+                            <BankSummary bankDetails={bankDetails} />
+                        ) : (
+                            <p className="text-sm text-rose-700">No bank details on this payout request.</p>
+                        )}
+                    </Section>
                 )}
 
                 {analysis && (
@@ -213,6 +270,28 @@ export function PayoutWalletAnalysisSheet({
                     </div>
                 )}
             </SheetBody>
+            {showPendingActions ? (
+                <SheetFooter className="justify-end gap-2">
+                    <button
+                        type="button"
+                        onClick={onReject}
+                        disabled={isProcessing}
+                        className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md bg-rose-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
+                        Reject
+                    </button>
+                    <button
+                        type="button"
+                        onClick={onApprove}
+                        disabled={isProcessing}
+                        className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                        Approve payout
+                    </button>
+                </SheetFooter>
+            ) : null}
         </Sheet>
     );
 }

@@ -18,7 +18,9 @@ import {
 	ArrowUpRight,
 	TrendingUp,
 	TrendingDown,
-	DollarSign,
+	Banknote,
+	Coins,
+	Wallet,
 	CheckCircle2,
 	Clock,
 	XCircle,
@@ -156,10 +158,10 @@ function getPlatformRevenueFromBooking(value: BookedServiceRow): number {
 }
 
 function formatCurrency(value: number): string {
-	return value.toLocaleString("en-US", {
+	return `ETB ${value.toLocaleString("en-US", {
 		minimumFractionDigits: 2,
 		maximumFractionDigits: 2,
-	});
+	})}`;
 }
 
 function formatChapaLedgerGapNote(
@@ -1190,7 +1192,7 @@ function DashboardContent() {
 								title="Net Flow"
 								value={analytics.chapaWalletNet}
 								isCurrency
-								icon={DollarSign}
+								icon={Coins}
 								iconBg="bg-primary/10"
 								note="Chapa gateway ledger only"
 							/>
@@ -1198,7 +1200,7 @@ function DashboardContent() {
 								title="Direct payments"
 								value={analytics.directPaymentCredits}
 								isCurrency
-								icon={DollarSign}
+								icon={Banknote}
 								iconBg="bg-primary/10"
 								note="Offline & non-Chapa received"
 							/>
@@ -1210,7 +1212,7 @@ function DashboardContent() {
 									analytics.chapaAvailableBalance ?? analytics.chapaWalletNet
 								}
 								isCurrency
-								icon={DollarSign}
+								icon={Wallet}
 								iconBg="bg-primary/10"
 								note={
 									hasLiveChapaBalance
@@ -1435,7 +1437,7 @@ function DashboardContent() {
 								<DashboardBarChart
 									buckets={paymentChartData}
 									emptyLabel="No wallet payments in this period"
-									valueLabel="Amount"
+									valueLabel="Amount (ETB)"
 									barColor="var(--chart-1)"
 									isCurrency
 								/>

@@ -17,19 +17,17 @@ interface DashboardBarChartProps {
 }
 
 function formatChartCurrency(value: number): string {
-    return value.toLocaleString("en-US", {
-        style: "currency",
-        currency: "USD",
+    return `ETB ${value.toLocaleString("en-US", {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
-    });
+    })}`;
 }
 
 function formatChartAxisCurrency(value: number): string {
     if (Math.abs(value) >= 1000) {
-        return `$${(value / 1000).toLocaleString("en-US", { maximumFractionDigits: 1 })}k`;
+        return `${(value / 1000).toLocaleString("en-US", { maximumFractionDigits: 1 })}k`;
     }
-    return `$${value.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+    return value.toLocaleString("en-US", { maximumFractionDigits: 0 });
 }
 
 export function DashboardBarChart({
@@ -66,7 +64,10 @@ export function DashboardBarChart({
             className="h-[240px] w-full min-h-[240px] rounded-xl border border-border bg-background/60 p-2"
             initialDimension={{ width: 640, height: 220 }}
         >
-            <BarChart data={chartData} margin={{ top: 12, right: 12, bottom: 4, left: 0 }}>
+            <BarChart
+                data={chartData}
+                margin={{ top: 12, right: 12, bottom: 4, left: isCurrency ? 8 : 0 }}
+            >
                 <CartesianGrid vertical={false} strokeDasharray="4 4" />
                 <XAxis
                     dataKey="period"
@@ -79,10 +80,25 @@ export function DashboardBarChart({
                 <YAxis
                     tickLine={false}
                     axisLine={false}
-                    tickMargin={8}
-                    width={isCurrency ? 52 : 44}
+                    tickMargin={4}
+                    width={isCurrency ? 56 : 44}
                     allowDecimals={isCurrency}
                     tickFormatter={isCurrency ? formatChartAxisCurrency : undefined}
+                    label={
+                        isCurrency
+                            ? {
+                                  value: "ETB",
+                                  angle: -90,
+                                  position: "insideLeft",
+                                  offset: 12,
+                                  style: {
+                                      fontSize: 11,
+                                      fontWeight: 600,
+                                      fill: "hsl(var(--muted-foreground))",
+                                  },
+                              }
+                            : undefined
+                    }
                 />
                 <ChartTooltip
                     cursor={{ fill: "var(--muted)", opacity: 0.35 }}

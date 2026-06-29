@@ -148,10 +148,12 @@ CREATE TABLE public.verify_documents (
   providerId uuid NOT NULL,
   providerName text,
   providerEmail text,
-  documentId text,
+  documentId uuid,
   documentImage text,
   isVerify boolean,
-  CONSTRAINT verify_documents_pkey PRIMARY KEY (id)
+  CONSTRAINT verify_documents_pkey PRIMARY KEY (id),
+  CONSTRAINT verify_documents_providerId_fkey FOREIGN KEY (providerId) REFERENCES public.provider(id),
+  CONSTRAINT verify_documents_documentId_fkey FOREIGN KEY (documentId) REFERENCES public.documents(id)
 );
 CREATE TABLE public.documents (
   id uuid NOT NULL,
@@ -294,7 +296,9 @@ CREATE TABLE public.service (
   feature_requested_at timestamp with time zone,
   feature_requested_status USER-DEFINED DEFAULT 'none'::feature_request_status_enum,
   CONSTRAINT service_pkey PRIMARY KEY (id),
-  CONSTRAINT service_provider_id_fkey FOREIGN KEY (provider_id) REFERENCES public.provider(id)
+  CONSTRAINT service_provider_id_fkey FOREIGN KEY (provider_id) REFERENCES public.provider(id),
+  CONSTRAINT service_categoryId_fkey FOREIGN KEY (categoryId) REFERENCES public.category(id),
+  CONSTRAINT service_subCategoryId_fkey FOREIGN KEY (subCategoryId) REFERENCES public.sub_category(id)
 );
 CREATE TABLE public.provider_customer (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -360,7 +364,8 @@ CREATE TABLE public.booked_service (
   CONSTRAINT booked_service_customer_user_id_fkey FOREIGN KEY (customer_user_id) REFERENCES auth.users(id),
   CONSTRAINT booked_service_handyman_id_fkey FOREIGN KEY (handyman_id) REFERENCES public.handyman(id),
   CONSTRAINT booked_service_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customer(id),
-  CONSTRAINT booked_service_service_id_fkey FOREIGN KEY (service_id) REFERENCES public.service(id)
+  CONSTRAINT booked_service_service_id_fkey FOREIGN KEY (service_id) REFERENCES public.service(id),
+  CONSTRAINT booked_service_payment_id_fkey FOREIGN KEY (payment_id) REFERENCES public.payments(id)
 );
 CREATE TABLE public.provider_availability_weekly (
   user_id uuid NOT NULL,
@@ -511,7 +516,8 @@ CREATE TABLE public.customers_service (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   customer_id uuid,
   created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT customers_service_pkey PRIMARY KEY (id)
+  CONSTRAINT customers_service_pkey PRIMARY KEY (id),
+  CONSTRAINT customers_service_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customer(id)
 );
 CREATE TABLE public.notification (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -529,7 +535,11 @@ CREATE TABLE public.notification (
   action_url text,
   recipient_role text NOT NULL DEFAULT 'admin'::text,
   CONSTRAINT notification_pkey PRIMARY KEY (id),
-  CONSTRAINT notification_booking_id_fkey FOREIGN KEY (booking_id) REFERENCES public.booked_service(id)
+  CONSTRAINT notification_booking_id_fkey FOREIGN KEY (booking_id) REFERENCES public.booked_service(id),
+  CONSTRAINT notification_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customer(id),
+  CONSTRAINT notification_provider_id_fkey FOREIGN KEY (provider_id) REFERENCES public.provider(id),
+  CONSTRAINT notification_handyman_id_fkey FOREIGN KEY (handyman_id) REFERENCES public.handyman(id),
+  CONSTRAINT notification_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES auth.users(id)
 );
 CREATE TABLE public.country_tax (
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,

@@ -23,7 +23,8 @@ import {
 import { fetchHandymen, updateHandyman, deleteHandyman, type Handyman } from '@/features/handyman/handymanSlice';
 import { fetchCategories } from '@/features/category/categorySlice';
 import { fetchSubCategories } from '@/features/subcategory/subcategorySlice';
-import { Pencil, Trash2, FileText, DollarSign, Wrench, Clock, Briefcase, History, CreditCard, Wallet } from 'lucide-react';
+import { Pencil, Trash2, FileText, Coins, Wrench, Clock, Briefcase, History, CreditCard, Wallet } from 'lucide-react';
+import { formatBookingAmount } from '@/lib/booking-display';
 import { ActivationPaymentModal } from '@/components/ActivationPaymentModal';
 import { fetchSettings } from '@/features/settings/settingsSlice';
 import { Button } from '@/components/ui/button';
@@ -397,7 +398,7 @@ export default function ProviderDetailPage() {
                                         <div className="bg-white rounded-lg shadow p-6">
                                             <div className="flex items-center gap-3">
                                                 <div className="p-3 bg-emerald-100 rounded-lg">
-                                                    <DollarSign className="h-6 w-6 text-emerald-600" />
+                                                    <Coins className="h-6 w-6 text-emerald-600" />
                                                 </div>
                                                 <div>
                                                     <p className="text-sm text-gray-600">Total Earnings</p>
@@ -593,7 +594,7 @@ export default function ProviderDetailPage() {
                                                                     <div className="flex flex-wrap items-center gap-2">
                                                                         {s.price ? (
                                                                             <span className="text-base font-bold tabular-nums text-foreground">
-                                                                                {s.price}
+                                                                                {formatBookingAmount(s.price)}
                                                                             </span>
                                                                         ) : null}
                                                                         {s.discount ? (
@@ -972,8 +973,8 @@ export default function ProviderDetailPage() {
                                         </div>
                                     </div>
                                     <div className="grid gap-1.5">
-                                        <Label htmlFor="svc-price">Price</Label>
-                                        <Input id="svc-price" name="price" value={serviceForm.price} onChange={onServiceChange} placeholder="$100" />
+                                        <Label htmlFor="svc-price">Price (ETB)</Label>
+                                        <Input id="svc-price" name="price" value={serviceForm.price} onChange={onServiceChange} placeholder="1000" inputMode="decimal" />
                                     </div>
                                     <div className="grid gap-1.5">
                                         <Label htmlFor="svc-discount">Discount (%) (optional)</Label>

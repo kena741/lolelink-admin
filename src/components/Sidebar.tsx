@@ -9,7 +9,7 @@ import {
     Briefcase, 
     CalendarCheck2, 
     LogOut, 
-    DollarSign, 
+    Banknote,
     Wallet,
     CreditCard, 
     Receipt, 
@@ -82,7 +82,7 @@ const customersSubItems = [
 
 // System Management Section
 const financeSubItems = [
-    { href: '/admin/finance/payout-request', label: 'Payout Request', icon: DollarSign },
+    { href: '/admin/finance/payout-request', label: 'Payout Request', icon: Banknote },
     { href: '/admin/finance/payment', label: 'Payment', icon: CreditCard },
     { href: '/admin/finance/payment-settings', label: 'Payment Settings', icon: Settings },
     { href: '/admin/finance/wallet-transactions', label: 'Wallet Transactions', icon: Wallet },
@@ -388,7 +388,7 @@ const Sidebar = () => {
                                         }`}
                                     >
                                         <div className="flex items-center gap-3">
-                                            <DollarSign className={`h-4 w-4 ${isFinanceActive ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
+                                            <Banknote className={`h-4 w-4 ${isFinanceActive ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
                                             <span>Finance</span>
                                         </div>
                                         {isFinanceOpen ? (
