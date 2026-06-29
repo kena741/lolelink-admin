@@ -795,7 +795,7 @@ const VerifyDocumentsPage = () => {
                                                     setSelectedDocument(null);
                                                 }}
                                                 disabled={processingId === selectedDocument.id}
-                                                className="flex-1 px-4 py-2.5 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                                                className="flex-1 px-4 py-2.5 rounded-lg bg-linear-to-r from-emerald-500 to-teal-600 text-white font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                                             >
                                                 {processingId === selectedDocument.id ? 'Processing...' : 'Approve Document'}
                                             </button>
@@ -805,7 +805,7 @@ const VerifyDocumentsPage = () => {
                                                     setSelectedDocument(null);
                                                 }}
                                                 disabled={processingId === selectedDocument.id}
-                                                className="flex-1 px-4 py-2.5 rounded-lg bg-gradient-to-r from-red-500 to-rose-600 text-white font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                                                className="flex-1 px-4 py-2.5 rounded-lg bg-linear-to-r from-red-500 to-rose-600 text-white font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                                             >
                                                 Reject Document
                                             </button>
@@ -820,7 +820,7 @@ const VerifyDocumentsPage = () => {
                                                     setSelectedDocument(null);
                                                 }}
                                                 disabled={processingId === selectedDocument.id}
-                                                className="inline-flex flex-1 items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-r from-red-500 to-rose-600 text-white font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                                                className="inline-flex flex-1 items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-red-500 text-white font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                                             >
                                                 <XCircle className="h-4 w-4" />
                                                 {processingId === selectedDocument.id ? 'Processing...' : 'Reject Document'}

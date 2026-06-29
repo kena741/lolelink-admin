@@ -361,22 +361,18 @@ function PayoutRequestPageContent() {
                             {!loading && !error ? (
                                 <div className="min-w-0">
                                     <p className="border-b border-gray-100 bg-gray-50/80 px-4 py-2.5 text-xs text-gray-600">
-                                        Click a row to review wallet analysis. Approve or reject from the sheet footer or the Actions column.
+                                        Use Actions on the left, or click a row to open wallet analysis with Approve / Reject / Send in the sheet footer.
                                     </p>
-                                    <table className="w-full min-w-[1040px] border-collapse text-left">
+                                    <table className="w-full border-collapse text-left">
                                         <TableHeader>
                                             <TableRow>
-                                                <TableHead className="w-[200px]">Provider</TableHead>
-                                                <TableHead className="w-[120px]">Note</TableHead>
+                                                <TableHead className="w-[160px]">Actions</TableHead>
+                                                <TableHead>Provider</TableHead>
+                                                <TableHead className="w-[100px]">Note</TableHead>
                                                 <TableHead className="w-[100px]">Status</TableHead>
                                                 <TableHead className="w-[140px]">Bank details</TableHead>
                                                 <TableHead className="w-[110px] text-right">Amount</TableHead>
                                                 <TableHead className="w-[150px]">Requested</TableHead>
-                                                <TableHead
-                                                    className="sticky right-0 z-20 min-w-[200px] bg-gray-50 px-3 text-right shadow-[-8px_0_12px_-10px_rgba(0,0,0,0.35)]"
-                                                >
-                                                    Actions
-                                                </TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -409,6 +405,20 @@ function PayoutRequestPageContent() {
                                                             className="group cursor-pointer align-top"
                                                             onClick={() => handleOpenWalletAnalysis(request)}
                                                         >
+                                                            <TableCell
+                                                                className="bg-white px-3 align-top group-hover:bg-gray-50/80"
+                                                                onClick={(event) => event.stopPropagation()}
+                                                            >
+                                                                <PayoutRequestActions
+                                                                    paymentStatus={normalizedPaymentStatus}
+                                                                    hasChapaTransferStarted={hasChapaTransferStarted}
+                                                                    isProcessing={isProcessing}
+                                                                    onApprove={() => handleApprove(request.id)}
+                                                                    onReject={() => handleReject(request.id)}
+                                                                    onSendWithChapa={() => handleSendWithChapa(request)}
+                                                                    onVerifyTransfer={() => handleVerifyChapaTransfer(request.id)}
+                                                                />
+                                                            </TableCell>
                                                             <TableCell>
                                                                 {request.providerId ? (
                                                                     <Link
@@ -456,20 +466,6 @@ function PayoutRequestPageContent() {
                                                             <TableCell className="text-xs text-gray-600">
                                                                 {formatAdminDateTimeUtc(request.createdDate)}
                                                             </TableCell>
-                                                            <TableCell
-                                                                className="sticky right-0 z-10 min-w-[200px] bg-white px-3 text-right shadow-[-8px_0_12px_-10px_rgba(0,0,0,0.35)] group-hover:bg-gray-50/80"
-                                                                onClick={(event) => event.stopPropagation()}
-                                                            >
-                                                                <PayoutRequestActions
-                                                                    paymentStatus={normalizedPaymentStatus}
-                                                                    hasChapaTransferStarted={hasChapaTransferStarted}
-                                                                    isProcessing={isProcessing}
-                                                                    onApprove={() => handleApprove(request.id)}
-                                                                    onReject={() => handleReject(request.id)}
-                                                                    onSendWithChapa={() => handleSendWithChapa(request)}
-                                                                    onVerifyTransfer={() => handleVerifyChapaTransfer(request.id)}
-                                                                />
-                                                            </TableCell>
                                                         </TableRow>
                                                     );
                                                 })
@@ -489,6 +485,21 @@ function PayoutRequestPageContent() {
                             requestId={walletAnalysisRequest?.id}
                             bankDetails={walletAnalysisRequest?.bankDetails}
                             paymentStatus={walletAnalysisRequest?.paymentStatus}
+                            hasChapaTransferStarted={
+                                walletAnalysisRequest
+                                    ? Boolean(
+                                          (walletAnalysisRequest.adminNote || '')
+                                              .toLowerCase()
+                                              .includes('chapa transfer sent.') ||
+                                              (walletAnalysisRequest.adminNote || '')
+                                                  .toLowerCase()
+                                                  .includes('chapa transfer reference:') ||
+                                              (walletAnalysisRequest.adminNote || '')
+                                                  .toLowerCase()
+                                                  .includes('reference=')
+                                      )
+                                    : false
+                            }
                             isProcessing={walletAnalysisRequest ? processingId === walletAnalysisRequest.id : false}
                             onApprove={
                                 walletAnalysisRequest
@@ -498,6 +509,16 @@ function PayoutRequestPageContent() {
                             onReject={
                                 walletAnalysisRequest
                                     ? () => handleReject(walletAnalysisRequest.id)
+                                    : undefined
+                            }
+                            onSend={
+                                walletAnalysisRequest
+                                    ? () => handleSendWithChapa(walletAnalysisRequest)
+                                    : undefined
+                            }
+                            onVerifyTransfer={
+                                walletAnalysisRequest
+                                    ? () => handleVerifyChapaTransfer(walletAnalysisRequest.id)
                                     : undefined
                             }
                         />

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { AlertTriangle, Check, CheckCircle2, Loader2, ShieldAlert, X, XCircle } from 'lucide-react';
+import { AlertTriangle, Check, CheckCircle2, Loader2, Send, ShieldAlert, X, XCircle } from 'lucide-react';
 import type { ProviderPayoutAnalysis, ProviderWalletTransactionLine } from '@/lib/provider-payout-analysis';
 import { formatAdminDateTimeUtc } from '@/lib/admin-datetime';
 import { maskAccountNumber } from '@/app/admin/finance/payout-request/payout-request-display';
@@ -27,9 +27,12 @@ interface PayoutWalletAnalysisSheetProps {
     requestId?: string | null;
     bankDetails?: PayoutBankDetails | null;
     paymentStatus?: string | null;
+    hasChapaTransferStarted?: boolean;
     isProcessing?: boolean;
     onApprove?: () => void;
     onReject?: () => void;
+    onSend?: () => void;
+    onVerifyTransfer?: () => void;
 }
 
 function formatCurrency(value: number): string {
@@ -112,14 +115,19 @@ export function PayoutWalletAnalysisSheet({
     requestId,
     bankDetails,
     paymentStatus,
+    hasChapaTransferStarted = false,
     isProcessing = false,
     onApprove,
     onReject,
+    onSend,
+    onVerifyTransfer,
 }: PayoutWalletAnalysisSheetProps) {
     const risk = analysis ? riskStyles(analysis.risk) : null;
     const RiskIcon = risk?.icon ?? Loader2;
     const normalizedStatus = (paymentStatus || '').trim().toLowerCase();
     const showPendingActions = normalizedStatus === 'pending' && onApprove && onReject;
+    const showSendAction = normalizedStatus === 'approved' && !hasChapaTransferStarted && onSend;
+    const showVerifyAction = normalizedStatus === 'approved' && hasChapaTransferStarted && onVerifyTransfer;
 
     return (
         <Sheet open={open} onClose={onClose} widthClassName="max-w-2xl lg:max-w-3xl">
@@ -276,7 +284,7 @@ export function PayoutWalletAnalysisSheet({
                         type="button"
                         onClick={onReject}
                         disabled={isProcessing}
-                        className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md bg-rose-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md border border-destructive/40 bg-white px-4 text-sm font-semibold text-destructive transition-colors hover:bg-destructive/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
                         Reject
@@ -285,10 +293,36 @@ export function PayoutWalletAnalysisSheet({
                         type="button"
                         onClick={onApprove}
                         disabled={isProcessing}
-                        className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md border border-primary bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                        Approve payout
+                        Approve
+                    </button>
+                </SheetFooter>
+            ) : null}
+            {showSendAction ? (
+                <SheetFooter className="justify-end">
+                    <button
+                        type="button"
+                        onClick={onSend}
+                        disabled={isProcessing}
+                        className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                        Send via Chapa
+                    </button>
+                </SheetFooter>
+            ) : null}
+            {showVerifyAction ? (
+                <SheetFooter className="justify-end">
+                    <button
+                        type="button"
+                        onClick={onVerifyTransfer}
+                        disabled={isProcessing}
+                        className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                        Verify transfer
                     </button>
                 </SheetFooter>
             ) : null}
