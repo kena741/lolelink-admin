@@ -3,6 +3,7 @@
 import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 import type { BookedService } from '@/features/bookedService/bookedServiceSlice';
 import { getBookingAnomalies } from '@/lib/booking-display';
+import { getAdminStatusToneClasses } from '@/lib/admin-status-badge';
 import { cn } from '@/lib/utils';
 
 interface BookingFlagsCellProps {
@@ -42,10 +43,10 @@ export function BookingFlagsCell({ booking, onOpenIssues }: BookingFlagsCellProp
             title={`View ${anomalies.length} issue${anomalies.length === 1 ? '' : 's'}: ${summary}`}
             aria-label={`View ${anomalies.length} booking issues in detail panel`}
             className={cn(
-                'inline-flex h-7 min-w-[2.75rem] items-center justify-center gap-1 rounded-full px-2.5 text-[11px] font-semibold ring-1 ring-inset transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-200',
+                'inline-flex h-7 min-w-[2.75rem] items-center justify-center gap-1 rounded-full border px-2.5 text-[11px] font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-200',
                 hasError
-                    ? 'bg-rose-50 text-rose-700 ring-rose-200 hover:bg-rose-100'
-                    : 'bg-amber-50 text-amber-800 ring-amber-200 hover:bg-amber-100'
+                    ? cn(getAdminStatusToneClasses('danger'), 'hover:bg-destructive/15')
+                    : cn(getAdminStatusToneClasses('warning'), 'hover:bg-amber-100')
             )}
         >
             <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden />

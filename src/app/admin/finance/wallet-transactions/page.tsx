@@ -123,7 +123,7 @@ const WalletTransactionsPage = () => {
 
     return (
         <AuthGuard>
-            <AdminShell>
+            <AdminShell wide>
                         <AdminPageHeader
                             title="Wallet Transactions"
                             description="Ledger credits and debits across customers and providers"
@@ -155,7 +155,7 @@ const WalletTransactionsPage = () => {
                             }
                         />
 
-                        <section className="mb-6 grid min-w-0 grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5 xl:gap-4">
+                        <section className="mb-6 grid w-full min-w-0 grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5 xl:gap-4">
                             <AdminStatCard title="Transactions" value={loading ? '…' : String(stats.total)} />
                             <AdminStatCard
                                 title="Credits"
@@ -240,7 +240,7 @@ const WalletTransactionsPage = () => {
                         {loading ? <AdminLoadingRow label="Loading wallet transactions…" /> : null}
                         {error ? <AdminErrorAlert message={error} /> : null}
 
-                        <div className="min-w-0">
+                        <div className="w-full min-w-0">
                             <WalletTransactionsTable items={pagination.pageItems} loading={loading} />
                         </div>
 

@@ -4,7 +4,28 @@ import {
     hasBookingCustomerRefund,
     hasBookingPaymentFlagConflict,
     isSameOwnerBooking,
+    resolveBookingServiceName,
 } from '@/lib/booking-display';
+
+describe('resolveBookingServiceName', () => {
+    it('returns em dash when serviceName is null and no serviceDetails name', () => {
+        expect(
+            resolveBookingServiceName({
+                serviceName: null,
+                service_id: 'svc-123',
+            })
+        ).toBe('—');
+    });
+
+    it('prefers serviceName when present', () => {
+        expect(
+            resolveBookingServiceName({
+                serviceName: 'Cleaning',
+                service_id: 'svc-123',
+            })
+        ).toBe('Cleaning');
+    });
+});
 
 describe('hasBookingPaymentFlagConflict', () => {
     it('suppresses wallet escrow pattern (status paid, boolean false)', () => {
@@ -108,6 +129,17 @@ describe('getBookingAnomalies', () => {
         });
 
         expect(anomalies.some((item) => item.id === 'missing-service-name')).toBe(false);
+    });
+
+    it('flags missing service name when only service_id is present', () => {
+        const anomalies = getBookingAnomalies({
+            status: 'pending',
+            payment_status: 'pending_payment',
+            paymentCompleted: false,
+            service_id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+        });
+
+        expect(anomalies.some((item) => item.id === 'missing-service-name')).toBe(true);
     });
 
     it('does not flag rejected paid booking when refund is recorded', () => {

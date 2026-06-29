@@ -4,8 +4,10 @@ import Link from 'next/link';
 import { AlertTriangle, Check, CheckCircle2, Loader2, Send, ShieldAlert, X, XCircle } from 'lucide-react';
 import type { ProviderPayoutAnalysis, ProviderWalletTransactionLine } from '@/lib/provider-payout-analysis';
 import { formatAdminDateTimeUtc } from '@/lib/admin-datetime';
+import { getAdminStatusToneClasses, type AdminStatusTone } from '@/lib/admin-status-badge';
 import { maskAccountNumber } from '@/app/admin/finance/payout-request/payout-request-display';
 import { Sheet, SheetBody, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { cn } from '@/lib/utils';
 
 interface PayoutBankDetails {
     bankName?: string;
@@ -48,12 +50,12 @@ function riskStyles(risk: ProviderPayoutAnalysis['risk']): {
     className: string;
 } {
     if (risk === 'clean') {
-        return { icon: CheckCircle2, className: 'border-emerald-200 bg-emerald-50 text-emerald-800' };
+        return { icon: CheckCircle2, className: cn('border', getAdminStatusToneClasses('success')) };
     }
     if (risk === 'review') {
-        return { icon: AlertTriangle, className: 'border-amber-200 bg-amber-50 text-amber-900' };
+        return { icon: AlertTriangle, className: cn('border', getAdminStatusToneClasses('warning')) };
     }
-    return { icon: ShieldAlert, className: 'border-rose-200 bg-rose-50 text-rose-900' };
+    return { icon: ShieldAlert, className: cn('border', getAdminStatusToneClasses('danger')) };
 }
 
 function categoryLabel(category: ProviderWalletTransactionLine['category']): string {
@@ -69,18 +71,22 @@ function categoryLabel(category: ProviderWalletTransactionLine['category']): str
     return labels[category];
 }
 
+function categoryTone(category: ProviderWalletTransactionLine['category']): AdminStatusTone {
+    if (category === 'legitimate_payout' || category === 'activation') return 'success';
+    if (category === 'suspicious_payout') return 'warning';
+    if (category === 'erroneous_payout') return 'danger';
+    if (category === 'withdrawal' || category === 'decline_fee') return 'slate';
+    return 'neutral';
+}
+
 function categoryClass(category: ProviderWalletTransactionLine['category']): string {
-    if (category === 'legitimate_payout' || category === 'activation') return 'bg-emerald-50 text-emerald-700';
-    if (category === 'suspicious_payout') return 'bg-amber-50 text-amber-800';
-    if (category === 'erroneous_payout') return 'bg-rose-50 text-rose-800';
-    if (category === 'withdrawal' || category === 'decline_fee') return 'bg-slate-100 text-slate-700';
-    return 'bg-gray-100 text-gray-700';
+    return cn('border', getAdminStatusToneClasses(categoryTone(category)));
 }
 
 function severityClass(severity: 'info' | 'warning' | 'error'): string {
-    if (severity === 'error') return 'border-rose-200 bg-rose-50 text-rose-900';
-    if (severity === 'warning') return 'border-amber-200 bg-amber-50 text-amber-900';
-    return 'border-sky-200 bg-sky-50 text-sky-900';
+    const tone: AdminStatusTone =
+        severity === 'error' ? 'danger' : severity === 'warning' ? 'warning' : 'wallet';
+    return cn('border', getAdminStatusToneClasses(tone));
 }
 
 function BankSummary({ bankDetails }: { bankDetails: PayoutBankDetails }) {

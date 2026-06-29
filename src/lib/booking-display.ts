@@ -219,6 +219,25 @@ export function bookingAmountTone(value: unknown): 'negative' | 'zero' | 'positi
     return 'positive';
 }
 
+export function resolveBookingServiceId(booking: Record<string, unknown>): string {
+    if (typeof booking.service_id === 'string' && booking.service_id.trim()) {
+        return booking.service_id.trim();
+    }
+    if (typeof booking.serviceId === 'string' && booking.serviceId.trim()) {
+        return booking.serviceId.trim();
+    }
+
+    const details = asRecord(booking.serviceDetails);
+    if (typeof details?.service_id === 'string' && details.service_id.trim()) {
+        return details.service_id.trim();
+    }
+    if (typeof details?.serviceId === 'string' && details.serviceId.trim()) {
+        return details.serviceId.trim();
+    }
+
+    return '';
+}
+
 export function resolveBookingServiceName(booking: Record<string, unknown>): string {
     const direct = typeof booking.serviceName === 'string' ? booking.serviceName.trim() : '';
     if (direct) return direct;

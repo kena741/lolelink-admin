@@ -126,7 +126,7 @@ const TaxesPage = () => {
 
     return (
         <AuthGuard>
-            <AdminShell>
+            <AdminShell wide>
                         <AdminPageHeader
                             title="Tax Settings"
                             breadcrumbs={[

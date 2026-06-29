@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@source "../lib/admin-status-badge.ts";
+
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
@@ -47,6 +49,29 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --color-gray-50: #f9fafb;
+  --color-gray-100: #f3f4f6;
+  --color-gray-200: #e5e7eb;
+  --color-gray-700: #374151;
+  --color-emerald-50: #edf6e6;
+  --color-emerald-600: #027a3b;
+  --color-emerald-700: #015d2c;
+  --color-indigo-50: #edf6e6;
+  --color-indigo-600: #027a3b;
+  --color-indigo-700: #015d2c;
+  --color-amber-50: #fffbeb;
+  --color-amber-100: #fef3c7;
+  --color-amber-300: #fcd34d;
+  --color-amber-800: #92400e;
+  --color-violet-50: #f5f3ff;
+  --color-violet-300: #c4b5fd;
+  --color-violet-700: #6d28d9;
+  --color-sky-50: #f0f9ff;
+  --color-sky-300: #7dd3fc;
+  --color-sky-700: #0369a1;
+  --color-slate-50: #f8fafc;
+  --color-slate-200: #e2e8f0;
+  --color-slate-700: #334155;
 }
 
 :root {
@@ -139,12 +164,50 @@
   --color-emerald-700: #015d2c;
   --color-emerald-800: #194206;
   --color-emerald-950: #091703;
-  --color-teal-500: #027a3b;
-  --color-teal-600: #027a3b;
-  --color-teal-700: #015d2c;
-  --color-cyan-400: #5c8b3d;
-  --color-cyan-600: #027a3b;
-  --color-sky-600: #027a3b;
+  --color-amber-50: #fffbeb;
+  --color-amber-100: #fef3c7;
+  --color-amber-200: #fde68a;
+  --color-amber-300: #fcd34d;
+  --color-amber-500: #f59e0b;
+  --color-amber-600: #d97706;
+  --color-amber-700: #b45309;
+  --color-amber-800: #92400e;
+  --color-amber-950: #451a03;
+  --color-sky-50: #f0f9ff;
+  --color-sky-200: #bae6fd;
+  --color-sky-300: #7dd3fc;
+  --color-sky-600: #0284c7;
+  --color-sky-700: #0369a1;
+  --color-sky-900: #0c4a6e;
+  --color-slate-50: #f8fafc;
+  --color-slate-100: #f1f5f9;
+  --color-slate-200: #e2e8f0;
+  --color-slate-500: #64748b;
+  --color-slate-600: #475569;
+  --color-slate-700: #334155;
+  --color-violet-50: #f5f3ff;
+  --color-violet-300: #c4b5fd;
+  --color-violet-600: #7c3aed;
+  --color-violet-700: #6d28d9;
+  --color-red-50: #fef2f2;
+  --color-red-100: #fee2e2;
+  --color-red-200: #fecaca;
+  --color-red-300: #fca5a5;
+  --color-red-500: #ef4444;
+  --color-red-600: #dc2626;
+  --color-red-700: #b91c1c;
+  --color-red-900: #7f1d1d;
+  --color-rose-50: #fff1f2;
+  --color-rose-100: #ffe4e6;
+  --color-rose-200: #fecdd3;
+  --color-rose-600: #e11d48;
+  --color-rose-700: #be123c;
+  --color-rose-800: #9f1239;
+  --color-rose-900: #881337;
+  --color-teal-50: #f0fdfa;
+  --color-teal-500: #14b8a6;
+  --color-teal-600: #0d9488;
+  --color-teal-700: #0f766e;
 }
 
 .dark {
@@ -236,12 +299,50 @@
   --color-emerald-700: #3b6b21;
   --color-emerald-800: #5c8b3d;
   --color-emerald-950: #091703;
-  --color-teal-500: #027a3b;
-  --color-teal-600: #027a3b;
-  --color-teal-700: #3b6b21;
-  --color-cyan-400: #7ea95c;
-  --color-cyan-600: #027a3b;
-  --color-sky-600: #027a3b;
+  --color-amber-50: #451a03;
+  --color-amber-100: #78350f;
+  --color-amber-200: #92400e;
+  --color-amber-300: #b45309;
+  --color-amber-500: #f59e0b;
+  --color-amber-600: #fbbf24;
+  --color-amber-700: #fcd34d;
+  --color-amber-800: #fde68a;
+  --color-amber-950: #fffbeb;
+  --color-sky-50: #0c4a6e;
+  --color-sky-200: #075985;
+  --color-sky-300: #0369a1;
+  --color-sky-600: #38bdf8;
+  --color-sky-700: #7dd3fc;
+  --color-sky-900: #f0f9ff;
+  --color-slate-50: #1e293b;
+  --color-slate-100: #334155;
+  --color-slate-200: #475569;
+  --color-slate-500: #94a3b8;
+  --color-slate-600: #cbd5e1;
+  --color-slate-700: #e2e8f0;
+  --color-violet-50: #2e1065;
+  --color-violet-300: #6d28d9;
+  --color-violet-600: #a78bfa;
+  --color-violet-700: #c4b5fd;
+  --color-red-50: #450a0a;
+  --color-red-100: #7f1d1d;
+  --color-red-200: #991b1b;
+  --color-red-300: #b91c1c;
+  --color-red-500: #ef4444;
+  --color-red-600: #f87171;
+  --color-red-700: #fca5a5;
+  --color-red-900: #fee2e2;
+  --color-rose-50: #4c0519;
+  --color-rose-100: #881337;
+  --color-rose-200: #9f1239;
+  --color-rose-600: #fb7185;
+  --color-rose-700: #fda4af;
+  --color-rose-800: #fecdd3;
+  --color-rose-900: #fff1f2;
+  --color-teal-50: #042f2e;
+  --color-teal-500: #14b8a6;
+  --color-teal-600: #2dd4bf;
+  --color-teal-700: #5eead4;
 }
 
 @layer base {

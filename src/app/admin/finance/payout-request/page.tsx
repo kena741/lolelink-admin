@@ -18,6 +18,7 @@ import type { ProviderPayoutAnalysis } from '@/lib/provider-payout-analysis';
 import { PayoutWalletAnalysisSheet } from '@/app/admin/finance/payout-request/PayoutWalletAnalysisSheet';
 import { PayoutRequestActions } from '@/app/admin/finance/payout-request/PayoutRequestActions';
 import {
+    getPayoutStatusLabel,
     maskAccountNumber,
     sanitizeDisplayText,
 } from '@/app/admin/finance/payout-request/payout-request-display';
@@ -250,14 +251,6 @@ function PayoutRequestPageContent() {
 
     const pendingRequests = requests.filter(r => r.paymentStatus === 'pending');
 
-    function paymentStatusTone(status: string): 'warning' | 'success' | 'danger' | 'neutral' | 'info' {
-        const normalized = status.trim().toLowerCase();
-        if (normalized === 'pending') return 'warning';
-        if (normalized === 'approved') return 'info';
-        if (normalized === 'completed') return 'success';
-        if (normalized === 'rejected') return 'danger';
-        return 'neutral';
-    }
     const segment = (searchParams.get('segment') || '').trim().toLowerCase();
     const isToday = (value?: string) => {
         if (!value) return false;
@@ -301,7 +294,7 @@ function PayoutRequestPageContent() {
 
     return (
         <AuthGuard>
-            <AdminShell>
+            <AdminShell wide>
                         <AdminPageHeader
                             title="Payout Request"
                             breadcrumbs={[
@@ -335,7 +328,7 @@ function PayoutRequestPageContent() {
                                 </Link>
                             </div>
                         )}
-                        <section className="mb-6 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:gap-4">
+                        <section className="mb-6 grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:gap-4">
                             <AdminStatCard
                                 title="Pending Requests"
                                 value={loading ? '…' : String(pendingRequests.length)}
@@ -357,22 +350,22 @@ function PayoutRequestPageContent() {
                         {loading ? <AdminLoadingRow label="Loading payout requests…" /> : null}
                         {error ? <AdminErrorAlert message={typeof error === 'string' ? error : 'Something went wrong'} /> : null}
 
-                        <AdminTableShell className="min-w-0 overflow-x-auto">
+                        <AdminTableShell className="w-full min-w-0 overflow-x-auto">
                             {!loading && !error ? (
-                                <div className="min-w-0">
+                                <div className="w-full min-w-0">
                                     <p className="border-b border-gray-100 bg-gray-50/80 px-4 py-2.5 text-xs text-gray-600">
-                                        Use Actions on the left, or click a row to open wallet analysis with Approve / Reject / Send in the sheet footer.
+                                        Click a row for wallet analysis. Approve, reject, or send from the Actions column or the sheet footer.
                                     </p>
-                                    <table className="w-full border-collapse text-left">
+                                    <table className="w-full table-fixed border-collapse text-left">
                                         <TableHeader>
                                             <TableRow>
-                                                <TableHead className="w-[160px]">Actions</TableHead>
-                                                <TableHead>Provider</TableHead>
-                                                <TableHead className="w-[100px]">Note</TableHead>
-                                                <TableHead className="w-[100px]">Status</TableHead>
-                                                <TableHead className="w-[140px]">Bank details</TableHead>
-                                                <TableHead className="w-[110px] text-right">Amount</TableHead>
-                                                <TableHead className="w-[150px]">Requested</TableHead>
+                                                <TableHead className="w-[18%]">Provider</TableHead>
+                                                <TableHead className="w-[8%]">Note</TableHead>
+                                                <TableHead className="w-[9%]">Status</TableHead>
+                                                <TableHead className="w-[14%]">Bank details</TableHead>
+                                                <TableHead className="w-[10%] text-right">Amount</TableHead>
+                                                <TableHead className="w-[14%]">Requested</TableHead>
+                                                <TableHead className="w-[17%] px-3 text-right">Actions</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -405,20 +398,6 @@ function PayoutRequestPageContent() {
                                                             className="group cursor-pointer align-top"
                                                             onClick={() => handleOpenWalletAnalysis(request)}
                                                         >
-                                                            <TableCell
-                                                                className="bg-white px-3 align-top group-hover:bg-gray-50/80"
-                                                                onClick={(event) => event.stopPropagation()}
-                                                            >
-                                                                <PayoutRequestActions
-                                                                    paymentStatus={normalizedPaymentStatus}
-                                                                    hasChapaTransferStarted={hasChapaTransferStarted}
-                                                                    isProcessing={isProcessing}
-                                                                    onApprove={() => handleApprove(request.id)}
-                                                                    onReject={() => handleReject(request.id)}
-                                                                    onSendWithChapa={() => handleSendWithChapa(request)}
-                                                                    onVerifyTransfer={() => handleVerifyChapaTransfer(request.id)}
-                                                                />
-                                                            </TableCell>
                                                             <TableCell>
                                                                 {request.providerId ? (
                                                                     <Link
@@ -441,10 +420,17 @@ function PayoutRequestPageContent() {
                                                                 </span>
                                                             </TableCell>
                                                             <TableCell>
-                                                                <AdminStatusBadge tone={paymentStatusTone(normalizedPaymentStatus)}>
-                                                                    {normalizedPaymentStatus.charAt(0).toUpperCase() +
-                                                                        normalizedPaymentStatus.slice(1)}
-                                                                </AdminStatusBadge>
+                                                                {(() => {
+                                                                    const statusDisplay = getPayoutStatusLabel(
+                                                                        normalizedPaymentStatus,
+                                                                        hasChapaTransferStarted
+                                                                    );
+                                                                    return (
+                                                                        <AdminStatusBadge tone={statusDisplay.tone}>
+                                                                            {statusDisplay.label}
+                                                                        </AdminStatusBadge>
+                                                                    );
+                                                                })()}
                                                             </TableCell>
                                                             <TableCell>
                                                                 {request.bankDetails ? (
@@ -465,6 +451,20 @@ function PayoutRequestPageContent() {
                                                             </TableCell>
                                                             <TableCell className="text-xs text-gray-600">
                                                                 {formatAdminDateTimeUtc(request.createdDate)}
+                                                            </TableCell>
+                                                            <TableCell
+                                                                className="px-3 align-top text-right"
+                                                                onClick={(event) => event.stopPropagation()}
+                                                            >
+                                                                <PayoutRequestActions
+                                                                    paymentStatus={normalizedPaymentStatus}
+                                                                    hasChapaTransferStarted={hasChapaTransferStarted}
+                                                                    isProcessing={isProcessing}
+                                                                    onApprove={() => handleApprove(request.id)}
+                                                                    onReject={() => handleReject(request.id)}
+                                                                    onSendWithChapa={() => handleSendWithChapa(request)}
+                                                                    onVerifyTransfer={() => handleVerifyChapaTransfer(request.id)}
+                                                                />
                                                             </TableCell>
                                                         </TableRow>
                                                     );

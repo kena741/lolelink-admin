@@ -23,6 +23,9 @@ import {
     sanitizePersonDisplayName,
 } from '@/lib/booking-display';
 import { getSupabase } from '@/lib/supabaseClient';
+import { formatBookingJobStatusLabel } from '@/lib/booking-status';
+import { getBookingJobStatusTone } from '@/lib/admin-status-badge';
+import { AdminStatusBadge } from '@/components/admin/data-table';
 import { Sheet, SheetBody, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { BookingIssuesPanel } from './BookingIssuesPanel';
 
@@ -54,20 +57,11 @@ function SectionCard({ title, children }: { title: string; children: React.React
     );
 }
 
-const JobStatusBadge = ({ status }: { status?: string }) => {
-    const color =
-        status === 'completed'
-            ? 'bg-green-100 text-green-800'
-            : status === 'rejected'
-              ? 'bg-red-100 text-red-800'
-              : 'bg-gray-100 text-gray-800';
-
+function JobStatusBadge({ status }: { status?: string }) {
     return (
-        <span className={`inline-flex rounded-md px-2 py-1 text-[13px] font-semibold ${color}`}>
-            {status?.replace(/_/g, ' ') ?? 'unknown'}
-        </span>
+        <AdminStatusBadge tone={getBookingJobStatusTone(status)}>{formatBookingJobStatusLabel(status)}</AdminStatusBadge>
     );
-};
+}
 
 export function BookingDetailModal({
     open,

@@ -20,3 +20,21 @@ export function maskAccountNumber(accountNumber?: string): string {
     if (normalized.length <= 4) return normalized;
     return `•••• ${normalized.slice(-4)}`;
 }
+
+import type { AdminStatusTone } from '@/lib/admin-status-badge';
+
+export function getPayoutStatusLabel(
+    paymentStatus: string,
+    hasChapaTransferStarted: boolean
+): { label: string; tone: AdminStatusTone } {
+    const normalized = paymentStatus.trim().toLowerCase();
+    if (normalized === 'approved' && hasChapaTransferStarted) {
+        return { label: 'Awaiting transfer', tone: 'pending' };
+    }
+    if (normalized === 'pending') return { label: 'Pending', tone: 'pending' };
+    if (normalized === 'approved') return { label: 'Approved', tone: 'info' };
+    if (normalized === 'completed') return { label: 'Completed', tone: 'success' };
+    if (normalized === 'rejected') return { label: 'Rejected', tone: 'danger' };
+    const fallback = paymentStatus.trim();
+    return { label: fallback ? fallback.charAt(0).toUpperCase() + fallback.slice(1) : 'Unknown', tone: 'neutral' };
+}

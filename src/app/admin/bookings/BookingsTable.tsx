@@ -1,5 +1,6 @@
 'use client';
 
+import type { ComponentProps } from 'react';
 import Image from 'next/image';
 import { Briefcase, Bug, Eye, Loader2, Trash2 } from 'lucide-react';
 import {
@@ -21,32 +22,20 @@ import {
 import {
     formatBookingJobStatusLabel,
     formatBookingPaymentStatusLabel,
-    resolveBookingPaymentStatus,
 } from '@/lib/booking-status';
+import {
+    getBookingJobStatusTone,
+    getBookingPaymentMethodTone,
+    getBookingPaymentStatusTone,
+} from '@/lib/admin-status-badge';
 import { BookingFlagsCell } from './BookingFlagsCell';
-import { AdminDataTableEmpty, AdminIconActionButton, AdminTableShell } from '@/components/admin/data-table';
+import { AdminDataTableEmpty, AdminIconActionButton, AdminStatusBadge, AdminTableShell } from '@/components/admin/data-table';
 
 function JobStatusBadge({ status }: { status?: string }) {
-    const normalized = status ?? 'pending';
-    const styles: Record<string, string> = {
-        completed: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
-        in_progress: 'bg-sky-50 text-sky-700 ring-sky-600/20',
-        on_the_way: 'bg-sky-50 text-sky-700 ring-sky-600/20',
-        accepted: 'bg-indigo-50 text-indigo-700 ring-indigo-600/20',
-        pending_approval: 'bg-indigo-50 text-indigo-700 ring-indigo-600/20',
-        rejected: 'bg-rose-50 text-rose-700 ring-rose-600/20',
-        pending_extra_payment: 'bg-amber-50 text-amber-800 ring-amber-600/20',
-        hold: 'bg-amber-50 text-amber-800 ring-amber-600/20',
-        admin_paid: 'bg-teal-50 text-teal-700 ring-teal-600/20',
-        pending: 'bg-gray-100 text-gray-700 ring-gray-500/20',
-    };
-
     return (
-        <span
-            className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ring-inset ${styles[normalized] ?? styles.pending}`}
-        >
-            {formatBookingJobStatusLabel(normalized)}
-        </span>
+        <AdminStatusBadge tone={getBookingJobStatusTone(status)}>
+            {formatBookingJobStatusLabel(status)}
+        </AdminStatusBadge>
     );
 }
 
@@ -57,21 +46,10 @@ function PaymentStatusBadge({
     paymentStatus?: string | null;
     paymentCompleted?: boolean | null;
 }) {
-    const resolved = resolveBookingPaymentStatus(paymentStatus, paymentCompleted);
-    const styles: Record<string, string> = {
-        payment_completed: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
-        payment_approved_by_admin: 'bg-sky-50 text-sky-700 ring-sky-600/20',
-        pending_payment: 'bg-amber-50 text-amber-800 ring-amber-600/20',
-        payment_rejected_by_admin: 'bg-rose-50 text-rose-700 ring-rose-600/20',
-        payment_cancelled: 'bg-gray-100 text-gray-600 ring-gray-500/20',
-    };
-
     return (
-        <span
-            className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ring-inset ${styles[resolved] ?? 'bg-gray-100 text-gray-700 ring-gray-500/20'}`}
-        >
+        <AdminStatusBadge tone={getBookingPaymentStatusTone(paymentStatus, paymentCompleted)}>
             {formatBookingPaymentStatusLabel(paymentStatus, paymentCompleted)}
-        </span>
+        </AdminStatusBadge>
     );
 }
 
@@ -79,19 +57,7 @@ function PaymentMethodBadge({ paymentType }: { paymentType?: string | null }) {
     const label = formatPaymentMethodLabel(paymentType);
     if (label === '—') return <span className="text-sm text-gray-400">—</span>;
 
-    const normalized = (paymentType ?? '').toLowerCase();
-    const style =
-        normalized === 'chapa'
-            ? 'bg-violet-50 text-violet-700 ring-violet-600/20'
-            : normalized === 'wallet'
-              ? 'bg-slate-50 text-slate-700 ring-slate-600/20'
-              : 'bg-gray-50 text-gray-700 ring-gray-500/20';
-
-    return (
-        <span className={`inline-flex rounded-md px-2 py-1 text-[11px] font-semibold ring-1 ring-inset ${style}`}>
-            {label}
-        </span>
-    );
+    return <AdminStatusBadge tone={getBookingPaymentMethodTone(paymentType)}>{label}</AdminStatusBadge>;
 }
 
 function BookingAmount({ value }: { value: unknown }) {

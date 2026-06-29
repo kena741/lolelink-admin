@@ -1,5 +1,6 @@
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { hasBookingCustomerRefund } from '@/lib/booking-display';
+import { hasBookingCustomerRefund, resolveBookingServiceId, resolveBookingServiceImage } from '@/lib/booking-display';
+import { resolveServiceImage, resolveServiceName } from '@/lib/booking-pricing';
 import { BOOKING_PAYMENT_STATUS, resolveBookingPaymentStatus } from '@/lib/booking-status';
 import { getSupabase } from '@/lib/supabaseClient';
 import { readAuthUserId } from '@/lib/wallet-transaction-user';
@@ -112,6 +113,38 @@ function resolveCustomerName(raw: Record<string, unknown>): string {
     return '';
 }
 
+async function fetchServiceMetaById(
+    serviceIds: string[]
+): Promise<Map<string, { name: string; image?: string }>> {
+    const map = new Map<string, { name: string; image?: string }>();
+    if (serviceIds.length === 0) return map;
+
+    const { data, error } = await getSupabase()
+        .from('service')
+        .select('id, serviceName, serviceImage')
+        .in('id', serviceIds);
+    if (error) throw error;
+
+    for (const row of (data ?? []) as Record<string, unknown>[]) {
+        const id = typeof row.id === 'string' ? row.id : '';
+        if (!id) continue;
+        const name = resolveServiceName(row);
+        const image = resolveServiceImage(row);
+        if (name || image) {
+            map.set(id, { name, image });
+        }
+    }
+
+    return map;
+}
+
+function bookingNeedsServiceLookup(row: BookedService): boolean {
+    const bookingRecord = row as unknown as Record<string, unknown>;
+    const hasName = typeof row.serviceName === 'string' && row.serviceName.trim().length > 0;
+    const hasImage = Boolean(resolveBookingServiceImage(bookingRecord));
+    return (!hasName || !hasImage) && resolveBookingServiceId(bookingRecord).length > 0;
+}
+
 async function enrichBookingsWithNames(rows: BookedService[]): Promise<BookedService[]> {
     if (rows.length === 0) return rows;
 
@@ -123,14 +156,23 @@ async function enrichBookingsWithNames(rows: BookedService[]): Promise<BookedSer
                 .filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
         )
     );
+    const serviceIds = Array.from(
+        new Set(
+            rows
+                .filter(bookingNeedsServiceLookup)
+                .map((row) => resolveBookingServiceId(row as unknown as Record<string, unknown>))
+                .filter((id) => id.length > 0)
+        )
+    );
 
-    const [providersResult, customersResult] = await Promise.all([
+    const [providersResult, customersResult, serviceMetaById] = await Promise.all([
         providerIds.length > 0
             ? getSupabase().from('provider').select('id, firstName, lastName, userName, user_id').in('id', providerIds)
             : Promise.resolve({ data: [], error: null }),
         customerIds.length > 0
             ? getSupabase().from('customer').select('id, first_name, last_name, user_name, user_id').in('id', customerIds)
             : Promise.resolve({ data: [], error: null }),
+        fetchServiceMetaById(serviceIds),
     ]);
 
     if (providersResult.error) throw providersResult.error;
@@ -157,6 +199,11 @@ async function enrichBookingsWithNames(rows: BookedService[]): Promise<BookedSer
     return rows.map((row) => {
         const providerMeta = providerMetaById.get(row.provider_id);
         const customerMeta = row.customer_id ? customerMetaById.get(row.customer_id) : undefined;
+        const serviceId = resolveBookingServiceId(row as unknown as Record<string, unknown>);
+        const serviceMeta = serviceId ? serviceMetaById.get(serviceId) : undefined;
+        const serviceName = row.serviceName?.trim() || serviceMeta?.name;
+        const serviceImage =
+            resolveBookingServiceImage(row as unknown as Record<string, unknown>) || serviceMeta?.image || undefined;
 
         return {
             ...row,
@@ -164,6 +211,8 @@ async function enrichBookingsWithNames(rows: BookedService[]): Promise<BookedSer
             customerName: customerMeta?.name,
             provider_user_id: readAuthUserId(row.provider_user_id) ?? providerMeta?.userId ?? null,
             customer_user_id: readAuthUserId(row.customer_user_id) ?? customerMeta?.userId ?? null,
+            ...(serviceName ? { serviceName } : {}),
+            ...(serviceImage ? { serviceImage } : {}),
         };
     });
 }

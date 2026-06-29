@@ -9,7 +9,8 @@ import {
     AdminShell,
     AdminStatCard,
 } from '@/components/admin/admin-layout';
-import { AdminTableShell } from '@/components/admin/data-table';
+import { AdminStatusBadge, AdminTableShell } from '@/components/admin/data-table';
+import { getPaymentRecordStatusTone } from '@/lib/admin-status-badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { fetchPayments, updatePayment } from '@/features/payments/paymentsSlice';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
@@ -76,17 +77,9 @@ const PaymentPage = () => {
         }
     };
 
-    const statusClassMap: Record<string, string> = {
-        pending_payment: 'bg-amber-500/10 text-amber-700 border-amber-300/50',
-        payment_approved_by_admin: 'bg-indigo-500/10 text-indigo-700 border-indigo-300/50',
-        payment_rejected_by_admin: 'bg-red-500/10 text-red-700 border-red-300/50',
-        payment_completed: 'bg-emerald-500/10 text-emerald-700 border-emerald-300/50',
-        payment_cancelled: 'bg-slate-500/10 text-slate-700 border-slate-300/50',
-    };
-
     return (
         <AuthGuard>
-            <AdminShell>
+            <AdminShell wide>
                         <AdminPageHeader
                             title="Payments"
                             breadcrumbs={[
@@ -150,7 +143,6 @@ const PaymentPage = () => {
                                                 payments.map((payment) => {
                                                     const isProcessing = processingId === payment.id;
                                                     const currentStatus = payment.paymentStatus || 'pending_payment';
-                                                    const badgeClass = statusClassMap[currentStatus] || statusClassMap.pending_payment;
 
                                                     return (
                                                         <TableRow key={payment.id}>
@@ -162,13 +154,16 @@ const PaymentPage = () => {
                                                                 {formatAmount(payment.totalAmount)}
                                                             </TableCell>
                                                             <TableCell>
-                                                                <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${badgeClass}`}>
+                                                                <AdminStatusBadge
+                                                                    tone={getPaymentRecordStatusTone(currentStatus)}
+                                                                    className="inline-flex items-center gap-2 px-3 py-1.5 text-xs"
+                                                                >
                                                                     {currentStatus === 'payment_completed' && <CheckCircle2 className="h-3.5 w-3.5" />}
                                                                     {currentStatus === 'pending_payment' && <Clock className="h-3.5 w-3.5" />}
                                                                     {currentStatus === 'payment_rejected_by_admin' && <XCircle className="h-3.5 w-3.5" />}
                                                                     {currentStatus === 'payment_cancelled' && <RefreshCw className="h-3.5 w-3.5" />}
                                                                     {formatStatusLabel(currentStatus)}
-                                                                </span>
+                                                                </AdminStatusBadge>
                                                             </TableCell>
                                                             <TableCell className="text-gray-600">
                                                                 {payment.bookingDate ? formatDate(payment.bookingDate) : '—'}

@@ -4,28 +4,33 @@ import Sidebar from '@/components/Sidebar';
 import { cn } from '@/lib/utils';
 
 export const adminPageMainClassName =
-    'ml-64 min-h-screen w-[calc(100vw-16rem)] min-w-0 max-w-full overflow-x-hidden';
+    'ml-64 min-h-screen min-w-0 flex-1 overflow-x-hidden';
 
-export const adminPageContentClassName = 'mx-auto min-w-0 max-w-7xl px-4 py-8 sm:px-6 lg:px-8';
+export const adminPageContentClassName = 'mx-auto min-w-0 w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8';
+
+export const adminPageContentWideClassName = 'box-border w-full min-w-0 max-w-none px-4 py-8 sm:px-6 lg:px-8 xl:px-10';
 
 interface AdminPageLayoutProps {
     children: ReactNode;
 }
 
 export function AdminPageLayout({ children }: AdminPageLayoutProps) {
-    return <div className="flex min-h-screen overflow-x-hidden">{children}</div>;
+    return <div className="flex min-h-screen w-full overflow-x-hidden">{children}</div>;
 }
 
 interface AdminShellProps {
     children: ReactNode;
+    wide?: boolean;
 }
 
-export function AdminShell({ children }: AdminShellProps) {
+export function AdminShell({ children, wide = false }: AdminShellProps) {
     return (
         <AdminPageLayout>
             <Sidebar />
             <AdminPageMain>
-                <AdminPageContent>{children}</AdminPageContent>
+                <AdminPageContent className={wide ? adminPageContentWideClassName : undefined}>
+                    {children}
+                </AdminPageContent>
             </AdminPageMain>
         </AdminPageLayout>
     );
@@ -46,7 +51,7 @@ interface AdminPageContentProps {
 }
 
 export function AdminPageContent({ children, className }: AdminPageContentProps) {
-    return <div className={cn(adminPageContentClassName, className)}>{children}</div>;
+    return <div className={cn(className ?? adminPageContentClassName)}>{children}</div>;
 }
 
 interface AdminStatCardProps {

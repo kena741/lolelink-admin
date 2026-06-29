@@ -468,7 +468,7 @@ const VerifyDocumentsPage = () => {
                                                                 <button
                                                                     onClick={() => handleApproveAll(group.providerId, group.providerName)}
                                                                     disabled={isProcessingAll}
-                                                                    className="px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600 text-white text-sm font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                                                                    className="px-4 py-2 rounded-lg bg-linear-to-r from-emerald-500 to-teal-600 text-white text-sm font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                                                                 >
                                                                     {isProcessingAll ? 'Processing...' : `Approve All (${pendingDocs.length})`}
                                                                 </button>
@@ -523,7 +523,7 @@ const VerifyDocumentsPage = () => {
                                                                         >
                                                                             <div className="flex items-center gap-3 flex-1 min-w-0">
                                                                                 <div
-                                                                                    className={`flex-shrink-0 w-2 h-2 rounded-full ${
+                                                                                    className={`shrink-0 w-2 h-2 rounded-full ${
                                                                                         status === true
                                                                                             ? 'bg-emerald-500'
                                                                                             : status === false
@@ -542,7 +542,7 @@ const VerifyDocumentsPage = () => {
                                                                                     )}
                                                                                 </div>
                                                                             </div>
-                                                                            <div className="flex items-center gap-2 flex-shrink-0">
+                                                                            <div className="flex items-center gap-2 shrink-0">
                                                                                 <span
                                                                                     className={`text-xs px-2 py-1 rounded ${
                                                                                         status === true
@@ -836,7 +836,7 @@ const VerifyDocumentsPage = () => {
                                                     setSelectedDocument(null);
                                                 }}
                                                 disabled={processingId === selectedDocument.id}
-                                                className="inline-flex flex-1 items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                                                className="inline-flex flex-1 items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-linear-to-r from-emerald-500 to-teal-600 text-white font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                                             >
                                                 <RotateCcw className="h-4 w-4" />
                                                 {processingId === selectedDocument.id ? 'Processing...' : 'Re-approve Document'}
@@ -851,7 +851,7 @@ const VerifyDocumentsPage = () => {
                     {/* Image Fullscreen Modal */}
                     {selectedImage && (
                         <div 
-                            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4"
+                            className="fixed inset-0 z-60 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4"
                             onClick={() => setSelectedImage(null)}
                         >
                             <div className="relative max-w-6xl max-h-[95vh]">
