@@ -100,6 +100,69 @@ async function mergeProviderVerifiedSubcategoryIds(providerId: string, newIds: s
     if (updateError) throw updateError;
 }
 
+async function removeOrphanedVerifiedSubcategoryIds(
+    providerId: string,
+    documentId: string
+): Promise<void> {
+    const subIds = await fetchSubCategoryIdsForDocumentIds([documentId]);
+    if (subIds.length === 0) return;
+
+    const { data: links, error: linkError } = await getSupabase()
+        .from('sub_category_documents')
+        .select('documentId, subCategoryId')
+        .in('subCategoryId', subIds);
+
+    if (linkError) throw linkError;
+
+    const { data: approvedRows, error: approvedError } = await getSupabase()
+        .from('verify_documents')
+        .select('documentId')
+        .eq('providerId', providerId)
+        .eq('isVerify', true);
+
+    if (approvedError) throw approvedError;
+
+    const approvedDocumentIds = new Set(
+        (approvedRows ?? [])
+            .map((row) => (row as { documentId: string | null }).documentId)
+            .filter((id): id is string => Boolean(id))
+    );
+
+    const subIdsToRemove = subIds.filter((subId) => {
+        const documentIdsInSub = (links ?? [])
+            .filter((row) => (row as { subCategoryId: string | null }).subCategoryId === subId)
+            .map((row) => (row as { documentId: string | null }).documentId)
+            .filter((id): id is string => Boolean(id));
+
+        return !documentIdsInSub.some((id) => approvedDocumentIds.has(id));
+    });
+
+    if (subIdsToRemove.length === 0) return;
+
+    const { data: row, error: selectError } = await getSupabase()
+        .from('provider')
+        .select('verified_subcategory_ids')
+        .eq('id', providerId)
+        .single();
+
+    if (selectError) throw selectError;
+
+    const existingRaw = row as { verified_subcategory_ids: string[] | null } | null;
+    const existing = Array.isArray(existingRaw?.verified_subcategory_ids)
+        ? existingRaw.verified_subcategory_ids
+        : [];
+
+    const removeSet = new Set(subIdsToRemove);
+    const next = existing.filter((id) => !removeSet.has(id));
+
+    const { error: updateError } = await getSupabase()
+        .from('provider')
+        .update({ verified_subcategory_ids: next })
+        .eq('id', providerId);
+
+    if (updateError) throw updateError;
+}
+
 export const fetchVerifyDocuments = createAsyncThunk<
     VerifyDocument[],
     void,
@@ -259,11 +322,15 @@ export const rejectDocument = createAsyncThunk<
         try {
             const { data: existingDocument, error: existingError } = await getSupabase()
                 .from('verify_documents')
-                .select('id, isVerify')
+                .select('id, isVerify, providerId, documentId')
                 .eq('id', id)
                 .maybeSingle();
             if (existingError) throw existingError;
             if (!existingDocument) return rejectWithValue('Document not found');
+
+            const wasApproved = existingDocument.isVerify === true;
+            const rowProviderId = (existingDocument as { providerId: string }).providerId;
+            const rowDocumentId = (existingDocument as { documentId?: string | null }).documentId;
 
             const { data, error } = await getSupabase()
                 .from('verify_documents')
@@ -273,16 +340,36 @@ export const rejectDocument = createAsyncThunk<
                 .single();
 
             if (error) throw error;
+
+            if (wasApproved && rowProviderId && rowDocumentId) {
+                try {
+                    await removeOrphanedVerifiedSubcategoryIds(rowProviderId, rowDocumentId);
+                } catch (providerErr) {
+                    await getSupabase().from('verify_documents').update({ isVerify: true }).eq('id', id);
+                    const msg =
+                        providerErr instanceof Error
+                            ? providerErr.message
+                            : 'Failed to update provider verified subcategories';
+                    return rejectWithValue(msg);
+                }
+            }
+
             logClientAdminActivity({
                 action: 'reject',
                 resource_type: 'document',
                 resource_id: id,
-                summary: `Rejected provider document ${id}`,
-                metadata: buildChangeMetadata(
-                    existingDocument as Record<string, unknown>,
-                    data as Record<string, unknown>,
-                    ['isVerify']
-                ),
+                summary: wasApproved
+                    ? `Revoked approval for provider document ${id}`
+                    : `Rejected provider document ${id}`,
+                metadata: {
+                    ...buildChangeMetadata(
+                        existingDocument as Record<string, unknown>,
+                        data as Record<string, unknown>,
+                        ['isVerify']
+                    ),
+                    provider_id: rowProviderId,
+                    revoked_approval: wasApproved,
+                },
             });
             return normalizeRows([data as VerifyDocumentRow])[0];
         } catch (e: unknown) {

@@ -752,6 +752,23 @@ const VerifyDocumentsPage = () => {
                                         </div>
                                     )}
 
+                                    {selectedDocument.isVerify === true && (
+                                        <div className="space-y-3">
+                                            <p className="text-sm text-gray-600">
+                                                Reject if this document was approved by mistake. The provider will be notified by SMS.
+                                            </p>
+                                            <div className="rounded-lg border border-red-200 bg-red-50/50 p-4 space-y-2">
+                                                <div className="flex items-center gap-2 text-sm font-semibold text-red-700">
+                                                    <MessageSquare className="h-4 w-4" />
+                                                    ሲከለከል የሚላከው SMS
+                                                </div>
+                                                <div className="rounded-md bg-white border border-red-100 px-3 py-2 text-sm text-gray-800">
+                                                    {getRejectMessage(selectedDocument.providerName)}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {selectedDocument.isVerify === false && (
                                         <div className="space-y-3">
                                             <p className="text-sm text-gray-600">
@@ -791,6 +808,22 @@ const VerifyDocumentsPage = () => {
                                                 className="flex-1 px-4 py-2.5 rounded-lg bg-gradient-to-r from-red-500 to-rose-600 text-white font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                                             >
                                                 Reject Document
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {canVerifyProviders && selectedDocument.isVerify === true && (
+                                        <div className="flex items-center gap-3 pt-4 border-t border-gray-200">
+                                            <button
+                                                onClick={() => {
+                                                    handleReject(selectedDocument.id);
+                                                    setSelectedDocument(null);
+                                                }}
+                                                disabled={processingId === selectedDocument.id}
+                                                className="inline-flex flex-1 items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-r from-red-500 to-rose-600 text-white font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                                            >
+                                                <XCircle className="h-4 w-4" />
+                                                {processingId === selectedDocument.id ? 'Processing...' : 'Reject Document'}
                                             </button>
                                         </div>
                                     )}

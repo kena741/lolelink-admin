@@ -357,23 +357,23 @@ function PayoutRequestPageContent() {
                         {loading ? <AdminLoadingRow label="Loading payout requests…" /> : null}
                         {error ? <AdminErrorAlert message={typeof error === 'string' ? error : 'Something went wrong'} /> : null}
 
-                        <AdminTableShell className="min-w-0">
+                        <AdminTableShell className="min-w-0 overflow-x-auto">
                             {!loading && !error ? (
-                                <div className="max-w-full overflow-x-auto">
+                                <div className="min-w-0">
                                     <p className="border-b border-gray-100 bg-gray-50/80 px-4 py-2.5 text-xs text-gray-600">
                                         Click a row to review wallet analysis. Approve or reject from the sheet footer or the Actions column.
                                     </p>
-                                    <table className="w-full border-collapse text-left">
+                                    <table className="w-full min-w-[1040px] border-collapse text-left">
                                         <TableHeader>
                                             <TableRow>
-                                                <TableHead>Provider</TableHead>
-                                                <TableHead>Note</TableHead>
-                                                <TableHead>Status</TableHead>
-                                                <TableHead>Bank details</TableHead>
-                                                <TableHead className="text-right">Amount</TableHead>
-                                                <TableHead>Requested</TableHead>
+                                                <TableHead className="w-[200px]">Provider</TableHead>
+                                                <TableHead className="w-[120px]">Note</TableHead>
+                                                <TableHead className="w-[100px]">Status</TableHead>
+                                                <TableHead className="w-[140px]">Bank details</TableHead>
+                                                <TableHead className="w-[110px] text-right">Amount</TableHead>
+                                                <TableHead className="w-[150px]">Requested</TableHead>
                                                 <TableHead
-                                                    className="sticky right-0 z-20 w-[100px] bg-gray-50 px-2 text-right shadow-[-6px_0_10px_-8px_rgba(0,0,0,0.25)]"
+                                                    className="sticky right-0 z-20 min-w-[200px] bg-gray-50 px-3 text-right shadow-[-8px_0_12px_-10px_rgba(0,0,0,0.35)]"
                                                 >
                                                     Actions
                                                 </TableHead>
@@ -457,7 +457,7 @@ function PayoutRequestPageContent() {
                                                                 {formatAdminDateTimeUtc(request.createdDate)}
                                                             </TableCell>
                                                             <TableCell
-                                                                className="sticky right-0 z-10 w-[100px] bg-white px-2 text-right shadow-[-6px_0_10px_-8px_rgba(0,0,0,0.25)] group-hover:bg-gray-50/80"
+                                                                className="sticky right-0 z-10 min-w-[200px] bg-white px-3 text-right shadow-[-8px_0_12px_-10px_rgba(0,0,0,0.35)] group-hover:bg-gray-50/80"
                                                                 onClick={(event) => event.stopPropagation()}
                                                             >
                                                                 <PayoutRequestActions

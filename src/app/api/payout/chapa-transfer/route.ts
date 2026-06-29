@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { logAdminActivity } from '@/lib/admin-activity-log';
 import {
+    resolveChapaBankForPayoutFromApi,
+    validateResolvedBankAccountLength,
+} from '@/lib/chapa-bank-resolution';
+import {
     buildPayoutActivityMetadata,
     buildPayoutActivitySummary,
     loadWithdrawalActivityContext,
@@ -49,18 +53,6 @@ interface ChapaConfig {
     isSandbox?: boolean;
     publicKey?: string;
     secretKey?: string;
-}
-
-interface ChapaBank {
-    id: number;
-    slug?: string;
-    swift?: string;
-    name?: string;
-    acct_length?: number;
-    currency?: string;
-    active?: number;
-    is_active?: number;
-    is_mobilemoney?: number | null;
 }
 
 function buildTxRef(withdrawalId: string): string {
@@ -116,93 +108,8 @@ function normalizeText(value: string | null | undefined): string {
     return (value || '').trim();
 }
 
-function normalizeBankLabel(value: string): string {
-    return value.toLowerCase().replace(/[^a-z0-9]/g, '');
-}
-
-function isNumericText(value: string): boolean {
-    return /^\d+$/.test(value.trim());
-}
-
-function pickPreferredBank(candidates: ChapaBank[]): ChapaBank | null {
-    if (candidates.length === 0) return null;
-    const sorted = [...candidates].sort((a, b) => {
-        const aMobile = (a.is_mobilemoney ?? 0) ? 1 : 0;
-        const bMobile = (b.is_mobilemoney ?? 0) ? 1 : 0;
-        return aMobile - bMobile;
-    });
-    return sorted[0];
-}
-
-async function fetchChapaBanks(chapaSecretKey: string): Promise<ChapaBank[]> {
-    const response = await fetch('https://api.chapa.co/v1/banks', {
-        method: 'GET',
-        headers: {
-            Authorization: `Bearer ${chapaSecretKey}`,
-        },
-    });
-    const payload = (await response.json()) as {
-        data?: ChapaBank[];
-        message?: unknown;
-    };
-    if (!response.ok)
-        throw new Error(toErrorMessage(payload.message, 'Failed to fetch Chapa banks'));
-    return payload.data || [];
-}
-
-async function resolveNumericBankCode(params: {
-    chapaSecretKey: string;
-    storedBankCode: string;
-    swiftCode: string;
-    bankName: string;
-}): Promise<{ bankCode: string; bank: ChapaBank | null }> {
-    const { chapaSecretKey, storedBankCode, swiftCode, bankName } = params;
-    if (storedBankCode && isNumericText(storedBankCode))
-        return { bankCode: storedBankCode, bank: null };
-
-    const banks = await fetchChapaBanks(chapaSecretKey);
-    const etbBanks = banks.filter((bank) => {
-        const isActive = bank.active === 1 || bank.is_active === 1;
-        return (bank.currency || '').toUpperCase() === 'ETB' && isActive;
-    });
-
-    const normalizedStoredCode = normalizeBankLabel(storedBankCode);
-    const normalizedSwift = normalizeBankLabel(swiftCode);
-    const normalizedBankName = normalizeBankLabel(bankName);
-
-    const bySlug = normalizedStoredCode
-        ? etbBanks.filter((bank) => normalizeBankLabel(bank.slug || '') === normalizedStoredCode)
-        : [];
-    const preferredBySlug = pickPreferredBank(bySlug);
-    if (preferredBySlug)
-        return { bankCode: String(preferredBySlug.id), bank: preferredBySlug };
-
-    const bySwift = normalizedSwift
-        ? etbBanks.filter((bank) => normalizeBankLabel(bank.swift || '') === normalizedSwift)
-        : [];
-    const preferredBySwift = pickPreferredBank(bySwift);
-    if (preferredBySwift)
-        return { bankCode: String(preferredBySwift.id), bank: preferredBySwift };
-
-    const byName = normalizedBankName
-        ? etbBanks.filter((bank) => {
-            const bankLabel = normalizeBankLabel(bank.name || '');
-            return bankLabel === normalizedBankName || bankLabel.includes(normalizedBankName) || normalizedBankName.includes(bankLabel);
-        })
-        : [];
-    const preferredByName = pickPreferredBank(byName);
-    if (preferredByName)
-        return { bankCode: String(preferredByName.id), bank: preferredByName };
-
-    throw new Error(`Unable to resolve numeric bank code for bank "${bankName}"`);
-}
-
 function normalizeAccountNumber(value: string): string {
     return value.replace(/\s+/g, '');
-}
-
-function isDigitsOnly(value: string): boolean {
-    return /^\d+$/.test(value);
 }
 
 async function insertNotificationIfMissing(
@@ -342,26 +249,25 @@ export async function POST(request: Request) {
                 { error: 'Provider method_code is missing. Store numeric Chapa bank id in method_code (or swiftCode as fallback).' },
                 { status: 400 }
             );
-        const resolvedBank = await resolveNumericBankCode({
-            chapaSecretKey,
-            storedBankCode,
-            swiftCode,
-            bankName: normalizedBankName,
-        });
+        let resolvedBank;
+        try {
+            resolvedBank = await resolveChapaBankForPayoutFromApi(chapaSecretKey, {
+                storedBankCode,
+                swiftCode,
+                bankName: normalizedBankName,
+                accountNumber: normalizedAccountNumber,
+            });
+            validateResolvedBankAccountLength(
+                resolvedBank.bank,
+                normalizedAccountNumber,
+                resolvedBank.bankName
+            );
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Invalid payout bank details';
+            return NextResponse.json({ error: message }, { status: 400 });
+        }
         const bankCode = resolvedBank.bankCode;
-        const chapaBank = resolvedBank.bank;
-        if (!isDigitsOnly(normalizedAccountNumber))
-            return NextResponse.json(
-                { error: 'Account number must contain only digits for bank transfer.' },
-                { status: 400 }
-            );
-        if (typeof chapaBank?.acct_length === 'number' && chapaBank.acct_length > 0 && normalizedAccountNumber.length !== chapaBank.acct_length)
-            return NextResponse.json(
-                {
-                    error: `Invalid account number length for ${chapaBank.name || normalizedBankName}. Expected ${chapaBank.acct_length} digits, got ${normalizedAccountNumber.length}.`,
-                },
-                { status: 400 }
-            );
+        const payoutBankName = resolvedBank.bankName;
 
         const payload = {
             account_name: normalizedHolderName,
@@ -402,7 +308,10 @@ export async function POST(request: Request) {
 
         const transferReference = chapaData.data?.reference || txRef;
         const transferId = chapaData.data?.transfer_id || '';
-        const notePart = `Chapa transfer sent. reference=${transferReference}${transferId ? ` transfer_id=${transferId}` : ''}`;
+        const correctionPart = resolvedBank.correctedFrom
+            ? ` Bank auto-corrected from "${resolvedBank.correctedFrom}" to "${payoutBankName}" based on account number length.`
+            : '';
+        const notePart = `Chapa transfer sent. reference=${transferReference}${transferId ? ` transfer_id=${transferId}` : ''}.${correctionPart}`;
         const updatedAdminNote = withdrawal.adminNote
             ? `${withdrawal.adminNote}\n${notePart}`
             : notePart;
@@ -451,8 +360,9 @@ export async function POST(request: Request) {
             },
             destination: {
                 provider_name: normalizedHolderName,
-                bank_name: normalizedBankName,
+                bank_name: payoutBankName,
                 account_number: normalizedAccountNumber,
+                bank_corrected_from: resolvedBank.correctedFrom,
             },
             amount: withdrawal.amount,
         });
