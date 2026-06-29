@@ -20,6 +20,7 @@ import {
     type WalletTransactionMetricRow,
 } from '@/lib/wallet-transaction-metrics';
 import { WalletTransactionsTable } from '@/app/admin/finance/wallet-transactions/WalletTransactionsTable';
+import { WalletTransactionColumnPicker } from '@/app/admin/finance/wallet-transactions/WalletTransactionColumnPicker';
 import { WalletTransactionSearch } from '@/app/admin/finance/wallet-transactions/WalletTransactionSearch';
 import { WalletTransactionFilters } from '@/app/admin/finance/wallet-transactions/WalletTransactionFilters';
 import { WalletTransactionPagination } from '@/app/admin/finance/wallet-transactions/WalletTransactionPagination';
@@ -34,6 +35,11 @@ import {
 } from '@/lib/wallet-transaction-filters';
 import { downloadWalletTransactionsCsv } from '@/lib/wallet-transaction-export';
 import type { WalletSearchColumnId } from '@/lib/wallet-transaction-search';
+import {
+    loadWalletColumnVisibility,
+    saveWalletColumnVisibility,
+    type WalletTransactionColumnVisibility,
+} from '@/lib/wallet-transaction-columns';
 
 function formatAmount(value: number) {
     return `ETB ${value.toLocaleString('en-US', {
@@ -51,6 +57,13 @@ const WalletTransactionsPage = () => {
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(50);
     const [filtersOpen, setFiltersOpen] = useState(false);
+    const [columnVisibility, setColumnVisibility] = useState<WalletTransactionColumnVisibility>(() =>
+        loadWalletColumnVisibility()
+    );
+
+    useEffect(() => {
+        saveWalletColumnVisibility(columnVisibility);
+    }, [columnVisibility]);
 
     useEffect(() => {
         dispatch(fetchWalletTransactions());
@@ -193,6 +206,10 @@ const WalletTransactionsPage = () => {
 
                             <div className="flex flex-wrap items-center justify-between gap-2">
                                 <div className="flex flex-wrap items-center gap-2">
+                                    <WalletTransactionColumnPicker
+                                        visibility={columnVisibility}
+                                        onChange={setColumnVisibility}
+                                    />
                                     <button
                                         type="button"
                                         onClick={() => setFiltersOpen((open) => !open)}
@@ -241,7 +258,11 @@ const WalletTransactionsPage = () => {
                         {error ? <AdminErrorAlert message={error} /> : null}
 
                         <div className="w-full min-w-0">
-                            <WalletTransactionsTable items={pagination.pageItems} loading={loading} />
+                            <WalletTransactionsTable
+                                items={pagination.pageItems}
+                                loading={loading}
+                                columnVisibility={columnVisibility}
+                            />
                         </div>
 
                         <div className="mt-4 min-w-0">

@@ -1,4 +1,5 @@
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
+import type { WalletTransactionEventId } from '@/lib/wallet-transaction-display';
 
 export interface WalletTransaction {
     id: string;
@@ -7,6 +8,7 @@ export interface WalletTransaction {
     isCredit: boolean;
     note: string;
     paymentType: string;
+    paymentDisplayLabel: string;
     transactionId: string;
     type: string;
     userId: string;
@@ -25,6 +27,12 @@ export interface WalletTransaction {
     authUserName: string;
     authUserEmail: string;
     authUserPhone: string;
+    bookingServiceName: string;
+    bookingCustomerName: string;
+    bookingTotalAmount: number | null;
+    bookingAdminCommission: number | null;
+    walletEvent: WalletTransactionEventId;
+    walletEventLabel: string;
 }
 
 interface WalletTransactionRow {
@@ -34,6 +42,7 @@ interface WalletTransactionRow {
     isCredit?: boolean | null;
     note?: string | null;
     paymentType?: string | null;
+    paymentDisplayLabel?: string | null;
     transactionId?: string | null;
     type?: string | null;
     userId?: string | null;
@@ -52,6 +61,12 @@ interface WalletTransactionRow {
     authUserName?: string | null;
     authUserEmail?: string | null;
     authUserPhone?: string | null;
+    bookingServiceName?: string | null;
+    bookingCustomerName?: string | null;
+    bookingTotalAmount?: number | null;
+    bookingAdminCommission?: number | null;
+    walletEvent?: WalletTransactionEventId | null;
+    walletEventLabel?: string | null;
 }
 
 interface WalletTransactionState {
@@ -74,6 +89,7 @@ function normalizeRows(rows: WalletTransactionRow[] | null | undefined): WalletT
         isCredit: row.isCredit ?? false,
         note: row.note ?? '',
         paymentType: row.paymentType ?? '',
+        paymentDisplayLabel: row.paymentDisplayLabel ?? row.paymentType ?? '',
         transactionId: row.transactionId ?? '',
         type: row.type ?? '',
         userId: row.userId ?? '',
@@ -92,6 +108,12 @@ function normalizeRows(rows: WalletTransactionRow[] | null | undefined): WalletT
         authUserName: row.authUserName ?? '',
         authUserEmail: row.authUserEmail ?? '',
         authUserPhone: row.authUserPhone ?? '',
+        bookingServiceName: row.bookingServiceName ?? '',
+        bookingCustomerName: row.bookingCustomerName ?? '',
+        bookingTotalAmount: row.bookingTotalAmount ?? null,
+        bookingAdminCommission: row.bookingAdminCommission ?? null,
+        walletEvent: row.walletEvent ?? 'other',
+        walletEventLabel: row.walletEventLabel ?? 'Other',
     }));
 }
 

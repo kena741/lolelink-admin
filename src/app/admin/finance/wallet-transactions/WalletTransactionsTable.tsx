@@ -1,15 +1,25 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Check, Copy } from 'lucide-react';
 import type { WalletTransaction } from '@/features/walletTransaction/walletTransactionSlice';
 import { walletProfileAndAuthShareId } from '@/lib/wallet-transaction-auth-resolve';
 import { formatAdminDateTimeUtc } from '@/lib/admin-datetime';
+import { formatBookingShortId } from '@/lib/booking-display';
 import {
-    getWalletTransactionPaymentTone,
+    formatBookingAmountLabel,
+    getWalletPaymentDisplayTone,
+    getWalletTransactionEventTone,
+} from '@/lib/wallet-transaction-display';
+import {
     getWalletTransactionTypeTone,
 } from '@/lib/admin-status-badge';
+import {
+    visibleWalletTransactionColumns,
+    type WalletTransactionColumnId,
+    type WalletTransactionColumnVisibility,
+} from '@/lib/wallet-transaction-columns';
 import { AdminDataTableEmpty, AdminStatusBadge, AdminTableShell } from '@/components/admin/data-table';
 
 function formatShortId(value: string): string {
@@ -44,12 +54,29 @@ function TypeBadge({ type }: { type: string }) {
     );
 }
 
-function PaymentTypeBadge({ paymentType }: { paymentType: string }) {
-    if (!paymentType.trim()) return <span className="text-sm text-gray-400">—</span>;
+function PaymentTypeBadge({ item }: { item: WalletTransaction }) {
+    const label = item.paymentDisplayLabel || item.paymentType;
+    if (!label.trim()) return <span className="text-sm text-gray-400">—</span>;
 
     return (
-        <AdminStatusBadge tone={getWalletTransactionPaymentTone(paymentType)} className="capitalize rounded-md">
-            {paymentType}
+        <AdminStatusBadge
+            tone={getWalletPaymentDisplayTone({
+                paymentType: item.paymentType,
+                note: item.note,
+                isCredit: item.isCredit,
+                type: item.type,
+            })}
+            className="capitalize rounded-md"
+        >
+            {label}
+        </AdminStatusBadge>
+    );
+}
+
+function EventBadge({ item }: { item: WalletTransaction }) {
+    return (
+        <AdminStatusBadge tone={getWalletTransactionEventTone(item.walletEvent)} className="rounded-md">
+            {item.walletEventLabel}
         </AdminStatusBadge>
     );
 }
@@ -170,12 +197,41 @@ function UserCell({
     );
 }
 
+function BookingTotalCell({ item }: { item: WalletTransaction }) {
+    if (item.bookingTotalAmount === null) {
+        return <span className="text-sm text-gray-400">—</span>;
+    }
+
+    const commission =
+        item.bookingAdminCommission !== null && item.bookingAdminCommission > 0
+            ? formatBookingAmountLabel(item.bookingAdminCommission)
+            : null;
+
+    return (
+        <div className="min-w-0">
+            <div className="text-sm font-semibold text-gray-900">
+                {formatBookingAmountLabel(item.bookingTotalAmount)}
+            </div>
+            {commission ? (
+                <div className="mt-0.5 text-xs text-gray-500">Commission {commission}</div>
+            ) : null}
+        </div>
+    );
+}
+
 interface WalletTransactionsTableProps {
     items: WalletTransaction[];
     loading: boolean;
+    columnVisibility: WalletTransactionColumnVisibility;
 }
 
-export function WalletTransactionsTable({ items, loading }: WalletTransactionsTableProps) {
+export function WalletTransactionsTable({
+    items,
+    loading,
+    columnVisibility,
+}: WalletTransactionsTableProps) {
+    const columns = visibleWalletTransactionColumns(columnVisibility);
+
     if (!loading && items.length === 0) {
         return (
             <AdminTableShell className="w-full">
@@ -187,99 +243,153 @@ export function WalletTransactionsTable({ items, loading }: WalletTransactionsTa
         );
     }
 
+    function renderCell(columnId: WalletTransactionColumnId, item: WalletTransaction): ReactNode {
+        const amount = toAmount(item.amount);
+        const customerProfileId = item.customerProfileId || item.customer_id || '';
+        const providerProfileId = item.providerProfileId || item.provider_id || '';
+        const userId = item.authUserId || item.userId;
+        const customerName = item.customerName || item.bookingCustomerName;
+        const customerEmail = item.customerEmail;
+
+        switch (columnId) {
+            case 'date':
+                return (
+                    <td key={columnId} className="whitespace-nowrap px-4 py-3 align-top text-xs text-gray-600">
+                        {formatAdminDateTimeUtc(item.createdDate)}
+                    </td>
+                );
+            case 'amount':
+                return (
+                    <td key={columnId} className="whitespace-nowrap px-4 py-3 align-top text-sm">
+                        <span
+                            className={`tabular-nums text-sm font-bold ${directionTone(item.isCredit)}`}
+                            title={item.isCredit ? 'Credit' : 'Debit'}
+                        >
+                            {formatSignedAmount(amount, item.isCredit)}
+                        </span>
+                    </td>
+                );
+            case 'event':
+                return (
+                    <td key={columnId} className="px-4 py-3 align-top">
+                        <EventBadge item={item} />
+                    </td>
+                );
+            case 'type':
+                return (
+                    <td key={columnId} className="px-4 py-3 align-top">
+                        <TypeBadge type={item.type} />
+                    </td>
+                );
+            case 'payment':
+                return (
+                    <td key={columnId} className="px-4 py-3 align-top">
+                        <PaymentTypeBadge item={item} />
+                    </td>
+                );
+            case 'customer':
+                return (
+                    <td key={columnId} className="px-4 py-3 align-top">
+                        <ProfileCell
+                            name={customerName}
+                            email={customerEmail || undefined}
+                            phone={item.customerPhone || undefined}
+                            profileId={customerProfileId || undefined}
+                        />
+                    </td>
+                );
+            case 'provider':
+                return (
+                    <td key={columnId} className="px-4 py-3 align-top">
+                        <ProfileCell
+                            name={item.providerName}
+                            email={item.providerEmail || undefined}
+                            phone={item.providerPhone || undefined}
+                            profileId={providerProfileId || undefined}
+                            profileHref={
+                                providerProfileId ? `/admin/providers/${providerProfileId}` : undefined
+                            }
+                        />
+                    </td>
+                );
+            case 'user':
+                return (
+                    <td key={columnId} className="px-4 py-3 align-top">
+                        <UserCell
+                            name={item.authUserName}
+                            email={item.authUserEmail || undefined}
+                            phone={item.authUserPhone || undefined}
+                            userId={userId}
+                            profileId={customerProfileId || providerProfileId || undefined}
+                            userIdStoredAsProfile={item.userIdStoredAsProfile}
+                        />
+                    </td>
+                );
+            case 'service':
+                return (
+                    <td key={columnId} className="px-4 py-3 align-top">
+                        <span className="line-clamp-2 text-sm text-gray-700" title={item.bookingServiceName}>
+                            {item.bookingServiceName || '—'}
+                        </span>
+                    </td>
+                );
+            case 'bookingTotal':
+                return (
+                    <td key={columnId} className="px-4 py-3 align-top">
+                        <BookingTotalCell item={item} />
+                    </td>
+                );
+            case 'transactionId':
+                return (
+                    <td key={columnId} className="px-4 py-3 align-top">
+                        {item.transactionId ? (
+                            <div className="space-y-1">
+                                <CopyableMono value={item.transactionId} />
+                                {item.transactionId.length >= 8 ? (
+                                    <div className="font-mono text-[11px] text-gray-500">
+                                        #{formatBookingShortId(item.transactionId)}
+                                    </div>
+                                ) : null}
+                            </div>
+                        ) : (
+                            <span className="text-sm text-gray-400">—</span>
+                        )}
+                    </td>
+                );
+            case 'note':
+                return (
+                    <td key={columnId} className="px-4 py-3 align-top">
+                        <span className="line-clamp-2 text-sm text-gray-600" title={item.note}>
+                            {item.note || '—'}
+                        </span>
+                    </td>
+                );
+            default:
+                return <td key={columnId} className="px-4 py-3" />;
+        }
+    }
+
     return (
         <AdminTableShell className="w-full min-w-0 overflow-x-auto">
-            <table className="w-full table-fixed border-collapse text-left">
+            <table className="w-full min-w-[960px] table-fixed border-collapse text-left">
                 <thead>
                     <tr className="border-b border-gray-200 bg-gray-50">
-                        {[
-                            { label: 'Date', className: 'w-[12%]' },
-                            { label: 'Amount', className: 'w-[10%]' },
-                            { label: 'Type', className: 'w-[8%]' },
-                            { label: 'Payment', className: 'w-[8%]' },
-                            { label: 'Customer', className: 'w-[14%]' },
-                            { label: 'Provider', className: 'w-[14%]' },
-                            { label: 'User', className: 'w-[12%]' },
-                            { label: 'Transaction ID', className: 'w-[10%]' },
-                            { label: 'Note', className: 'w-[12%]' },
-                        ].map(({ label, className }) => (
+                        {columns.map((column) => (
                             <th
-                                key={label}
-                                className={`sticky top-0 z-10 bg-gray-50 px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wide text-gray-500 ${className}`}
+                                key={column.id}
+                                className="sticky top-0 z-10 bg-gray-50 px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wide text-gray-500"
                             >
-                                {label}
+                                {column.label}
                             </th>
                         ))}
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                    {items.map((item) => {
-                        const amount = toAmount(item.amount);
-                        const customerProfileId = item.customerProfileId || item.customer_id || '';
-                        const providerProfileId = item.providerProfileId || item.provider_id || '';
-                        const userId = item.authUserId || item.userId;
-
-                        return (
-                            <tr key={item.id} className="bg-white transition-colors hover:bg-gray-50/80">
-                                <td className="whitespace-nowrap px-4 py-3 align-top text-xs text-gray-600">
-                                    {formatAdminDateTimeUtc(item.createdDate)}
-                                </td>
-                                <td className="whitespace-nowrap px-4 py-3 align-top text-sm">
-                                    <span
-                                        className={`tabular-nums text-sm font-bold ${directionTone(item.isCredit)}`}
-                                        title={item.isCredit ? 'Credit' : 'Debit'}
-                                    >
-                                        {formatSignedAmount(amount, item.isCredit)}
-                                    </span>
-                                </td>
-                                <td className="px-4 py-3 align-top">
-                                    <TypeBadge type={item.type} />
-                                </td>
-                                <td className="px-4 py-3 align-top">
-                                    <PaymentTypeBadge paymentType={item.paymentType} />
-                                </td>
-                                <td className="px-4 py-3 align-top">
-                                    <ProfileCell
-                                        name={item.customerName}
-                                        email={item.customerEmail || undefined}
-                                        phone={item.customerPhone || undefined}
-                                        profileId={customerProfileId || undefined}
-                                    />
-                                </td>
-                                <td className="px-4 py-3 align-top">
-                                    <ProfileCell
-                                        name={item.providerName}
-                                        email={item.providerEmail || undefined}
-                                        phone={item.providerPhone || undefined}
-                                        profileId={providerProfileId || undefined}
-                                        profileHref={
-                                            providerProfileId
-                                                ? `/admin/providers/${providerProfileId}`
-                                                : undefined
-                                        }
-                                    />
-                                </td>
-                                <td className="px-4 py-3 align-top">
-                                    <UserCell
-                                        name={item.authUserName}
-                                        email={item.authUserEmail || undefined}
-                                        phone={item.authUserPhone || undefined}
-                                        userId={userId}
-                                        profileId={customerProfileId || providerProfileId || undefined}
-                                        userIdStoredAsProfile={item.userIdStoredAsProfile}
-                                    />
-                                </td>
-                                <td className="px-4 py-3 align-top">
-                                    <CopyableMono value={item.transactionId} />
-                                </td>
-                                <td className="px-4 py-3 align-top">
-                                    <span className="line-clamp-2 text-sm text-gray-600" title={item.note}>
-                                        {item.note || '—'}
-                                    </span>
-                                </td>
-                            </tr>
-                        );
-                    })}
+                    {items.map((item) => (
+                        <tr key={item.id} className="bg-white transition-colors hover:bg-gray-50/80">
+                            {columns.map((column) => renderCell(column.id, item))}
+                        </tr>
+                    ))}
                 </tbody>
             </table>
         </AdminTableShell>

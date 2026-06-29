@@ -1,5 +1,15 @@
 import { NextResponse } from 'next/server';
+import { sanitizePersonDisplayName } from '@/lib/booking-display';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
+import {
+    buildWalletBookingEnrichmentById,
+    collectBookingIdsFromWalletRows,
+} from '@/lib/wallet-transaction-booking-enrichment';
+import {
+    formatWalletTransactionEventLabel,
+    parseWalletTransactionEvent,
+    resolveWalletPaymentDisplayLabel,
+} from '@/lib/wallet-transaction-display';
 import {
     resolveWalletAuthUserId,
 } from '@/lib/wallet-transaction-auth-resolve';
@@ -18,6 +28,10 @@ interface WalletTransactionRow {
     provider_id?: string | null;
     customer_id?: string | null;
     type?: string | null;
+    note?: string | null;
+    isCredit?: boolean | null;
+    paymentType?: string | null;
+    transactionId?: string | null;
 }
 
 function emptyProfile() {
@@ -74,6 +88,10 @@ export async function GET(request: Request) {
         const knownAuthUserIds = new Set(Object.keys(authUserById));
 
         const profileByAuthUserId = await buildWalletProfileLookupByAuthUserId(supabaseAdmin, rows);
+        const bookingById = await buildWalletBookingEnrichmentById(
+            supabaseAdmin,
+            collectBookingIdsFromWalletRows(rows)
+        );
 
         const enriched = rows.map((row) => {
             const providerProfileId =
@@ -128,20 +146,34 @@ export async function GET(request: Request) {
             const authUser = resolvedAuthUserId ? authUserById[resolvedAuthUserId] : undefined;
             const authUserInfo = authUser
                 ? {
-                      name: authUser.name,
+                      name: sanitizePersonDisplayName(authUser.name),
                       email: authUser.email,
                       phone: authUser.phone,
                   }
                 : emptyAuthUser();
 
+            const transactionId = typeof row.transactionId === 'string' ? row.transactionId.trim() : '';
+            const booking = transactionId ? bookingById[transactionId] : undefined;
+            const walletEvent = parseWalletTransactionEvent({
+                note: row.note,
+                isCredit: row.isCredit,
+                type: row.type,
+                paymentType: row.paymentType,
+                transactionId,
+            });
+
+            const resolvedCustomerName =
+                sanitizePersonDisplayName(customerInfo.name) || booking?.customerName || '';
+            const resolvedCustomerEmail = customerInfo.email || booking?.customerEmail || '';
+
             return {
                 ...row,
-                providerName: providerInfo.name,
+                providerName: sanitizePersonDisplayName(providerInfo.name),
                 providerEmail: providerInfo.email,
                 providerPhone: providerInfo.phone,
                 providerProfileId: providerInfo.profileId,
-                customerName: customerInfo.name,
-                customerEmail: customerInfo.email,
+                customerName: resolvedCustomerName,
+                customerEmail: resolvedCustomerEmail,
                 customerPhone: customerInfo.phone,
                 customerProfileId: customerInfo.profileId,
                 authUserId: resolvedAuthUserId,
@@ -149,6 +181,18 @@ export async function GET(request: Request) {
                 authUserEmail: authUserInfo.email,
                 authUserPhone: authUserInfo.phone,
                 userIdStoredAsProfile,
+                bookingServiceName: booking?.serviceName ?? '',
+                bookingCustomerName: booking?.customerName ?? '',
+                bookingTotalAmount: booking?.totalAmount ?? null,
+                bookingAdminCommission: booking?.adminCommission ?? null,
+                walletEvent,
+                walletEventLabel: formatWalletTransactionEventLabel(walletEvent),
+                paymentDisplayLabel: resolveWalletPaymentDisplayLabel({
+                    paymentType: row.paymentType,
+                    note: row.note,
+                    isCredit: row.isCredit,
+                    type: row.type,
+                }),
             };
         });
 
