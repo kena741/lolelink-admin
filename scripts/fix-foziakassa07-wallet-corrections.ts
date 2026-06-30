@@ -22,7 +22,11 @@ interface DeclineRefundSpec {
     refundDate: string;
 }
 
-const DECLINE_REFUND_SPECS: Array<{ bookingPrefix: string; shortId: string; amount: number } | DeclineRefundSpec> = [
+type DeclineRefundInput =
+    | { bookingPrefix: string; shortId: string; amount: number }
+    | { bookingId: string; shortId: string; amount: number };
+
+const DECLINE_REFUND_SPECS: DeclineRefundInput[] = [
     { bookingPrefix: 'eecbe456', shortId: 'eecbe4', amount: 11.12 },
     { bookingPrefix: '1c1cf188', shortId: '1c1cf1', amount: 11.12 },
     { bookingPrefix: 'abfd1203', shortId: 'abfd12', amount: 11.12 },
