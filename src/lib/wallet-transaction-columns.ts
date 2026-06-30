@@ -1,4 +1,4 @@
-export const WALLET_TRANSACTION_COLUMN_STORAGE_KEY = 'wallet-transactions-column-visibility-v1';
+export const WALLET_TRANSACTION_COLUMN_STORAGE_KEY = 'wallet-transactions-column-visibility-v2';
 
 export const WALLET_TRANSACTION_COLUMNS = [
     { id: 'date', label: 'Date', defaultVisible: true },
@@ -6,6 +6,7 @@ export const WALLET_TRANSACTION_COLUMNS = [
     { id: 'event', label: 'Event', defaultVisible: true },
     { id: 'type', label: 'Type', defaultVisible: true },
     { id: 'payment', label: 'Payment', defaultVisible: true },
+    { id: 'issues', label: 'Issues', defaultVisible: true },
     { id: 'customer', label: 'Customer', defaultVisible: true },
     { id: 'provider', label: 'Provider', defaultVisible: true },
     { id: 'user', label: 'User', defaultVisible: false },

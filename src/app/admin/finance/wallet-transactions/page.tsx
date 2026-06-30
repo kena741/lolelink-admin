@@ -34,6 +34,7 @@ import {
     type WalletTransactionFilterState,
 } from '@/lib/wallet-transaction-filters';
 import { downloadWalletTransactionsCsv } from '@/lib/wallet-transaction-export';
+import { attachWalletTransactionIssues } from '@/lib/wallet-transaction-issues';
 import type { WalletSearchColumnId } from '@/lib/wallet-transaction-search';
 import {
     loadWalletColumnVisibility,
@@ -69,11 +70,13 @@ const WalletTransactionsPage = () => {
         dispatch(fetchWalletTransactions());
     }, [dispatch]);
 
-    const filterOptions = useMemo(() => collectWalletTransactionFilterOptions(items), [items]);
+    const itemsWithIssues = useMemo(() => attachWalletTransactionIssues(items), [items]);
+
+    const filterOptions = useMemo(() => collectWalletTransactionFilterOptions(itemsWithIssues), [itemsWithIssues]);
 
     const filteredItems = useMemo(
-        () => applyWalletTransactionFilters(items, filters, query, searchColumnIds),
-        [items, filters, query, searchColumnIds]
+        () => applyWalletTransactionFilters(itemsWithIssues, filters, query, searchColumnIds),
+        [itemsWithIssues, filters, query, searchColumnIds]
     );
 
     const pagination = useMemo(
@@ -105,7 +108,7 @@ const WalletTransactionsPage = () => {
             createdDate: item.createdDate,
         });
 
-        const allRows = items.map(toMetricRow);
+        const allRows = itemsWithIssues.map(toMetricRow);
         const filteredRows = filteredItems.map(toMetricRow);
         const providerActivationUserIds = buildUserIdsWithProviderActivation(allRows);
 
@@ -125,7 +128,7 @@ const WalletTransactionsPage = () => {
             totalCredit,
             totalDebit,
         };
-    }, [filteredItems, items]);
+    }, [filteredItems, itemsWithIssues]);
 
     function clearAllFilters() {
         setQuery('');
@@ -241,7 +244,7 @@ const WalletTransactionsPage = () => {
                                 <p className="text-sm text-gray-500">
                                     Showing{' '}
                                     <span className="font-semibold text-gray-900">{filteredItems.length}</span> of{' '}
-                                    <span className="font-semibold text-gray-900">{items.length}</span>
+                                    <span className="font-semibold text-gray-900">{itemsWithIssues.length}</span>
                                 </p>
                             </div>
 

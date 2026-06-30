@@ -1,5 +1,6 @@
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
 import type { WalletTransactionEventId } from '@/lib/wallet-transaction-display';
+import type { WalletTransactionIssue } from '@/lib/wallet-transaction-issues';
 
 export interface WalletTransaction {
     id: string;
@@ -31,8 +32,14 @@ export interface WalletTransaction {
     bookingCustomerName: string;
     bookingTotalAmount: number | null;
     bookingAdminCommission: number | null;
+    bookingStatus: string;
+    bookingCustomerId: string;
+    bookingProviderId: string;
+    bookingCustomerUserId: string;
+    bookingProviderUserId: string;
     walletEvent: WalletTransactionEventId;
     walletEventLabel: string;
+    issues: WalletTransactionIssue[];
 }
 
 interface WalletTransactionRow {
@@ -65,6 +72,11 @@ interface WalletTransactionRow {
     bookingCustomerName?: string | null;
     bookingTotalAmount?: number | null;
     bookingAdminCommission?: number | null;
+    bookingStatus?: string | null;
+    bookingCustomerId?: string | null;
+    bookingProviderId?: string | null;
+    bookingCustomerUserId?: string | null;
+    bookingProviderUserId?: string | null;
     walletEvent?: WalletTransactionEventId | null;
     walletEventLabel?: string | null;
 }
@@ -112,8 +124,14 @@ function normalizeRows(rows: WalletTransactionRow[] | null | undefined): WalletT
         bookingCustomerName: row.bookingCustomerName ?? '',
         bookingTotalAmount: row.bookingTotalAmount ?? null,
         bookingAdminCommission: row.bookingAdminCommission ?? null,
+        bookingStatus: row.bookingStatus ?? '',
+        bookingCustomerId: row.bookingCustomerId ?? '',
+        bookingProviderId: row.bookingProviderId ?? '',
+        bookingCustomerUserId: row.bookingCustomerUserId ?? '',
+        bookingProviderUserId: row.bookingProviderUserId ?? '',
         walletEvent: row.walletEvent ?? 'other',
         walletEventLabel: row.walletEventLabel ?? 'Other',
+        issues: [],
     }));
 }
 

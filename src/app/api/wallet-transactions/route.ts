@@ -185,6 +185,11 @@ export async function GET(request: Request) {
                 bookingCustomerName: booking?.customerName ?? '',
                 bookingTotalAmount: booking?.totalAmount ?? null,
                 bookingAdminCommission: booking?.adminCommission ?? null,
+                bookingStatus: booking?.status ?? '',
+                bookingCustomerId: booking?.customerId ?? '',
+                bookingProviderId: booking?.providerId ?? '',
+                bookingCustomerUserId: booking?.customerUserId ?? '',
+                bookingProviderUserId: booking?.providerUserId ?? '',
                 walletEvent,
                 walletEventLabel: formatWalletTransactionEventLabel(walletEvent),
                 paymentDisplayLabel: resolveWalletPaymentDisplayLabel({

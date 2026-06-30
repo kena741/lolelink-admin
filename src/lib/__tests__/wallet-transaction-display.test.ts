@@ -68,6 +68,7 @@ describe('wallet transaction column visibility', () => {
         expect(defaults.service).toBe(false);
         expect(defaults.bookingTotal).toBe(false);
         expect(defaults.event).toBe(true);
+        expect(defaults.issues).toBe(true);
     });
 
     it('falls back to defaults when localStorage is unavailable', () => {

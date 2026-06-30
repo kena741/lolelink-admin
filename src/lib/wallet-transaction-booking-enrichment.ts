@@ -10,6 +10,11 @@ export interface WalletBookingEnrichment {
     customerEmail: string;
     totalAmount: number | null;
     adminCommission: number | null;
+    status: string;
+    customerId: string;
+    providerId: string;
+    customerUserId: string;
+    providerUserId: string;
 }
 
 function parseAmount(value: unknown): number | null {
@@ -61,7 +66,9 @@ export async function buildWalletBookingEnrichmentById(
 
     const { data, error } = await admin
         .from('booked_service')
-        .select('id, serviceName, service_id, firstName, lastName, email, totalAmount, adminCommission, customer_id')
+        .select(
+            'id, serviceName, service_id, firstName, lastName, email, totalAmount, adminCommission, customer_id, provider_id, customer_user_id, provider_user_id, status'
+        )
         .in('id', uniqueIds);
 
     if (error || !data) return {};
@@ -90,6 +97,11 @@ export async function buildWalletBookingEnrichmentById(
             customerEmail: typeof row.email === 'string' ? row.email.trim() : '',
             totalAmount: parseAmount(row.totalAmount),
             adminCommission: parseAmount(row.adminCommission),
+            status: typeof row.status === 'string' ? row.status : '',
+            customerId: typeof row.customer_id === 'string' ? row.customer_id : '',
+            providerId: typeof row.provider_id === 'string' ? row.provider_id : '',
+            customerUserId: typeof row.customer_user_id === 'string' ? row.customer_user_id : '',
+            providerUserId: typeof row.provider_user_id === 'string' ? row.provider_user_id : '',
         };
     }
 

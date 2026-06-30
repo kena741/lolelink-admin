@@ -21,6 +21,7 @@ import {
     type WalletTransactionColumnVisibility,
 } from '@/lib/wallet-transaction-columns';
 import { AdminDataTableEmpty, AdminStatusBadge, AdminTableShell } from '@/components/admin/data-table';
+import { WalletTransactionIssuesCell } from './WalletTransactionIssuesCell';
 
 function formatShortId(value: string): string {
     if (!value) return '—';
@@ -285,6 +286,12 @@ export function WalletTransactionsTable({
                 return (
                     <td key={columnId} className="px-4 py-3 align-top">
                         <PaymentTypeBadge item={item} />
+                    </td>
+                );
+            case 'issues':
+                return (
+                    <td key={columnId} className="px-4 py-3 align-top">
+                        <WalletTransactionIssuesCell issues={item.issues ?? []} />
                     </td>
                 );
             case 'customer':

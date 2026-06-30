@@ -43,7 +43,7 @@ export function BookingFlagsCell({ booking, onOpenIssues }: BookingFlagsCellProp
             title={`View ${anomalies.length} issue${anomalies.length === 1 ? '' : 's'}: ${summary}`}
             aria-label={`View ${anomalies.length} booking issues in detail panel`}
             className={cn(
-                'inline-flex h-7 min-w-[2.75rem] items-center justify-center gap-1 rounded-full border px-2.5 text-[11px] font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-200',
+                'inline-flex h-7 min-w-11 items-center justify-center gap-1 rounded-full border px-2.5 text-[11px] font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-200',
                 hasError
                     ? cn(getAdminStatusToneClasses('danger'), 'hover:bg-destructive/15')
                     : cn(getAdminStatusToneClasses('warning'), 'hover:bg-amber-100')
