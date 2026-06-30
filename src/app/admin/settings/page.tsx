@@ -23,6 +23,7 @@ import {
     Plus,
     Trash2,
     CreditCard,
+    Receipt,
 } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -40,8 +41,9 @@ import {
 import { DEFAULT_CONTACT_US } from '@/features/settings/contactDefaults';
 import HTMLEditor from '@/components/RichTextEditor';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
+import { CountryTaxSettingsPanel } from '@/app/admin/settings/CountryTaxSettingsPanel';
 
-type TabType = 'app' | 'general' | 'policy' | 'contact' | 'commission' | 'status' | 'constants' | 'language';
+type TabType = 'app' | 'general' | 'policy' | 'contact' | 'commission' | 'status' | 'constants' | 'language' | 'country_tax';
 
 const SettingsPage = () => {
     const dispatch = useAppDispatch();
@@ -169,6 +171,7 @@ const SettingsPage = () => {
         { id: 'commission', label: 'Commission', icon: PercentCircle },
         { id: 'status', label: 'Statuses', icon: ListOrdered },
         { id: 'constants', label: 'Constants', icon: Coins },
+        { id: 'country_tax', label: 'Country tax', icon: Receipt },
         { id: 'language', label: 'Language', icon: Languages },
     ];
 
@@ -741,6 +744,10 @@ const SettingsPage = () => {
                                     </div>
                                 </div>
                             </div>
+                        )}
+
+                        {activeTab === 'country_tax' && (
+                            <CountryTaxSettingsPanel canWrite={canWriteSettings} />
                         )}
 
                         {/* Language Tab */}

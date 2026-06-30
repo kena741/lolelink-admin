@@ -27,6 +27,98 @@ function columnHintMessage(raw: string): string {
     return raw;
 }
 
+function parseBookingAmount(value: string | number | null | undefined): number {
+    const parsed = Number(value ?? 0);
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function isPaidBooking(row: Record<string, unknown>): boolean {
+    if (row.paymentCompleted === true) return true;
+    const paymentStatus = String(row.payment_status ?? '').toLowerCase();
+    return ['completed', 'paid', 'success', 'successful'].includes(paymentStatus);
+}
+
+export async function GET(request: Request, context: { params: Promise<RouteParams> }) {
+    const auth = await requireAdminPermission(request, 'customers:read');
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
+    const supabaseAdmin = getSupabaseAdminFromRequest(request);
+    try {
+        const id = await getIdFromParams(context.params);
+        if (!id) return NextResponse.json({ error: 'Invalid customer id' }, { status: 400 });
+
+        const { data: customer, error: customerError } = await supabaseAdmin
+            .from('customer')
+            .select('*')
+            .eq('id', id)
+            .maybeSingle();
+
+        if (customerError) return NextResponse.json({ error: customerError.message }, { status: 500 });
+        if (!customer) return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
+
+        const customerRecord = customer as Record<string, unknown>;
+        const refIds = [id];
+        const externalId = customerRecord.customer_id;
+        if (typeof externalId === 'string' && externalId.trim()) refIds.push(externalId.trim());
+        const uniqueRefIds = [...new Set(refIds)];
+
+        const { data: providerRow } = await supabaseAdmin
+            .from('provider')
+            .select('id')
+            .eq('id', id)
+            .maybeSingle();
+
+        const { data: bookings, error: bookingsError } = await supabaseAdmin
+            .from('booked_service')
+            .select('id, totalAmount, price, paymentCompleted, payment_status, createdAt')
+            .eq('customer_id', id);
+
+        if (bookingsError) return NextResponse.json({ error: bookingsError.message }, { status: 500 });
+
+        const bookingRows = (bookings ?? []) as Record<string, unknown>[];
+        let totalSpent = 0;
+        let lastBookingAt: string | null = null;
+
+        for (const row of bookingRows) {
+            if (!isPaidBooking(row)) continue;
+            totalSpent += parseBookingAmount(
+                (row.totalAmount as string | number | null | undefined) ?? (row.price as string | number | null | undefined)
+            );
+            const createdAt = typeof row.createdAt === 'string' ? row.createdAt : null;
+            if (createdAt && (!lastBookingAt || new Date(createdAt) > new Date(lastBookingAt))) {
+                lastBookingAt = createdAt;
+            }
+        }
+
+        const jobRequestFilters = uniqueRefIds.map((refId) => `customerId.eq.${refId}`).join(',');
+        const { data: jobRequests, error: jobRequestsError } = await supabaseAdmin
+            .from('job_request')
+            .select('id')
+            .or(jobRequestFilters);
+
+        if (jobRequestsError) return NextResponse.json({ error: jobRequestsError.message }, { status: 500 });
+
+        const walletAmount = Number(customerRecord.wallet_amount ?? 0);
+
+        return NextResponse.json({
+            customer: {
+                ...customerRecord,
+                provider_id: providerRow?.id ?? null,
+                wallet_amount: Number.isFinite(walletAmount) ? walletAmount : 0,
+            },
+            stats: {
+                bookingCount: bookingRows.length,
+                totalSpent: Math.round(totalSpent * 100) / 100,
+                jobRequestCount: (jobRequests ?? []).length,
+                lastBookingAt,
+            },
+        });
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unexpected error';
+        return NextResponse.json({ error: message }, { status: 500 });
+    }
+}
+
 export async function PATCH(request: Request, context: { params: Promise<RouteParams> }) {
     const auth = await requireAdminPermission(request, 'customers:write');
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });

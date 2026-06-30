@@ -1,6 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { resolveProviderAuthUserId } from '@/lib/wallet-transaction-user';
 import { walletTransactionProfileColumns } from '@/lib/wallet-transaction-profile';
+import {
+    calculateWithdrawalPayoutBreakdown,
+    formatWithdrawalPayoutBreakdownNote,
+    parseWithdrawalAmount,
+} from '@/lib/withdrawal-payout';
 
 function parseAmount(value: string | number | null | undefined): number {
     const parsed = Number(value ?? 0);
@@ -42,7 +47,7 @@ export async function deductProviderWalletForWithdrawal(
 
     const { data: withdrawalRaw, error: withdrawalError } = await admin
         .from('withdrawal_history')
-        .select('id, providerId, amount, paymentStatus')
+        .select('id, providerId, amount, paymentStatus, paymentDate')
         .eq('id', normalizedWithdrawalId)
         .maybeSingle();
 
@@ -58,6 +63,7 @@ export async function deductProviderWalletForWithdrawal(
         providerId: string;
         amount: string | number;
         paymentStatus?: string | null;
+        paymentDate?: string | null;
     };
 
     const paymentStatus = (withdrawal.paymentStatus ?? '').toString().trim().toLowerCase();
@@ -65,10 +71,17 @@ export async function deductProviderWalletForWithdrawal(
         return { ok: false, error: `Withdrawal status is "${withdrawal.paymentStatus ?? 'unknown'}", not completed` };
     }
 
-    const amount = parseAmount(withdrawal.amount);
+    const amount = parseWithdrawalAmount(withdrawal.amount);
     if (amount <= 0) {
         return { ok: true, skipped: true, reason: 'zero_amount' };
     }
+
+    const payoutBreakdown = calculateWithdrawalPayoutBreakdown(amount);
+    const ledgerDebitAmount = payoutBreakdown.grossAmount;
+    const paymentDate =
+        typeof withdrawal.paymentDate === 'string' && withdrawal.paymentDate.trim()
+            ? withdrawal.paymentDate.trim()
+            : new Date().toISOString();
 
     const providerId = (withdrawal.providerId ?? '').trim();
     if (!providerId) {
@@ -94,14 +107,13 @@ export async function deductProviderWalletForWithdrawal(
     }
 
     const currentWallet = parseAmount((providerRaw as { walletAmount?: string | number }).walletAmount);
-    const nextWallet = Math.round((currentWallet - amount) * 100) / 100;
-    const now = new Date().toISOString();
+    const nextWallet = Math.round((currentWallet - ledgerDebitAmount) * 100) / 100;
 
     const { error: walletTxError } = await admin.from('wallet_transaction').insert({
-        amount: amount.toFixed(2),
-        createdDate: now,
+        amount: ledgerDebitAmount.toFixed(2),
+        createdDate: paymentDate,
         isCredit: false,
-        note: `Withdrawal payout ${normalizedWithdrawalId}`,
+        note: `Withdrawal payout ${normalizedWithdrawalId} (${formatWithdrawalPayoutBreakdownNote(payoutBreakdown)})`,
         paymentType: 'wallet',
         transactionId,
         type: 'provider',
@@ -125,5 +137,5 @@ export async function deductProviderWalletForWithdrawal(
         return { ok: false, error: walletUpdateError.message };
     }
 
-    return { ok: true, skipped: false, amount, walletAmount: nextWallet };
+    return { ok: true, skipped: false, amount: ledgerDebitAmount, walletAmount: nextWallet };
 }

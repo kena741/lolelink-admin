@@ -39,16 +39,21 @@ type TaxRow = {
 };
 
 const normalizeRows = (rows: TaxRow[] | null | undefined): CountryTax[] =>
-    (rows ?? []).map((row) => ({
-        id: row.id,
-        country: row.country,
-        name: row.name,
-        value: row.value,
-        active: row.active ?? false,
-        type: row.type || (row.isFix ? 'fixed' : 'percentage'),
-        isFix: row.isFix ?? false,
-        createdAt: row.created_at,
-    }));
+    (rows ?? []).map((row) => {
+        const parsedValue = row.value != null ? Number(row.value) : undefined;
+        const type = row.type || (row.isFix ? 'fixed' : 'percentage');
+
+        return {
+            id: row.id,
+            country: row.country,
+            name: row.name,
+            value: Number.isFinite(parsedValue) ? parsedValue : undefined,
+            active: row.active ?? false,
+            type,
+            isFix: row.isFix ?? type === 'fixed',
+            createdAt: row.created_at,
+        };
+    });
 
 export const fetchTaxes = createAsyncThunk<
     CountryTax[],
@@ -88,6 +93,7 @@ export const createTax = createAsyncThunk<
                     value: taxData.value,
                     active: taxData.active ?? false,
                     type: taxData.type || 'percentage',
+                    isFix: taxData.type === 'fixed',
                 })
                 .select()
                 .single();
@@ -126,7 +132,10 @@ export const updateTax = createAsyncThunk<
 
             const { data, error } = await getSupabase()
                 .from('country_tax')
-                .update(updates)
+                .update({
+                    ...updates,
+                    ...(updates.type != null ? { isFix: updates.type === 'fixed' } : {}),
+                })
                 .eq('id', id)
                 .select()
                 .single();

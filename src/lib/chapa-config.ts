@@ -39,6 +39,39 @@ export function isChapaSuccessStatus(status: string | undefined): boolean {
     return ['success', 'successful', 'completed', 'paid'].includes(normalized);
 }
 
+export const CHAPA_DOMESTIC_FEE_RATE = 0.025;
+
+const CHAPA_LEGACY_DOMESTIC_FEE_RATE = 0.035;
+
+function inferNetFromGrossWithFeeMarkup(gross: number, feeRate: number): number | null {
+    const multiplier = 1 + feeRate;
+    const net = Math.round((gross / multiplier) * 100) / 100;
+    const error = Math.abs(net * multiplier - gross);
+    if (error < 0.02) {
+        return net;
+    }
+    return null;
+}
+
+function resolveInferredNetFromGross(gross: number): number | null {
+    const feeRates = [CHAPA_DOMESTIC_FEE_RATE, CHAPA_LEGACY_DOMESTIC_FEE_RATE];
+    let bestNet: number | null = null;
+    let bestError = Number.POSITIVE_INFINITY;
+
+    for (const feeRate of feeRates) {
+        const net = inferNetFromGrossWithFeeMarkup(gross, feeRate);
+        if (net == null) continue;
+
+        const error = Math.abs(net * (1 + feeRate) - gross);
+        if (error < bestError) {
+            bestError = error;
+            bestNet = net;
+        }
+    }
+
+    return bestNet;
+}
+
 export async function loadChapaSecretKey(admin: SupabaseClient): Promise<string> {
     const { data: paymentRow } = await admin
         .from('app_settings')
@@ -138,13 +171,15 @@ export function resolveChapaWalletCreditAmount(
     const charge = Number(data.charge ?? 0);
 
     if (Number.isFinite(gross) && gross > 0) {
-        const inferredFromCustomerFee = Math.round((gross / 1.035) * 100) / 100;
-        if (Math.abs(inferredFromCustomerFee * 1.035 - gross) < 0.02) {
-            return inferredFromCustomerFee.toFixed(2);
-        }
         if (Number.isFinite(charge) && charge > 0) {
             return (gross - charge).toFixed(2);
         }
+
+        const inferredNet = resolveInferredNetFromGross(gross);
+        if (inferredNet != null) {
+            return inferredNet.toFixed(2);
+        }
+
         return gross.toFixed(2);
     }
 

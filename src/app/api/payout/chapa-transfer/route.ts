@@ -10,6 +10,10 @@ import {
     buildPayoutActivitySummary,
     loadWithdrawalActivityContext,
 } from '@/lib/payout-activity-log';
+import {
+    calculateWithdrawalPayoutBreakdown,
+    formatWithdrawalPayoutBreakdownNote,
+} from '@/lib/withdrawal-payout';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
@@ -269,11 +273,19 @@ export async function POST(request: Request) {
         const bankCode = resolvedBank.bankCode;
         const payoutBankName = resolvedBank.bankName;
 
+        const payoutBreakdown = calculateWithdrawalPayoutBreakdown(withdrawal.amount);
+        if (payoutBreakdown.netTransferAmount <= 0) {
+            return NextResponse.json(
+                { error: 'Withdrawal amount is too small after the 2.5% Chapa fee' },
+                { status: 400 }
+            );
+        }
+
         const payload = {
             account_name: normalizedHolderName,
             account_number: normalizedAccountNumber,
             bank_code: bankCode,
-            amount: withdrawal.amount,
+            amount: payoutBreakdown.netTransferAmount.toFixed(2),
             currency: 'ETB',
             reference: txRef,
             webhook_url: webhookUrl,
@@ -311,7 +323,7 @@ export async function POST(request: Request) {
         const correctionPart = resolvedBank.correctedFrom
             ? ` Bank auto-corrected from "${resolvedBank.correctedFrom}" to "${payoutBankName}" based on account number length.`
             : '';
-        const notePart = `Chapa transfer sent. reference=${transferReference}${transferId ? ` transfer_id=${transferId}` : ''}.${correctionPart}`;
+        const notePart = `Chapa transfer sent. ${formatWithdrawalPayoutBreakdownNote(payoutBreakdown)} reference=${transferReference}${transferId ? ` transfer_id=${transferId}` : ''}.${correctionPart}`;
         const updatedAdminNote = withdrawal.adminNote
             ? `${withdrawal.adminNote}\n${notePart}`
             : notePart;
@@ -346,8 +358,19 @@ export async function POST(request: Request) {
                 ? buildPayoutActivitySummary('Initiated Chapa transfer', payoutContext, `ref ${transferReference}`)
                 : `Initiated Chapa transfer for withdrawal ${withdrawal.id}`,
             metadata: payoutContext
-                ? buildPayoutActivityMetadata(payoutContext, { tx_ref: transferReference })
-                : { tx_ref: transferReference, amount: withdrawal.amount, provider_id: withdrawal.providerId },
+                ? buildPayoutActivityMetadata(payoutContext, {
+                      tx_ref: transferReference,
+                      gross_amount: payoutBreakdown.grossAmount,
+                      chapa_fee: payoutBreakdown.chapaFee,
+                      net_transfer_amount: payoutBreakdown.netTransferAmount,
+                  })
+                : {
+                      tx_ref: transferReference,
+                      gross_amount: payoutBreakdown.grossAmount,
+                      chapa_fee: payoutBreakdown.chapaFee,
+                      net_transfer_amount: payoutBreakdown.netTransferAmount,
+                      provider_id: withdrawal.providerId,
+                  },
         });
 
         return NextResponse.json({
@@ -364,7 +387,9 @@ export async function POST(request: Request) {
                 account_number: normalizedAccountNumber,
                 bank_corrected_from: resolvedBank.correctedFrom,
             },
-            amount: withdrawal.amount,
+            amount: payoutBreakdown.grossAmount.toFixed(2),
+            chapa_fee: payoutBreakdown.chapaFee.toFixed(2),
+            net_transfer_amount: payoutBreakdown.netTransferAmount.toFixed(2),
         });
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unexpected payout error';

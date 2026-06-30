@@ -25,6 +25,7 @@ import {
     sanitizeDisplayText,
 } from '@/app/admin/finance/payout-request/payout-request-display';
 import { formatAdminDateTimeUtc } from '@/lib/admin-datetime';
+import { calculateWithdrawalPayoutBreakdown } from '@/lib/withdrawal-payout';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const primaryButtonClassName =
@@ -56,6 +57,8 @@ function PayoutRequestPageContent() {
         destinationBankName: string;
         destinationAccountNumber: string;
         amount: string;
+        chapaFee?: string;
+        netTransferAmount?: string;
     } | null>(null);
     const [riskReview, setRiskReview] = useState<{
         request: PayoutRequest;
@@ -620,7 +623,9 @@ function PayoutRequestPageContent() {
                                 onConfirm={() => void handleRiskReviewConfirm()}
                             />
                         ) : null}
-                        {confirmingRequest && (
+                        {confirmingRequest && (() => {
+                            const payoutBreakdown = calculateWithdrawalPayoutBreakdown(confirmingRequest.amount);
+                            return (
                             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
                                 <div className="w-full max-w-xl rounded-2xl border border-border bg-card p-6 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
                                     <h3 className="font-heading text-xl font-bold text-text-primary">Confirm Chapa Transfer</h3>
@@ -669,9 +674,21 @@ function PayoutRequestPageContent() {
                                             </span>
                                         </div>
                                         <div className="flex items-center justify-between gap-3 text-sm">
-                                            <span className="font-medium text-text-secondary">Amount</span>
+                                            <span className="font-medium text-text-secondary">Wallet debit</span>
                                             <span className="font-semibold text-text-primary">
-                                                {formatCurrency(confirmingRequest.amount)}
+                                                {formatCurrency(payoutBreakdown.grossAmount)}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-3 text-sm">
+                                            <span className="font-medium text-text-secondary">Chapa fee (2.5%)</span>
+                                            <span className="font-semibold text-text-primary">
+                                                {formatCurrency(payoutBreakdown.chapaFee)}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-3 text-sm">
+                                            <span className="font-medium text-text-secondary">Bank transfer</span>
+                                            <span className="font-semibold text-text-primary">
+                                                {formatCurrency(payoutBreakdown.netTransferAmount)}
                                             </span>
                                         </div>
                                         <div className="flex items-center justify-between gap-3 text-sm">
@@ -709,7 +726,8 @@ function PayoutRequestPageContent() {
                                     </div>
                                 </div>
                             </div>
-                        )}
+                            );
+                        })()}
                         {transferResult && (
                             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
                                 <div className="w-full max-w-xl rounded-2xl border border-border bg-card p-6 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
@@ -750,11 +768,27 @@ function PayoutRequestPageContent() {
                                             </span>
                                         </div>
                                         <div className="flex items-center justify-between gap-3 text-sm">
-                                            <span className="font-medium text-text-secondary">Amount</span>
+                                            <span className="font-medium text-text-secondary">Wallet debit</span>
                                             <span className="font-semibold text-text-primary">
                                                 {transferResult.amount ? `ETB ${transferResult.amount}` : '—'}
                                             </span>
                                         </div>
+                                        {transferResult.chapaFee ? (
+                                            <div className="flex items-center justify-between gap-3 text-sm">
+                                                <span className="font-medium text-text-secondary">Chapa fee (2.5%)</span>
+                                                <span className="font-semibold text-text-primary">
+                                                    ETB {transferResult.chapaFee}
+                                                </span>
+                                            </div>
+                                        ) : null}
+                                        {transferResult.netTransferAmount ? (
+                                            <div className="flex items-center justify-between gap-3 text-sm">
+                                                <span className="font-medium text-text-secondary">Bank transfer</span>
+                                                <span className="font-semibold text-text-primary">
+                                                    ETB {transferResult.netTransferAmount}
+                                                </span>
+                                            </div>
+                                        ) : null}
                                         <div className="flex items-center justify-between gap-3 text-sm">
                                             <span className="font-medium text-text-secondary">Reference</span>
                                             <span className="font-semibold text-text-primary">{transferResult.txRef || '—'}</span>

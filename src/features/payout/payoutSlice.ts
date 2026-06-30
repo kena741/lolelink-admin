@@ -281,9 +281,8 @@ export const approvePayoutRequest = createAsyncThunk<
     'payout/approvePayoutRequest',
     async ({ id, adminNote }, { rejectWithValue }) => {
         try {
-            const updateData: { paymentStatus: string; paymentDate: string; adminNote?: string } = { 
+            const updateData: { paymentStatus: string; adminNote?: string } = {
                 paymentStatus: 'approved',
-                paymentDate: new Date().toISOString()
             };
             
             if (adminNote) {
@@ -531,6 +530,8 @@ export const sendPayoutViaChapa = createAsyncThunk<
         destinationBankName: string;
         destinationAccountNumber: string;
         amount: string;
+        chapaFee?: string;
+        netTransferAmount?: string;
     },
     { id: string },
     { rejectValue: string }
@@ -558,6 +559,8 @@ export const sendPayoutViaChapa = createAsyncThunk<
                     account_number?: string;
                 };
                 amount?: string;
+                chapa_fee?: string;
+                net_transfer_amount?: string;
             };
 
             if (!response.ok)
@@ -587,6 +590,8 @@ export const sendPayoutViaChapa = createAsyncThunk<
                 destinationBankName: payload.destination?.bank_name || '',
                 destinationAccountNumber: payload.destination?.account_number || '',
                 amount: payload.amount || '',
+                chapaFee: payload.chapa_fee,
+                netTransferAmount: payload.net_transfer_amount,
             };
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to send payout via Chapa';
