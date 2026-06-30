@@ -5,7 +5,7 @@ import { AlertTriangle, Check, CheckCircle2, Loader2, Send, ShieldAlert, X, XCir
 import type { ProviderPayoutAnalysis, ProviderWalletTransactionLine } from '@/lib/provider-payout-analysis';
 import { formatAdminDateTimeUtc } from '@/lib/admin-datetime';
 import { getAdminStatusToneClasses, type AdminStatusTone } from '@/lib/admin-status-badge';
-import { maskAccountNumber } from '@/app/admin/finance/payout-request/payout-request-display';
+import { getPayoutStatusLabel, maskAccountNumber } from '@/app/admin/finance/payout-request/payout-request-display';
 import { Sheet, SheetBody, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 
@@ -29,6 +29,7 @@ interface PayoutWalletAnalysisSheetProps {
     requestId?: string | null;
     bankDetails?: PayoutBankDetails | null;
     paymentStatus?: string | null;
+    paymentDate?: string | null;
     hasChapaTransferStarted?: boolean;
     isProcessing?: boolean;
     onApprove?: () => void;
@@ -121,6 +122,7 @@ export function PayoutWalletAnalysisSheet({
     requestId,
     bankDetails,
     paymentStatus,
+    paymentDate,
     hasChapaTransferStarted = false,
     isProcessing = false,
     onApprove,
@@ -131,9 +133,19 @@ export function PayoutWalletAnalysisSheet({
     const risk = analysis ? riskStyles(analysis.risk) : null;
     const RiskIcon = risk?.icon ?? Loader2;
     const normalizedStatus = (paymentStatus || '').trim().toLowerCase();
+    const statusDisplay = getPayoutStatusLabel(normalizedStatus, hasChapaTransferStarted);
     const showPendingActions = normalizedStatus === 'pending' && onApprove && onReject;
     const showSendAction = normalizedStatus === 'approved' && !hasChapaTransferStarted && onSend;
     const showVerifyAction = normalizedStatus === 'approved' && hasChapaTransferStarted && onVerifyTransfer;
+    const requiresRiskReview =
+        analysis?.reviewMode === 'active' && (analysis.risk === 'high' || analysis.risk === 'review');
+    const isHistoricalRequest = normalizedStatus === 'completed' || normalizedStatus === 'rejected';
+    const analysisHeading = analysis?.reviewMode === 'historical'
+        ? 'Wallet snapshot'
+        : analysis?.reviewMode === 'transfer_pending'
+          ? 'Wallet review at transfer time'
+          : 'Wallet review';
+    const findingsTitle = analysis?.reviewMode === 'active' ? 'Findings' : 'Wallet notes';
 
     return (
         <Sheet open={open} onClose={onClose} widthClassName="max-w-2xl lg:max-w-3xl">
@@ -156,11 +168,39 @@ export function PayoutWalletAnalysisSheet({
 
                 {(requestId || bankDetails) && (
                     <Section title="Payout request">
-                        {bankDetails ? (
-                            <BankSummary bankDetails={bankDetails} />
-                        ) : (
-                            <p className="text-sm text-rose-700">No bank details on this payout request.</p>
-                        )}
+                        <div className="space-y-3">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span
+                                    className={cn(
+                                        'inline-flex rounded-full border px-2.5 py-1 text-[12px] font-semibold',
+                                        getAdminStatusToneClasses(statusDisplay.tone)
+                                    )}
+                                >
+                                    {statusDisplay.label}
+                                </span>
+                                {paymentDate ? (
+                                    <span className="text-xs text-text-secondary">
+                                        {normalizedStatus === 'completed' ? 'Paid ' : 'Updated '}
+                                        {formatDate(paymentDate)}
+                                    </span>
+                                ) : null}
+                            </div>
+                            {normalizedStatus === 'completed' ? (
+                                <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-900">
+                                    This payout has been completed. The wallet snapshot below is for audit only — you do not need to approve or send again.
+                                </p>
+                            ) : null}
+                            {normalizedStatus === 'approved' && hasChapaTransferStarted ? (
+                                <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-950">
+                                    Chapa transfer was already submitted for this request. Use verify transfer to mark it completed and debit the provider wallet.
+                                </p>
+                            ) : null}
+                            {bankDetails ? (
+                                <BankSummary bankDetails={bankDetails} />
+                            ) : (
+                                <p className="text-sm text-rose-700">No bank details on this payout request.</p>
+                            )}
+                        </div>
                     </Section>
                 )}
 
@@ -186,8 +226,13 @@ export function PayoutWalletAnalysisSheet({
                             <div className="flex items-start gap-3">
                                 <RiskIcon className="mt-0.5 h-5 w-5 shrink-0" />
                                 <div>
-                                    <p className="text-sm font-semibold uppercase tracking-wide">Auto analysis</p>
+                                    <p className="text-sm font-semibold uppercase tracking-wide">{analysisHeading}</p>
                                     <p className="mt-1 text-base font-bold">{analysis.riskLabel}</p>
+                                    {isHistoricalRequest ? (
+                                        <p className="mt-2 text-sm opacity-90">
+                                            Past wallet issues may still appear below, but this request is already closed.
+                                        </p>
+                                    ) : null}
                                 </div>
                             </div>
                         </div>
@@ -197,7 +242,7 @@ export function PayoutWalletAnalysisSheet({
                             <MetricCard label="Ledger net" value={formatCurrency(analysis.ledgerNet)} />
                             <MetricCard label="Defensible balance" value={formatCurrency(analysis.defensibleBalance)} highlight />
                             <MetricCard
-                                label="Requested withdrawal"
+                                label={isHistoricalRequest ? 'Requested amount' : 'Requested withdrawal'}
                                 value={
                                     analysis.requestedWithdrawalAmount !== null
                                         ? formatCurrency(analysis.requestedWithdrawalAmount)
@@ -220,7 +265,7 @@ export function PayoutWalletAnalysisSheet({
                         </Section>
 
                         {analysis.findings.length > 0 && (
-                            <Section title="Findings">
+                            <Section title={findingsTitle}>
                                 <div className="space-y-2">
                                     {analysis.findings.map((finding) => (
                                         <div
@@ -302,7 +347,7 @@ export function PayoutWalletAnalysisSheet({
                         className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md border border-primary bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                        Approve
+                        {requiresRiskReview ? 'Review & approve' : 'Approve'}
                     </button>
                 </SheetFooter>
             ) : null}
@@ -315,7 +360,7 @@ export function PayoutWalletAnalysisSheet({
                         className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                        Send via Chapa
+                        {requiresRiskReview ? 'Review & send' : 'Send via Chapa'}
                     </button>
                 </SheetFooter>
             ) : null}

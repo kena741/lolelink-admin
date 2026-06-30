@@ -36,6 +36,7 @@ import { ProviderAddressPicker } from '@/components/ProviderAddressPicker';
 import { buildProviderUpdatesFromEditForm } from '@/lib/build-provider-updates';
 import { parseProviderLocation } from '@/lib/provider-location';
 import Image from 'next/image';
+import { ProviderWalletHistory } from './ProviderWalletHistory';
 
 export default function ProviderDetailPage() {
     const params = useParams();
@@ -68,7 +69,7 @@ export default function ProviderDetailPage() {
         isActive: true,
     });
     const [deletingHandymanId, setDeletingHandymanId] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<'services' | 'documents' | 'withdrawals' | 'handyman'>('services');
+    const [activeTab, setActiveTab] = useState<'services' | 'documents' | 'wallet' | 'withdrawals' | 'handyman'>('services');
     const [activationModalOpen, setActivationModalOpen] = useState(false);
 
     useEffect(() => {
@@ -345,29 +346,33 @@ export default function ProviderDetailPage() {
                     {!selectedLoading && provider && (
                         <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
                             <AdminPageHeader
-                                title={displayName}
-                                description={`${provider.email || '—'} · ${provider.phoneNumber || provider.phone || '—'} · ${provider.address || '—'}`}
-                                backHref="/admin/providers"
-                                actions={
-                                    <>
-                                        {!provider.activation_paid && (
-                                            <button
-                                                type="button"
-                                                onClick={() => setActivationModalOpen(true)}
-                                                className={adminHeaderButtonClassName()}
-                                            >
-                                                <CreditCard className="h-4 w-4" />
-                                                Pay Activation Fee
-                                            </button>
-                                        )}
+                                title={
+                                    <span className="inline-flex items-center gap-2">
+                                        {displayName}
                                         <button
                                             type="button"
                                             onClick={() => setOpen(true)}
+                                            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card text-text-primary transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                            aria-label="Edit provider"
+                                            title="Edit provider"
+                                        >
+                                            <Pencil className="h-4 w-4" />
+                                        </button>
+                                    </span>
+                                }
+                                description={`${provider.email || '—'} · ${provider.phoneNumber || provider.phone || '—'} · ${provider.address || '—'}`}
+                                backHref="/admin/providers"
+                                actions={
+                                    !provider.activation_paid ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => setActivationModalOpen(true)}
                                             className={adminHeaderButtonClassName()}
                                         >
-                                            Edit
+                                            <CreditCard className="h-4 w-4" />
+                                            Pay Activation Fee
                                         </button>
-                                    </>
+                                    ) : null
                                 }
                             />
                             <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -453,6 +458,17 @@ export default function ProviderDetailPage() {
                                         >
                                             <FileText className="h-4 w-4" />
                                             Documents
+                                        </button>
+                                        <button
+                                            onClick={() => setActiveTab('wallet')}
+                                            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                                                activeTab === 'wallet'
+                                                    ? 'bg-indigo-500 text-white shadow-md'
+                                                    : 'text-gray-700 hover:bg-gray-100'
+                                            }`}
+                                        >
+                                            <Wallet className="h-4 w-4" />
+                                            Wallet
                                         </button>
                                         <button
                                             onClick={() => setActiveTab('withdrawals')}
@@ -674,6 +690,13 @@ export default function ProviderDetailPage() {
                                             </div>
                                         )}
                                     </section>
+                                    )}
+
+                                    {activeTab === 'wallet' && (
+                                        <ProviderWalletHistory
+                                            providerId={id}
+                                            fallbackWalletAmount={providerWalletBalance}
+                                        />
                                     )}
 
                                     {/* Withdrawals Tab */}

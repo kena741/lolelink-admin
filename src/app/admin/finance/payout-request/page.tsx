@@ -16,7 +16,9 @@ import { useSearchParams } from 'next/navigation';
 import { fetchPayoutRequests, approvePayoutRequest, rejectPayoutRequest, sendPayoutViaChapa, PayoutRequest } from '@/features/payout/payoutSlice';
 import type { ProviderPayoutAnalysis } from '@/lib/provider-payout-analysis';
 import { PayoutWalletAnalysisSheet } from '@/app/admin/finance/payout-request/PayoutWalletAnalysisSheet';
+import { PayoutRiskReviewModal } from '@/app/admin/finance/payout-request/PayoutRiskReviewModal';
 import { PayoutRequestActions } from '@/app/admin/finance/payout-request/PayoutRequestActions';
+import { requiresPayoutRiskReview, type PayoutRiskReviewAction } from '@/lib/payout-risk-review';
 import {
     getPayoutStatusLabel,
     maskAccountNumber,
@@ -55,6 +57,11 @@ function PayoutRequestPageContent() {
         destinationAccountNumber: string;
         amount: string;
     } | null>(null);
+    const [riskReview, setRiskReview] = useState<{
+        request: PayoutRequest;
+        analysis: ProviderPayoutAnalysis;
+        action: PayoutRiskReviewAction;
+    } | null>(null);
     const autoVerifyInFlightRef = useRef<Set<string>>(new Set());
     const autoVerifyLastAttemptMsRef = useRef<Record<string, number>>({});
 
@@ -62,7 +69,64 @@ function PayoutRequestPageContent() {
         dispatch(fetchPayoutRequests());
     }, [dispatch]);
 
-    const handleApprove = async (id: string) => {
+    useEffect(() => {
+        if (!walletAnalysisRequest) return;
+        const latest = requests.find((request) => request.id === walletAnalysisRequest.id);
+        if (!latest) return;
+        const statusChanged = latest.paymentStatus !== walletAnalysisRequest.paymentStatus;
+        const noteChanged = latest.adminNote !== walletAnalysisRequest.adminNote;
+        const dateChanged = latest.paymentDate !== walletAnalysisRequest.paymentDate;
+        if (!statusChanged && !noteChanged && !dateChanged) return;
+        setWalletAnalysisRequest(latest);
+        void loadWalletAnalysis(latest);
+    }, [requests, walletAnalysisRequest?.id]);
+
+    async function fetchAnalysisForRequest(request: PayoutRequest): Promise<ProviderPayoutAnalysis | null> {
+        if (!request.providerId) return null;
+
+        const params = new URLSearchParams({
+            providerId: request.providerId,
+            withdrawalId: request.id,
+        });
+        const response = await fetch(`/api/payout/provider-wallet-analysis?${params.toString()}`);
+        const payload = (await response.json()) as {
+            data?: ProviderPayoutAnalysis;
+            error?: string;
+        };
+        if (!response.ok) {
+            throw new Error(payload.error || 'Failed to analyze provider wallet');
+        }
+        return payload.data ?? null;
+    }
+
+    async function loadWalletAnalysis(request: PayoutRequest) {
+        if (!request.providerId) {
+            setWalletAnalysisError('Provider is missing on this payout request.');
+            setWalletAnalysis(null);
+            return;
+        }
+
+        setWalletAnalysisError(null);
+        setWalletAnalysisLoading(true);
+
+        try {
+            const analysis = await fetchAnalysisForRequest(request);
+            setWalletAnalysis(analysis);
+        } catch (error: unknown) {
+            setWalletAnalysisError(error instanceof Error ? error.message : 'Failed to analyze provider wallet');
+        } finally {
+            setWalletAnalysisLoading(false);
+        }
+    }
+
+    async function resolveWalletAnalysis(request: PayoutRequest): Promise<ProviderPayoutAnalysis | null> {
+        if (walletAnalysisRequest?.id === request.id && walletAnalysis) {
+            return walletAnalysis;
+        }
+        return fetchAnalysisForRequest(request);
+    }
+
+    async function executeApprove(id: string) {
         setProcessingId(id);
         try {
             await dispatch(approvePayoutRequest({ id })).unwrap();
@@ -75,6 +139,61 @@ function PayoutRequestPageContent() {
         } finally {
             setProcessingId(null);
         }
+    }
+
+    function openChapaConfirm(request: PayoutRequest) {
+        setModalValidationError(null);
+        setConfirmingRequest(request);
+    }
+
+    async function completePayoutAction(request: PayoutRequest, action: PayoutRiskReviewAction) {
+        if (action === 'approve') {
+            await executeApprove(request.id);
+            return;
+        }
+        openChapaConfirm(request);
+    }
+
+    async function beginPayoutAction(request: PayoutRequest, action: PayoutRiskReviewAction) {
+        setProcessingId(request.id);
+        try {
+            const analysis = await resolveWalletAnalysis(request);
+            if (!analysis) {
+                window.alert('Wallet analysis is required before this action.');
+                return;
+            }
+
+            if (walletAnalysisRequest?.id === request.id) {
+                setWalletAnalysis(analysis);
+            }
+
+            if (requiresPayoutRiskReview(analysis)) {
+                setRiskReview({ request, analysis, action });
+                return;
+            }
+
+            await completePayoutAction(request, action);
+        } catch (error: unknown) {
+            console.error('Failed to prepare payout action:', error);
+            window.alert(error instanceof Error ? error.message : 'Failed to load wallet analysis');
+        } finally {
+            setProcessingId(null);
+        }
+    }
+
+    async function handleRiskReviewConfirm() {
+        if (!riskReview) return;
+        const { request, action } = riskReview;
+        setRiskReview(null);
+        await completePayoutAction(request, action);
+    }
+
+    const handleApprove = async (request: PayoutRequest) => {
+        await beginPayoutAction(request, 'approve');
+    };
+
+    const handleSendWithChapa = async (request: PayoutRequest) => {
+        await beginPayoutAction(request, 'send');
     };
 
     const handleReject = async (id: string) => {
@@ -90,11 +209,6 @@ function PayoutRequestPageContent() {
         } finally {
             setProcessingId(null);
         }
-    };
-
-    const handleSendWithChapa = async (request: PayoutRequest) => {
-        setModalValidationError(null);
-        setConfirmingRequest(request);
     };
 
     const handleConfirmSendWithChapa = async () => {
@@ -140,7 +254,7 @@ function PayoutRequestPageContent() {
                 window.alert(typeof payload.error === 'string' ? payload.error : 'Failed to verify transfer');
                 return;
             }
-            dispatch(fetchPayoutRequests());
+            await dispatch(fetchPayoutRequests()).unwrap();
         } catch (e) {
             console.error('Failed to verify transfer:', e);
         } finally {
@@ -149,37 +263,9 @@ function PayoutRequestPageContent() {
     };
 
     const handleOpenWalletAnalysis = async (request: PayoutRequest) => {
-        if (!request.providerId) {
-            setWalletAnalysisError('Provider is missing on this payout request.');
-            setWalletAnalysisRequest(request);
-            setWalletAnalysis(null);
-            return;
-        }
-
         setWalletAnalysisRequest(request);
         setWalletAnalysis(null);
-        setWalletAnalysisError(null);
-        setWalletAnalysisLoading(true);
-
-        try {
-            const params = new URLSearchParams({
-                providerId: request.providerId,
-                withdrawalId: request.id,
-            });
-            const response = await fetch(`/api/payout/provider-wallet-analysis?${params.toString()}`);
-            const payload = (await response.json()) as {
-                data?: ProviderPayoutAnalysis;
-                error?: string;
-            };
-            if (!response.ok) {
-                throw new Error(payload.error || 'Failed to analyze provider wallet');
-            }
-            setWalletAnalysis(payload.data ?? null);
-        } catch (error: unknown) {
-            setWalletAnalysisError(error instanceof Error ? error.message : 'Failed to analyze provider wallet');
-        } finally {
-            setWalletAnalysisLoading(false);
-        }
+        await loadWalletAnalysis(request);
     };
 
     const handleCloseWalletAnalysis = () => {
@@ -460,7 +546,7 @@ function PayoutRequestPageContent() {
                                                                     paymentStatus={normalizedPaymentStatus}
                                                                     hasChapaTransferStarted={hasChapaTransferStarted}
                                                                     isProcessing={isProcessing}
-                                                                    onApprove={() => handleApprove(request.id)}
+                                                                    onApprove={() => handleApprove(request)}
                                                                     onReject={() => handleReject(request.id)}
                                                                     onSendWithChapa={() => handleSendWithChapa(request)}
                                                                     onVerifyTransfer={() => handleVerifyChapaTransfer(request.id)}
@@ -485,6 +571,7 @@ function PayoutRequestPageContent() {
                             requestId={walletAnalysisRequest?.id}
                             bankDetails={walletAnalysisRequest?.bankDetails}
                             paymentStatus={walletAnalysisRequest?.paymentStatus}
+                            paymentDate={walletAnalysisRequest?.paymentDate}
                             hasChapaTransferStarted={
                                 walletAnalysisRequest
                                     ? Boolean(
@@ -503,7 +590,7 @@ function PayoutRequestPageContent() {
                             isProcessing={walletAnalysisRequest ? processingId === walletAnalysisRequest.id : false}
                             onApprove={
                                 walletAnalysisRequest
-                                    ? () => handleApprove(walletAnalysisRequest.id)
+                                    ? () => handleApprove(walletAnalysisRequest)
                                     : undefined
                             }
                             onReject={
@@ -522,6 +609,17 @@ function PayoutRequestPageContent() {
                                     : undefined
                             }
                         />
+                        {riskReview ? (
+                            <PayoutRiskReviewModal
+                                open
+                                analysis={riskReview.analysis}
+                                providerName={sanitizeDisplayText(riskReview.request.provider_name, 'Unknown provider')}
+                                action={riskReview.action}
+                                isProcessing={processingId === riskReview.request.id}
+                                onClose={() => setRiskReview(null)}
+                                onConfirm={() => void handleRiskReviewConfirm()}
+                            />
+                        ) : null}
                         {confirmingRequest && (
                             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
                                 <div className="w-full max-w-xl rounded-2xl border border-border bg-card p-6 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">

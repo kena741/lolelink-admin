@@ -8,7 +8,7 @@ type Breadcrumb = {
 };
 
 type AdminPageHeaderProps = {
-  title: string;
+  title: ReactNode;
   description?: string;
   actions?: ReactNode;
   breadcrumbs?: Breadcrumb[];

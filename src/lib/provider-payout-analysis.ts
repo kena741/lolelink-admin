@@ -4,6 +4,7 @@ import { isActivationCredit, walletTransactionMagnitude } from '@/lib/wallet-tra
 import { readAuthUserId } from '@/lib/wallet-transaction-user';
 
 export type PayoutAnalysisRisk = 'clean' | 'review' | 'high';
+export type PayoutAnalysisReviewMode = 'active' | 'transfer_pending' | 'historical';
 
 export interface PayoutAnalysisFinding {
     id: string;
@@ -46,6 +47,8 @@ export interface ProviderPayoutAnalysis {
     withdrawalCoversRequest: boolean | null;
     risk: PayoutAnalysisRisk;
     riskLabel: string;
+    reviewMode: PayoutAnalysisReviewMode;
+    withdrawalStatus: string | null;
     findings: PayoutAnalysisFinding[];
     transactions: ProviderWalletTransactionLine[];
     stats: {
@@ -151,8 +154,35 @@ function classifyJobPayout(
 function resolveRisk(
     findings: PayoutAnalysisFinding[],
     defensibleBalance: number,
-    requestedAmount: number | null
+    requestedAmount: number | null,
+    reviewMode: PayoutAnalysisReviewMode
 ): { risk: PayoutAnalysisRisk; riskLabel: string } {
+    if (reviewMode === 'historical') {
+        const hasError = findings.some((item) => item.severity === 'error');
+        const hasWarning = findings.some((item) => item.severity === 'warning');
+        if (hasError || hasWarning) {
+            return {
+                risk: 'review',
+                riskLabel: 'Historical wallet notes — payout already processed',
+            };
+        }
+        return { risk: 'clean', riskLabel: 'Payout completed — no outstanding wallet issues' };
+    }
+
+    if (reviewMode === 'transfer_pending') {
+        const hasError = findings.some((item) => item.severity === 'error');
+        if (hasError) {
+            return {
+                risk: 'review',
+                riskLabel: 'Transfer submitted — verify with Chapa to complete payout',
+            };
+        }
+        return {
+            risk: 'review',
+            riskLabel: 'Transfer submitted — awaiting Chapa confirmation',
+        };
+    }
+
     const hasError = findings.some((item) => item.severity === 'error');
     const hasWarning = findings.some((item) => item.severity === 'warning');
 
@@ -171,6 +201,20 @@ function resolveRisk(
     return { risk: 'clean', riskLabel: 'Clean — no suspicious wallet activity found' };
 }
 
+function resolveReviewMode(
+    withdrawalStatus: string | null | undefined,
+    hasTransferStarted: boolean
+): PayoutAnalysisReviewMode {
+    const normalized = (withdrawalStatus ?? '').trim().toLowerCase();
+    if (normalized === 'completed' || normalized === 'rejected') {
+        return 'historical';
+    }
+    if (normalized === 'approved' && hasTransferStarted) {
+        return 'transfer_pending';
+    }
+    return 'active';
+}
+
 export function analyzeProviderPayoutWallet(input: {
     providerId: string;
     providerName: string;
@@ -182,7 +226,11 @@ export function analyzeProviderPayoutWallet(input: {
     customers: CustomerRow[];
     customerWalletCredits: CustomerWalletRow[];
     requestedWithdrawalAmount?: number | null;
+    withdrawalStatus?: string | null;
+    hasTransferStarted?: boolean;
 }): ProviderPayoutAnalysis {
+    const reviewMode = resolveReviewMode(input.withdrawalStatus, Boolean(input.hasTransferStarted));
+    const withdrawalStatus = (input.withdrawalStatus ?? '').trim() || null;
     const bookingById = new Map(input.bookings.map((booking) => [booking.id, booking]));
     const customerUserIdByCustomerId = new Map(
         input.customers.map((customer) => [customer.id, customer.user_id ?? null])
@@ -351,7 +399,11 @@ export function analyzeProviderPayoutWallet(input: {
             ? input.requestedWithdrawalAmount
             : null;
 
-    if (requestedWithdrawalAmount !== null && defensibleBalance + 0.01 < requestedWithdrawalAmount) {
+    if (
+        reviewMode === 'active'
+        && requestedWithdrawalAmount !== null
+        && defensibleBalance + 0.01 < requestedWithdrawalAmount
+    ) {
         findings.push({
             id: 'request-exceeds-defensible',
             severity: 'error',
@@ -361,7 +413,26 @@ export function analyzeProviderPayoutWallet(input: {
         });
     }
 
-    const { risk, riskLabel } = resolveRisk(findings, defensibleBalance, requestedWithdrawalAmount);
+    if (
+        reviewMode === 'transfer_pending'
+        && requestedWithdrawalAmount !== null
+        && defensibleBalance + 0.01 < requestedWithdrawalAmount
+    ) {
+        findings.push({
+            id: 'request-exceeds-defensible',
+            severity: 'info',
+            label: 'Request exceeded defensible balance when transfer was sent',
+            detail: `You approved ETB ${requestedWithdrawalAmount.toFixed(2)} even though defensible balance was ETB ${defensibleBalance.toFixed(2)}. Verify the Chapa transfer to finish.`,
+            amount: requestedWithdrawalAmount,
+        });
+    }
+
+    const { risk, riskLabel } = resolveRisk(
+        findings,
+        defensibleBalance,
+        reviewMode === 'active' ? requestedWithdrawalAmount : null,
+        reviewMode
+    );
 
     return {
         providerId: input.providerId,
@@ -379,6 +450,8 @@ export function analyzeProviderPayoutWallet(input: {
                 : defensibleBalance + 0.01 >= requestedWithdrawalAmount,
         risk,
         riskLabel,
+        reviewMode,
+        withdrawalStatus,
         findings,
         transactions: transactions.sort((left, right) => {
             const leftTime = left.createdDate ? new Date(left.createdDate).getTime() : 0;

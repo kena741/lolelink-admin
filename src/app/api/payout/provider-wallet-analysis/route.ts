@@ -6,6 +6,15 @@ import { readAuthUserId } from '@/lib/wallet-transaction-user';
 
 export const runtime = 'nodejs';
 
+function hasChapaTransferStarted(adminNote: string): boolean {
+    const note = adminNote.toLowerCase();
+    return (
+        note.includes('chapa transfer sent.')
+        || note.includes('chapa transfer reference:')
+        || note.includes('reference=')
+    );
+}
+
 function parseAmount(value: unknown): number {
     const parsed = Number(value ?? 0);
     return Number.isFinite(parsed) ? parsed : 0;
@@ -85,10 +94,12 @@ export async function GET(request: Request) {
         );
 
         let requestedWithdrawalAmount: number | null = null;
+        let withdrawalStatus: string | null = null;
+        let transferStarted = false;
         if (withdrawalId) {
             const { data: withdrawal, error: withdrawalError } = await supabaseAdmin
                 .from('withdrawal_history')
-                .select('id, amount, providerId')
+                .select('id, amount, providerId, paymentStatus, adminNote')
                 .eq('id', withdrawalId)
                 .maybeSingle();
 
@@ -102,6 +113,15 @@ export async function GET(request: Request) {
                 return NextResponse.json({ error: 'Withdrawal does not belong to this provider' }, { status: 400 });
             }
             requestedWithdrawalAmount = parseAmount((withdrawal as { amount?: string | number }).amount);
+            withdrawalStatus =
+                typeof (withdrawal as { paymentStatus?: string }).paymentStatus === 'string'
+                    ? (withdrawal as { paymentStatus: string }).paymentStatus
+                    : null;
+            transferStarted = hasChapaTransferStarted(
+                typeof (withdrawal as { adminNote?: string | null }).adminNote === 'string'
+                    ? (withdrawal as { adminNote: string }).adminNote
+                    : ''
+            );
         }
 
         const [customersResult, customerWalletResult] = customerIds.length
@@ -154,6 +174,8 @@ export async function GET(request: Request) {
             customers: customersResult.data ?? [],
             customerWalletCredits: [...(customerWalletResult.data ?? [])],
             requestedWithdrawalAmount,
+            withdrawalStatus,
+            hasTransferStarted: transferStarted,
         });
 
         return NextResponse.json({ data: analysis });

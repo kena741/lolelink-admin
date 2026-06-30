@@ -135,4 +135,53 @@ describe('analyzeProviderPayoutWallet', () => {
         expect(analysis.defensibleBalance).toBe(90);
         expect(analysis.withdrawalCoversRequest).toBe(true);
     });
+
+    it('does not block completed payouts with historical wallet notes', () => {
+        const analysis = analyzeProviderPayoutWallet({
+            providerId: PROVIDER_ID,
+            providerName: 'Fozia Kassa',
+            providerEmail: 'foziaka&/ssa@gmail.com',
+            providerUserId: PROVIDER_ID,
+            storedWalletAmount: 319.25,
+            requestedWithdrawalAmount: 300,
+            withdrawalStatus: 'completed',
+            walletTransactions: [
+                {
+                    id: '1',
+                    amount: '237.96',
+                    isCredit: true,
+                    note: 'Order #40d11a completed (payout after admin commission)',
+                    paymentType: 'Wallet',
+                    transactionId: '40d11a98-bfc5-4f81-8689-da76f5567438',
+                    createdDate: '2026-06-23T12:22:53Z',
+                },
+                {
+                    id: '2',
+                    amount: '300',
+                    isCredit: false,
+                    note: 'Withdrawal payout d1e9a694-a173-4fff-afd9-86af156dfea7',
+                    paymentType: 'wallet',
+                    transactionId: 'withdrawal:d1e9a694',
+                    createdDate: '2026-06-29T13:12:00Z',
+                },
+            ],
+            bookings: [
+                {
+                    id: '40d11a98-bfc5-4f81-8689-da76f5567438',
+                    customer_id: CUSTOMER_ID,
+                    status: 'completed',
+                    totalAmount: -177.92,
+                    payment_status: 'payment_completed',
+                    paymentCompleted: false,
+                },
+            ],
+            customers: [{ id: CUSTOMER_ID, user_id: CUSTOMER_ID }],
+            customerWalletCredits: [],
+        });
+
+        expect(analysis.reviewMode).toBe('historical');
+        expect(analysis.findings.some((item) => item.id === 'request-exceeds-defensible')).toBe(false);
+        expect(analysis.risk).not.toBe('high');
+        expect(analysis.riskLabel).toContain('Historical wallet notes');
+    });
 });
