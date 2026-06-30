@@ -24,18 +24,20 @@ import {
 } from '@/components/admin/admin-layout';
 import { AdminTableShell } from '@/components/admin/data-table';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 
-const PAGE_SIZE = 20;
+import {
+    customerIsArchived,
+    getCustomerDisplayName,
+} from '@/lib/customer-display';
 
-function customerIsArchived(c: { archived_at?: string | null; archivedAt?: string | null }): boolean {
-    const v = c.archived_at ?? c.archivedAt;
-    return typeof v === 'string' && v.length > 0;
-}
+const PAGE_SIZE = 20;
 
 export default function CustomersPage() {
     const dispatch = useAppDispatch();
+    const router = useRouter();
     const { canWriteCustomers } = useAdminPermissions();
     const { customers, loading, error, convertingId, convertError } = useAppSelector((s) => s.customer);
     const [query, setQuery] = useState('');
@@ -234,12 +236,20 @@ export default function CustomersPage() {
                                         const archived = customerIsArchived(c);
                                         const rowBusy = actionBusyId === c.id;
                                         return (
-                                        <TableRow key={c.id} className={archived ? 'opacity-75' : undefined}>
+                                        <TableRow
+                                            key={c.id}
+                                            className={`${archived ? 'opacity-75' : ''} ${
+                                                c.id ? 'cursor-pointer hover:bg-gray-50/80' : ''
+                                            }`}
+                                            onClick={() => {
+                                                if (c.id) router.push(`/admin/customers/${c.id}`);
+                                            }}
+                                        >
                                             <TableCell className="text-sm font-medium text-gray-500">
                                                 {startIdx + idx + 1}
                                             </TableCell>
                                             <TableCell className="font-medium">
-                                                <div className="text-gray-900 font-semibold">{c.first_name} {c.last_name}</div>
+                                                <div className="text-gray-900 font-semibold">{getCustomerDisplayName(c)}</div>
                                                 {c.address && typeof c.address === 'string' && (
                                                     <div className="text-xs text-gray-500">{c.address}</div>
                                                 )}
@@ -304,7 +314,7 @@ export default function CustomersPage() {
                                             <TableCell>
                                                 <span className="text-sm text-gray-600">{c.last_request_at ? new Date(c.last_request_at).toLocaleString() : '—'}</span>
                                             </TableCell>
-                                            <TableCell className="text-right">
+                                            <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                                                 <div className="flex items-center justify-end gap-2">
                                                     {archived ? (
                                                         <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
@@ -324,6 +334,17 @@ export default function CustomersPage() {
                                                             </Button>
                                                         </DropdownMenuTrigger>
                                                         <DropdownMenuContent align="end" className="w-52">
+                                                            {c.id ? (
+                                                                <DropdownMenuItem asChild>
+                                                                    <Link
+                                                                        href={`/admin/customers/${c.id}`}
+                                                                        className="flex cursor-pointer items-center gap-2"
+                                                                    >
+                                                                        <Users className="h-4 w-4 shrink-0" />
+                                                                        View customer
+                                                                    </Link>
+                                                                </DropdownMenuItem>
+                                                            ) : null}
                                                             {c.provider_id ? (
                                                                 <DropdownMenuItem asChild>
                                                                     <Link
