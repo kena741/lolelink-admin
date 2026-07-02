@@ -48,6 +48,10 @@ export interface Provider {
     activation_tx_ref?: string;
     verified_subcategory_ids?: string[];
     archived_at?: string | null;
+    provider_type?: string | null;
+    company_verification_status?: string | null;
+    company_license_url?: string | null;
+    company_rejection_reason?: string | null;
 }
 
 export interface ProviderState {

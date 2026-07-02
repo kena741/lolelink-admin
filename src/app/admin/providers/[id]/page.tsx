@@ -23,7 +23,7 @@ import {
 import { fetchHandymen, updateHandyman, deleteHandyman, type Handyman } from '@/features/handyman/handymanSlice';
 import { fetchCategories } from '@/features/category/categorySlice';
 import { fetchSubCategories } from '@/features/subcategory/subcategorySlice';
-import { Pencil, Trash2, FileText, Coins, Wrench, Clock, Briefcase, History, CreditCard, Wallet } from 'lucide-react';
+import { Pencil, Trash2, FileText, Coins, Wrench, Clock, Briefcase, History, CreditCard, Wallet, Building2 } from 'lucide-react';
 import { formatBookingAmount } from '@/lib/booking-display';
 import { ActivationPaymentModal } from '@/components/ActivationPaymentModal';
 import { fetchSettings } from '@/features/settings/settingsSlice';
@@ -37,6 +37,8 @@ import { buildProviderUpdatesFromEditForm } from '@/lib/build-provider-updates';
 import { parseProviderLocation } from '@/lib/provider-location';
 import Image from 'next/image';
 import { ProviderWalletHistory } from './ProviderWalletHistory';
+import { ProviderCompanyProfile } from './ProviderCompanyProfile';
+import { formatCompanyVerificationStatus, formatProviderType } from '@/lib/company-display';
 
 export default function ProviderDetailPage() {
     const params = useParams();
@@ -69,7 +71,7 @@ export default function ProviderDetailPage() {
         isActive: true,
     });
     const [deletingHandymanId, setDeletingHandymanId] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<'services' | 'documents' | 'wallet' | 'withdrawals' | 'handyman'>('services');
+    const [activeTab, setActiveTab] = useState<'services' | 'documents' | 'wallet' | 'withdrawals' | 'handyman' | 'company'>('services');
     const [activationModalOpen, setActivationModalOpen] = useState(false);
 
     useEffect(() => {
@@ -115,6 +117,15 @@ export default function ProviderDetailPage() {
         const last = provider?.lastName ?? provider?.last_name;
         const full = [first, last].filter(Boolean).join(' ');
         return full || provider?.name || '—';
+    })();
+
+    const providerType = (() => {
+        const raw = (provider as { provider_type?: string | null } | undefined)?.provider_type;
+        return typeof raw === 'string' && raw.trim() ? raw.trim() : null;
+    })();
+    const companyVerificationStatus = (() => {
+        const raw = (provider as { company_verification_status?: string | null } | undefined)?.company_verification_status;
+        return typeof raw === 'string' && raw.trim() ? raw.trim() : null;
     })();
 
     // Edit modal state
@@ -383,6 +394,16 @@ export default function ProviderDetailPage() {
                                 }`}>
                                     {provider.activation_paid ? 'Activation Paid' : 'Activation Fee Pending'}
                                 </span>
+                                {providerType ? (
+                                    <span className="inline-flex items-center rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700">
+                                        {formatProviderType(providerType)}
+                                    </span>
+                                ) : null}
+                                {companyVerificationStatus ? (
+                                    <span className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
+                                        {formatCompanyVerificationStatus(companyVerificationStatus)}
+                                    </span>
+                                ) : null}
                             </div>
 
                                     {/* Earnings Summary */}
@@ -491,6 +512,17 @@ export default function ProviderDetailPage() {
                                         >
                                             <Wrench className="h-4 w-4" />
                                             Handyman
+                                        </button>
+                                        <button
+                                            onClick={() => setActiveTab('company')}
+                                            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                                                activeTab === 'company'
+                                                    ? 'bg-indigo-500 text-white shadow-md'
+                                                    : 'text-gray-700 hover:bg-gray-100'
+                                            }`}
+                                        >
+                                            <Building2 className="h-4 w-4" />
+                                            Company
                                         </button>
                                     </div>
 
@@ -866,6 +898,10 @@ export default function ProviderDetailPage() {
                                             </div>
                                         )}
                                     </section>
+                                    )}
+
+                                    {activeTab === 'company' && (
+                                        <ProviderCompanyProfile providerId={id} />
                                     )}
                             {/* Edit dialog */}
                             <Dialog open={open} onClose={() => { setOpen(false); setSaveError(null); }}>

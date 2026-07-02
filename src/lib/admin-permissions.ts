@@ -73,6 +73,7 @@ export const DEFAULT_ADMIN_ROLES = [
             'providers:read', 'providers:write', 'providers:verify',
             'services:read', 'services:write',
             'notifications:read', 'notifications:write',
+            'settings:read', 'settings:write',
         ],
         is_system: true,
     },

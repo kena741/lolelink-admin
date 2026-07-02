@@ -25,6 +25,7 @@ import {
     Ticket,
     CheckSquare,
     MessageSquare,
+    Smartphone,
     Moon,
     Sun,
     Shield,
@@ -123,6 +124,7 @@ const Sidebar = () => {
         [can]
     );
     const showSettings = canAccessAdminRoute('/admin/settings', can);
+    const showMobileAppConfig = canAccessAdminRoute('/admin/mobile-app-config', can);
     const showAdmins = canAccessAdminRoute('/admin/admins', can);
     const showActivityLogs = canAccessAdminRoute('/admin/activity-logs', can);
     const showRoles = canAccessAdminRoute('/admin/roles', can);
@@ -130,6 +132,7 @@ const Sidebar = () => {
     const showSystemSection =
         visibleFinanceItems.length > 0 ||
         showSettings ||
+        showMobileAppConfig ||
         showAdmins ||
         showActivityLogs ||
         showRoles ||
@@ -434,6 +437,21 @@ const Sidebar = () => {
                                     >
                                         <Settings className={`h-4 w-4 ${pathname?.startsWith('/admin/settings') ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
                                         <span>Global Settings</span>
+                                    </Link>
+                                </li>
+                                )}
+                                {showMobileAppConfig && (
+                                <li>
+                                    <Link
+                                        href="/admin/mobile-app-config"
+                                        className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
+                                            pathname?.startsWith('/admin/mobile-app-config')
+                                                ? 'bg-primary/10 text-primary font-medium'
+                                                            : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
+                                        }`}
+                                    >
+                                        <Smartphone className={`h-4 w-4 ${pathname?.startsWith('/admin/mobile-app-config') ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
+                                        <span>Mobile App Config</span>
                                     </Link>
                                 </li>
                                 )}

@@ -141,6 +141,9 @@ export function canAccessAdminRoute(pathname: string, can: (permission: string) 
     if (pathname.startsWith('/admin/finance')) return can('finance:read');
     if (pathname.startsWith('/admin/notifications')) return can('notifications:read');
     if (pathname.startsWith('/admin/settings')) return can('settings:read');
+    if (pathname.startsWith('/admin/mobile-app-config')) {
+        return can('settings:read') || can('contact:read');
+    }
     if (pathname.startsWith('/admin/admins')) return can('admins:read');
     if (pathname.startsWith('/admin/roles')) return can('roles:read');
     if (pathname.startsWith('/admin/activity-logs')) return can('logs:read');
