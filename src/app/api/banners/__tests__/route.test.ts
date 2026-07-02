@@ -10,19 +10,6 @@ vi.mock('@/lib/admin-auth', () => ({
     requireAdminPermission: vi.fn().mockResolvedValue({ ok: true }),
 }));
 
-function createChain(result: { data: unknown; error: unknown }) {
-    const chain: Record<string, ReturnType<typeof vi.fn>> = {};
-    const done = vi.fn().mockResolvedValue(result);
-    chain.select = vi.fn(() => chain);
-    chain.insert = vi.fn(() => chain);
-    chain.update = vi.fn(() => chain);
-    chain.eq = vi.fn(() => chain);
-    chain.order = vi.fn(() => chain);
-    chain.maybeSingle = done;
-    chain.single = done;
-    return chain;
-}
-
 const existingBanner = {
     id: 1,
     bannerName: 'Old Banner',

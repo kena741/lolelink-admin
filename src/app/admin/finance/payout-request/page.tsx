@@ -1,5 +1,5 @@
 'use client';
-import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
@@ -30,9 +30,6 @@ import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/compon
 
 const primaryButtonClassName =
     'inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
-
-const destructiveButtonClassName =
-    'inline-flex h-9 items-center rounded-md bg-destructive px-4 text-sm font-semibold text-destructive-foreground transition-colors hover:bg-destructive/90 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
 
 const secondaryButtonClassName =
     'inline-flex h-9 items-center rounded-md border border-border bg-card px-4 text-sm font-semibold text-text-primary transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
@@ -72,19 +69,7 @@ function PayoutRequestPageContent() {
         dispatch(fetchPayoutRequests());
     }, [dispatch]);
 
-    useEffect(() => {
-        if (!walletAnalysisRequest) return;
-        const latest = requests.find((request) => request.id === walletAnalysisRequest.id);
-        if (!latest) return;
-        const statusChanged = latest.paymentStatus !== walletAnalysisRequest.paymentStatus;
-        const noteChanged = latest.adminNote !== walletAnalysisRequest.adminNote;
-        const dateChanged = latest.paymentDate !== walletAnalysisRequest.paymentDate;
-        if (!statusChanged && !noteChanged && !dateChanged) return;
-        setWalletAnalysisRequest(latest);
-        void loadWalletAnalysis(latest);
-    }, [requests, walletAnalysisRequest?.id]);
-
-    async function fetchAnalysisForRequest(request: PayoutRequest): Promise<ProviderPayoutAnalysis | null> {
+    const fetchAnalysisForRequest = useCallback(async (request: PayoutRequest): Promise<ProviderPayoutAnalysis | null> => {
         if (!request.providerId) return null;
 
         const params = new URLSearchParams({
@@ -100,9 +85,9 @@ function PayoutRequestPageContent() {
             throw new Error(payload.error || 'Failed to analyze provider wallet');
         }
         return payload.data ?? null;
-    }
+    }, []);
 
-    async function loadWalletAnalysis(request: PayoutRequest) {
+    const loadWalletAnalysis = useCallback(async (request: PayoutRequest) => {
         if (!request.providerId) {
             setWalletAnalysisError('Provider is missing on this payout request.');
             setWalletAnalysis(null);
@@ -120,7 +105,19 @@ function PayoutRequestPageContent() {
         } finally {
             setWalletAnalysisLoading(false);
         }
-    }
+    }, [fetchAnalysisForRequest]);
+
+    useEffect(() => {
+        if (!walletAnalysisRequest) return;
+        const latest = requests.find((request) => request.id === walletAnalysisRequest.id);
+        if (!latest) return;
+        const statusChanged = latest.paymentStatus !== walletAnalysisRequest.paymentStatus;
+        const noteChanged = latest.adminNote !== walletAnalysisRequest.adminNote;
+        const dateChanged = latest.paymentDate !== walletAnalysisRequest.paymentDate;
+        if (!statusChanged && !noteChanged && !dateChanged) return;
+        setWalletAnalysisRequest(latest);
+        void loadWalletAnalysis(latest);
+    }, [requests, walletAnalysisRequest, loadWalletAnalysis]);
 
     async function resolveWalletAnalysis(request: PayoutRequest): Promise<ProviderPayoutAnalysis | null> {
         if (walletAnalysisRequest?.id === request.id && walletAnalysis) {

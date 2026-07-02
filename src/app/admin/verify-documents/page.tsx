@@ -6,7 +6,6 @@ import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import { 
     FileCheck, 
-    ArrowLeft, 
     RefreshCw, 
     CheckCircle2, 
     XCircle, 

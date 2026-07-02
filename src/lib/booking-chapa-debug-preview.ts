@@ -151,8 +151,9 @@ export function buildChapaStep3TableWrites(
     bookingId = '<id from step 1>',
     paymentId = '<payment uuid from step 2>',
     txRef = '<chapa tx_ref>',
-    chapaReference = '<chapa reference from verify>'
+    _chapaReference = '<chapa reference from verify>'
 ): TableWritePreview[] {
+    void _chapaReference;
     const serviceName = ctx.serviceName || 'Service';
     const customerName = customerDisplayName(ctx);
     const amountLabel = `ETB ${ctx.totalAmount.toFixed(2)}`;

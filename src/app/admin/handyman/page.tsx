@@ -7,7 +7,6 @@ import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminP
 import { getDisplayImageUrl } from '@/lib/media-url';
 import { 
     Wrench, 
-    ArrowLeft, 
     RefreshCw, 
     Plus,
     Edit,
@@ -18,7 +17,6 @@ import {
     Phone,
     MapPin
 } from 'lucide-react';
-import Link from 'next/link';
 import Image from 'next/image';
 import { fetchHandymen, createHandyman, updateHandyman, deleteHandyman } from '@/features/handyman/handymanSlice';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';

@@ -1,6 +1,5 @@
 'use client';
 
-import type { ComponentProps } from 'react';
 import Image from 'next/image';
 import { Briefcase, Bug, Eye, Loader2, Trash2 } from 'lucide-react';
 import {

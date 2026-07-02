@@ -6,7 +6,6 @@ import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import { 
     FolderKanban, 
-    ArrowLeft, 
     RefreshCw, 
     Plus,
     Edit,
@@ -15,7 +14,6 @@ import {
     Filter,
     ArrowUpDown
 } from 'lucide-react';
-import Link from 'next/link';
 import { fetchSubCategories, createSubCategory, updateSubCategory, deleteSubCategory, fetchAllSubCategoryDocumentIds, fetchSubCategoryDocumentIds } from '@/features/subcategory/subcategorySlice';
 import { fetchCategories } from '@/features/category/categorySlice';
 import { fetchDocuments } from '@/features/document/documentSlice';

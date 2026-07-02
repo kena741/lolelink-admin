@@ -90,6 +90,7 @@ export async function markBookingPaymentCompleted(
     txRef: string,
     _chapaReference?: string
 ): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
+    void _chapaReference;
     const { data: bookingRaw, error: bookingError } = await supabaseAdmin
         .from('booked_service')
         .select('*')

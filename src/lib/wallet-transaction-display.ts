@@ -77,7 +77,6 @@ export function parseWalletTransactionEvent(input: {
     const note = typeof input.note === 'string' ? input.note : '';
     const isCredit = input.isCredit === true;
     const type = typeof input.type === 'string' ? input.type.toLowerCase() : '';
-    const paymentType = typeof input.paymentType === 'string' ? input.paymentType : '';
     const transactionId = typeof input.transactionId === 'string' ? input.transactionId : '';
 
     if (

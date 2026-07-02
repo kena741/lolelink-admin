@@ -92,9 +92,11 @@ function AdminsPage() {
         dispatch(fetchAdminRoles());
     }, [dispatch]);
 
-    const roleOptions = roles.length > 0
-        ? roles
-        : [{ id: 'viewer', slug: 'viewer', name: 'Viewer', description: null, permissions: [], is_system: true, created_at: '', updated_at: '' }];
+    const roleOptions = useMemo(() => (
+        roles.length > 0
+            ? roles
+            : [{ id: 'viewer', slug: 'viewer', name: 'Viewer', description: null, permissions: [], is_system: true, created_at: '', updated_at: '' }]
+    ), [roles]);
 
     const stats = useMemo(() => ({
         total: admins.length,

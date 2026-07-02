@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Image from 'next/image';
 import { Building2, ExternalLink, Loader2, Pencil } from 'lucide-react';
 import { formatAdminDateTimeUtc } from '@/lib/admin-datetime';
 import { getDisplayImageUrl } from '@/lib/media-url';
@@ -244,11 +245,14 @@ export function ProviderCompanyProfile({ providerId }: ProviderCompanyProfilePro
             <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow">
                 {bannerSrc && !bannerPreviewFailed ? (
                     <div className="relative h-40 w-full bg-gray-100">
-                        <img
+                        <Image
                             src={bannerSrc}
                             alt={company?.companyName || company?.name || 'Company banner'}
-                            className="h-40 w-full object-cover"
+                            fill
+                            sizes="100vw"
+                            className="object-cover"
                             onError={() => setBannerPreviewFailed(true)}
+                            unoptimized
                         />
                     </div>
                 ) : (
@@ -322,11 +326,14 @@ export function ProviderCompanyProfile({ providerId }: ProviderCompanyProfilePro
                                 </p>
                                 {licenseSrc && !licensePreviewFailed ? (
                                     <div className="mt-2 overflow-hidden rounded-md border border-gray-200 bg-gray-50">
-                                        <img
+                                        <Image
                                             src={licenseSrc}
                                             alt="Company license"
+                                            width={800}
+                                            height={448}
                                             className="h-56 w-full object-contain bg-white"
                                             onError={() => setLicensePreviewFailed(true)}
+                                            unoptimized
                                         />
                                     </div>
                                 ) : (

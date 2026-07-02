@@ -111,7 +111,6 @@ export function getWalletTransactionIssues(
     const rawAmount = Number.parseFloat(item.amount);
     const magnitude = walletTransactionMagnitude(item.amount);
     const transactionId = item.transactionId.trim();
-    const authUserId = (item.authUserId || item.userId).trim().toLowerCase();
     const customerProfileId = (item.customerProfileId || item.customer_id).trim();
     const providerProfileId = (item.providerProfileId || item.provider_id).trim();
     const event = item.walletEvent || parseWalletTransactionEvent(item);

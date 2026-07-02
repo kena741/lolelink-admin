@@ -32,10 +32,6 @@ function normalizeAccountNumber(value: string): string {
     return value.replace(/\s+/g, '');
 }
 
-function isNumericText(value: string): boolean {
-    return /^\d+$/.test(value.trim());
-}
-
 function bankIdMatches(bank: ChapaBank, code: string): boolean {
     return String(bank.id).trim() === code.trim();
 }

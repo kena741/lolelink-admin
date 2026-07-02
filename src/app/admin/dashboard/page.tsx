@@ -114,7 +114,7 @@ interface DashboardRevenueSourceData {
 	jobRequests: DashboardJobRequestRow[];
 }
 
-interface JobRequestLiteRow extends DashboardJobRequestRow {}
+type JobRequestLiteRow = DashboardJobRequestRow;
 
 interface CustomerLiteRow {
 	created_at?: string | null;
@@ -226,7 +226,7 @@ function resolveBookingCreatedAt(booking: BookedServiceRow): Date | null {
 }
 
 function normalizeBookingRows(rows: BookedServiceRow[]): BookedService[] {
-	return rows.map(({ created_at, payment_status, ...rest }) => ({
+	return rows.map(({ created_at, ...rest }) => ({
 		...rest,
 		createdAt: rest.createdAt ?? created_at ?? undefined,
 		paymentCompleted: rest.paymentCompleted ?? undefined,

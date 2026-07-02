@@ -110,8 +110,6 @@ export default function ProviderDetailPage() {
         return Number.isFinite(parsed) ? parsed : 0;
     })();
 
-    const bannerSrc = provider?.banner || undefined;
-    const profileSrc = resolveProfileImageUrl(provider) ?? undefined;
     const displayName = (() => {
         const first = provider?.firstName ?? provider?.first_name;
         const last = provider?.lastName ?? provider?.last_name;

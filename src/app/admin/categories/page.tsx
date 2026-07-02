@@ -6,7 +6,6 @@ import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import { 
     FolderTree, 
-    ArrowLeft, 
     RefreshCw, 
     Plus,
     Edit,

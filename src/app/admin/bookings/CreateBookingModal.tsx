@@ -453,7 +453,7 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
         setShowChapaDebug(true);
     }
 
-    function buildCreateRequestPayload(path: PaymentPath): Record<string, unknown> {
+    const buildCreateRequestPayload = useCallback((path: PaymentPath): Record<string, unknown> => {
         const apiPaymentMode = resolveApiPaymentMode(path);
         return {
             provider_id: providerId,
@@ -481,7 +481,18 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                 paymentCompleted: path === 'mark_paid',
             },
         };
-    }
+    }, [
+        providerId,
+        serviceId,
+        customerId,
+        bookingDate,
+        quantity,
+        description,
+        address,
+        locality,
+        landmark,
+        selectedCoupon,
+    ]);
 
     const chapaDebugFormContext = useMemo(
         () =>
@@ -561,16 +572,7 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
     }, [
         paymentPath,
         chapaDebugFormContext,
-        providerId,
-        serviceId,
-        customerId,
-        bookingDate,
-        quantity,
-        description,
-        address,
-        locality,
-        landmark,
-        selectedCoupon,
+        buildCreateRequestPayload,
     ]);
 
     function handleClose() {

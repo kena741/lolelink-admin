@@ -4,8 +4,7 @@ import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import Sidebar from '@/components/Sidebar';
 import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
-import { ArrowLeft, RefreshCw, Plus, Edit, Trash2, X, CheckCircle2, XCircle } from 'lucide-react';
-import Link from 'next/link';
+import { RefreshCw, Plus, Edit, Trash2, X, CheckCircle2, XCircle } from 'lucide-react';
 import { fetchCoupons, createCoupon, updateCoupon, deleteCoupon } from '@/features/coupon/couponSlice';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 

@@ -60,6 +60,7 @@ export function SearchSelect({
     const searchInputRef = useRef<HTMLInputElement>(null);
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
+    const listboxId = `${id}-listbox`;
 
     const selectedOption = useMemo(
         () => options.find((option) => option.value === value),
@@ -108,12 +109,13 @@ export function SearchSelect({
     }
 
     return (
-        <div ref={containerRef} className={cn('relative grid gap-1.5', open && 'z-[110]')}>
+        <div ref={containerRef} className={cn('relative grid gap-1.5', open && 'z-110')}>
             <Label htmlFor={id}>{label}</Label>
 
             <div
                 id={id}
                 role="combobox"
+                aria-controls={listboxId}
                 aria-expanded={open}
                 aria-haspopup="listbox"
                 tabIndex={isDisabled ? -1 : 0}
@@ -151,7 +153,8 @@ export function SearchSelect({
 
             {open && !isDisabled && (
                 <div
-                    className="absolute top-full z-[120] mt-1 flex w-full flex-col overflow-hidden rounded-md border border-border bg-card shadow-lg"
+                    id={listboxId}
+                    className="absolute top-full z-120 mt-1 flex w-full flex-col overflow-hidden rounded-md border border-border bg-card shadow-lg"
                     style={{ height: DROPDOWN_HEIGHT }}
                     onMouseDown={(event) => event.stopPropagation()}
                 >

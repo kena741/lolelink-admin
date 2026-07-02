@@ -5,14 +5,11 @@ import Sidebar from '@/components/Sidebar';
 import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import { 
-    CreditCard, 
-    ArrowLeft, 
     RefreshCw, 
     Save,
     Eye,
     EyeOff
 } from 'lucide-react';
-import Link from 'next/link';
 import { fetchSettings, updateSettings, PaymentSettings } from '@/features/settings/settingsSlice';
 
 interface ChapaFormValues {

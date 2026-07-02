@@ -4,10 +4,7 @@ import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import Sidebar from '@/components/Sidebar';
 import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
-import { getSupabase } from '@/lib/supabaseClient';
 import {
-    Settings as SettingsIcon,
-    ArrowLeft,
     RefreshCw,
     Save,
     Smartphone,
@@ -63,59 +60,11 @@ const SettingsPage = () => {
     const [languageSettings, setLanguageSettings] = useState<LanguageSettings>([]);
     const [languageDeletedIds, setLanguageDeletedIds] = useState<string[]>([]);
     const [showGoogleMapKey, setShowGoogleMapKey] = useState(false);
-    const [adminAccount, setAdminAccount] = useState<{
-        fullName: string;
-        email: string;
-        role: string;
-        isActive: boolean;
-    } | null>(null);
-
     useEffect(() => {
         dispatch(fetchSettings()).catch((err) => {
             console.warn('Settings fetch error (this is OK if table doesn\'t exist yet):', err);
         });
     }, [dispatch]);
-
-    useEffect(() => {
-        let isMounted = true;
-
-        async function loadAdminAccount() {
-            const supabase = getSupabase();
-            const { data: userData } = await supabase.auth.getUser();
-            const user = userData.user;
-            if (!user) {
-                if (isMounted)
-                    setAdminAccount(null);
-                return;
-            }
-
-            const { data: adminRow } = await supabase
-                .from('admin')
-                .select('full_name, role, is_active')
-                .eq('user_id', user.id)
-                .maybeSingle();
-
-            if (!isMounted)
-                return;
-
-            setAdminAccount({
-                fullName: (adminRow?.full_name as string | null) || 'N/A',
-                email: user.email || 'N/A',
-                role: (adminRow?.role as string | null) || 'N/A',
-                isActive: Boolean(adminRow?.is_active),
-            });
-        }
-
-        void loadAdminAccount();
-        const { data: authSub } = getSupabase().auth.onAuthStateChange(() => {
-            void loadAdminAccount();
-        });
-
-        return () => {
-            isMounted = false;
-            authSub.subscription.unsubscribe();
-        };
-    }, []);
 
     useEffect(() => {
         if (settings) {

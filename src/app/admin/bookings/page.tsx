@@ -72,7 +72,7 @@ const BookingDebugModal: React.FC<{
         return paymentType === 'chapa' && !completed && paymentStatus === 'pending_payment';
     }, [debugData]);
 
-    async function reloadDebugData() {
+    const reloadDebugData = useCallback(async () => {
         if (!bookingId) return;
         setLoading(true);
         setFetchError(null);
@@ -100,7 +100,7 @@ const BookingDebugModal: React.FC<{
         } finally {
             setLoading(false);
         }
-    }
+    }, [bookingId, listRow]);
 
     useEffect(() => {
         if (!open || !bookingId) {
@@ -177,7 +177,7 @@ const BookingDebugModal: React.FC<{
             verifyInFlightRef.current = false;
             if (!options?.auto) setVerifying(false);
         }
-    }, [bookingId, dispatch, onVerified]);
+    }, [bookingId, dispatch, onVerified, reloadDebugData]);
 
     useEffect(() => {
         if (!open || !bookingId || !needsChapaVerify) return;
