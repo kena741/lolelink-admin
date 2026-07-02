@@ -18,15 +18,16 @@ import {
 	ArrowUpRight,
 	TrendingUp,
 	TrendingDown,
-	Banknote,
 	Coins,
-	Wallet,
 	CheckCircle2,
 	Clock,
 	XCircle,
 	Zap,
 	BarChart3,
 	CircleHelp,
+	ClipboardList,
+	Megaphone,
+	Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -51,6 +52,15 @@ import {
 } from "@/components/admin/dashboard-line-chart";
 import { WalletMetricBreakdownDebug } from "@/components/admin/wallet-metric-breakdown-debug";
 import { useWalletMetricsDebugVisible } from "@/hooks/use-wallet-metrics-debug-visible";
+import {
+    computeDashboardRevenueBreakdown,
+    type DashboardBookingCommissionRow,
+    type DashboardJobRequestRow,
+    type DashboardRevenueBreakdown,
+    type DashboardRevenueCategory,
+    type DashboardWalletRow,
+} from "@/lib/dashboard-revenue-metrics";
+import { DashboardRevenueTransactionsSheet } from "@/components/admin/DashboardRevenueTransactionsSheet";
 
 interface ChartBucket {
 	label: string;
@@ -95,7 +105,16 @@ interface AnalyticsData {
 	recentBookings: BookedService[];
 	paymentChart: ChartBucket[];
 	userAcquisitionChart: UserAcquisitionChartBucket[];
+	revenueBreakdown: DashboardRevenueBreakdown;
 }
+
+interface DashboardRevenueSourceData {
+	walletRows: DashboardWalletRow[];
+	bookings: DashboardBookingCommissionRow[];
+	jobRequests: DashboardJobRequestRow[];
+}
+
+interface JobRequestLiteRow extends DashboardJobRequestRow {}
 
 interface CustomerLiteRow {
 	created_at?: string | null;
@@ -162,20 +181,6 @@ function formatCurrency(value: number): string {
 		minimumFractionDigits: 2,
 		maximumFractionDigits: 2,
 	})}`;
-}
-
-function formatChapaLedgerGapNote(
-	liveBalance: number,
-	ledgerChapa: number,
-): string {
-	const gap = liveBalance - ledgerChapa;
-	if (gap > 0.005) {
-		return `Ledger Chapa ${formatCurrency(ledgerChapa)} · ${formatCurrency(gap)} below live`;
-	}
-	if (gap < -0.005) {
-		return `Ledger Chapa ${formatCurrency(ledgerChapa)} · ${formatCurrency(Math.abs(gap))} above live`;
-	}
-	return `Ledger Chapa ${formatCurrency(ledgerChapa)} · matches live`;
 }
 
 function formatStatValue(value: number, isCurrency?: boolean): string {
@@ -444,6 +449,13 @@ function getUserAcquisitionChartSubtitle(range: DashboardRange): string {
 	return "New customers and providers per month since March";
 }
 
+function getDashboardRangeLabel(range: DashboardRange): string {
+	if (range === "today") return "Today";
+	if (range === "7d") return "Last 7 days";
+	if (range === "30d") return "Last 30 days";
+	return "All time";
+}
+
 async function fetchWalletRowsForDashboard(): Promise<
 	WalletTransactionLiteRow[]
 > {
@@ -503,10 +515,26 @@ function DashboardContent() {
 		recentBookings: [],
 		paymentChart: [],
 		userAcquisitionChart: [],
+		revenueBreakdown: {
+			total: 0,
+			activationFee: 0,
+			commission: 0,
+			boostFeatured: 0,
+			customerJobPost: 0,
+			ads: 0,
+		},
 	});
 	const [countsLoading, setCountsLoading] = useState<boolean>(true);
 	const [walletBreakdown, setWalletBreakdown] =
 		useState<WalletDashboardBreakdown | null>(null);
+	const [revenueSourceData, setRevenueSourceData] =
+		useState<DashboardRevenueSourceData>({
+			walletRows: [],
+			bookings: [],
+			jobRequests: [],
+		});
+	const [revenueSheetCategory, setRevenueSheetCategory] =
+		useState<DashboardRevenueCategory | null>(null);
 	const initialRange = (() => {
 		const range = (searchParams.get("range") || "").toLowerCase();
 		if (
@@ -568,6 +596,7 @@ function DashboardContent() {
 				walletRows,
 				{ data: bookings, error: bookingsError },
 				{ data: customerRows, error: customerError },
+				{ data: jobRequestRows, error: jobRequestError },
 				chapaBalanceResult,
 			] = await Promise.all([
 				fetchWalletRowsForDashboard(),
@@ -576,6 +605,9 @@ function DashboardContent() {
 					.select("*")
 					.order("createdAt", { ascending: false }),
 				getSupabase().from("customer").select("created_at"),
+				getSupabase()
+					.from("job_request")
+					.select("id, createdAt, is_paid, price, title, status"),
 				fetch("/api/admin/chapa/balance")
 					.then(async (response) => {
 						if (!response.ok) return null;
@@ -599,6 +631,16 @@ function DashboardContent() {
 			const rangedWalletRows = walletRows.filter((row) =>
 				isDateInRange(row.createdDate),
 			);
+			const rangedJobRequests = !jobRequestError
+				? ((jobRequestRows ?? []) as JobRequestLiteRow[]).filter((row) =>
+						isDateInRange(row.createdAt),
+					)
+				: [];
+			setRevenueSourceData((prev) => ({
+				...prev,
+				walletRows: rangedWalletRows,
+				jobRequests: rangedJobRequests,
+			}));
 			const walletMetrics = computeWalletMetrics(rangedWalletRows);
 			setWalletBreakdown(computeWalletDashboardBreakdown(rangedWalletRows));
 			const chapaWalletNet = sumChapaNetFlow(rangedWalletRows);
@@ -636,6 +678,11 @@ function DashboardContent() {
 				normalizedProviders,
 				dashboardRange,
 			);
+			const walletOnlyRevenueBreakdown = computeDashboardRevenueBreakdown({
+				walletRows: rangedWalletRows,
+				bookings: [],
+				jobRequests: rangedJobRequests,
+			});
 			setAnalytics((prev) => ({
 				...prev,
 				totalCredit: rangedWalletRows.length,
@@ -653,6 +700,7 @@ function DashboardContent() {
 				totalCustomerTopUp: walletMetrics.totalCustomerTopUpAdjusted,
 				paymentChart,
 				userAcquisitionChart,
+				revenueBreakdown: walletOnlyRevenueBreakdown,
 			}));
 
 			if (!bookingsError && bookings) {
@@ -753,6 +801,17 @@ function DashboardContent() {
 					bookingsByStatus[status] = (bookingsByStatus[status] || 0) + 1;
 				});
 
+				const revenueBreakdown = computeDashboardRevenueBreakdown({
+					walletRows: rangedWalletRows,
+					bookings: rangedBookingRows,
+					jobRequests: rangedJobRequests,
+				});
+				setRevenueSourceData({
+					walletRows: rangedWalletRows,
+					bookings: rangedBookingRows,
+					jobRequests: rangedJobRequests,
+				});
+
 				setAnalytics({
 					totalRevenue,
 					totalCredit,
@@ -784,6 +843,7 @@ function DashboardContent() {
 					recentBookings: bookingRows.slice(0, 5),
 					paymentChart,
 					userAcquisitionChart,
+					revenueBreakdown,
 				});
 			}
 
@@ -940,7 +1000,6 @@ function DashboardContent() {
 		0,
 		analytics.chapaWalletNet - chapaActivationInWallet,
 	);
-	const hasLiveChapaBalance = analytics.chapaAvailableBalance != null;
 
 	// Calculate max value for chart scaling
 	const paymentChartData = analytics.paymentChart;
@@ -958,6 +1017,8 @@ function DashboardContent() {
 		icon: Icon,
 		iconBg,
 		href,
+		onClick,
+		compact,
 	}: {
 		title: string;
 		value: number | string;
@@ -974,6 +1035,8 @@ function DashboardContent() {
 		icon: React.ElementType;
 		iconBg: string;
 		href?: string;
+		onClick?: () => void;
+		compact?: boolean;
 	}) => {
 		const formattedValue =
 			typeof value === "number"
@@ -981,10 +1044,18 @@ function DashboardContent() {
 				: String(value);
 
 		const content = (
-			<div className="group relative flex h-full min-w-0 flex-col rounded-2xl border border-border bg-card p-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-all duration-150 hover:bg-muted/40 hover:shadow-[0_2px_8px_rgba(0,0,0,0.08)] sm:p-5">
+			<div
+				className={`group relative flex h-full min-w-0 flex-col border border-border bg-card shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-all duration-150 hover:bg-muted/40 hover:shadow-[0_2px_8px_rgba(0,0,0,0.08)] ${
+					onClick ? "cursor-pointer" : ""
+				} ${
+					compact
+						? "rounded-xl p-3"
+						: "rounded-2xl p-4 sm:p-5"
+				}`}
+			>
 				{change !== undefined && (
 					<div
-						className={`absolute right-3 top-3 flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold ${
+						className={`absolute right-2 top-2 flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold sm:right-3 sm:top-3 sm:px-2 sm:py-1 sm:text-xs ${
 							change >= 0
 								? "bg-primary/15 text-primary"
 								: "bg-destructive/15 text-destructive"
@@ -999,35 +1070,49 @@ function DashboardContent() {
 					</div>
 				)}
 				<div className="flex items-center justify-between gap-2">
-					<p className="min-w-0 truncate text-sm font-medium text-text-secondary">
+					<p
+						className={`min-w-0 truncate font-medium text-text-secondary ${
+							compact ? "text-xs" : "text-sm"
+						}`}
+					>
 						{title}
 					</p>
 					<div
-						className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${iconBg}`}
+						className={`flex shrink-0 items-center justify-center rounded-lg ${iconBg} ${
+							compact ? "h-7 w-7" : "h-9 w-9"
+						}`}
 					>
-						<Icon className={`h-4 w-4 ${iconClassName ?? "text-primary"}`} />
+						<Icon
+							className={`${compact ? "h-3.5 w-3.5" : "h-4 w-4"} ${iconClassName ?? "text-primary"}`}
+						/>
 					</div>
 				</div>
-				<div className="mt-3 min-w-0 flex-1">
+				<div className={`min-w-0 flex-1 ${compact ? "mt-2" : "mt-3"}`}>
 					{isLoading ? (
-						<span className="inline-block h-8 w-24 animate-pulse rounded bg-muted" />
+						<span
+							className={`inline-block animate-pulse rounded bg-muted ${
+								compact ? "h-6 w-20" : "h-8 w-24"
+							}`}
+						/>
 					) : valueNode ? (
 						valueNode
 					) : (
 						<p
-							className="truncate font-heading text-xl font-bold tabular-nums tracking-normal text-text-primary sm:text-2xl"
+							className={`truncate font-heading font-bold tabular-nums tracking-normal text-text-primary ${
+								compact ? "text-base sm:text-lg" : "text-xl sm:text-2xl"
+							}`}
 							title={formattedValue}
 						>
 							{formattedValue}
 						</p>
 					)}
 					{note && (
-						<p className="mt-1 text-xs text-text-secondary">
+						<p className="mt-1 text-[10px] text-text-secondary sm:text-xs">
 							<sup>{note}</sup>
 						</p>
 					)}
 					{bookingBreakdown && (
-						<p className="mt-2 flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs font-medium tabular-nums text-text-secondary">
+						<p className="mt-1.5 flex flex-wrap items-center gap-x-1 gap-y-0.5 text-[10px] font-medium tabular-nums text-text-secondary sm:mt-2 sm:text-xs">
 							<span className="text-primary">
 								{bookingBreakdown.completed} completed
 							</span>
@@ -1046,6 +1131,17 @@ function DashboardContent() {
 				<Link href={href} className="block h-full min-w-0">
 					{content}
 				</Link>
+			);
+		}
+		if (onClick) {
+			return (
+				<button
+					type="button"
+					onClick={onClick}
+					className="block h-full w-full min-w-0 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+				>
+					{content}
+				</button>
 			);
 		}
 		return content;
@@ -1187,48 +1283,87 @@ function DashboardContent() {
 							)}
 						</div>
 
-						<section className="mb-8 grid grid-cols-1 items-stretch gap-4 min-w-0 sm:grid-cols-2 lg:grid-cols-3">
+						<section className="mb-4 grid min-w-0 grid-cols-2 items-stretch gap-3 sm:grid-cols-3 lg:grid-cols-6">
 							<StatCard
-								title="Net Flow"
-								value={analytics.chapaWalletNet}
+								title="Total"
+								value={analytics.revenueBreakdown.total}
+								isCurrency
+								icon={BarChart3}
+								iconBg="bg-primary/10"
+								compact
+								note="Sum of revenue lines"
+								onClick={() => setRevenueSheetCategory("total")}
+							/>
+							<StatCard
+								title="Activation fee"
+								value={analytics.revenueBreakdown.activationFee}
+								isCurrency
+								icon={Zap}
+								iconBg="bg-primary/10"
+								compact
+								note="Provider listing activation"
+								onClick={() => setRevenueSheetCategory("activation_fee")}
+							/>
+							<StatCard
+								title="Commission"
+								value={analytics.revenueBreakdown.commission}
 								isCurrency
 								icon={Coins}
 								iconBg="bg-primary/10"
-								note="Chapa gateway ledger only"
+								compact
+								note="Booking admin commission"
+								onClick={() => setRevenueSheetCategory("commission")}
 							/>
 							<StatCard
-								title="Direct payments"
-								value={analytics.directPaymentCredits}
+								title="Boost/Featured"
+								value={analytics.revenueBreakdown.boostFeatured}
 								isCurrency
-								icon={Banknote}
+								icon={Sparkles}
 								iconBg="bg-primary/10"
-								note="Offline & non-Chapa received"
+								compact
+								note="Listing upgrades"
+								onClick={() => setRevenueSheetCategory("boost_featured")}
 							/>
 							<StatCard
-								title={
-									hasLiveChapaBalance ? "Chapa balance" : "App wallet Chapa"
-								}
-								value={
-									analytics.chapaAvailableBalance ?? analytics.chapaWalletNet
-								}
+								title="Customer job Post"
+								value={analytics.revenueBreakdown.customerJobPost}
 								isCurrency
-								icon={Wallet}
+								icon={ClipboardList}
 								iconBg="bg-primary/10"
-								note={
-									hasLiveChapaBalance
-										? formatChapaLedgerGapNote(
-												analytics.chapaAvailableBalance!,
-												analytics.chapaWalletNet,
-											)
-										: "Recorded in wallet ledger"
-								}
+								compact
+								note="Paid job requests"
+								onClick={() => setRevenueSheetCategory("customer_job_post")}
 							/>
+							<StatCard
+								title="Ads"
+								value={analytics.revenueBreakdown.ads}
+								isCurrency
+								icon={Megaphone}
+								iconBg="bg-primary/10"
+								compact
+								note="Banner & ad purchases"
+								onClick={() => setRevenueSheetCategory("ads")}
+							/>
+						</section>
+
+						<DashboardRevenueTransactionsSheet
+							open={revenueSheetCategory !== null}
+							category={revenueSheetCategory}
+							onClose={() => setRevenueSheetCategory(null)}
+							walletRows={revenueSourceData.walletRows}
+							bookings={revenueSourceData.bookings}
+							jobRequests={revenueSourceData.jobRequests}
+							rangeLabel={getDashboardRangeLabel(dashboardRange)}
+						/>
+
+						<section className="mb-8 grid min-w-0 grid-cols-1 items-stretch gap-3 sm:grid-cols-3">
 							<StatCard
 								title="Providers"
 								value={providerCount}
 								icon={Users}
 								iconBg="bg-primary/10"
 								href="/admin/providers"
+								compact
 							/>
 							<StatCard
 								title="Bookings"
@@ -1241,6 +1376,7 @@ function DashboardContent() {
 								icon={CalendarCheck2}
 								iconBg="bg-primary/10"
 								href="/admin/bookings"
+								compact
 							/>
 							<StatCard
 								title="Customers"
@@ -1248,6 +1384,7 @@ function DashboardContent() {
 								icon={Users}
 								iconBg="bg-primary/10"
 								href="/admin/customers"
+								compact
 							/>
 						</section>
 
