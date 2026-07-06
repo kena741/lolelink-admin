@@ -17,6 +17,7 @@ import { fetchPayoutRequests, approvePayoutRequest, rejectPayoutRequest, sendPay
 import type { ProviderPayoutAnalysis } from '@/lib/provider-payout-analysis';
 import { PayoutWalletAnalysisSheet } from '@/app/admin/finance/payout-request/PayoutWalletAnalysisSheet';
 import { PayoutRiskReviewModal } from '@/app/admin/finance/payout-request/PayoutRiskReviewModal';
+import { PayoutRejectModal } from '@/app/admin/finance/payout-request/PayoutRejectModal';
 import { PayoutRequestActions } from '@/app/admin/finance/payout-request/PayoutRequestActions';
 import { requiresPayoutRiskReview, type PayoutRiskReviewAction } from '@/lib/payout-risk-review';
 import {
@@ -62,6 +63,7 @@ function PayoutRequestPageContent() {
         analysis: ProviderPayoutAnalysis;
         action: PayoutRiskReviewAction;
     } | null>(null);
+    const [rejectingRequest, setRejectingRequest] = useState<PayoutRequest | null>(null);
     const autoVerifyInFlightRef = useRef<Set<string>>(new Set());
     const autoVerifyLastAttemptMsRef = useRef<Record<string, number>>({});
 
@@ -196,16 +198,24 @@ function PayoutRequestPageContent() {
         await beginPayoutAction(request, 'send');
     };
 
-    const handleReject = async (id: string) => {
+    const handleReject = (request: PayoutRequest) => {
+        setRejectingRequest(request);
+    };
+
+    const handleConfirmReject = async (rejectionReason: string) => {
+        if (!rejectingRequest) return;
+        const id = rejectingRequest.id;
         setProcessingId(id);
         try {
-            await dispatch(rejectPayoutRequest({ id })).unwrap();
+            await dispatch(rejectPayoutRequest({ id, rejectionReason })).unwrap();
+            setRejectingRequest(null);
             dispatch(fetchPayoutRequests());
             if (walletAnalysisRequest?.id === id) {
                 handleCloseWalletAnalysis();
             }
         } catch (err) {
             console.error('Failed to reject payout:', err);
+            window.alert(err instanceof Error ? err.message : 'Failed to reject payout');
         } finally {
             setProcessingId(null);
         }
@@ -547,7 +557,7 @@ function PayoutRequestPageContent() {
                                                                     hasChapaTransferStarted={hasChapaTransferStarted}
                                                                     isProcessing={isProcessing}
                                                                     onApprove={() => handleApprove(request)}
-                                                                    onReject={() => handleReject(request.id)}
+                                                                    onReject={() => handleReject(request)}
                                                                     onSendWithChapa={() => handleSendWithChapa(request)}
                                                                     onVerifyTransfer={() => handleVerifyChapaTransfer(request.id)}
                                                                 />
@@ -572,6 +582,7 @@ function PayoutRequestPageContent() {
                             bankDetails={walletAnalysisRequest?.bankDetails}
                             paymentStatus={walletAnalysisRequest?.paymentStatus}
                             paymentDate={walletAnalysisRequest?.paymentDate}
+                            rejectionReason={walletAnalysisRequest?.rejectionReason}
                             hasChapaTransferStarted={
                                 walletAnalysisRequest
                                     ? Boolean(
@@ -595,7 +606,7 @@ function PayoutRequestPageContent() {
                             }
                             onReject={
                                 walletAnalysisRequest
-                                    ? () => handleReject(walletAnalysisRequest.id)
+                                    ? () => handleReject(walletAnalysisRequest)
                                     : undefined
                             }
                             onSend={
@@ -618,6 +629,16 @@ function PayoutRequestPageContent() {
                                 isProcessing={processingId === riskReview.request.id}
                                 onClose={() => setRiskReview(null)}
                                 onConfirm={() => void handleRiskReviewConfirm()}
+                            />
+                        ) : null}
+                        {rejectingRequest ? (
+                            <PayoutRejectModal
+                                open
+                                providerName={sanitizeDisplayText(rejectingRequest.provider_name, 'Unknown provider')}
+                                amountLabel={formatCurrency(rejectingRequest.amount)}
+                                isProcessing={processingId === rejectingRequest.id}
+                                onClose={() => setRejectingRequest(null)}
+                                onConfirm={(rejectionReason) => void handleConfirmReject(rejectionReason)}
                             />
                         ) : null}
                         {confirmingRequest && (() => {

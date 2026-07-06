@@ -421,6 +421,7 @@ CREATE TABLE public.withdrawal_history (
   paymentDate text,
   paymentStatus text,
   providerId uuid,
+  rejectionReason text,
   CONSTRAINT withdrawal_history_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.review_customer (

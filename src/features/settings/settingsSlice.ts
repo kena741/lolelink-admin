@@ -24,6 +24,8 @@ export interface GeneralSettings {
 
 export interface PolicySettings {
     aboutApp?: string;
+    aboutAppZemenService?: string;
+    aboutAppZemenProvider?: string;
     privacyPolicy?: string;
     termsAndConditions?: string;
 }
@@ -255,6 +257,8 @@ function mergePolicyFields(policyRow: Record<string, unknown>, settingsRow: Reco
     const pick = (key: string) => readPolicyValue(policyRow[key]) ?? readPolicyValue(settingsRow[key]);
     return {
         aboutApp: pick('aboutApp'),
+        aboutAppZemenService: pick('aboutAppZemenService') ?? pick('aboutApp'),
+        aboutAppZemenProvider: pick('aboutAppZemenProvider'),
         privacyPolicy: pick('privacyPolicy'),
         termsAndConditions: pick('termsAndConditions'),
     };

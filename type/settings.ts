@@ -14,6 +14,8 @@ export interface SettingsSchema {
   supportEmail?: string;
   supportURL?: string;
   aboutApp?: string;
+  aboutAppZemenService?: string;
+  aboutAppZemenProvider?: string;
   privacyPolicy?: string;
   termsAndConditions?: string;
   chapa?: string | Record<string, string | boolean | number | undefined>;

@@ -11,6 +11,7 @@ export interface PayoutRequest {
     provider_name?: string;
     note?: string;
     adminNote?: string;
+    rejectionReason?: string;
     amount: string | number;
     paymentStatus: 'pending' | 'approved' | 'rejected' | 'completed';
     createdDate?: string;
@@ -72,6 +73,7 @@ type WithdrawalHistoryRow = {
     providerId: string;
     note?: string;
     adminNote?: string;
+    rejectionReason?: string;
     amount: string;
     paymentStatus?: string;
     createdDate?: string;
@@ -214,6 +216,7 @@ const normalizeRows = (
         provider_name: providerMap[normalizeProviderId(row.providerId)] || 'Unknown Provider',
         note: row.note,
         adminNote: row.adminNote,
+        rejectionReason: row.rejectionReason,
         amount: row.amount,
         paymentStatus: normalizePaymentStatus(row.paymentStatus),
         createdDate: row.createdDate,
@@ -362,19 +365,21 @@ export const approvePayoutRequest = createAsyncThunk<
 
 export const rejectPayoutRequest = createAsyncThunk<
     PayoutRequest,
-    { id: string; adminNote?: string },
+    { id: string; rejectionReason: string },
     { rejectValue: string }
 >(
     'payout/rejectPayoutRequest',
-    async ({ id, adminNote }, { rejectWithValue }) => {
+    async ({ id, rejectionReason }, { rejectWithValue }) => {
         try {
-            const updateData: { paymentStatus: string; adminNote?: string } = { 
-                paymentStatus: 'rejected'
-            };
-            
-            if (adminNote) {
-                updateData.adminNote = adminNote;
+            const trimmedReason = rejectionReason.trim();
+            if (!trimmedReason) {
+                return rejectWithValue('Rejection reason is required');
             }
+
+            const updateData = {
+                paymentStatus: 'rejected',
+                rejectionReason: trimmedReason,
+            };
 
             const { data, error } = await getSupabase()
                 .from('withdrawal_history')
@@ -387,7 +392,7 @@ export const rejectPayoutRequest = createAsyncThunk<
 
             await createPayoutNotification({
                 title: 'Withdrawal rejected',
-                description: `Withdrawal ${id} was rejected.`,
+                description: `Withdrawal ${id} was rejected. Reason: ${trimmedReason}`,
                 type: 'payout_rejected',
                 provider_id: (data as WithdrawalHistoryRow).providerId,
                 action_url: '/admin/finance/payout-request',
@@ -436,6 +441,7 @@ export const rejectPayoutRequest = createAsyncThunk<
                     provider_name: providerName,
                     amount: withdrawalRow.amount,
                     amount_etb: amountEtb,
+                    rejection_reason: trimmedReason,
                 },
             });
 

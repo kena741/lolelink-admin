@@ -3,6 +3,7 @@ import {
     walletTransactionMagnitude,
     type WalletTransactionMetricRow,
 } from '@/lib/wallet-transaction-metrics';
+import { BOOKING_PAYMENT_STATUS, resolveBookingPaymentStatus } from '@/lib/booking-status';
 
 export type DashboardRevenueCategory =
     | 'total'
@@ -83,18 +84,25 @@ function normalizeNote(row: WalletTransactionMetricRow): string {
     return (row.note ?? '').toLowerCase();
 }
 
+function isServiceListingUpgrade(note: string): boolean {
+    return note.includes('service listing plan upgrade') || note.includes('listing plan upgrade');
+}
+
 export function isBoostFeaturedWalletCredit(row: WalletTransactionMetricRow): boolean {
     if (row.isCredit !== true) return false;
     const note = normalizeNote(row);
+    if (isServiceListingUpgrade(note)) return false;
     return (
-        note.includes('upgrade')
+        note.includes('featured post')
+        || note.includes('featured psot')
         || note.includes('featured')
         || note.includes('boost')
-        || note.includes('listing plan upgrade')
     );
 }
 
 export function isActivationFeeWalletCredit(row: WalletTransactionMetricRow): boolean {
+    if (row.isCredit !== true) return false;
+    if (isServiceListingUpgrade(normalizeNote(row))) return true;
     if (!isActivationCredit(row)) return false;
     return !isBoostFeaturedWalletCredit(row);
 }
@@ -133,8 +141,11 @@ function isCompletedBooking(status: string | null | undefined): boolean {
 
 function isCustomerPaymentDone(row: DashboardBookingCommissionRow): boolean {
     if (row.paymentCompleted === true) return true;
-    const normalized = (row.payment_status ?? '').trim().toLowerCase();
-    return normalized === 'payment_completed';
+    const resolved = resolveBookingPaymentStatus(row.payment_status ?? '', row.paymentCompleted);
+    return (
+        resolved === BOOKING_PAYMENT_STATUS.COMPLETED ||
+        resolved === 'payment_approved_by_admin'
+    );
 }
 
 function bookingGrossAmount(row: DashboardBookingCommissionRow): number {

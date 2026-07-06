@@ -50,6 +50,7 @@ import {
 	UserAcquisitionLegend,
 	USER_ACQUISITION_SERIES,
 } from "@/components/admin/dashboard-line-chart";
+import { BOOKING_PAYMENT_STATUS, resolveBookingPaymentStatus } from "@/lib/booking-status";
 import { WalletMetricBreakdownDebug } from "@/components/admin/wallet-metric-breakdown-debug";
 import { useWalletMetricsDebugVisible } from "@/hooks/use-wallet-metrics-debug-visible";
 import {
@@ -158,11 +159,14 @@ function isCompletedBooking(value: BookedServiceRow): boolean {
 
 function isCustomerPaymentDone(value: BookedServiceRow): boolean {
 	if (value.paymentCompleted === true) return true;
-	const normalized = (value.payment_status ?? "")
-		.toString()
-		.trim()
-		.toLowerCase();
-	return normalized === "payment_completed";
+	const resolved = resolveBookingPaymentStatus(
+		(value.payment_status ?? "").toString(),
+		value.paymentCompleted,
+	);
+	return (
+		resolved === BOOKING_PAYMENT_STATUS.COMPLETED ||
+		resolved === "payment_approved_by_admin"
+	);
 }
 
 function getBookingGrossAmount(value: BookedServiceRow): number {

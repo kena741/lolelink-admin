@@ -30,6 +30,7 @@ interface PayoutWalletAnalysisSheetProps {
     bankDetails?: PayoutBankDetails | null;
     paymentStatus?: string | null;
     paymentDate?: string | null;
+    rejectionReason?: string | null;
     hasChapaTransferStarted?: boolean;
     isProcessing?: boolean;
     onApprove?: () => void;
@@ -123,6 +124,7 @@ export function PayoutWalletAnalysisSheet({
     bankDetails,
     paymentStatus,
     paymentDate,
+    rejectionReason,
     hasChapaTransferStarted = false,
     isProcessing = false,
     onApprove,
@@ -193,6 +195,12 @@ export function PayoutWalletAnalysisSheet({
                             {normalizedStatus === 'approved' && hasChapaTransferStarted ? (
                                 <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-950">
                                     Chapa transfer was already submitted for this request. Use verify transfer to mark it completed and debit the provider wallet.
+                                </p>
+                            ) : null}
+                            {normalizedStatus === 'rejected' && rejectionReason?.trim() ? (
+                                <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-900">
+                                    <span className="font-semibold">Rejection reason: </span>
+                                    {rejectionReason.trim()}
                                 </p>
                             ) : null}
                             {bankDetails ? (

@@ -19,13 +19,19 @@ describe('dashboard revenue metrics', () => {
                 isCredit: true,
                 note: 'Service listing plan upgrade (Chapa, net after fee)',
             })
-        ).toBe(true);
+        ).toBe(false);
         expect(
             isActivationFeeWalletCredit({
                 isCredit: true,
                 note: 'Service listing plan upgrade (Chapa, net after fee)',
             })
-        ).toBe(false);
+        ).toBe(true);
+        expect(
+            isBoostFeaturedWalletCredit({
+                isCredit: true,
+                note: 'Featured psot purchase (Chapa, net after fee)',
+            })
+        ).toBe(true);
     });
 
     it('computes total from revenue buckets', () => {
@@ -53,11 +59,30 @@ describe('dashboard revenue metrics', () => {
             jobRequests: [{ is_paid: true, price: '15' }],
         });
 
-        expect(breakdown.activationFee).toBe(100);
-        expect(breakdown.boostFeatured).toBe(50);
+        expect(breakdown.activationFee).toBe(150);
+        expect(breakdown.boostFeatured).toBe(0);
         expect(breakdown.commission).toBe(20);
         expect(breakdown.customerJobPost).toBe(15);
         expect(breakdown.total).toBe(185);
+    });
+
+    it('counts commission when payment is admin-approved', () => {
+        const breakdown = computeDashboardRevenueBreakdown({
+            walletRows: [],
+            bookings: [
+                {
+                    status: 'completed',
+                    payment_status: 'payment_approved_by_admin',
+                    paymentCompleted: false,
+                    adminCommission: '33.5',
+                    totalAmount: '300',
+                },
+            ],
+            jobRequests: [],
+        });
+
+        expect(breakdown.commission).toBe(33.5);
+        expect(breakdown.total).toBe(33.5);
     });
 
     it('builds transaction lines per category', () => {
@@ -103,8 +128,8 @@ describe('dashboard revenue metrics', () => {
         };
 
         const activationLines = buildDashboardRevenueTransactionLines('activation_fee', input);
-        expect(activationLines).toHaveLength(1);
-        expect(activationLines[0]?.amount).toBe(100);
+        expect(activationLines).toHaveLength(2);
+        expect(activationLines[0]?.amount).toBe(50);
 
         const totalLines = buildDashboardRevenueTransactionLines('total', input);
         expect(totalLines).toHaveLength(4);
