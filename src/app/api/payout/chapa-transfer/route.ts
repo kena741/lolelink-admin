@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { requireAdminPermission } from '@/lib/admin-auth';
 import { logAdminActivity } from '@/lib/admin-activity-log';
 import {
     resolveChapaBankForPayoutFromApi,
@@ -179,6 +180,10 @@ async function getProviderDefaultPaymentMethod(
 }
 
 export async function POST(request: Request) {
+    const auth = await requireAdminPermission(request, 'finance:write');
+    if (!auth.ok) {
+        return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
     const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const { data: paymentSettingsData } = await supabaseAdmin

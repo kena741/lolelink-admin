@@ -52,7 +52,7 @@ export function PayoutRequestActions({
                     className="border border-primary bg-primary text-primary-foreground hover:bg-accent focus-visible:ring-ring"
                 >
                     {isProcessing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                    <span>Approve</span>
+                    <span>Allow</span>
                 </ActionButton>
                 <ActionButton
                     onClick={onReject}
@@ -77,7 +77,7 @@ export function PayoutRequestActions({
                     className="border border-primary bg-primary text-primary-foreground hover:bg-accent focus-visible:ring-ring"
                 >
                     {isProcessing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                    <span>Send</span>
+                    <span>Send with Chapa</span>
                 </ActionButton>
             </div>
         );
@@ -93,7 +93,7 @@ export function PayoutRequestActions({
                     className="border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 focus-visible:ring-indigo-200"
                 >
                     {isProcessing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                    <span>Verify</span>
+                    <span>Verify status</span>
                 </ActionButton>
             </div>
         );

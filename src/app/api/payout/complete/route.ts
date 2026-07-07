@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireAdminPermission } from '@/lib/admin-auth';
 import { logAdminActivity } from '@/lib/admin-activity-log';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 import { deductProviderWalletForWithdrawal } from '@/lib/withdrawal-wallet-side-effects';
@@ -16,6 +17,10 @@ interface CompleteWithdrawalBody {
 }
 
 export async function POST(request: Request) {
+    const auth = await requireAdminPermission(request, 'finance:write');
+    if (!auth.ok) {
+        return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
     const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const body = (await request.json()) as CompleteWithdrawalBody;

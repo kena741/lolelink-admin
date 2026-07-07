@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { requireAdminPermission } from '@/lib/admin-auth';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 import { deductProviderWalletForWithdrawal } from '@/lib/withdrawal-wallet-side-effects';
 import { logAdminActivity } from '@/lib/admin-activity-log';
@@ -109,6 +110,10 @@ async function insertNotificationIfMissing(
 }
 
 export async function POST(request: Request) {
+    const auth = await requireAdminPermission(request, 'finance:write');
+    if (!auth.ok) {
+        return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
     const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const { data: paymentSettingsData } = await supabaseAdmin

@@ -602,6 +602,7 @@ function DashboardContent() {
 				{ data: customerRows, error: customerError },
 				{ data: jobRequestRows, error: jobRequestError },
 				chapaBalanceResult,
+				analyticsResult,
 			] = await Promise.all([
 				fetchWalletRowsForDashboard(),
 				getSupabase()
@@ -619,6 +620,15 @@ function DashboardContent() {
 							data?: { available_balance?: number; ledger_balance?: number };
 						};
 						return payload.data ?? null;
+					})
+					.catch(() => null),
+				fetch(`/api/admin/dashboard/analytics?range=${dashboardRange}`)
+					.then(async (response) => {
+						if (!response.ok) return null;
+						const payload = (await response.json()) as {
+							data?: { revenueBreakdown?: DashboardRevenueBreakdown };
+						};
+						return payload.data?.revenueBreakdown ?? null;
 					})
 					.catch(() => null),
 			]);
@@ -682,11 +692,13 @@ function DashboardContent() {
 				normalizedProviders,
 				dashboardRange,
 			);
-			const walletOnlyRevenueBreakdown = computeDashboardRevenueBreakdown({
-				walletRows: rangedWalletRows,
-				bookings: [],
-				jobRequests: rangedJobRequests,
-			});
+			const walletOnlyRevenueBreakdown =
+				analyticsResult ??
+				computeDashboardRevenueBreakdown({
+					walletRows: rangedWalletRows,
+					bookings: [],
+					jobRequests: rangedJobRequests,
+				});
 			setAnalytics((prev) => ({
 				...prev,
 				totalCredit: rangedWalletRows.length,
@@ -805,11 +817,13 @@ function DashboardContent() {
 					bookingsByStatus[status] = (bookingsByStatus[status] || 0) + 1;
 				});
 
-				const revenueBreakdown = computeDashboardRevenueBreakdown({
-					walletRows: rangedWalletRows,
-					bookings: rangedBookingRows,
-					jobRequests: rangedJobRequests,
-				});
+				const revenueBreakdown =
+					analyticsResult ??
+					computeDashboardRevenueBreakdown({
+						walletRows: rangedWalletRows,
+						bookings: rangedBookingRows,
+						jobRequests: rangedJobRequests,
+					});
 				setRevenueSourceData({
 					walletRows: rangedWalletRows,
 					bookings: rangedBookingRows,

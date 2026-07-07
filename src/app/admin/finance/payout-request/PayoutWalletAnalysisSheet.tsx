@@ -355,7 +355,7 @@ export function PayoutWalletAnalysisSheet({
                         className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md border border-primary bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                        {requiresRiskReview ? 'Review & approve' : 'Approve'}
+                        {requiresRiskReview ? 'Review & allow' : 'Allow'}
                     </button>
                 </SheetFooter>
             ) : null}
@@ -381,7 +381,7 @@ export function PayoutWalletAnalysisSheet({
                         className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                        Verify transfer
+                        Verify status
                     </button>
                 </SheetFooter>
             ) : null}

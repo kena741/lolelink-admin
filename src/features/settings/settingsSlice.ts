@@ -1,7 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { getSupabase } from '@/lib/supabaseClient';
 import { logClientAdminActivity } from '@/lib/record-admin-activity';
-import { buildFieldChanges, type ActivityFieldChange } from '@/lib/activity-log-changes';
 
 export interface AppSettings {
     appColor?: string;
@@ -130,27 +129,6 @@ function readString(value: unknown): string | undefined {
 
 function readBoolean(value: unknown): boolean | undefined {
     return typeof value === 'boolean' ? value : undefined;
-}
-
-function normalizePaymentSettingsForStorage(settings?: PaymentSettings): PaymentSettings | undefined {
-    if (!settings) return settings;
-    const normalized: PaymentSettings = { ...settings };
-    if (normalized.chapa) {
-        normalized.chapa = {
-            ...normalized.chapa,
-            enable: Boolean(normalized.chapa.enable),
-            isActive: Boolean(normalized.chapa.isActive),
-            isSandbox: Boolean(normalized.chapa.isSandbox),
-        };
-    }
-    if (normalized.flutterWave) {
-        normalized.flutterWave = {
-            ...normalized.flutterWave,
-            isActive: Boolean(normalized.flutterWave.isActive),
-            isSandBox: Boolean(normalized.flutterWave.isSandBox),
-        };
-    }
-    return normalized;
 }
 
 function toChapaSettings(value: unknown): PaymentSettings['chapa'] | undefined {
@@ -365,18 +343,6 @@ function buildSettingsFromRows(rows: AppSettingsRow[] | null, languageRows: Lang
     };
 }
 
-function appendSectionChanges(
-    target: ActivityFieldChange[],
-    section: string,
-    before: Record<string, unknown>,
-    after: Record<string, unknown>,
-    fields?: string[]
-): void {
-    for (const change of buildFieldChanges(before, after, fields)) {
-        target.push({ ...change, field: `${section}.${change.field}` });
-    }
-}
-
 export const fetchSettings = createAsyncThunk<
     Settings,
     void,
@@ -414,266 +380,34 @@ export const updateSettings = createAsyncThunk<
     'settings/updateSettings',
     async (updates, { rejectWithValue }) => {
         try {
-            const settingsChanges: ActivityFieldChange[] = [];
-            const updateData: Record<string, string | number | boolean | null | undefined> = {};
-
-            if (updates.appSettings)
-                Object.assign(updateData, updates.appSettings);
-
-            if (updates.generalSettings)
-                Object.assign(updateData, updates.generalSettings);
-
-            if (updates.policySettings)
-                Object.assign(updateData, updates.policySettings);
-
-            if (updates.paymentSettings) {
-                const normalizedPaymentSettings = normalizePaymentSettingsForStorage(updates.paymentSettings);
-                const { data: existingPaymentSetting } = await getSupabase()
-                    .from('app_settings')
-                    .select('id, data')
-                    .eq('id', 'payment')
-                    .maybeSingle();
-
-                const existingPaymentData = parseObjectValue(existingPaymentSetting?.data);
-                const nextPaymentData = {
-                    ...existingPaymentData,
-                    ...(normalizedPaymentSettings?.chapa ? { chapa: normalizedPaymentSettings.chapa } : {}),
-                    ...(normalizedPaymentSettings?.telebirr ? { telebirr: normalizedPaymentSettings.telebirr } : {}),
-                    ...(normalizedPaymentSettings?.wallet ? { wallet: normalizedPaymentSettings.wallet } : {}),
-                    ...(normalizedPaymentSettings?.flutterWave ? { flutterWave: normalizedPaymentSettings.flutterWave } : {}),
+            const response = await fetch('/api/admin/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updates),
+            });
+            const payload = (await response.json()) as {
+                error?: string;
+                data?: {
+                    appRows?: AppSettingsRow[] | null;
+                    languageRows?: LanguageRow[] | null;
                 };
-
-                const { error: paymentError } = await getSupabase()
-                    .from('app_settings')
-                    .upsert({ id: 'payment', data: nextPaymentData }, { onConflict: 'id' });
-
-                if (paymentError) {
-                    console.error('Error updating app_settings payment:', paymentError);
-                    throw paymentError;
-                }
-
-                appendSectionChanges(
-                    settingsChanges,
-                    'payment',
-                    existingPaymentData,
-                    nextPaymentData,
-                    Object.keys(normalizedPaymentSettings ?? {})
-                );
+            };
+            if (!response.ok || !payload.data) {
+                throw new Error(payload.error || 'Failed to update settings');
             }
-
-            if (updates.policySettings) {
-                const definedPolicyPatch = Object.fromEntries(
-                    Object.entries(updates.policySettings).filter(([, v]) => v !== undefined)
-                ) as PolicySettings;
-                if (Object.keys(definedPolicyPatch).length > 0) {
-                    const { data: existingPolicy } = await getSupabase()
-                        .from('app_settings')
-                        .select('id, data')
-                        .eq('id', 'policy')
-                        .maybeSingle();
-                    const policyData = parseObjectValue(existingPolicy?.data);
-                    const nextPolicyData = { ...policyData, ...definedPolicyPatch };
-                    const { error: policyError } = await getSupabase()
-                        .from('app_settings')
-                        .upsert({ id: 'policy', data: nextPolicyData }, { onConflict: 'id' });
-                    if (policyError)
-                        throw policyError;
-
-                    appendSectionChanges(
-                        settingsChanges,
-                        'policy',
-                        policyData,
-                        nextPolicyData,
-                        Object.keys(definedPolicyPatch)
-                    );
-                }
-            }
-
-            if (updates.contactUs && Object.keys(updates.contactUs).length > 0) {
-                const { data: existing } = await getSupabase()
-                    .from('app_settings')
-                    .select('id, data')
-                    .eq('id', 'contact_us')
-                    .maybeSingle();
-                const merged = { ...parseObjectValue(existing?.data), ...updates.contactUs };
-                const { error: contactError } = await getSupabase()
-                    .from('app_settings')
-                    .upsert({ id: 'contact_us', data: merged }, { onConflict: 'id' });
-                if (contactError)
-                    throw contactError;
-
-                appendSectionChanges(
-                    settingsChanges,
-                    'contact_us',
-                    parseObjectValue(existing?.data),
-                    merged,
-                    Object.keys(updates.contactUs)
-                );
-            }
-
-            if (updates.adminCommission && Object.keys(updates.adminCommission).length > 0) {
-                const { data: existing } = await getSupabase()
-                    .from('app_settings')
-                    .select('id, data')
-                    .eq('id', 'admin_commission')
-                    .maybeSingle();
-                const merged = { ...parseObjectValue(existing?.data), ...updates.adminCommission };
-                const { error: commissionError } = await getSupabase()
-                    .from('app_settings')
-                    .upsert({ id: 'admin_commission', data: merged }, { onConflict: 'id' });
-                if (commissionError)
-                    throw commissionError;
-
-                appendSectionChanges(
-                    settingsChanges,
-                    'admin_commission',
-                    parseObjectValue(existing?.data),
-                    merged,
-                    Object.keys(updates.adminCommission)
-                );
-            }
-
-            if (updates.statusOptions !== undefined) {
-                const { error: statusError } = await getSupabase()
-                    .from('app_settings')
-                    .upsert({ id: 'status', data: updates.statusOptions }, { onConflict: 'id' });
-                if (statusError)
-                    throw statusError;
-
-                settingsChanges.push({
-                    field: 'status.options',
-                    after: updates.statusOptions,
-                });
-            }
-
-            if (updates.constants && Object.keys(updates.constants).length > 0) {
-                const { data: existing } = await getSupabase()
-                    .from('app_settings')
-                    .select('id, data')
-                    .eq('id', 'constant')
-                    .maybeSingle();
-                const merged = { ...parseObjectValue(existing?.data), ...updates.constants };
-                const { error: constantError } = await getSupabase()
-                    .from('app_settings')
-                    .upsert({ id: 'constant', data: merged }, { onConflict: 'id' });
-                if (constantError)
-                    throw constantError;
-
-                appendSectionChanges(
-                    settingsChanges,
-                    'constants',
-                    parseObjectValue(existing?.data),
-                    merged,
-                    Object.keys(updates.constants)
-                );
-            }
-
-            let languageUpserts: { id: string; code: string; name: string; active: boolean }[] = [];
-            let languageInserts: { code: string; name: string; active: boolean }[] = [];
-            if (updates.languageSettings !== undefined) {
-                const normalizedLanguages = updates.languageSettings
-                    .map((language) => ({
-                        id: language.id,
-                        code: language.code.trim(),
-                        name: language.name.trim(),
-                        active: language.active,
-                    }))
-                    .filter((language) => language.code.length > 0 && language.name.length > 0);
-
-                languageUpserts = normalizedLanguages
-                    .filter((language) => Boolean(language.id))
-                    .map((language) => ({
-                        id: language.id as string,
-                        code: language.code,
-                        name: language.name,
-                        active: language.active,
-                    }));
-
-                languageInserts = normalizedLanguages
-                    .filter((language) => !language.id)
-                    .map((language) => ({
-                        code: language.code,
-                        name: language.name,
-                        active: language.active,
-                    }));
-            }
-
-            const languageDeleteIds =
-                updates.languageDeletedIds?.filter((id) => id.trim().length > 0) ?? [];
-
-            if (
-                languageUpserts.length > 0 ||
-                languageInserts.length > 0 ||
-                languageDeleteIds.length > 0
-            ) {
-                const response = await fetch('/api/settings/languages', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        upserts: languageUpserts.length > 0 ? languageUpserts : undefined,
-                        inserts: languageInserts.length > 0 ? languageInserts : undefined,
-                        deleteIds: languageDeleteIds.length > 0 ? languageDeleteIds : undefined,
-                    }),
-                });
-                const payload = (await response.json()) as { ok?: boolean; error?: string };
-                if (!response.ok || !payload.ok)
-                    throw new Error(payload.error || 'Failed to update languages');
-            }
-
-            const hasRootSettingsFields = Object.keys(updateData).length > 0;
-            if (hasRootSettingsFields) {
-                const { data: existingRootSettingsData } = await getSupabase()
-                    .from('app_settings')
-                    .select('id, data')
-                    .eq('id', 'settings')
-                    .maybeSingle();
-                const existingRootData = parseObjectValue((existingRootSettingsData as AppSettingsRow | null)?.data);
-                const nextRootData = {
-                    ...existingRootData,
-                    ...updateData,
-                };
-                const { error: rootSettingsError } = await getSupabase()
-                    .from('app_settings')
-                    .upsert({ id: 'settings', data: nextRootData }, { onConflict: 'id' });
-                if (rootSettingsError) {
-                    console.error('Error updating app_settings root settings:', rootSettingsError);
-                    throw rootSettingsError;
-                }
-
-                appendSectionChanges(
-                    settingsChanges,
-                    'settings',
-                    existingRootData,
-                    nextRootData,
-                    Object.keys(updateData)
-                );
-            }
-
-            const { data: allRows, error: reloadError } = await getSupabase()
-                .from('app_settings')
-                .select('id, data');
-            if (reloadError)
-                throw reloadError;
-            const { data: updatedLanguageRows, error: reloadLanguageError } = await getSupabase()
-                .from('languages')
-                .select('id, code, name, active');
-            if (reloadLanguageError)
-                throw reloadLanguageError;
 
             logClientAdminActivity({
                 action: 'update',
                 resource_type: 'settings',
                 summary: 'Updated platform settings',
-                metadata: settingsChanges.length > 0
-                    ? { changes: settingsChanges }
-                    : {
-                        sections: Object.keys(updates).filter((key) => updates[key as keyof UpdateSettingsPayload] !== undefined),
-                    },
+                metadata: {
+                    sections: Object.keys(updates).filter((key) => updates[key as keyof UpdateSettingsPayload] !== undefined),
+                },
             });
 
             return buildSettingsFromRows(
-                (allRows as AppSettingsRow[]) ?? null,
-                (updatedLanguageRows as LanguageRow[]) ?? null
+                payload.data.appRows ?? null,
+                payload.data.languageRows ?? null
             );
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to update settings';

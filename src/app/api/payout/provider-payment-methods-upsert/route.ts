@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireAdminPermission } from '@/lib/admin-auth';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
@@ -30,7 +31,11 @@ function isNumericText(value: string): boolean {
 }
 
 export async function POST(request: Request) {
-        const supabaseAdmin = getSupabaseAdminFromRequest(request);
+    const auth = await requireAdminPermission(request, 'finance:write');
+    if (!auth.ok) {
+        return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+    const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const body = (await request.json()) as RequestBody;
         const providerID = normalizeText(body.providerID);

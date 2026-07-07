@@ -552,6 +552,15 @@ function PayoutRequestPageContent() {
                                                                 className="px-3 align-top text-right"
                                                                 onClick={(event) => event.stopPropagation()}
                                                             >
+                                                                <div className="mb-2 flex justify-end">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleOpenWalletAnalysis(request)}
+                                                                        className="inline-flex h-8 items-center rounded-md border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-800 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                                                    >
+                                                                        Review
+                                                                    </button>
+                                                                </div>
                                                                 <PayoutRequestActions
                                                                     paymentStatus={normalizedPaymentStatus}
                                                                     hasChapaTransferStarted={hasChapaTransferStarted}

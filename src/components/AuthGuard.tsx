@@ -2,6 +2,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { getSupabase } from "@/lib/supabaseClient";
+import { DEFAULT_ADMIN_ROLES, hasPermission } from "@/lib/admin-permissions";
+import { canAccessAdminRoute } from "@/hooks/use-admin-permissions";
 
 async function getAuthenticatedUser() {
     const { data: sess } = await getSupabase().auth.getSession();
@@ -27,6 +29,36 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                     if (mounted && !didNavigate.current) {
                         didNavigate.current = true;
                         router.replace("/login?error=auth&next=" + encodeURIComponent(pathname || "/admin/dashboard"));
+                    }
+                    return;
+                }
+                const { data: adminRow } = await getSupabase()
+                    .from("admin")
+                    .select("id, role, is_active")
+                    .eq("user_id", user.id)
+                    .maybeSingle();
+                if (!adminRow || !adminRow.is_active) {
+                    if (mounted && !didNavigate.current) {
+                        didNavigate.current = true;
+                        router.replace("/login?error=forbidden");
+                    }
+                    return;
+                }
+                const { data: roleRow } = await getSupabase()
+                    .from("admin_role")
+                    .select("permissions")
+                    .eq("slug", adminRow.role as string)
+                    .maybeSingle();
+                const permissions =
+                    Array.isArray((roleRow as { permissions?: string[] } | null)?.permissions)
+                        ? [...((roleRow as { permissions?: string[] }).permissions ?? [])]
+                        : [...(DEFAULT_ADMIN_ROLES.find((role) => role.slug === adminRow.role)?.permissions ?? [])];
+                const can = (permission: string) => hasPermission(permissions, permission);
+                const routePath = pathname || "/admin/dashboard";
+                if (!canAccessAdminRoute(routePath, can)) {
+                    if (mounted && !didNavigate.current) {
+                        didNavigate.current = true;
+                        router.replace("/admin/dashboard?error=forbidden");
                     }
                     return;
                 }
