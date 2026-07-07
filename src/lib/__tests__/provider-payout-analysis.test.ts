@@ -230,4 +230,91 @@ describe('analyzeProviderPayoutWallet', () => {
         expect(analysis.breakdown.otherDebits).toBe(0);
         expect(analysis.findings.some((item) => item.id === 'erroneous-payouts')).toBe(false);
     });
+
+    it('adds review warning when request drops below plan floor', () => {
+        const analysis = analyzeProviderPayoutWallet({
+            providerId: 'provider-1',
+            providerName: 'Plan Provider',
+            providerEmail: 'plan@example.com',
+            providerUserId: 'provider-1',
+            storedWalletAmount: 511.28,
+            requestedWithdrawalAmount: 15,
+            planMinimumRetainedBalance: 499,
+            walletTransactions: [
+                {
+                    id: '1',
+                    amount: '511.28',
+                    isCredit: true,
+                    note: 'Service listing plan activation (Chapa, net after fee)',
+                    paymentType: 'chapa',
+                    transactionId: 'activation-1',
+                    createdDate: '2026-07-01T08:00:00Z',
+                },
+            ],
+            bookings: [],
+            customers: [],
+            customerWalletCredits: [],
+        });
+
+        expect(analysis.postWithdrawalBalance).toBe(496.28);
+        expect(analysis.findings.some((item) => item.id === 'request-breaches-plan-floor')).toBe(true);
+        expect(analysis.risk).toBe('review');
+    });
+
+    it('does not add plan-floor finding when request stays above floor', () => {
+        const analysis = analyzeProviderPayoutWallet({
+            providerId: 'provider-1',
+            providerName: 'Plan Provider',
+            providerEmail: 'plan@example.com',
+            providerUserId: 'provider-1',
+            storedWalletAmount: 520,
+            requestedWithdrawalAmount: 10,
+            planMinimumRetainedBalance: 499,
+            walletTransactions: [
+                {
+                    id: '1',
+                    amount: '520',
+                    isCredit: true,
+                    note: 'Service listing plan activation (Chapa, net after fee)',
+                    paymentType: 'chapa',
+                    transactionId: 'activation-1',
+                    createdDate: '2026-07-01T08:00:00Z',
+                },
+            ],
+            bookings: [],
+            customers: [],
+            customerWalletCredits: [],
+        });
+
+        expect(analysis.postWithdrawalBalance).toBe(510);
+        expect(analysis.findings.some((item) => item.id === 'request-breaches-plan-floor')).toBe(false);
+    });
+
+    it('keeps existing behavior when plan floor is missing', () => {
+        const analysis = analyzeProviderPayoutWallet({
+            providerId: 'provider-1',
+            providerName: 'No Floor Provider',
+            providerEmail: 'nofloor@example.com',
+            providerUserId: 'provider-1',
+            storedWalletAmount: 511.28,
+            requestedWithdrawalAmount: 15,
+            walletTransactions: [
+                {
+                    id: '1',
+                    amount: '511.28',
+                    isCredit: true,
+                    note: 'Service listing plan activation (Chapa, net after fee)',
+                    paymentType: 'chapa',
+                    transactionId: 'activation-1',
+                    createdDate: '2026-07-01T08:00:00Z',
+                },
+            ],
+            bookings: [],
+            customers: [],
+            customerWalletCredits: [],
+        });
+
+        expect(analysis.planMinimumRetainedBalance).toBeNull();
+        expect(analysis.findings.some((item) => item.id === 'request-breaches-plan-floor')).toBe(false);
+    });
 });

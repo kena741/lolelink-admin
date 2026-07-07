@@ -43,6 +43,8 @@ export interface ProviderPayoutAnalysis {
         otherDebits: number;
     };
     defensibleBalance: number;
+    planMinimumRetainedBalance: number | null;
+    postWithdrawalBalance: number | null;
     requestedWithdrawalAmount: number | null;
     withdrawalCoversRequest: boolean | null;
     risk: PayoutAnalysisRisk;
@@ -235,6 +237,7 @@ export function analyzeProviderPayoutWallet(input: {
     bookings: BookingRow[];
     customers: CustomerRow[];
     customerWalletCredits: CustomerWalletRow[];
+    planMinimumRetainedBalance?: number | null;
     requestedWithdrawalAmount?: number | null;
     withdrawalStatus?: string | null;
     hasTransferStarted?: boolean;
@@ -414,6 +417,12 @@ export function analyzeProviderPayoutWallet(input: {
         typeof input.requestedWithdrawalAmount === 'number' && Number.isFinite(input.requestedWithdrawalAmount)
             ? input.requestedWithdrawalAmount
             : null;
+    const planMinimumRetainedBalance =
+        typeof input.planMinimumRetainedBalance === 'number' && Number.isFinite(input.planMinimumRetainedBalance)
+            ? input.planMinimumRetainedBalance
+            : null;
+    const postWithdrawalBalance =
+        requestedWithdrawalAmount === null ? null : Math.round((defensibleBalance - requestedWithdrawalAmount) * 100) / 100;
 
     if (
         reviewMode === 'active'
@@ -425,6 +434,24 @@ export function analyzeProviderPayoutWallet(input: {
             severity: 'error',
             label: 'Withdrawal request exceeds defensible balance',
             detail: `Request ETB ${requestedWithdrawalAmount.toFixed(2)} vs defensible ETB ${defensibleBalance.toFixed(2)}`,
+            amount: requestedWithdrawalAmount,
+        });
+    }
+
+    if (
+        reviewMode === 'active'
+        && requestedWithdrawalAmount !== null
+        && planMinimumRetainedBalance !== null
+        && postWithdrawalBalance !== null
+        && postWithdrawalBalance + 0.01 < planMinimumRetainedBalance
+    ) {
+        findings.push({
+            id: 'request-breaches-plan-floor',
+            severity: 'warning',
+            label: 'Withdrawal would drop below provider plan minimum',
+            detail:
+                `Post-withdrawal ETB ${postWithdrawalBalance.toFixed(2)} is below plan minimum ETB `
+                + `${planMinimumRetainedBalance.toFixed(2)}.`,
             amount: requestedWithdrawalAmount,
         });
     }
@@ -459,6 +486,8 @@ export function analyzeProviderPayoutWallet(input: {
         ledgerMatchesStored,
         breakdown,
         defensibleBalance: Math.round(defensibleBalance * 100) / 100,
+        planMinimumRetainedBalance,
+        postWithdrawalBalance,
         requestedWithdrawalAmount,
         withdrawalCoversRequest:
             requestedWithdrawalAmount === null

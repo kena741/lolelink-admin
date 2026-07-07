@@ -55,9 +55,6 @@ export function PayoutRejectModal({
                     placeholder="Explain why this withdrawal is being rejected."
                     className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
-                <p className="text-xs text-text-secondary">
-                    Saved to <code className="rounded bg-muted px-1 py-0.5">withdrawal_history.rejectionReason</code> for the provider app.
-                </p>
             </DialogBody>
 
             <DialogFooter className="border-t border-gray-100 px-5 py-3">

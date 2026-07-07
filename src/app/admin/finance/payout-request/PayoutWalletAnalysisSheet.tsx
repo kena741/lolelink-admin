@@ -250,6 +250,22 @@ export function PayoutWalletAnalysisSheet({
                             <MetricCard label="Ledger net" value={formatCurrency(analysis.ledgerNet)} />
                             <MetricCard label="Defensible balance" value={formatCurrency(analysis.defensibleBalance)} highlight />
                             <MetricCard
+                                label="Plan minimum retained"
+                                value={
+                                    analysis.planMinimumRetainedBalance !== null
+                                        ? formatCurrency(analysis.planMinimumRetainedBalance)
+                                        : '—'
+                                }
+                            />
+                            <MetricCard
+                                label="Post-withdrawal balance"
+                                value={
+                                    analysis.postWithdrawalBalance !== null
+                                        ? formatCurrency(analysis.postWithdrawalBalance)
+                                        : '—'
+                                }
+                            />
+                            <MetricCard
                                 label={isHistoricalRequest ? 'Requested amount' : 'Requested withdrawal'}
                                 value={
                                     analysis.requestedWithdrawalAmount !== null

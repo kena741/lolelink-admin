@@ -20,6 +20,48 @@ function parseAmount(value: unknown): number {
     return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function parseServiceTierMax(provider: Record<string, unknown>): number | null {
+    const candidates = [provider.service_tier_max, provider.serviceTierMax];
+    for (const value of candidates) {
+        const parsed = Number(value ?? NaN);
+        if (Number.isFinite(parsed)) return parsed;
+    }
+    return null;
+}
+
+function resolvePlanMinimumFromServiceTierMax(serviceTierMax: number | null): number | null {
+    if (serviceTierMax === null) return null;
+    // Business rule: <=5 => 300, <=10 => 499, >10 or unlimited => 999
+    if (serviceTierMax > 10 || serviceTierMax <= 0) return 999;
+    if (serviceTierMax <= 5) return 300;
+    return 499;
+}
+
+function parseProviderPlanMinimumRetainedBalance(
+    provider: Record<string, unknown>,
+    fallbackAmount: number | null
+): number | null {
+    const derivedFromTierMax = resolvePlanMinimumFromServiceTierMax(parseServiceTierMax(provider));
+    if (derivedFromTierMax !== null) return derivedFromTierMax;
+
+    const candidates = [
+        provider.planMinimumRetainedBalance,
+        provider.plan_minimum_retained_balance,
+        provider.subscriptionPlanPrice,
+        provider.subscription_plan_price,
+        provider.currentPlanPrice,
+        provider.current_plan_price,
+        provider.planPrice,
+        provider.plan_price,
+        fallbackAmount,
+    ];
+    for (const value of candidates) {
+        const parsed = Number(value ?? NaN);
+        if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    }
+    return null;
+}
+
 function formatProviderName(raw: Record<string, unknown>): string {
     const first = typeof raw.firstName === 'string' ? raw.firstName.trim() : '';
     const last = typeof raw.lastName === 'string' ? raw.lastName.trim() : '';
@@ -48,7 +90,7 @@ export async function GET(request: Request) {
 
         const providerResult = await supabaseAdmin
             .from('provider')
-            .select('id, email, firstName, lastName, userName, walletAmount, user_id')
+            .select('*')
             .eq('id', providerId)
             .maybeSingle();
 
@@ -64,6 +106,20 @@ export async function GET(request: Request) {
         if (!providerAuthUserId) {
             return NextResponse.json({ error: 'Provider is not linked to an auth account' }, { status: 400 });
         }
+
+        let latestTierPaymentAmount: number | null = null;
+        const tierPaymentResult = await supabaseAdmin
+            .from('service_tier_payment')
+            .select('amount')
+            .eq('provider_id', providerId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+        if (!tierPaymentResult.error && tierPaymentResult.data) {
+            latestTierPaymentAmount = parseAmount((tierPaymentResult.data as { amount?: string | number }).amount);
+            if (latestTierPaymentAmount <= 0) latestTierPaymentAmount = null;
+        }
+        const planMinimumRetainedBalance = parseProviderPlanMinimumRetainedBalance(provider, latestTierPaymentAmount);
 
         const [walletResult, bookingsResult] = await Promise.all([
             supabaseAdmin
@@ -173,6 +229,7 @@ export async function GET(request: Request) {
             bookings,
             customers: customersResult.data ?? [],
             customerWalletCredits: [...(customerWalletResult.data ?? [])],
+            planMinimumRetainedBalance,
             requestedWithdrawalAmount,
             withdrawalStatus,
             hasTransferStarted: transferStarted,

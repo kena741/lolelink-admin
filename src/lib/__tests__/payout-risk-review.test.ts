@@ -21,6 +21,8 @@ function baseAnalysis(overrides: Partial<ProviderPayoutAnalysis> = {}): Provider
             otherDebits: 0,
         },
         defensibleBalance: 100,
+        planMinimumRetainedBalance: null,
+        postWithdrawalBalance: 50,
         requestedWithdrawalAmount: 50,
         withdrawalCoversRequest: true,
         risk: 'clean',
