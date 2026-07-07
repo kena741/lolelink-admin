@@ -184,4 +184,50 @@ describe('analyzeProviderPayoutWallet', () => {
         expect(analysis.risk).not.toBe('high');
         expect(analysis.riskLabel).toContain('Historical wallet notes');
     });
+
+    it('nets erroneous payout credits against admin reversal debits', () => {
+        const analysis = analyzeProviderPayoutWallet({
+            providerId: PROVIDER_ID,
+            providerName: 'Fozia Kassa',
+            providerEmail: 'foziaka&/ssa@gmail.com',
+            providerUserId: PROVIDER_ID,
+            storedWalletAmount: 676.28,
+            walletTransactions: [
+                {
+                    id: '1',
+                    amount: '237.96',
+                    isCredit: true,
+                    note: 'Order #40d11a completed (payout after admin commission)',
+                    paymentType: 'Wallet',
+                    transactionId: '40d11a98-bfc5-4f81-8689-da76f5567438',
+                    createdDate: '2026-06-23T12:22:53Z',
+                },
+                {
+                    id: '2',
+                    amount: '237.96',
+                    isCredit: false,
+                    note: 'Admin reversal: erroneous completion payout for booking 40d11a98-bfc5-4f81-8689-da76f5567438',
+                    paymentType: 'Wallet',
+                    transactionId: 'rev-40d11a98',
+                    createdDate: '2026-06-24T11:53:00Z',
+                },
+            ],
+            bookings: [
+                {
+                    id: '40d11a98-bfc5-4f81-8689-da76f5567438',
+                    customer_id: CUSTOMER_ID,
+                    status: 'completed',
+                    totalAmount: -177.92,
+                    payment_status: 'payment_completed',
+                    paymentCompleted: false,
+                },
+            ],
+            customers: [{ id: CUSTOMER_ID, user_id: CUSTOMER_ID }],
+            customerWalletCredits: [],
+        });
+
+        expect(analysis.breakdown.erroneousPayouts).toBe(0);
+        expect(analysis.breakdown.otherDebits).toBe(0);
+        expect(analysis.findings.some((item) => item.id === 'erroneous-payouts')).toBe(false);
+    });
 });

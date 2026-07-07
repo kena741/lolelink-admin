@@ -130,6 +130,16 @@ function isDeclineFeeDebit(note: string): boolean {
     return normalized.includes('decline') || normalized.includes('gateway fee');
 }
 
+function isErroneousPayoutReversalDebit(note: string): boolean {
+    const normalized = note.toLowerCase();
+    return normalized.includes('admin reversal') && normalized.includes('erroneous completion payout');
+}
+
+function parseBookingIdFromReversalNote(note: string): string | null {
+    const match = note.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+    return match?.[0] ?? null;
+}
+
 function classifyJobPayout(
     amount: number,
     booking: BookingRow | null,
@@ -249,6 +259,7 @@ export function analyzeProviderPayoutWallet(input: {
 
     const transactions: ProviderWalletTransactionLine[] = [];
     let ledgerNet = 0;
+    let reversedErroneousPayouts = 0;
 
     for (const row of input.walletTransactions) {
         const amount = walletTransactionMagnitude(row.amount);
@@ -286,6 +297,9 @@ export function analyzeProviderPayoutWallet(input: {
         } else if (isDeclineFeeDebit(note)) {
             category = 'decline_fee';
             breakdown.declineFees += amount;
+        } else if (isErroneousPayoutReversalDebit(note)) {
+            reversedErroneousPayouts += amount;
+            bookingId = parseBookingIdFromReversalNote(note) ?? undefined;
         } else {
             breakdown.otherDebits += amount;
         }
@@ -301,6 +315,8 @@ export function analyzeProviderPayoutWallet(input: {
             bookingId,
         });
     }
+
+    breakdown.erroneousPayouts = Math.max(0, breakdown.erroneousPayouts - reversedErroneousPayouts);
 
     const ledgerMatchesStored = Math.abs(ledgerNet - input.storedWalletAmount) < 0.02;
     const defensibleBalance =
