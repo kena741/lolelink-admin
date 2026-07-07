@@ -148,5 +148,6 @@ export function canAccessAdminRoute(pathname: string, can: (permission: string) 
     if (pathname.startsWith('/admin/roles')) return can('roles:read');
     if (pathname.startsWith('/admin/activity-logs')) return can('logs:read');
     if (pathname.startsWith('/admin/contact-messages')) return can('contact:read');
+    if (pathname.startsWith('/admin/marketing-tracker')) return true;
     return true;
 }

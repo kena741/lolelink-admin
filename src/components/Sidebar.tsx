@@ -30,7 +30,8 @@ import {
     Sun,
     Shield,
     UserCog,
-    Activity
+    Activity,
+    Megaphone
 } from 'lucide-react';
 import { getSupabase } from '@/lib/supabaseClient';
 import { SupabaseEnvSwitcher, SupabaseStagingBanner } from '@/components/SupabaseEnvSwitcher';
@@ -518,6 +519,27 @@ const Sidebar = () => {
                             </ul>
                         </li>
                         )}
+
+                        <li className="pt-5">
+                            <div className="px-3 py-1 mb-1">
+                                <p className="text-[11px] font-semibold uppercase tracking-wider text-text-hint">Marketing</p>
+                            </div>
+                            <ul className="space-y-1">
+                                <li>
+                                    <Link
+                                        href="/admin/marketing-tracker"
+                                        className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
+                                            pathname?.startsWith('/admin/marketing-tracker')
+                                                ? 'bg-primary/10 text-primary font-medium'
+                                                : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
+                                        }`}
+                                    >
+                                        <Megaphone className={`h-4 w-4 ${pathname?.startsWith('/admin/marketing-tracker') ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
+                                        <span>Marketing Tracker</span>
+                                    </Link>
+                                </li>
+                            </ul>
+                        </li>
                     </ul>
                 </nav>
             </div>
