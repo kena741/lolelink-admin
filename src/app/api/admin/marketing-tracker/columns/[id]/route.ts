@@ -84,7 +84,8 @@ export async function DELETE(
     const columnRow = column as MarketingTrackerColumn;
     const { data: rows, error: rowsError } = await supabaseAdmin
         .from('marketing_tracker_row')
-        .select('id, values');
+        .select('id, values')
+        .eq('sheet_id', columnRow.sheet_id);
 
     if (rowsError) return NextResponse.json({ error: rowsError.message }, { status: 500 });
 

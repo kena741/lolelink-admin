@@ -185,7 +185,7 @@ const Sidebar = () => {
                     alt="Zemen Service logo"
                     width={32}
                     height={32}
-                    className="h-8 w-8 rounded-[var(--radius)] object-contain"
+                    className="h-8 w-8 rounded-lg object-contain"
                     priority
                 />
                 <span className="font-heading text-[15px] font-semibold tracking-normal text-sidebar-foreground">
@@ -202,7 +202,7 @@ const Sidebar = () => {
                             <Link
                                 href="/admin/dashboard"
                                 className={cn(
-                                    'group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors',
+                                    'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors',
                                     navClass(pathname === '/admin/dashboard'),
                                 )}
                             >
@@ -223,7 +223,7 @@ const Sidebar = () => {
                                         <li key={href}>
                                             <Link
                                                 href={href}
-                                                className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
+                                                className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${
                                                     active
                                                         ? 'bg-primary/10 text-primary font-medium'
                                                         : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
@@ -253,7 +253,7 @@ const Sidebar = () => {
                                         <li key={href}>
                                             <Link
                                                 href={href}
-                                                className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
+                                                className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${
                                                     active
                                                         ? 'bg-primary/10 text-primary font-medium'
                                                         : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
@@ -281,7 +281,7 @@ const Sidebar = () => {
                                         <li key={href}>
                                             <Link
                                                 href={href}
-                                                className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
+                                                className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${
                                                     active
                                                         ? 'bg-primary/10 text-primary font-medium'
                                                         : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
@@ -310,7 +310,7 @@ const Sidebar = () => {
                                             <li key="categories">
                                                 <button
                                                     onClick={() => setIsCategoryOpen(!isCategoryOpen)}
-                                                    className={`group w-full flex items-center justify-between gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
+                                                    className={`group w-full flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${
                                                         isCategoryActive
                                                             ? 'bg-primary/10 text-primary font-medium'
                                                             : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
@@ -334,7 +334,7 @@ const Sidebar = () => {
                                                                 <li key={catHref}>
                                                                     <Link
                                                                         href={catHref}
-                                                                        className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
+                                                                        className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${
                                                                             active
                                                                                 ? 'bg-primary/10 text-primary font-medium'
                                                                                 : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
@@ -359,7 +359,7 @@ const Sidebar = () => {
                                         <li key={href}>
                                             <Link
                                                 href={href}
-                                                className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
+                                                className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${
                                                     active
                                                         ? 'bg-primary/10 text-primary font-medium'
                                                         : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
@@ -385,7 +385,7 @@ const Sidebar = () => {
                                 <li>
                                     <button
                                         onClick={() => setIsFinanceOpen(!isFinanceOpen)}
-                                        className={`group w-full flex items-center justify-between gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
+                                        className={`group w-full flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${
                                             isFinanceActive
                                                 ? 'bg-primary/10 text-primary font-medium'
                                                             : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
@@ -409,7 +409,7 @@ const Sidebar = () => {
                                                     <li key={href}>
                                                         <Link
                                                             href={href}
-                                                            className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
+                                                            className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${
                                                                 active
                                                                     ? 'bg-primary/10 text-primary font-medium'
                                                                     : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
@@ -430,7 +430,7 @@ const Sidebar = () => {
                                 <li>
                                     <Link
                                         href="/admin/settings"
-                                        className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
+                                        className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${
                                             pathname?.startsWith('/admin/settings')
                                                 ? 'bg-primary/10 text-primary font-medium'
                                                             : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
@@ -445,7 +445,7 @@ const Sidebar = () => {
                                 <li>
                                     <Link
                                         href="/admin/mobile-app-config"
-                                        className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
+                                        className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${
                                             pathname?.startsWith('/admin/mobile-app-config')
                                                 ? 'bg-primary/10 text-primary font-medium'
                                                             : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
@@ -460,7 +460,7 @@ const Sidebar = () => {
                                 <li>
                                     <Link
                                         href="/admin/admins"
-                                        className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
+                                        className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${
                                             pathname?.startsWith('/admin/admins')
                                                 ? 'bg-primary/10 text-primary font-medium'
                                                             : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
@@ -475,7 +475,7 @@ const Sidebar = () => {
                                 <li>
                                     <Link
                                         href="/admin/activity-logs"
-                                        className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
+                                        className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${
                                             pathname?.startsWith('/admin/activity-logs')
                                                 ? 'bg-primary/10 text-primary font-medium'
                                                             : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
@@ -490,7 +490,7 @@ const Sidebar = () => {
                                 <li>
                                     <Link
                                         href="/admin/roles"
-                                        className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
+                                        className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${
                                             pathname?.startsWith('/admin/roles')
                                                 ? 'bg-primary/10 text-primary font-medium'
                                                             : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
@@ -505,7 +505,7 @@ const Sidebar = () => {
                                 <li>
                                     <Link
                                         href="/admin/contact-messages"
-                                        className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
+                                        className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${
                                             pathname === '/admin/contact-messages'
                                                 ? 'bg-primary/10 text-primary font-medium'
                                                             : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
@@ -528,7 +528,7 @@ const Sidebar = () => {
                                 <li>
                                     <Link
                                         href="/admin/marketing-tracker"
-                                        className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
+                                        className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${
                                             pathname?.startsWith('/admin/marketing-tracker')
                                                 ? 'bg-primary/10 text-primary font-medium'
                                                 : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
@@ -552,14 +552,14 @@ const Sidebar = () => {
                         onClick={toggleTheme}
                         aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
                         title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
-                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius)] border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                     >
                         {theme === 'dark' ? <Moon className="h-3.5 w-3.5" /> : <Sun className="h-3.5 w-3.5" />}
                     </button>
                     <button
                         type="button"
                         onClick={async () => { await getSupabase().auth.signOut(); location.href = '/login'; }}
-                        className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[var(--radius)] border border-border bg-card px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                     >
                         <LogOut className="h-3.5 w-3.5" />
                         Sign out
