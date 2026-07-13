@@ -130,6 +130,7 @@ const Sidebar = () => {
     const showActivityLogs = canAccessAdminRoute('/admin/activity-logs', can);
     const showRoles = canAccessAdminRoute('/admin/roles', can);
     const showContactMessages = canAccessAdminRoute('/admin/contact-messages', can);
+    const showPush = canAccessAdminRoute('/admin/push', can);
     const showSystemSection =
         visibleFinanceItems.length > 0 ||
         showSettings ||
@@ -137,7 +138,8 @@ const Sidebar = () => {
         showAdmins ||
         showActivityLogs ||
         showRoles ||
-        showContactMessages;
+        showContactMessages ||
+        showPush;
     
     // Category sub-section (still collapsible)
     const isCategoryActive = pathname?.startsWith('/admin/categories') || pathname?.startsWith('/admin/subcategories');
@@ -513,6 +515,21 @@ const Sidebar = () => {
                                     >
                                         <MessageSquare className={`h-4 w-4 ${pathname === '/admin/contact-messages' ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
                                         <span>Contact Messages</span>
+                                    </Link>
+                                </li>
+                                )}
+                                {showPush && (
+                                <li>
+                                    <Link
+                                        href="/admin/push"
+                                        className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${
+                                            pathname?.startsWith('/admin/push')
+                                                ? 'bg-primary/10 text-primary font-medium'
+                                                            : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
+                                        }`}
+                                    >
+                                        <Megaphone className={`h-4 w-4 ${pathname?.startsWith('/admin/push') ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
+                                        <span>Push Notifications</span>
                                     </Link>
                                 </li>
                                 )}

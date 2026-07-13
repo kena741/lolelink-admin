@@ -226,6 +226,21 @@ export async function POST(request: Request) {
                 provider_id: body.providerId,
                 is_read: false,
             });
+            try {
+                const { sendProviderPush } = await import('@/lib/push/sendProviderPush');
+                await sendProviderPush({
+                    serviceClient: supabaseAdmin,
+                    providerId: body.providerId,
+                    input: {
+                        title: 'Account Activated',
+                        body: `Your activation fee of ETB ${feeAmount} has been confirmed. Your account is now active.`,
+                        route: '/profile',
+                        type: 'account',
+                    },
+                });
+            } catch (pushError) {
+                console.error('Activation verify push failed:', pushError);
+            }
         }
 
         await logAdminActivity({

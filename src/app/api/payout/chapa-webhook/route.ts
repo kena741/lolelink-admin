@@ -89,7 +89,7 @@ export async function POST(request: Request) {
 
         const { data: withdrawalData, error: lookupError } = await supabaseAdmin
             .from('withdrawal_history')
-            .select('id, adminNote')
+            .select('id, adminNote, providerId, amount')
             .ilike('adminNote', `%reference=${reference}%`)
             .order('createdDate', { ascending: false })
             .limit(1)
@@ -133,6 +133,26 @@ export async function POST(request: Request) {
             type: `payout_${nextStatus}`,
             action_url: '/admin/finance/payout-request',
         });
+
+        if (nextStatus === 'completed' || nextStatus === 'rejected') {
+            try {
+                const { notifyProviderPayoutStatus } = await import('@/lib/push/payoutNotify');
+                const row = withdrawalData as {
+                    id: string;
+                    providerId?: string;
+                    amount?: string | number;
+                };
+                if (row.providerId) {
+                    await notifyProviderPayoutStatus(supabaseAdmin, {
+                        providerId: row.providerId,
+                        event: nextStatus === 'completed' ? 'completed' : 'rejected',
+                        amount: typeof row.amount === 'number' ? row.amount : Number(row.amount) || 0,
+                    });
+                }
+            } catch (pushError) {
+                console.error('Payout webhook push failed:', pushError);
+            }
+        }
 
         const withdrawalId = (withdrawalData as { id: string }).id;
         const payoutContext = await loadWithdrawalActivityContext(supabaseAdmin, withdrawalId);

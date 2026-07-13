@@ -352,6 +352,17 @@ export async function POST(request: Request) {
             action_url: '/admin/finance/payout-request',
         });
 
+        try {
+            const { notifyProviderPayoutStatus } = await import('@/lib/push/payoutNotify');
+            await notifyProviderPayoutStatus(supabaseAdmin, {
+                providerId: withdrawal.providerId,
+                event: 'transfer_initiated',
+                amount: payoutBreakdown.grossAmount,
+            });
+        } catch (pushError) {
+            console.error('Payout transfer push failed:', pushError);
+        }
+
         const payoutContext = await loadWithdrawalActivityContext(supabaseAdmin, withdrawal.id);
 
         await logAdminActivity({

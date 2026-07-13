@@ -94,6 +94,21 @@ export async function POST(request: Request) {
                 provider_id: provider.id,
                 is_read: false,
             });
+            try {
+                const { sendProviderPush } = await import('@/lib/push/sendProviderPush');
+                await sendProviderPush({
+                    serviceClient: supabaseAdmin,
+                    providerId: provider.id,
+                    input: {
+                        title: 'Account Activated',
+                        body: `Your activation fee of ETB ${feeAmount} has been confirmed. Your account is now active.`,
+                        route: '/profile',
+                        type: 'account',
+                    },
+                });
+            } catch (pushError) {
+                console.error('Activation webhook push failed:', pushError);
+            }
         }
 
         await logAdminActivity({

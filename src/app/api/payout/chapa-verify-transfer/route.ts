@@ -202,6 +202,21 @@ export async function POST(request: Request) {
                 type: 'payout_completed',
                 action_url: '/admin/finance/payout-request',
             });
+
+            try {
+                const { notifyProviderPayoutStatus } = await import('@/lib/push/payoutNotify');
+                const providerId = (withdrawal as { providerId?: string }).providerId;
+                const amountRaw = (withdrawal as { amount?: string | number }).amount;
+                if (providerId) {
+                    await notifyProviderPayoutStatus(supabaseAdmin, {
+                        providerId,
+                        event: 'completed',
+                        amount: typeof amountRaw === 'number' ? amountRaw : Number(amountRaw) || 0,
+                    });
+                }
+            } catch (pushError) {
+                console.error('Payout verify push failed:', pushError);
+            }
         } else {
             const { error: updateError } = await supabaseAdmin
                 .from('withdrawal_history')

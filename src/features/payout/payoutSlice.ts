@@ -144,6 +144,24 @@ async function createPayoutNotification(payload: {
     });
 }
 
+async function notifyPayoutPush(payload: {
+    providerId?: string;
+    event: 'approved' | 'rejected' | 'completed';
+    amount?: string | number;
+    rejectionReason?: string;
+}): Promise<void> {
+    if (!payload.providerId) return;
+    try {
+        await fetch('/api/admin/push/notify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+    } catch (error) {
+        console.error('Payout push failed:', error);
+    }
+}
+
 function normalizeProviderId(value: string | undefined): string {
     return (value || '').trim();
 }
@@ -301,13 +319,21 @@ export const approvePayoutRequest = createAsyncThunk<
 
             if (error) throw error;
 
+            const withdrawalRow = data as WithdrawalHistoryRow;
+
             await createPayoutNotification({
                 title: 'Withdrawal approved',
                 description: `Withdrawal ${id} was approved.`,
                 type: 'payout_approved',
-                provider_id: (data as WithdrawalHistoryRow).providerId,
+                provider_id: withdrawalRow.providerId,
                 action_url: '/admin/finance/payout-request',
                 dedupe_key: `payout_approved:${id}`,
+            });
+
+            await notifyPayoutPush({
+                providerId: withdrawalRow.providerId,
+                event: 'approved',
+                amount: withdrawalRow.amount,
             });
 
             const providerMap: Record<string, string> = {};
@@ -337,7 +363,6 @@ export const approvePayoutRequest = createAsyncThunk<
                 if (!bankError && bank) addBankToMap(bankMap, toBankDetailsFromPaymentMethod(bank as ProviderPaymentMethodRow));
             }
 
-            const withdrawalRow = data as WithdrawalHistoryRow;
             const providerName = providerMap[withdrawalRow.providerId] || 'Unknown provider';
             const amountEtb = formatWithdrawalAmountEtb(withdrawalRow.amount);
 
@@ -397,6 +422,13 @@ export const rejectPayoutRequest = createAsyncThunk<
                 provider_id: (data as WithdrawalHistoryRow).providerId,
                 action_url: '/admin/finance/payout-request',
                 dedupe_key: `payout_rejected:${id}`,
+            });
+
+            await notifyPayoutPush({
+                providerId: (data as WithdrawalHistoryRow).providerId,
+                event: 'rejected',
+                amount: (data as WithdrawalHistoryRow).amount,
+                rejectionReason: trimmedReason,
             });
 
             const providerMap: Record<string, string> = {};
@@ -488,6 +520,12 @@ export const completePayoutRequest = createAsyncThunk<
                 provider_id: data.providerId,
                 action_url: '/admin/finance/payout-request',
                 dedupe_key: `payout_completed:${id}`,
+            });
+
+            await notifyPayoutPush({
+                providerId: data.providerId,
+                event: 'completed',
+                amount: data.amount,
             });
 
             const providerMap: Record<string, string> = {};

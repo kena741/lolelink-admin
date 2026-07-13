@@ -37,6 +37,7 @@ import { buildProviderUpdatesFromEditForm } from '@/lib/build-provider-updates';
 import { parseProviderLocation } from '@/lib/provider-location';
 import Image from 'next/image';
 import { ProviderWalletHistory } from './ProviderWalletHistory';
+import { SendProviderPushForm } from '@/components/providers/SendProviderPushForm';
 import { ProviderCompanyProfile } from './ProviderCompanyProfile';
 import { formatCompanyVerificationStatus, formatProviderType } from '@/lib/company-display';
 
@@ -452,6 +453,10 @@ export default function ProviderDetailPage() {
                                                 </div>
                                             </div>
                                         </div>
+                                    </div>
+
+                                    <div className="mb-6">
+                                        <SendProviderPushForm providerId={id} />
                                     </div>
 
                                     {/* Tabs */}

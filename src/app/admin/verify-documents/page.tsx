@@ -30,6 +30,7 @@ import {
 } from '@/features/verifyDocuments/verifyDocumentsSlice';
 import { getSupabase } from '@/lib/supabaseClient';
 import { sendSms, buildRecipient } from '@/lib/sms';
+import { requestPushNotify } from '@/lib/push/requestPushNotify';
 import { cn } from '@/lib/utils';
 import { getDisplayImageUrl } from '@/lib/media-url';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
@@ -103,6 +104,22 @@ const VerifyDocumentsPage = () => {
         }
     }
 
+    async function notifyProviderDocumentPush(params: {
+        providerId: string;
+        providerName?: string;
+        documentName?: string;
+        event: 'document_approved' | 'document_rejected' | 'account_approved';
+        rejectionReason?: string;
+    }) {
+        await requestPushNotify({
+            providerId: params.providerId,
+            event: params.event,
+            providerName: params.providerName,
+            documentName: params.documentName,
+            rejectionReason: params.rejectionReason,
+        });
+    }
+
     async function openDocumentDetail(doc: typeof documents[0]) {
         setSelectedDocument(doc);
         setProviderPhone(null);
@@ -122,6 +139,12 @@ const VerifyDocumentsPage = () => {
                     docHint?.documentName ?? result.documentName
                 )
             );
+            await notifyProviderDocumentPush({
+                providerId: result.providerId,
+                providerName: docHint?.providerName ?? result.providerName,
+                documentName: docHint?.documentName ?? result.documentName,
+                event: 'document_approved',
+            });
         } catch (err) {
             console.error('Failed to verify document:', err);
         } finally {
@@ -138,6 +161,12 @@ const VerifyDocumentsPage = () => {
                 result.providerId,
                 getRejectMessage(result.providerName)
             );
+            await notifyProviderDocumentPush({
+                providerId: result.providerId,
+                providerName: result.providerName,
+                documentName: result.documentName,
+                event: 'document_rejected',
+            });
         } catch (err) {
             console.error('Failed to reject document:', err);
         } finally {
@@ -151,6 +180,11 @@ const VerifyDocumentsPage = () => {
             await dispatch(approveAllDocuments(providerId)).unwrap();
             dispatch(fetchVerifyDocuments());
             await notifyProviderViaSms(providerId, getApproveAllMessage(providerName));
+            await notifyProviderDocumentPush({
+                providerId,
+                providerName,
+                event: 'account_approved',
+            });
         } catch (err) {
             console.error('Failed to approve all documents:', err);
         } finally {
@@ -164,6 +198,11 @@ const VerifyDocumentsPage = () => {
             await dispatch(reapproveAllRejectedDocuments(providerId)).unwrap();
             dispatch(fetchVerifyDocuments());
             await notifyProviderViaSms(providerId, getApproveAllMessage(providerName));
+            await notifyProviderDocumentPush({
+                providerId,
+                providerName,
+                event: 'account_approved',
+            });
         } catch (err) {
             console.error('Failed to re-approve rejected documents:', err);
         } finally {

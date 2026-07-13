@@ -99,6 +99,22 @@ async function insertNotification(
         provider_id,
         is_read: false,
     });
+
+    try {
+        const { sendProviderPush } = await import('@/lib/push/sendProviderPush');
+        await sendProviderPush({
+            serviceClient: admin,
+            providerId: provider_id,
+            input: {
+                title,
+                body: description,
+                route: '/profile',
+                type: 'account',
+            },
+        });
+    } catch (pushError) {
+        console.error('Activation push failed:', pushError);
+    }
 }
 
 async function loadProviderAndFee(admin: SupabaseClient, providerId: string) {

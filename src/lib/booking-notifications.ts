@@ -1,4 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { sendProviderPush } from '@/lib/push/sendProviderPush';
+import { sendCustomerPush } from '@/lib/push/sendCustomerPush';
 
 interface BookingNotificationInput {
     bookingId: string;
@@ -62,6 +64,32 @@ export async function sendBookingCreatedNotifications(
     if (rows.length > 0) {
         await admin.from('notification').insert(rows);
     }
+
+    if (notifyProvider) {
+        await sendProviderPush({
+            serviceClient: admin,
+            providerId,
+            input: {
+                title: 'New Booking',
+                body: providerDescription,
+                route: '/bookings',
+                type: 'booking',
+            },
+        });
+    }
+
+    if (notifyCustomer) {
+        await sendCustomerPush({
+            serviceClient: admin,
+            customerId,
+            input: {
+                title: 'Booking Created',
+                body: customerDescription,
+                route: '/bookings',
+                type: 'booking',
+            },
+        });
+    }
 }
 
 export async function providerBookingNotificationExists(
@@ -91,15 +119,27 @@ export async function sendProviderNewBookingNotification(
     }
 ): Promise<void> {
     const { bookingId, providerId, serviceName, customerName } = input;
+    const body = `New booking for ${serviceName} from ${customerName}.`;
 
     await admin.from('notification').insert({
         title: 'New Booking',
-        description: `New booking for ${serviceName} from ${customerName}.`,
+        description: body,
         type: 'booking_created',
         provider_id: providerId,
         customer_id: null,
         booking_id: bookingId,
         is_read: false,
+    });
+
+    await sendProviderPush({
+        serviceClient: admin,
+        providerId,
+        input: {
+            title: 'New Booking',
+            body,
+            route: '/bookings',
+            type: 'booking',
+        },
     });
 }
 
@@ -115,11 +155,13 @@ export async function sendBookingPaymentConfirmedNotifications(
 ): Promise<void> {
     const { bookingId, providerId, customerId, serviceName, amount } = input;
     const amountLabel = `ETB ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const providerBody = `Payment of ${amountLabel} received for ${serviceName}.`;
+    const customerBody = `Your payment of ${amountLabel} for ${serviceName} has been confirmed.`;
 
     await admin.from('notification').insert([
         {
             title: 'Booking Payment Received',
-            description: `Payment of ${amountLabel} received for ${serviceName}.`,
+            description: providerBody,
             type: 'booking_payment_confirmed',
             provider_id: providerId,
             customer_id: null,
@@ -128,7 +170,7 @@ export async function sendBookingPaymentConfirmedNotifications(
         },
         {
             title: 'Payment Confirmed',
-            description: `Your payment of ${amountLabel} for ${serviceName} has been confirmed.`,
+            description: customerBody,
             type: 'booking_payment_confirmed',
             provider_id: null,
             customer_id: customerId,
@@ -136,4 +178,26 @@ export async function sendBookingPaymentConfirmedNotifications(
             is_read: false,
         },
     ]);
+
+    await sendProviderPush({
+        serviceClient: admin,
+        providerId,
+        input: {
+            title: 'Booking Payment Received',
+            body: providerBody,
+            route: '/bookings',
+            type: 'booking',
+        },
+    });
+
+    await sendCustomerPush({
+        serviceClient: admin,
+        customerId,
+        input: {
+            title: 'Payment Confirmed',
+            body: customerBody,
+            route: '/bookings',
+            type: 'booking',
+        },
+    });
 }
