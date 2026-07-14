@@ -1,7 +1,7 @@
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { hasBookingCustomerRefund, resolveBookingServiceId, resolveBookingServiceImage } from '@/lib/booking-display';
 import { resolveServiceImage, resolveServiceName } from '@/lib/booking-pricing';
-import { BOOKING_PAYMENT_STATUS, resolveBookingPaymentStatus } from '@/lib/booking-status';
+import { BOOKING_PAYMENT_STATUS, resolveBookingPaymentStatus, type BookedServiceStatus } from '@/lib/booking-status';
 import { getSupabase } from '@/lib/supabaseClient';
 import { readAuthUserId } from '@/lib/wallet-transaction-user';
 
@@ -432,14 +432,14 @@ export const createBooking = createAsyncThunk<
 
 export const initiateBookingPayment = createAsyncThunk<
     InitBookingPaymentResponse,
-    { bookingId: string },
+    { bookingId: string; phone_number?: string },
     { rejectValue: string }
->('bookedService/initiateBookingPayment', async ({ bookingId }, { rejectWithValue }) => {
+>('bookedService/initiateBookingPayment', async ({ bookingId, phone_number }, { rejectWithValue }) => {
     try {
         const response = await fetch('/api/admin/bookings/payment', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ bookingId }),
+            body: JSON.stringify({ bookingId, phone_number }),
         });
 
         if (!response.ok) {
@@ -499,6 +499,47 @@ export const deleteBooking = createAsyncThunk<
         return bookingId;
     } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : 'Failed to delete booking';
+        return rejectWithValue(msg);
+    }
+});
+
+export const updateBookingStatus = createAsyncThunk<
+    {
+        bookingId: string;
+        status: BookedServiceStatus;
+        provider_payout?:
+            | { skipped: true; reason: string }
+            | { skipped: false; amount: number; walletAmount: number }
+            | null;
+    },
+    { bookingId: string; status: BookedServiceStatus },
+    { rejectValue: string }
+>('bookedService/updateBookingStatus', async ({ bookingId, status }, { rejectWithValue }) => {
+    try {
+        const response = await fetch(`/api/admin/bookings/${encodeURIComponent(bookingId)}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status }),
+        });
+
+        if (!response.ok) {
+            return rejectWithValue(await parseApiError(response));
+        }
+
+        const payload = (await response.json()) as {
+            provider_payout?:
+                | { skipped: true; reason: string }
+                | { skipped: false; amount: number; walletAmount: number }
+                | null;
+        };
+
+        return {
+            bookingId,
+            status,
+            provider_payout: payload.provider_payout ?? null,
+        };
+    } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : 'Failed to update booking status';
         return rejectWithValue(msg);
     }
 });
@@ -574,6 +615,18 @@ const bookedServiceSlice = createSlice({
             })
             .addCase(deleteBooking.rejected, (state, action) => {
                 state.error = (action.payload as string) || 'Failed to delete booking';
+            })
+            .addCase(updateBookingStatus.fulfilled, (state, action) => {
+                const { bookingId, status } = action.payload;
+                state.items = state.items.map((item) =>
+                    item.id === bookingId ? { ...item, status } : item
+                );
+                if (state.single?.id === bookingId) {
+                    state.single = { ...state.single, status };
+                }
+            })
+            .addCase(updateBookingStatus.rejected, (state, action) => {
+                state.error = (action.payload as string) || 'Failed to update booking status';
             });
     },
 });

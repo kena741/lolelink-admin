@@ -137,7 +137,7 @@ export async function POST(request: Request) {
                 return NextResponse.json({ error: walletResult.error }, { status: walletResult.status });
             }
 
-            await upsertBookingPaymentRecord(
+            const attachedPaymentId = await upsertBookingPaymentRecord(
                 supabaseAdmin,
                 created as { id: string; customer_id?: string; totalAmount?: string; price?: string },
                 {
@@ -148,6 +148,11 @@ export async function POST(request: Request) {
                     status: BOOKING_PAYMENT_STATUS.COMPLETED,
                 }
             );
+
+            await supabaseAdmin
+                .from('booked_service')
+                .update({ payment_id: attachedPaymentId })
+                .eq('id', bookingId);
 
             await sendBookingPaymentConfirmedNotifications(supabaseAdmin, {
                 bookingId,
@@ -161,17 +166,7 @@ export async function POST(request: Request) {
         if (paymentMode === 'mark_paid') {
             const paymentId = String(row.payment_id ?? crypto.randomUUID());
 
-            await supabaseAdmin
-                .from('booked_service')
-                .update({
-                    payment_status: BOOKING_PAYMENT_STATUS.COMPLETED,
-                    paymentCompleted: true,
-                    status: BOOKING_STATUS.ADMIN_PAID,
-                    payment_id: paymentId,
-                })
-                .eq('id', bookingId);
-
-            await upsertBookingPaymentRecord(
+            const attachedPaymentId = await upsertBookingPaymentRecord(
                 supabaseAdmin,
                 created as { id: string; customer_id?: string; totalAmount?: string; price?: string },
                 {
@@ -182,6 +177,16 @@ export async function POST(request: Request) {
                     status: BOOKING_PAYMENT_STATUS.COMPLETED,
                 }
             );
+
+            await supabaseAdmin
+                .from('booked_service')
+                .update({
+                    payment_status: BOOKING_PAYMENT_STATUS.COMPLETED,
+                    paymentCompleted: true,
+                    status: BOOKING_STATUS.ADMIN_PAID,
+                    payment_id: attachedPaymentId,
+                })
+                .eq('id', bookingId);
 
             await sendBookingPaymentConfirmedNotifications(supabaseAdmin, {
                 bookingId,

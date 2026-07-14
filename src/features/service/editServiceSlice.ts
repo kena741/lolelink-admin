@@ -79,6 +79,7 @@ export function mapServiceRowToEditServiceModel(
         provider_id,
         providerName: providerName || undefined,
         serviceName: String(row.serviceName ?? row.name ?? ''),
+        address: typeof row.address === 'string' ? row.address : '',
         description: (row.description as string | null | undefined) ?? '',
         price: row.price as string | number | undefined,
         duration: row.duration as string | undefined,
@@ -95,6 +96,15 @@ export function mapServiceRowToEditServiceModel(
         subCategoryId: subCategoryId || undefined,
         categoryModel: categoryModel as CategoryModel | undefined,
         subCategoryModel: subCategoryModel as SubCategoryModel | undefined,
+        location: (() => {
+            const loc = readRecord(row.location);
+            const lat = loc?.latitude;
+            const lng = loc?.longitude;
+            if (typeof lat === 'number' && typeof lng === 'number') {
+                return { latitude: lat, longitude: lng };
+            }
+            return undefined;
+        })(),
     };
 }
 export type ServiceModel = {
@@ -225,6 +235,7 @@ export const updateService = createAsyncThunk<ServiceModel, UpdateServiceArgs, {
             const s = rest as ServiceModel & { subCategoryModel?: SubCategoryModel };
             const fields: (keyof ServiceModel)[] = [
                 'serviceName',
+                'address',
                 'categoryModel',
                 'categoryId',
                 'subCategoryModel',
@@ -240,6 +251,7 @@ export const updateService = createAsyncThunk<ServiceModel, UpdateServiceArgs, {
                 'feature',
                 'approved',
                 'serviceLocationMode',
+                'location',
                 'video',
             ];
 

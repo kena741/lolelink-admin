@@ -50,3 +50,11 @@ export function loadGoogleMapsPlaces(): Promise<void> {
 }
 
 export const ADDIS_ABABA_CENTER = { lat: 9.032, lng: 38.7469 };
+
+/** Approximate city bbox for Places autocomplete strictBounds. */
+export const ADDIS_ABABA_BOUNDS = {
+    south: 8.83,
+    west: 38.65,
+    north: 9.12,
+    east: 38.92,
+};

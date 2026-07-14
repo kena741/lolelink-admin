@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
-import { Trash2 } from 'lucide-react';
+import { Check, ChevronDown, Loader2, Trash2 } from 'lucide-react';
 import {
     getBookingCustomerDisplayName,
     getBookingProviderDisplayName,
@@ -23,9 +23,19 @@ import {
     sanitizePersonDisplayName,
 } from '@/lib/booking-display';
 import { getSupabase } from '@/lib/supabaseClient';
-import { formatBookingJobStatusLabel } from '@/lib/booking-status';
-import { getBookingJobStatusTone } from '@/lib/admin-status-badge';
+import {
+    BOOKING_JOB_STATUS_OPTIONS,
+    formatBookingJobStatusLabel,
+    type BookedServiceStatus,
+} from '@/lib/booking-status';
+import { getAdminStatusToneClasses, getBookingJobStatusTone } from '@/lib/admin-status-badge';
 import { AdminStatusBadge } from '@/components/admin/data-table';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Sheet, SheetBody, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { BookingIssuesPanel } from './BookingIssuesPanel';
 
@@ -63,6 +73,60 @@ function JobStatusBadge({ status }: { status?: string }) {
     );
 }
 
+function JobStatusDropdown({
+    status,
+    disabled,
+    updating,
+    onChange,
+}: {
+    status?: string;
+    disabled?: boolean;
+    updating?: boolean;
+    onChange: (status: BookedServiceStatus) => void;
+}) {
+    const current = status ?? 'pending';
+    const toneClass = getAdminStatusToneClasses(getBookingJobStatusTone(current));
+
+    return (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild disabled={disabled || updating}>
+                <button
+                    type="button"
+                    className={`inline-flex h-9 items-center gap-1.5 rounded-md px-2.5 text-[13px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-info focus-visible:ring-offset-2 disabled:opacity-60 ${toneClass}`}
+                    aria-label="Change job status"
+                >
+                    {updating ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : null}
+                    {formatBookingJobStatusLabel(current)}
+                    <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+                </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="z-[110] w-56">
+                {BOOKING_JOB_STATUS_OPTIONS.map((option) => {
+                    const selected = option.value === current;
+                    return (
+                        <DropdownMenuItem
+                            key={option.value}
+                            onSelect={() => {
+                                if (!selected) onChange(option.value);
+                            }}
+                            className="justify-between gap-3"
+                        >
+                            <span
+                                className={`inline-flex rounded-md px-2 py-0.5 text-[12px] font-semibold ${getAdminStatusToneClasses(getBookingJobStatusTone(option.value))}`}
+                            >
+                                {option.label}
+                            </span>
+                            {selected ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
+                        </DropdownMenuItem>
+                    );
+                })}
+            </DropdownMenuContent>
+        </DropdownMenu>
+    );
+}
+
 export function BookingDetailModal({
     open,
     booking,
@@ -72,6 +136,10 @@ export function BookingDetailModal({
     onDelete,
     deleting,
     canDelete,
+    onVerifyPayment,
+    verifyingPayment = false,
+    onUpdateStatus,
+    updatingStatus = false,
 }: {
     open: boolean;
     booking: BookedService | null;
@@ -81,10 +149,22 @@ export function BookingDetailModal({
     onDelete: (id: string) => Promise<void>;
     deleting: boolean;
     canDelete: boolean;
+    onVerifyPayment?: (id: string) => Promise<void>;
+    verifyingPayment?: boolean;
+    onUpdateStatus?: (id: string, status: BookedServiceStatus) => Promise<void>;
+    updatingStatus?: boolean;
 }) {
     const [walletRows, setWalletRows] = useState<WalletLedgerRow[]>([]);
     const [walletLoading, setWalletLoading] = useState(false);
     const issuesSectionRef = useRef<HTMLElement>(null);
+
+    const canVerifyChapa =
+        Boolean(onVerifyPayment) &&
+        Boolean(booking?.id) &&
+        booking?.paymentCompleted !== true &&
+        (booking?.payment_status ?? '') === 'pending_payment';
+
+    const canEditStatus = Boolean(onUpdateStatus) && Boolean(booking?.id);
 
     useEffect(() => {
         if (!open || !booking?.id) {
@@ -268,7 +348,22 @@ export function BookingDetailModal({
 
                                 <SectionCard title="Job lifecycle">
                                     <div className="space-y-3">
-                                        <DetailField label="Job status" value={<JobStatusBadge status={booking.status} />} />
+                                        <DetailField
+                                            label="Job status"
+                                            value={
+                                                canEditStatus && onUpdateStatus && booking ? (
+                                                    <JobStatusDropdown
+                                                        status={booking.status}
+                                                        updating={updatingStatus}
+                                                        onChange={(status) => {
+                                                            void onUpdateStatus(booking.id, status);
+                                                        }}
+                                                    />
+                                                ) : (
+                                                    <JobStatusBadge status={booking.status} />
+                                                )
+                                            }
+                                        />
                                         <DetailField label="Booking date" value={formatBookingDateTime(booking.bookingDate)} />
                                         <DetailField label="Created" value={formatBookingDateTime(booking.createdAt)} />
                                         <DetailField label="Started" value={formatBookingDateTime(booking.startTime)} />
@@ -349,6 +444,16 @@ export function BookingDetailModal({
             </SheetBody>
 
             <SheetFooter>
+                    {booking && canVerifyChapa && onVerifyPayment && (
+                        <button
+                            type="button"
+                            onClick={() => void onVerifyPayment(booking.id)}
+                            disabled={verifyingPayment}
+                            className="inline-flex h-10 items-center rounded-md bg-accent-primary px-4 text-[14px] font-medium text-text-inverse hover:bg-accent-primary-hover disabled:opacity-50"
+                        >
+                            {verifyingPayment ? 'Verifying…' : 'Verify Chapa payment'}
+                        </button>
+                    )}
                     {booking && canDelete && (
                         <button
                             type="button"

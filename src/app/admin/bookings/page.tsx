@@ -1,7 +1,7 @@
 "use client";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAppDispatch, useAppSelector } from "../../../store/hooks";
-import { fetchAllBookings, fetchBookingById, clearSingle, deleteBooking, verifyBookingPayment, getBookingCustomerDisplayName, getBookingProviderDisplayName } from "../../../features/bookedService/bookedServiceSlice";
+import { fetchAllBookings, fetchBookingById, clearSingle, deleteBooking, verifyBookingPayment, updateBookingStatus, getBookingCustomerDisplayName, getBookingProviderDisplayName } from "../../../features/bookedService/bookedServiceSlice";
 import { Plus, RefreshCw } from "lucide-react";
 import AuthGuard from "@/components/AuthGuard";
 import AdminPageHeader, { adminHeaderButtonClassName } from "@/components/AdminPageHeader";
@@ -25,6 +25,12 @@ import {
     getBookingAnomalies,
     resolveBookingServiceName,
 } from "@/lib/booking-display";
+import type { BookedServiceStatus } from "@/lib/booking-status";
+
+interface ToastState {
+    message: string;
+    variant: 'success' | 'error' | 'warning';
+}
 
 function DebugJsonBlock({ title, value }: { title: string; value: unknown }) {
     return (
@@ -65,11 +71,20 @@ const BookingDebugModal: React.FC<{
 
     const needsChapaVerify = useMemo(() => {
         const row = debugData?.booked_service;
+        const payment = debugData?.payments;
         if (!row) return false;
-        const paymentType = String(row.paymentType ?? '').toLowerCase();
-        const paymentStatus = String(row.payment_status ?? '');
         const completed = row.paymentCompleted === true;
-        return paymentType === 'chapa' && !completed && paymentStatus === 'pending_payment';
+        const paymentStatus = String(row.payment_status ?? '');
+        if (completed || paymentStatus === 'payment_completed') return false;
+
+        const paymentType = String(row.paymentType ?? '').toLowerCase();
+        const paymentMethod = String(payment?.payment_method ?? payment?.provider ?? '').toLowerCase();
+        const hasChapaPending =
+            paymentType === 'chapa' ||
+            paymentMethod === 'chapa' ||
+            Boolean(payment?.provider_ref);
+
+        return hasChapaPending && paymentStatus === 'pending_payment';
     }, [debugData]);
 
     const reloadDebugData = useCallback(async () => {
@@ -296,6 +311,10 @@ const BookingsPage = () => {
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [debugBookingId, setDebugBookingId] = useState<string | null>(null);
     const [highlightIssues, setHighlightIssues] = useState(false);
+    const [toast, setToast] = useState<ToastState | null>(null);
+    const chapaReturnHandledRef = useRef<string | null>(null);
+    const [verifyingPaymentId, setVerifyingPaymentId] = useState<string | null>(null);
+    const [updatingStatus, setUpdatingStatus] = useState(false);
 
     const debugListRow = useMemo(
         () => items.find((item) => item.id === debugBookingId) ?? null,
@@ -305,6 +324,50 @@ const BookingsPage = () => {
     useEffect(() => {
         // Load all bookings across all providers
         dispatch(fetchAllBookings());
+    }, [dispatch]);
+
+    useEffect(() => {
+        if (!toast) return;
+        const timeoutId = window.setTimeout(() => setToast(null), 3500);
+        return () => window.clearTimeout(timeoutId);
+    }, [toast]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const params = new URLSearchParams(window.location.search);
+        const bookingId = (params.get('chapa_verify') ?? '').trim();
+        if (!bookingId || chapaReturnHandledRef.current === bookingId) return;
+
+        chapaReturnHandledRef.current = bookingId;
+        let cancelled = false;
+
+        async function verifyReturnedChapaPayment() {
+            setToast({ message: 'Confirming Chapa payment…', variant: 'warning' });
+            try {
+                await dispatch(verifyBookingPayment({ bookingId })).unwrap();
+                if (cancelled) return;
+                setToast({ message: 'Chapa payment verified. Booking marked as paid.', variant: 'success' });
+                dispatch(fetchAllBookings());
+                setHighlightIssues(false);
+                setOpen(true);
+                dispatch(fetchBookingById(bookingId));
+            } catch (error: unknown) {
+                if (cancelled) return;
+                const message = error instanceof Error ? error.message : 'Could not verify Chapa payment yet';
+                setToast({ message, variant: 'warning' });
+                setDebugBookingId(bookingId);
+            } finally {
+                params.delete('chapa_verify');
+                const next = params.toString();
+                const path = `${window.location.pathname}${next ? `?${next}` : ''}`;
+                window.history.replaceState({}, '', path);
+            }
+        }
+
+        void verifyReturnedChapaPayment();
+        return () => {
+            cancelled = true;
+        };
     }, [dispatch]);
 
     const onRefresh = () => {
@@ -321,6 +384,49 @@ const BookingsPage = () => {
         setOpen(false);
         setHighlightIssues(false);
         dispatch(clearSingle());
+    };
+
+    const handleVerifyPaymentFromDetail = async (id: string) => {
+        setVerifyingPaymentId(id);
+        try {
+            await dispatch(verifyBookingPayment({ bookingId: id })).unwrap();
+            setToast({ message: 'Chapa payment verified. Booking marked as paid.', variant: 'success' });
+            await dispatch(fetchBookingById(id));
+            dispatch(fetchAllBookings());
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Verification failed';
+            setToast({ message, variant: 'error' });
+        } finally {
+            setVerifyingPaymentId(null);
+        }
+    };
+
+    const handleUpdateBookingStatus = async (id: string, status: BookedServiceStatus) => {
+        setUpdatingStatus(true);
+        try {
+            const result = await dispatch(updateBookingStatus({ bookingId: id, status })).unwrap();
+            const payout = result.provider_payout;
+            if (status === 'completed' && payout && payout.skipped === false) {
+                setToast({
+                    message: `Job completed. Provider wallet credited ETB ${payout.amount.toFixed(2)}.`,
+                    variant: 'success',
+                });
+            } else if (status === 'completed' && payout?.skipped && payout.reason === 'already_credited') {
+                setToast({
+                    message: 'Job completed. Provider payout was already recorded.',
+                    variant: 'success',
+                });
+            } else {
+                setToast({ message: 'Job status updated.', variant: 'success' });
+            }
+            await dispatch(fetchBookingById(id));
+            dispatch(fetchAllBookings());
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Failed to update job status';
+            setToast({ message, variant: 'error' });
+        } finally {
+            setUpdatingStatus(false);
+        }
     };
 
     const handleDeleteBooking = async (id: string) => {
@@ -377,6 +483,21 @@ const BookingsPage = () => {
     return (
         <AuthGuard>
             <AdminShell>
+                        {toast ? (
+                            <div className="fixed right-6 top-6 z-[120]">
+                                <div
+                                    className={`rounded-lg border px-4 py-3 text-sm font-semibold shadow-xl ${
+                                        toast.variant === 'success'
+                                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                            : toast.variant === 'warning'
+                                              ? 'border-amber-200 bg-amber-50 text-amber-800'
+                                              : 'border-red-200 bg-red-50 text-red-700'
+                                    }`}
+                                >
+                                    {toast.message}
+                                </div>
+                            </div>
+                        ) : null}
                         <AdminPageHeader
                             title="Bookings"
                             description="All booked services from customers across providers"
@@ -469,6 +590,10 @@ const BookingsPage = () => {
                     onDelete={handleDeleteBooking}
                     deleting={Boolean(deletingId)}
                     canDelete={canWriteBookings}
+                    onVerifyPayment={canWriteBookings ? handleVerifyPaymentFromDetail : undefined}
+                    verifyingPayment={Boolean(verifyingPaymentId)}
+                    onUpdateStatus={canWriteBookings ? handleUpdateBookingStatus : undefined}
+                    updatingStatus={updatingStatus}
                 />
                 {isLocalhost && (
                     <BookingDebugModal

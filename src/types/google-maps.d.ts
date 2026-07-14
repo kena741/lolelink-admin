@@ -42,14 +42,27 @@ export interface GoogleMapsGeocoder {
 export interface GoogleMapsPlaces {
     Autocomplete: new (
         input: HTMLInputElement,
-        opts?: { fields?: string[]; componentRestrictions?: { country: string | string[] } }
+        opts?: {
+            fields?: string[];
+            componentRestrictions?: { country: string | string[] };
+            bounds?: { south: number; west: number; north: number; east: number };
+            strictBounds?: boolean;
+        }
     ) => GoogleMapsAutocomplete;
 }
 
 export interface GoogleMapsApi {
     Map: new (
         el: HTMLElement,
-        opts: { center: { lat: number; lng: number }; zoom: number; mapTypeControl?: boolean }
+        opts: {
+            center: { lat: number; lng: number };
+            zoom: number;
+            mapTypeControl?: boolean;
+            restriction?: {
+                latLngBounds: { south: number; west: number; north: number; east: number };
+                strictBounds?: boolean;
+            };
+        }
     ) => GoogleMapsMap;
     Marker: new (opts: {
         map: GoogleMapsMap;

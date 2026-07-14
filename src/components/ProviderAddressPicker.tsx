@@ -5,7 +5,7 @@ import { MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ADDIS_ABABA_CENTER, loadGoogleMapsPlaces } from "@/lib/google-maps-loader";
+import { ADDIS_ABABA_BOUNDS, ADDIS_ABABA_CENTER, loadGoogleMapsPlaces } from "@/lib/google-maps-loader";
 import type { ProviderAddressValue } from "@/lib/provider-location";
 import type {
     GoogleMapsAutocomplete,
@@ -79,6 +79,8 @@ export function ProviderAddressPicker({
         const autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, {
             fields: ["formatted_address", "geometry"],
             componentRestrictions: { country: "et" },
+            bounds: ADDIS_ABABA_BOUNDS,
+            strictBounds: true,
         });
         autocompleteRef.current = autocomplete;
 
@@ -130,6 +132,10 @@ export function ProviderAddressPicker({
                 center,
                 zoom: 15,
                 mapTypeControl: false,
+                restriction: {
+                    latLngBounds: ADDIS_ABABA_BOUNDS,
+                    strictBounds: false,
+                },
             });
             markerRef.current = new window.google.maps.Marker({
                 map: mapRef.current,

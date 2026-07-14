@@ -11,7 +11,7 @@ export interface SubCategoryModel { id: string; name: string; categoryId?: strin
 export interface AddServiceModel {
   serviceName: string;
   description: string;
-  address?: string;
+  address: string;
   categoryId: string;
   categoryModel: CategoryModel;
   subCategoryId: string;
@@ -33,7 +33,7 @@ export interface AddServiceModel {
   slug?: string;
   type: string;
   serviceLocationMode: string;
-  location?: {
+  location: {
     latitude: number;
     longitude: number;
   };
@@ -53,6 +53,19 @@ export const addService = createAsyncThunk(
       const discountResult = validateServiceDiscount(args.service.discount);
       if (!discountResult.ok) {
         return thunkAPI.rejectWithValue(discountResult.error);
+      }
+      if (!(args.service.address ?? '').trim()) {
+        return thunkAPI.rejectWithValue('Service address is required');
+      }
+      const lat = args.service.location?.latitude;
+      const lng = args.service.location?.longitude;
+      if (
+        typeof lat !== 'number' ||
+        typeof lng !== 'number' ||
+        !Number.isFinite(lat) ||
+        !Number.isFinite(lng)
+      ) {
+        return thunkAPI.rejectWithValue('Service location is required');
       }
 
       let imageUrls: string[] = args.service.serviceImage || [];

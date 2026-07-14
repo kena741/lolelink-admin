@@ -51,21 +51,23 @@ export async function upsertBookingPaymentRecord(
     }
 ): Promise<string> {
     if (!booking.customer_id) {
-        return params.paymentId ?? '';
+        throw new Error('Booking customer_id is required to create a payment record');
     }
 
     const now = new Date().toISOString();
     const amount = bookingTotalAmount(booking);
 
-    const { data: existing } = await admin
+    const { data: existing, error: existingError } = await admin
         .from('payments')
         .select('id')
         .eq('booking_id', booking.id)
         .maybeSingle();
 
-    const paymentId =
-        params.paymentId ??
-        (existing && (existing as { id?: string }).id ? (existing as { id: string }).id : crypto.randomUUID());
+    if (existingError) throw new Error(existingError.message);
+
+    const existingId =
+        existing && (existing as { id?: string }).id ? (existing as { id: string }).id : null;
+    const paymentId = existingId ?? params.paymentId ?? crypto.randomUUID();
 
     const payload = {
         booking_id: booking.id,
@@ -77,18 +79,20 @@ export async function upsertBookingPaymentRecord(
         provider: params.provider ?? 'chapa',
         provider_ref: params.providerRef,
         updated_at: now,
-        ...(existing ? {} : { created_at: now }),
+        ...(existingId ? {} : { created_at: now }),
     };
 
-    if (existing && (existing as { id?: string }).id) {
-        await admin.from('payments').update(payload).eq('id', (existing as { id: string }).id);
-        return paymentId;
+    if (existingId) {
+        const { error: updateError } = await admin.from('payments').update(payload).eq('id', existingId);
+        if (updateError) throw new Error(updateError.message);
+        return existingId;
     }
 
-    await admin.from('payments').insert({
+    const { error: insertError } = await admin.from('payments').insert({
         id: paymentId,
         ...payload,
     });
+    if (insertError) throw new Error(insertError.message);
 
     return paymentId;
 }
@@ -160,7 +164,6 @@ export async function debitCustomerWalletForBooking(
             payment_status: BOOKING_PAYMENT_STATUS.COMPLETED,
             paymentCompleted: true,
             paymentType: 'wallet',
-            payment_id: paymentId,
         })
         .eq('id', bookingId);
 

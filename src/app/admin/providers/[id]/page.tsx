@@ -34,7 +34,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ProviderAddressPicker } from '@/components/ProviderAddressPicker';
 import { buildProviderUpdatesFromEditForm } from '@/lib/build-provider-updates';
-import { parseProviderLocation } from '@/lib/provider-location';
+import { parseProviderLocation, type ProviderAddressValue } from '@/lib/provider-location';
 import Image from 'next/image';
 import { ProviderWalletHistory } from './ProviderWalletHistory';
 import { SendProviderPushForm } from '@/components/providers/SendProviderPushForm';
@@ -188,6 +188,8 @@ export default function ProviderDetailPage() {
         imageUrl: '',
         price: '',
         address: '',
+        latitude: null as number | null,
+        longitude: null as number | null,
         categoryId: '',
         subCategoryId: '',
         discount: '',
@@ -205,8 +207,14 @@ export default function ProviderDetailPage() {
     // removed: local editVideo state (handled by EditServiceModal)
 
     const resetServiceForm = () => setServiceForm({
-        name: '', description: '', imageUrl: '', price: '', address: '', categoryId: '', subCategoryId: '', discount: '', duration: '', prePayment: false, feature: false, status: true, active: true, type: '', serviceLocationMode: 'onsite'
+        name: '', description: '', imageUrl: '', price: '', address: '', latitude: null, longitude: null, categoryId: '', subCategoryId: '', discount: '', duration: '', prePayment: false, feature: false, status: true, active: true, type: '', serviceLocationMode: 'onsite'
     });
+
+    const serviceAddressValue: ProviderAddressValue = {
+        address: serviceForm.address,
+        latitude: serviceForm.latitude,
+        longitude: serviceForm.longitude,
+    };
 
     const openAddService = () => {
         resetServiceForm();
@@ -260,6 +268,19 @@ export default function ProviderDetailPage() {
             alert('Please select a category and subcategory');
             return;
         }
+        if (!serviceForm.address.trim()) {
+            alert('Service address is required');
+            return;
+        }
+        if (
+            typeof serviceForm.latitude !== 'number' ||
+            typeof serviceForm.longitude !== 'number' ||
+            !Number.isFinite(serviceForm.latitude) ||
+            !Number.isFinite(serviceForm.longitude)
+        ) {
+            alert('Pick a service location on the map or from address suggestions');
+            return;
+        }
         const discountResult = validateServiceDiscount(serviceForm.discount);
         if (!discountResult.ok) {
             alert(discountResult.error);
@@ -271,7 +292,7 @@ export default function ProviderDetailPage() {
         const service = {
             serviceName: (serviceForm.name ?? '').toString().trim(),
             description: (serviceForm.description ?? '').toString().trim(),
-            address: (serviceForm.address ?? '').toString().trim(),
+            address: serviceForm.address.trim(),
             categoryId: serviceForm.categoryId,
             categoryModel: {
                 id: serviceForm.categoryId,
@@ -300,7 +321,11 @@ export default function ProviderDetailPage() {
             slug: undefined,
             type: (serviceForm.type ?? '').toString().trim(),
             serviceLocationMode: (serviceForm.serviceLocationMode ?? 'onsite').toString(),
-            location: undefined,
+            location: {
+                latitude: serviceForm.latitude,
+                longitude: serviceForm.longitude,
+            },
+            // ponytail: skip geohash position; admin + booking distance use location only
             position: undefined,
         } as import('@/features/service/addServiceSlice').AddServiceModel;
 
@@ -972,10 +997,19 @@ export default function ProviderDetailPage() {
                                         <Label htmlFor="svc-name">Service Name</Label>
                                         <Input id="svc-name" name="name" value={serviceForm.name} onChange={onServiceChange} placeholder="e.g. Home Cleaning" />
                                     </div>
-                                    <div className="grid gap-1.5">
-                                        <Label htmlFor="svc-address">Address (optional)</Label>
-                                        <Input id="svc-address" name="address" value={serviceForm.address} onChange={onServiceChange} placeholder="Street, City" />
-                                    </div>
+                                    <ProviderAddressPicker
+                                        id="svc-address"
+                                        label="Service address"
+                                        value={serviceAddressValue}
+                                        onChange={(next) =>
+                                            setServiceForm((f) => ({
+                                                ...f,
+                                                address: next.address,
+                                                latitude: next.latitude,
+                                                longitude: next.longitude,
+                                            }))
+                                        }
+                                    />
                                     <div className="grid gap-1.5">
                                         <Label htmlFor="svc-image">Images</Label>
                                         <input id="svc-image" aria-label="Upload service images" type="file" accept="image/*" multiple onChange={(e) => onAddImageFiles(e.target.files)} className="block w-full text-sm text-gray-700 file:mr-4 file:rounded-md file:border file:border-gray-200 file:bg-white file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-gray-700 hover:file:bg-gray-50" />

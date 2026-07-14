@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { formatBookingJobStatusLabel } from '@/lib/booking-status';
 import { sendProviderPush } from '@/lib/push/sendProviderPush';
 import { sendCustomerPush } from '@/lib/push/sendCustomerPush';
 
@@ -200,4 +201,164 @@ export async function sendBookingPaymentConfirmedNotifications(
             type: 'booking',
         },
     });
+}
+
+function statusNotificationCopy(input: {
+    status: string;
+    serviceName: string;
+    payoutAmount?: number;
+}): {
+    providerTitle: string;
+    providerBody: string;
+    customerTitle: string;
+    customerBody: string;
+    type: string;
+} {
+    const serviceName = input.serviceName || 'Service';
+    const statusLabel = formatBookingJobStatusLabel(input.status);
+
+    if (input.status === 'completed') {
+        const payoutLabel =
+            typeof input.payoutAmount === 'number' && input.payoutAmount > 0
+                ? ` ETB ${input.payoutAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} was credited to your wallet.`
+                : '';
+        return {
+            providerTitle: 'Booking Completed',
+            providerBody: `Booking for ${serviceName} was marked completed by admin.${payoutLabel}`,
+            customerTitle: 'Booking Completed',
+            customerBody: `Your booking for ${serviceName} has been completed.`,
+            type: 'booking_completed',
+        };
+    }
+
+    if (input.status === 'rejected') {
+        return {
+            providerTitle: 'Booking Rejected',
+            providerBody: `Booking for ${serviceName} was rejected by admin.`,
+            customerTitle: 'Booking Rejected',
+            customerBody: `Your booking for ${serviceName} was rejected.`,
+            type: 'booking_rejected',
+        };
+    }
+
+    if (input.status === 'accepted') {
+        return {
+            providerTitle: 'Booking Accepted',
+            providerBody: `Booking for ${serviceName} was marked accepted by admin.`,
+            customerTitle: 'Booking Accepted',
+            customerBody: `Your booking for ${serviceName} has been accepted.`,
+            type: 'booking_accepted',
+        };
+    }
+
+    return {
+        providerTitle: 'Booking Updated',
+        providerBody: `Booking for ${serviceName} status is now ${statusLabel}.`,
+        customerTitle: 'Booking Updated',
+        customerBody: `Your booking for ${serviceName} is now ${statusLabel}.`,
+        type: 'booking_status_updated',
+    };
+}
+
+/** Who gets push + in-app rows for a given admin status change. */
+export function defaultBookingStatusNotifyTargets(status: string): {
+    notifyProvider: boolean;
+    notifyCustomer: boolean;
+} {
+    switch (status) {
+        case 'completed':
+        case 'rejected':
+        case 'accepted':
+        case 'on_the_way':
+        case 'in_progress':
+        case 'hold':
+        case 'pending_approval':
+            return { notifyProvider: true, notifyCustomer: true };
+        case 'pending':
+        case 'admin_paid':
+            return { notifyProvider: true, notifyCustomer: false };
+        case 'pending_extra_payment':
+            return { notifyProvider: false, notifyCustomer: true };
+        default:
+            return { notifyProvider: true, notifyCustomer: true };
+    }
+}
+
+export async function sendBookingStatusUpdatedNotifications(
+    admin: SupabaseClient,
+    input: {
+        bookingId: string;
+        providerId?: string | null;
+        customerId?: string | null;
+        serviceName: string;
+        status: string;
+        payoutAmount?: number;
+        notifyProvider?: boolean;
+        notifyCustomer?: boolean;
+    }
+): Promise<void> {
+    const defaults = defaultBookingStatusNotifyTargets(input.status);
+    const notifyProvider = input.notifyProvider ?? defaults.notifyProvider;
+    const notifyCustomer = input.notifyCustomer ?? defaults.notifyCustomer;
+    const providerId = (input.providerId ?? '').trim();
+    const customerId = (input.customerId ?? '').trim();
+
+    const copy = statusNotificationCopy({
+        status: input.status,
+        serviceName: input.serviceName,
+        payoutAmount: input.payoutAmount,
+    });
+
+    const rows = [];
+    if (notifyProvider && providerId) {
+        rows.push({
+            title: copy.providerTitle,
+            description: copy.providerBody,
+            type: copy.type,
+            provider_id: providerId,
+            customer_id: null,
+            booking_id: input.bookingId,
+            is_read: false,
+        });
+    }
+    if (notifyCustomer && customerId) {
+        rows.push({
+            title: copy.customerTitle,
+            description: copy.customerBody,
+            type: copy.type,
+            provider_id: null,
+            customer_id: customerId,
+            booking_id: input.bookingId,
+            is_read: false,
+        });
+    }
+    if (rows.length > 0) {
+        await admin.from('notification').insert(rows);
+    }
+
+    if (notifyProvider && providerId) {
+        await sendProviderPush({
+            serviceClient: admin,
+            providerId,
+            input: {
+                title: copy.providerTitle,
+                body: copy.providerBody,
+                route: '/bookings',
+                type: 'booking',
+            },
+        });
+    }
+
+    if (notifyCustomer && customerId) {
+        await sendCustomerPush({
+            serviceClient: admin,
+            customerId,
+            input: {
+                title: copy.customerTitle,
+                body: copy.customerBody,
+                route: '/bookings',
+                type: 'booking',
+            },
+        });
+    }
 }

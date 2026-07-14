@@ -49,6 +49,18 @@ const BOOKING_JOB_STATUS_LABELS: Record<BookedServiceStatus, string> = {
     admin_paid: 'Admin paid',
 };
 
+export const BOOKING_JOB_STATUS_OPTIONS: ReadonlyArray<{
+    value: BookedServiceStatus;
+    label: string;
+}> = (Object.keys(BOOKING_JOB_STATUS_LABELS) as BookedServiceStatus[]).map((value) => ({
+    value,
+    label: BOOKING_JOB_STATUS_LABELS[value],
+}));
+
+export function isBookedServiceStatus(value: string): value is BookedServiceStatus {
+    return value in BOOKING_JOB_STATUS_LABELS;
+}
+
 const BOOKING_PAYMENT_STATUS_LABELS: Record<BookingPaymentStatus, string> = {
     pending_payment: 'Unpaid',
     payment_completed: 'Paid',

@@ -16,6 +16,8 @@ import {
 import { fetchAllCustomers } from '@/features/customer/customerSlice';
 import { fetchServices } from '@/features/service/approveServicesSlice';
 import { fetchCoupons, type Coupon } from '@/features/coupon/couponSlice';
+import { fetchCategories } from '@/features/category/categorySlice';
+import { fetchSubCategories } from '@/features/subcategory/subcategorySlice';
 import { computeBookingAmounts, resolveServiceUnitPrice } from '@/lib/booking-pricing';
 import { BOOKING_PAYMENT_STATUS, resolveInitialBookingStatus } from '@/lib/booking-status';
 import {
@@ -27,14 +29,21 @@ import {
 } from '@/lib/booking-chapa-debug-preview';
 import { formatCouponDiscountLabel, formatCouponSelectDescription, formatCouponSelectLabel } from '@/lib/coupon-format';
 import { formatServiceDiscountLabel } from '@/lib/service-discount';
+import { formatBookingAmount } from '@/lib/booking-display';
+import { distanceKm, parseProviderLocation, type ProviderAddressValue } from '@/lib/provider-location';
 import type { Customer } from '@/features/customer/customerSlice';
 import { SearchSelect, type SearchSelectOption } from '@/components/SearchSelect';
+import { ProviderAddressPicker } from '@/components/ProviderAddressPicker';
 import { useIsLocalhost } from '@/hooks/use-is-localhost';
 
 interface BookingServiceRow {
     id: string;
     provider_id?: string;
     providerName?: string;
+    providerLocation?: Record<string, unknown> | null;
+    location?: Record<string, unknown> | null;
+    categoryId?: string;
+    subCategoryId?: string;
     serviceName?: string;
     name?: string;
     price?: string | number;
@@ -186,6 +195,17 @@ function customerPhone(customer: Customer): string {
     return customer.phoneNumber || customer.mobile_number || customer.phone || '';
 }
 
+/** Normalize ET phone to 09xxxxxxxx for Chapa. */
+function normalizeChapaPhone(raw: string): string | null {
+    const digits = raw.replace(/\D/g, '');
+    if (digits.length === 10 && digits.startsWith('09')) return digits;
+    if (digits.length === 9 && digits.startsWith('9')) return `0${digits}`;
+    if (digits.length === 12 && digits.startsWith('251') && digits[3] === '9') {
+        return `0${digits.slice(3)}`;
+    }
+    return null;
+}
+
 function customerName(customer: Customer): string {
     const first = customer.first_name || '';
     const last = customer.last_name || '';
@@ -210,6 +230,24 @@ function isServiceSelectable(service: BookingServiceRow): boolean {
     return resolveServiceUnitPrice(service.price) > 0;
 }
 
+function serviceCoords(service: BookingServiceRow): { latitude: number; longitude: number } | null {
+    const fromService = parseProviderLocation(service.location);
+    if (
+        typeof fromService.latitude === 'number' &&
+        typeof fromService.longitude === 'number'
+    ) {
+        return { latitude: fromService.latitude, longitude: fromService.longitude };
+    }
+    const fromProvider = parseProviderLocation(service.providerLocation);
+    if (
+        typeof fromProvider.latitude === 'number' &&
+        typeof fromProvider.longitude === 'number'
+    ) {
+        return { latitude: fromProvider.latitude, longitude: fromProvider.longitude };
+    }
+    return null;
+}
+
 function isCouponSelectable(coupon: Coupon): boolean {
     if (coupon.active === false) return false;
     if (coupon.expiredAt) {
@@ -225,19 +263,28 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
     const { customers, loading: customersLoading } = useAppSelector((state) => state.customer);
     const { services: allServicesRaw, loading: servicesLoading } = useAppSelector((state) => state.approveServices);
     const { coupons, loading: couponsLoading } = useAppSelector((state) => state.coupon);
+    const { categories, loading: categoriesLoading } = useAppSelector((state) => state.category);
+    const { subCategories, loading: subCategoriesLoading } = useAppSelector((state) => state.subcategory);
 
     const [step, setStep] = useState<WizardStep>('details');
+    const [categoryId, setCategoryId] = useState('');
+    const [subCategoryId, setSubCategoryId] = useState('');
     const [providerId, setProviderId] = useState('');
     const [serviceId, setServiceId] = useState('');
     const [customerId, setCustomerId] = useState('');
     const [bookingDate, setBookingDate] = useState('');
     const [quantity, setQuantity] = useState('1');
     const [description, setDescription] = useState('');
-    const [address, setAddress] = useState('');
+    const [customerAddress, setCustomerAddress] = useState<ProviderAddressValue>({
+        address: '',
+        latitude: null,
+        longitude: null,
+    });
     const [locality, setLocality] = useState('');
     const [landmark, setLandmark] = useState('');
     const [couponId, setCouponId] = useState('');
     const [paymentPath, setPaymentPath] = useState<PaymentPath>('pay_later');
+    const [chapaPhone, setChapaPhone] = useState('');
     const [createdBookingId, setCreatedBookingId] = useState('');
     const [chapaCheckoutUrl, setChapaCheckoutUrl] = useState('');
     const [loading, setLoading] = useState(false);
@@ -322,6 +369,8 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
         dispatch(fetchServices());
         dispatch(fetchAllCustomers());
         dispatch(fetchCoupons());
+        dispatch(fetchCategories());
+        dispatch(fetchSubCategories());
     }, [dispatch, open]);
 
     useEffect(() => {
@@ -346,15 +395,54 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
         [allServices]
     );
 
+    const categoryFilteredServices = useMemo(() => {
+        if (!categoryId || !subCategoryId) return [];
+        return selectableServices.filter(
+            (service) =>
+                service.categoryId === categoryId && service.subCategoryId === subCategoryId
+        );
+    }, [selectableServices, categoryId, subCategoryId]);
+
+    const servicesForSelect = useMemo(() => {
+        const customerLat = customerAddress.latitude;
+        const customerLng = customerAddress.longitude;
+        const hasCustomerCoords =
+            typeof customerLat === 'number' &&
+            typeof customerLng === 'number' &&
+            Number.isFinite(customerLat) &&
+            Number.isFinite(customerLng);
+
+        if (!hasCustomerCoords) return categoryFilteredServices;
+
+        return [...categoryFilteredServices].sort((a, b) => {
+            const aCoords = serviceCoords(a);
+            const bCoords = serviceCoords(b);
+            if (!aCoords && !bCoords) return 0;
+            if (!aCoords) return 1;
+            if (!bCoords) return -1;
+            return (
+                distanceKm(customerLat, customerLng, aCoords.latitude, aCoords.longitude) -
+                distanceKm(customerLat, customerLng, bCoords.latitude, bCoords.longitude)
+            );
+        });
+    }, [categoryFilteredServices, customerAddress.latitude, customerAddress.longitude]);
+
     const activeCoupons = useMemo(
         () => coupons.filter(isCouponSelectable),
         [coupons]
     );
 
     const selectedService = useMemo(
-        () => selectableServices.find((service) => service.id === serviceId),
-        [selectableServices, serviceId]
+        () => servicesForSelect.find((service) => service.id === serviceId),
+        [servicesForSelect, serviceId]
     );
+
+    useEffect(() => {
+        if (!serviceId) return;
+        if (servicesForSelect.some((service) => service.id === serviceId)) return;
+        setServiceId('');
+        setProviderId('');
+    }, [servicesForSelect, serviceId]);
 
     const selectedProviderName = selectedService?.providerName || selectedService?.provider_id || '';
 
@@ -381,25 +469,71 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
     }, [selectedService, quantity, selectedCoupon]);
 
     const customerWalletBalance = selectedCustomer?.wallet_amount ?? 0;
+    const walletCanCover =
+        priceSummary !== null && customerWalletBalance >= priceSummary.totalAmount;
     const walletInsufficient =
-        paymentPath === 'wallet' &&
-        priceSummary !== null &&
-        customerWalletBalance < priceSummary.totalAmount;
+        paymentPath === 'wallet' && priceSummary !== null && !walletCanCover;
+    const chapaPhoneNormalized = normalizeChapaPhone(chapaPhone);
+    const chapaPhoneInvalid = paymentPath === 'pay_now' && !chapaPhoneNormalized;
+
+    const categoryOptions = useMemo<SearchSelectOption[]>(
+        () =>
+            categories
+                .filter((category) => category.active !== false)
+                .map((category) => ({
+                    value: category.id,
+                    label: category.categoryName,
+                })),
+        [categories]
+    );
+
+    const subCategoryOptions = useMemo<SearchSelectOption[]>(
+        () =>
+            subCategories
+                .filter((sub) => sub.categoryId === categoryId)
+                .map((sub) => ({
+                    value: sub.id,
+                    label: sub.subCategoryName,
+                })),
+        [subCategories, categoryId]
+    );
 
     const serviceOptions = useMemo<SearchSelectOption[]>(
-        () =>
-            selectableServices.map((service) => ({
-                value: service.id,
-                label: serviceLabel(service),
-                description: [
+        () => {
+            const customerLat = customerAddress.latitude;
+            const customerLng = customerAddress.longitude;
+            const hasCustomerCoords =
+                typeof customerLat === 'number' &&
+                typeof customerLng === 'number' &&
+                Number.isFinite(customerLat) &&
+                Number.isFinite(customerLng);
+
+            return servicesForSelect.map((service) => {
+                const parts = [
                     service.providerName || service.provider_id,
-                    `ETB ${resolveServiceUnitPrice(service.price).toFixed(2)}`,
-                ]
-                    .filter(Boolean)
-                    .join(' · '),
-                searchText: [service.providerName, service.provider_id, service.id].filter(Boolean).join(' '),
-            })),
-        [selectableServices]
+                    formatBookingAmount(resolveServiceUnitPrice(service.price)),
+                ];
+                if (hasCustomerCoords) {
+                    const coords = serviceCoords(service);
+                    if (coords) {
+                        parts.push(
+                            `${distanceKm(customerLat, customerLng, coords.latitude, coords.longitude).toFixed(1)} km`
+                        );
+                    } else {
+                        parts.push('no location');
+                    }
+                }
+                return {
+                    value: service.id,
+                    label: serviceLabel(service),
+                    description: parts.filter(Boolean).join(' · '),
+                    searchText: [service.providerName, service.provider_id, service.id]
+                        .filter(Boolean)
+                        .join(' '),
+                };
+            });
+        },
+        [servicesForSelect, customerAddress.latitude, customerAddress.longitude]
     );
 
     const customerOptions = useMemo<SearchSelectOption[]>(
@@ -426,24 +560,48 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
         [activeCoupons]
     );
 
+    function handleCategoryChange(nextCategoryId: string) {
+        setCategoryId(nextCategoryId);
+        setSubCategoryId('');
+        setServiceId('');
+        setProviderId('');
+    }
+
+    function handleSubCategoryChange(nextSubCategoryId: string) {
+        setSubCategoryId(nextSubCategoryId);
+        setServiceId('');
+        setProviderId('');
+    }
+
     function handleServiceChange(nextServiceId: string) {
         setServiceId(nextServiceId);
-        const service = selectableServices.find((item) => item.id === nextServiceId);
+        const service = servicesForSelect.find((item) => item.id === nextServiceId);
         setProviderId(service?.provider_id ?? '');
+    }
+
+    function handleCustomerAddressChange(next: ProviderAddressValue) {
+        setCustomerAddress(next);
+        if (!locality.trim() && next.address.trim()) {
+            const parts = next.address.split(',').map((part) => part.trim()).filter(Boolean);
+            if (parts.length >= 2) setLocality(parts[1] ?? '');
+        }
     }
 
     function resetState() {
         setStep('details');
+        setCategoryId('');
+        setSubCategoryId('');
         setProviderId('');
         setServiceId('');
         setCustomerId('');
         setQuantity('1');
         setDescription('');
-        setAddress('');
+        setCustomerAddress({ address: '', latitude: null, longitude: null });
         setLocality('');
         setLandmark('');
         setCouponId('');
         setPaymentPath('pay_later');
+        setChapaPhone('');
         setCreatedBookingId('');
         setChapaCheckoutUrl('');
         setLoading(false);
@@ -465,9 +623,11 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
             payment_path: path,
             payment_mode: path,
             bookingAddress: {
-                address: address.trim(),
+                address: customerAddress.address.trim(),
                 locality: locality.trim(),
                 landmark: landmark.trim() || undefined,
+                latitude: customerAddress.latitude ?? undefined,
+                longitude: customerAddress.longitude ?? undefined,
             },
             coupon_id: selectedCoupon?.id,
             coupon_code: selectedCoupon?.code,
@@ -488,7 +648,7 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
         bookingDate,
         quantity,
         description,
-        address,
+        customerAddress,
         locality,
         landmark,
         selectedCoupon,
@@ -505,7 +665,7 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                 bookingDate,
                 quantity,
                 description,
-                address,
+                customerAddress.address,
                 locality,
                 landmark,
                 selectedCoupon,
@@ -520,7 +680,7 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
             bookingDate,
             quantity,
             description,
-            address,
+            customerAddress.address,
             locality,
             landmark,
             selectedCoupon,
@@ -582,13 +742,15 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
     }
 
     function validateDetails(): string | null {
+        if (!categoryId) return 'Select a category';
+        if (!subCategoryId) return 'Select a subcategory';
         if (!serviceId) return 'Select a service';
         if (!providerId) return 'Selected service has no provider';
         if (!customerId) return 'Select a customer';
         const qty = parseInt(quantity, 10);
         if (!Number.isFinite(qty) || qty < 1) return 'Quantity must be at least 1';
         if (!bookingDate) return 'Booking date is required';
-        if (!address.trim()) return 'Booking address is required';
+        if (!customerAddress.address.trim()) return 'Customer address is required';
         if (!locality.trim()) return 'Locality is required';
         return null;
     }
@@ -602,6 +764,11 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
 
         if (path === 'wallet' && walletInsufficient) {
             setError('Customer wallet balance is insufficient for this booking');
+            return;
+        }
+
+        if (path === 'pay_now' && !chapaPhoneNormalized) {
+            setError('Enter a valid Ethiopian mobile number for Chapa (e.g. 09xxxxxxxx)');
             return;
         }
 
@@ -621,9 +788,11 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                     description: description.trim() || undefined,
                     payment_mode: path,
                     bookingAddress: {
-                        address: address.trim(),
+                        address: customerAddress.address.trim(),
                         locality: locality.trim(),
                         landmark: landmark.trim() || undefined,
+                        latitude: customerAddress.latitude ?? undefined,
+                        longitude: customerAddress.longitude ?? undefined,
                     },
                     coupon_id: selectedCoupon?.id,
                     coupon_code: selectedCoupon?.code,
@@ -651,7 +820,10 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                 return;
             }
 
-            const paymentRequestPayload = { bookingId: booking.id };
+            const paymentRequestPayload = {
+                bookingId: booking.id,
+                phone_number: chapaPhoneNormalized ?? undefined,
+            };
             const payment = await dispatch(initiateBookingPayment(paymentRequestPayload)).unwrap();
             const bookingRecord = booking as unknown as Record<string, unknown>;
 
@@ -712,7 +884,12 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
         setError(null);
 
         try {
-            const payment = await dispatch(initiateBookingPayment({ bookingId: createdBookingId })).unwrap();
+            const payment = await dispatch(
+                initiateBookingPayment({
+                    bookingId: createdBookingId,
+                    phone_number: chapaPhoneNormalized ?? undefined,
+                })
+            ).unwrap();
             if (!payment.checkout_url) {
                 setError('Chapa did not return a checkout URL');
                 return;
@@ -752,16 +929,80 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
             {step === 'details' && (
                 <div className="grid gap-4">
                     <SearchSelect
+                        id="booking-category"
+                        label="Category"
+                        value={categoryId}
+                        onChange={handleCategoryChange}
+                        options={categoryOptions}
+                        placeholder="Select category"
+                        searchPlaceholder="Search categories..."
+                        emptyMessage="No categories found"
+                        loading={categoriesLoading}
+                        loadingMessage="Loading categories..."
+                    />
+
+                    <SearchSelect
+                        id="booking-subcategory"
+                        label="Subcategory"
+                        value={subCategoryId}
+                        onChange={handleSubCategoryChange}
+                        options={subCategoryOptions}
+                        placeholder={categoryId ? 'Select subcategory' : 'Select a category first'}
+                        searchPlaceholder="Search subcategories..."
+                        emptyMessage={categoryId ? 'No subcategories found' : 'Select a category first'}
+                        loading={subCategoriesLoading}
+                        loadingMessage="Loading subcategories..."
+                        disabled={!categoryId}
+                    />
+
+                    <ProviderAddressPicker
+                        id="booking-customer-address"
+                        label="Customer address"
+                        value={customerAddress}
+                        onChange={handleCustomerAddressChange}
+                    />
+
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div className="grid gap-1.5">
+                            <Label htmlFor="booking-locality">Locality</Label>
+                            <Input
+                                id="booking-locality"
+                                value={locality}
+                                onChange={(e) => setLocality(e.target.value)}
+                                placeholder="Area or neighborhood"
+                            />
+                        </div>
+                        <div className="grid gap-1.5">
+                            <Label htmlFor="booking-landmark">Landmark (optional)</Label>
+                            <Input
+                                id="booking-landmark"
+                                value={landmark}
+                                onChange={(e) => setLandmark(e.target.value)}
+                                placeholder="Nearby landmark"
+                            />
+                        </div>
+                    </div>
+
+                    <SearchSelect
                         id="booking-service"
                         label="Service"
                         value={serviceId}
                         onChange={handleServiceChange}
                         options={serviceOptions}
-                        placeholder="Search and select service"
+                        placeholder={
+                            !categoryId || !subCategoryId
+                                ? 'Select category and subcategory first'
+                                : 'Search and select service'
+                        }
                         searchPlaceholder="Search service, provider, or price..."
-                        emptyMessage="No services found"
+                        emptyMessage={
+                            !categoryId || !subCategoryId
+                                ? 'Select category and subcategory first'
+                                : 'No services found for this subcategory'
+                        }
                         loading={servicesLoading}
                         loadingMessage="Loading services..."
+                        disabled={!categoryId || !subCategoryId}
                     />
 
                     {selectedService && (
@@ -804,37 +1045,6 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                                 min={1}
                                 value={quantity}
                                 onChange={(e) => setQuantity(e.target.value)}
-                            />
-                        </div>
-                    </div>
-
-                    <div className="grid gap-1.5">
-                        <Label htmlFor="booking-address">Address</Label>
-                        <Input
-                            id="booking-address"
-                            value={address}
-                            onChange={(e) => setAddress(e.target.value)}
-                            placeholder="Street address"
-                        />
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        <div className="grid gap-1.5">
-                            <Label htmlFor="booking-locality">Locality</Label>
-                            <Input
-                                id="booking-locality"
-                                value={locality}
-                                onChange={(e) => setLocality(e.target.value)}
-                                placeholder="Area or neighborhood"
-                            />
-                        </div>
-                        <div className="grid gap-1.5">
-                            <Label htmlFor="booking-landmark">Landmark (optional)</Label>
-                            <Input
-                                id="booking-landmark"
-                                value={landmark}
-                                onChange={(e) => setLandmark(e.target.value)}
-                                placeholder="Nearby landmark"
                             />
                         </div>
                     </div>
@@ -908,84 +1118,147 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
             )}
 
             {step === 'payment_path' && (
-                <div className="grid gap-3 sm:grid-cols-2">
-                    <button
-                        type="button"
-                        onClick={() => setPaymentPath('pay_now')}
-                        className={`rounded-xl border p-4 text-left transition-colors ${
-                            paymentPath === 'pay_now'
-                                ? 'border-indigo-500 bg-indigo-50'
-                                : 'border-border hover:bg-muted/40'
-                        }`}
-                    >
-                        <div className="mb-2 flex items-center gap-2 font-semibold text-card-foreground">
-                            <CreditCard className="h-5 w-5" />
-                            Pay via Chapa now
+                <div className="grid gap-4">
+                    {priceSummary && selectedCustomer && (
+                        <div className="rounded-md border border-border bg-muted/30 px-4 py-3 text-sm">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                <span className="text-muted-foreground">Amount due</span>
+                                <span className="font-semibold tabular-nums text-card-foreground">
+                                    {formatBookingAmount(priceSummary.totalAmount)}
+                                </span>
+                            </div>
+                            <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+                                <span className="text-muted-foreground">Wallet balance</span>
+                                <span className="tabular-nums text-card-foreground">
+                                    {formatBookingAmount(customerWalletBalance)}
+                                    {walletCanCover ? (
+                                        <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-[11px] font-medium text-emerald-800">
+                                            Enough to pay
+                                        </span>
+                                    ) : (
+                                        <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800">
+                                            Use Chapa or pay later
+                                        </span>
+                                    )}
+                                </span>
+                            </div>
                         </div>
-                        <p className="text-sm text-muted-foreground">
-                            Create the booking and open Chapa checkout to collect payment in this session.
-                        </p>
-                    </button>
+                    )}
 
-                    <button
-                        type="button"
-                        onClick={() => setPaymentPath('pay_later')}
-                        className={`rounded-xl border p-4 text-left transition-colors ${
-                            paymentPath === 'pay_later'
-                                ? 'border-indigo-500 bg-indigo-50'
-                                : 'border-border hover:bg-muted/40'
-                        }`}
-                    >
-                        <div className="mb-2 flex items-center gap-2 font-semibold text-card-foreground">
-                            <Clock className="h-5 w-5" />
-                            Customer pays later
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                            Create the booking now. The customer pays through the app after provider acceptance.
-                        </p>
-                    </button>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                        <button
+                            type="button"
+                            onClick={() => setPaymentPath('wallet')}
+                            disabled={!walletCanCover}
+                            className={`rounded-xl border p-4 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                                paymentPath === 'wallet'
+                                    ? 'border-indigo-500 bg-indigo-50'
+                                    : 'border-border hover:bg-muted/40'
+                            }`}
+                        >
+                            <div className="mb-1 flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 font-semibold text-card-foreground">
+                                    <Wallet className="h-5 w-5" />
+                                    Pay from wallet
+                                </div>
+                                {walletCanCover && (
+                                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
+                                        Recommended
+                                    </span>
+                                )}
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                                Debit this customer’s wallet now and mark the booking paid.
+                            </p>
+                            {!walletCanCover && (
+                                <p className="mt-2 text-sm text-amber-700">
+                                    Wallet balance is too low for this booking. Choose Chapa instead.
+                                </p>
+                            )}
+                        </button>
 
-                    <button
-                        type="button"
-                        onClick={() => setPaymentPath('wallet')}
-                        className={`rounded-xl border p-4 text-left transition-colors ${
-                            paymentPath === 'wallet'
-                                ? 'border-indigo-500 bg-indigo-50'
-                                : 'border-border hover:bg-muted/40'
-                        }`}
-                    >
-                        <div className="mb-2 flex items-center gap-2 font-semibold text-card-foreground">
-                            <Wallet className="h-5 w-5" />
-                            Pay from wallet
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                            Debit the customer wallet immediately and mark the booking as paid.
-                        </p>
-                        {walletInsufficient && (
-                            <p className="mt-2 text-sm text-red-600">Insufficient wallet balance.</p>
-                        )}
-                    </button>
+                        <button
+                            type="button"
+                            onClick={() => setPaymentPath('pay_now')}
+                            className={`rounded-xl border p-4 text-left transition-colors ${
+                                paymentPath === 'pay_now'
+                                    ? 'border-indigo-500 bg-indigo-50'
+                                    : 'border-border hover:bg-muted/40'
+                            }`}
+                        >
+                            <div className="mb-1 flex items-center gap-2 font-semibold text-card-foreground">
+                                <CreditCard className="h-5 w-5" />
+                                Pay via Chapa
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                                Always available. Customer pays from their phone using the number below.
+                            </p>
+                        </button>
 
-                    <button
-                        type="button"
-                        onClick={() => setPaymentPath('mark_paid')}
-                        className={`rounded-xl border p-4 text-left transition-colors ${
-                            paymentPath === 'mark_paid'
-                                ? 'border-indigo-500 bg-indigo-50'
-                                : 'border-border hover:bg-muted/40'
-                        }`}
-                    >
-                        <div className="mb-2 flex items-center gap-2 font-semibold text-card-foreground">
-                            <Banknote className="h-5 w-5" />
-                            Mark as paid
+                        <button
+                            type="button"
+                            onClick={() => setPaymentPath('pay_later')}
+                            className={`rounded-xl border p-4 text-left transition-colors ${
+                                paymentPath === 'pay_later'
+                                    ? 'border-indigo-500 bg-indigo-50'
+                                    : 'border-border hover:bg-muted/40'
+                            }`}
+                        >
+                            <div className="mb-1 flex items-center gap-2 font-semibold text-card-foreground">
+                                <Clock className="h-5 w-5" />
+                                Customer pays later
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                                Create unpaid. Customer pays in the app after the provider accepts.
+                            </p>
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => setPaymentPath('mark_paid')}
+                            className={`rounded-xl border p-4 text-left transition-colors ${
+                                paymentPath === 'mark_paid'
+                                    ? 'border-indigo-500 bg-indigo-50'
+                                    : 'border-border hover:bg-muted/40'
+                            }`}
+                        >
+                            <div className="mb-1 flex items-center gap-2 font-semibold text-card-foreground">
+                                <Banknote className="h-5 w-5" />
+                                Mark as paid
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                                Record as paid by admin without Chapa or wallet.
+                            </p>
+                        </button>
+                    </div>
+
+                    {paymentPath === 'pay_now' && (
+                        <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-4">
+                            <Label htmlFor="chapa-phone">Customer phone for Chapa</Label>
+                            <Input
+                                id="chapa-phone"
+                                type="tel"
+                                inputMode="tel"
+                                autoComplete="tel"
+                                value={chapaPhone}
+                                onChange={(e) => setChapaPhone(e.target.value)}
+                                placeholder="09xxxxxxxx"
+                                className="mt-1.5 bg-white"
+                                aria-invalid={chapaPhoneInvalid || undefined}
+                            />
+                            <p className="mt-1.5 text-[13px] text-muted-foreground">
+                                Prefills from the customer profile. They can complete payment on their phone with this number.
+                            </p>
+                            {chapaPhone.trim() && chapaPhoneInvalid && (
+                                <p className="mt-1.5 text-sm text-red-600">
+                                    Enter a valid Ethiopian mobile number (09xxxxxxxx).
+                                </p>
+                            )}
                         </div>
-                        <p className="text-sm text-muted-foreground">
-                            Record the booking as paid by admin without processing Chapa or wallet.
-                        </p>
-                    </button>
+                    )}
 
                     {paymentPath === 'pay_now' && isLocalhost && (
-                        <div className="sm:col-span-2 rounded-xl border border-dashed border-indigo-300 bg-indigo-50/40 p-4">
+                        <div className="rounded-xl border border-dashed border-indigo-300 bg-indigo-50/40 p-4">
                             <button
                                 type="button"
                                 onClick={() => setShowChapaDebug((value) => !value)}
@@ -1135,6 +1408,8 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                                     return;
                                 }
                                 setError(null);
+                                setChapaPhone(selectedCustomer ? customerPhone(selectedCustomer) : '');
+                                setPaymentPath(walletCanCover ? 'wallet' : 'pay_now');
                                 setStep('payment_path');
                             }}
                             disabled={loading}
@@ -1151,7 +1426,7 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                         </Button>
                         <Button
                             onClick={() => void handleCreateBooking(paymentPath)}
-                            disabled={loading || walletInsufficient}
+                            disabled={loading || walletInsufficient || chapaPhoneInvalid}
                         >
                             {loading ? (
                                 <>

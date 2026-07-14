@@ -124,27 +124,33 @@ export async function markBookingPaymentCompleted(
     }
 
     const paymentId = (booking.payment_id ?? '').trim() || crypto.randomUUID();
-    const { error: updateError } = await supabaseAdmin
-        .from('booked_service')
-        .update({
-            payment_status: BOOKING_PAYMENT_STATUS.COMPLETED,
-            paymentCompleted: true,
-            payment_id: paymentId,
-            paymentType: 'chapa',
-        })
-        .eq('id', bookingId);
 
-    if (updateError) {
-        return { ok: false, error: updateError.message, status: 500 };
+    try {
+        const attachedPaymentId = await upsertBookingPaymentRecord(supabaseAdmin, booking, {
+            paymentId,
+            providerRef: txRef,
+            paymentMethod: 'chapa',
+            provider: 'chapa',
+            status: BOOKING_PAYMENT_STATUS.COMPLETED,
+        });
+
+        const { error: updateError } = await supabaseAdmin
+            .from('booked_service')
+            .update({
+                payment_status: BOOKING_PAYMENT_STATUS.COMPLETED,
+                paymentCompleted: true,
+                payment_id: attachedPaymentId,
+                paymentType: 'chapa',
+            })
+            .eq('id', bookingId);
+
+        if (updateError) {
+            return { ok: false, error: updateError.message, status: 500 };
+        }
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Failed to record booking payment';
+        return { ok: false, error: message, status: 500 };
     }
-
-    await upsertBookingPaymentRecord(supabaseAdmin, booking, {
-        paymentId,
-        providerRef: txRef,
-        paymentMethod: 'chapa',
-        provider: 'chapa',
-        status: BOOKING_PAYMENT_STATUS.COMPLETED,
-    });
 
     if (booking.customer_id && booking.provider_id) {
         await sendBookingPaymentConfirmedNotifications(supabaseAdmin, {

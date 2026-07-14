@@ -223,7 +223,7 @@ export async function buildBookingPayload(
             : input.paymentMode === 'wallet'
                 ? 'wallet'
                 : input.paymentMode === 'chapa'
-                    ? ''
+                    ? 'chapa'
                     : '';
 
     const row: Record<string, unknown> = {

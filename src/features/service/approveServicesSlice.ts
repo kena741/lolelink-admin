@@ -59,25 +59,35 @@ export const fetchServices = createAsyncThunk<unknown[], void, { rejectValue: st
 
             const { data: providers, error: providerError } = await getSupabase()
                 .from('provider')
-                .select('id, firstName, lastName, userName')
+                .select('id, firstName, lastName, userName, location')
                 .in('id', providerIds);
 
             if (providerError) {
                 return thunkAPI.rejectWithValue(providerError.message || 'Failed to fetch providers');
             }
 
-            const providerNameById = new Map<string, string>();
+            const providerById = new Map<string, { name: string; location: Record<string, unknown> | null }>();
             for (const p of (providers || []) as Array<Record<string, unknown>>) {
                 const id = typeof p.id === 'string' ? p.id : '';
                 if (!id) continue;
-                const name = resolveProviderName(p);
-                if (name) providerNameById.set(id, name);
+                const location =
+                    p.location && typeof p.location === 'object'
+                        ? (p.location as Record<string, unknown>)
+                        : null;
+                providerById.set(id, {
+                    name: resolveProviderName(p),
+                    location,
+                });
             }
 
             return rows.map((r) => {
                 const pid = typeof r.provider_id === 'string' ? r.provider_id : '';
-                const providerName = pid ? providerNameById.get(pid) ?? '' : '';
-                return { ...r, providerName };
+                const provider = pid ? providerById.get(pid) : undefined;
+                return {
+                    ...r,
+                    providerName: provider?.name ?? '',
+                    providerLocation: provider?.location ?? null,
+                };
             }) as unknown[];
         } catch (err) {
             const msg = err instanceof Error ? err.message : 'Unexpected error';

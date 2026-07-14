@@ -14,10 +14,12 @@ export const runtime = 'nodejs';
 
 interface InitPaymentBody {
     bookingId?: string;
+    phone_number?: string;
 }
 
 interface BookingRow {
     id: string;
+    customer_id?: string | null;
     totalAmount?: number | null;
     price?: number | null;
     payment_status?: string | null;
@@ -26,6 +28,7 @@ interface BookingRow {
     firstName?: string | null;
     lastName?: string | null;
     email?: string | null;
+    phoneNumber?: string | null;
     serviceName?: string | null;
 }
 
@@ -38,6 +41,17 @@ function bookingAmount(booking: BookingRow): number {
     if (Number.isFinite(total) && total > 0) return total;
     const price = Number(booking.price ?? 0);
     return Number.isFinite(price) && price > 0 ? price : 0;
+}
+
+/** Normalize ET phone to 09xxxxxxxx for Chapa. */
+function normalizeChapaPhone(raw: string | null | undefined): string | null {
+    const digits = (raw ?? '').replace(/\D/g, '');
+    if (digits.length === 10 && digits.startsWith('09')) return digits;
+    if (digits.length === 9 && digits.startsWith('9')) return `0${digits}`;
+    if (digits.length === 12 && digits.startsWith('251') && digits[3] === '9') {
+        return `0${digits.slice(3)}`;
+    }
+    return null;
 }
 
 export async function POST(request: Request) {
@@ -104,16 +118,27 @@ export async function POST(request: Request) {
         const firstName = (booking.firstName ?? '').trim() || 'Customer';
         const lastName = (booking.lastName ?? '').trim() || '';
         const serviceName = (booking.serviceName ?? '').trim() || 'Service booking';
+        const phoneNumber =
+            normalizeChapaPhone(body.phone_number) ||
+            normalizeChapaPhone(booking.phoneNumber);
 
-        const chapaPayload = {
+        if (!phoneNumber) {
+            return NextResponse.json(
+                { error: 'A valid Ethiopian mobile number is required for Chapa (e.g. 09xxxxxxxx)' },
+                { status: 400 }
+            );
+        }
+
+        const chapaPayload: Record<string, string> = {
             amount: amount.toString(),
             currency: 'ETB',
             email: customerEmail,
             first_name: firstName,
             last_name: lastName,
+            phone_number: phoneNumber,
             tx_ref: txRef,
             callback_url: `${appBaseUrl}/api/admin/bookings/payment/webhook`,
-            return_url: `${appBaseUrl}/admin/bookings`,
+            return_url: `${appBaseUrl}/admin/bookings?chapa_verify=${encodeURIComponent(bookingId)}`,
             'customization[title]': 'Service Booking Payment',
             'customization[description]': `Payment for ${serviceName}`,
         };
@@ -140,25 +165,40 @@ export async function POST(request: Request) {
             );
         }
 
-        await supabaseAdmin
+        // payments row must exist before booked_service.payment_id (FK booked_service_payment_id_fkey)
+        let attachedPaymentId: string;
+        try {
+            attachedPaymentId = await upsertBookingPaymentRecord(
+                supabaseAdmin,
+                booking as { id: string; customer_id?: string; totalAmount?: number; price?: number },
+                {
+                    paymentId,
+                    providerRef: txRef,
+                    paymentMethod: 'chapa',
+                    provider: 'chapa',
+                    status: BOOKING_PAYMENT_STATUS.PENDING,
+                }
+            );
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Failed to create payment record';
+            return NextResponse.json({ error: message }, { status: 500 });
+        }
+
+        const { error: bookingUpdateError } = await supabaseAdmin
             .from('booked_service')
             .update({
-                payment_id: paymentId,
+                payment_id: attachedPaymentId,
                 paymentType: 'chapa',
+                phoneNumber,
             })
             .eq('id', bookingId);
 
-        await upsertBookingPaymentRecord(
-            supabaseAdmin,
-            booking as { id: string; customer_id?: string; totalAmount?: number; price?: number },
-            {
-                paymentId,
-                providerRef: txRef,
-                paymentMethod: 'chapa',
-                provider: 'chapa',
-                status: BOOKING_PAYMENT_STATUS.PENDING,
-            }
-        );
+        if (bookingUpdateError) {
+            return NextResponse.json(
+                { error: `Failed to attach Chapa payment to booking: ${bookingUpdateError.message}` },
+                { status: 500 }
+            );
+        }
 
         const customerName = [booking.firstName, booking.lastName].filter(Boolean).join(' ').trim() || 'Customer';
         await logAdminActivity({

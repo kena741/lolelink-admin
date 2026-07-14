@@ -13,6 +13,8 @@ import {
     getServiceDiscountError,
     validateServiceDiscount,
 } from "@/lib/service-discount";
+import { ProviderAddressPicker } from "@/components/ProviderAddressPicker";
+import type { ProviderAddressValue } from "@/lib/provider-location";
 
 const UUID_RE =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -61,6 +63,9 @@ export default function EditServiceModal() {
         approved: false,
         categoryId: "",
         subCategoryId: "",
+        address: "",
+        latitude: null as number | null,
+        longitude: null as number | null,
     });
     const [mediaType, setMediaType] = useState<"images" | "video">("images");
     const [existingVideoUrl, setExistingVideoUrl] = useState<string | null>(null);
@@ -91,6 +96,9 @@ export default function EditServiceModal() {
             approved: !!service.approved,
             categoryId: service.categoryId || categoryModel?.id || "",
             subCategoryId: service.subCategoryId || subCategoryModel?.id || "",
+            address: service.address || "",
+            latitude: service.location?.latitude ?? null,
+            longitude: service.location?.longitude ?? null,
         });
         if (service.video) {
             setMediaType("video");
@@ -268,6 +276,19 @@ export default function EditServiceModal() {
             alert("Please select a category and subcategory");
             return;
         }
+        if (!form.address.trim()) {
+            alert("Service address is required");
+            return;
+        }
+        if (
+            typeof form.latitude !== "number" ||
+            typeof form.longitude !== "number" ||
+            !Number.isFinite(form.latitude) ||
+            !Number.isFinite(form.longitude)
+        ) {
+            alert("Pick a service location on the map or from address suggestions");
+            return;
+        }
         const priceNum = Number(form.price);
         if (!Number.isFinite(priceNum) || priceNum <= 0) {
             alert("Invalid price");
@@ -284,6 +305,11 @@ export default function EditServiceModal() {
         dispatch(updateService({
             id: service.id,
             serviceName: form.serviceName,
+            address: form.address.trim(),
+            location: {
+                latitude: form.latitude,
+                longitude: form.longitude,
+            },
             type: form.type,
             price: form.price,
             discount: discountResult.value,
@@ -327,6 +353,23 @@ export default function EditServiceModal() {
                         <label className="text-sm font-medium" htmlFor="svc-name">Service Name</label>
                         <input id="svc-name" name="serviceName" value={form.serviceName} onChange={onChange} className="mt-1 w-full rounded-md border px-3 py-2 text-sm" />
                     </div>
+                    <ProviderAddressPicker
+                        id="edit-svc-address"
+                        label="Service address"
+                        value={{
+                            address: form.address,
+                            latitude: form.latitude,
+                            longitude: form.longitude,
+                        } satisfies ProviderAddressValue}
+                        onChange={(next) =>
+                            setForm((f) => ({
+                                ...f,
+                                address: next.address,
+                                latitude: next.latitude,
+                                longitude: next.longitude,
+                            }))
+                        }
+                    />
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label className="text-sm font-medium" htmlFor="edit-svc-category-id">Category</label>
