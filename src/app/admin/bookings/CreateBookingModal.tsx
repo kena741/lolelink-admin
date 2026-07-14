@@ -30,6 +30,7 @@ import {
 import { formatCouponDiscountLabel, formatCouponSelectDescription, formatCouponSelectLabel } from '@/lib/coupon-format';
 import { formatServiceDiscountLabel } from '@/lib/service-discount';
 import { formatBookingAmount } from '@/lib/booking-display';
+import { BOOKING_FIELD_LIMITS, clampBookingQuantity, bookingSecurePhoneError, bookingSecureQuantityError, bookingSecureTextError } from '@/lib/booking-field-limits';
 import { distanceKm, parseProviderLocation, type ProviderAddressValue } from '@/lib/provider-location';
 import type { Customer } from '@/features/customer/customerSlice';
 import { SearchSelect, type SearchSelectOption } from '@/components/SearchSelect';
@@ -195,12 +196,12 @@ function customerPhone(customer: Customer): string {
     return customer.phoneNumber || customer.mobile_number || customer.phone || '';
 }
 
-/** Normalize ET phone to 09xxxxxxxx for Chapa. */
+/** Normalize ET phone to 09xxxxxxxx / 07xxxxxxxx for Chapa. */
 function normalizeChapaPhone(raw: string): string | null {
     const digits = raw.replace(/\D/g, '');
-    if (digits.length === 10 && digits.startsWith('09')) return digits;
-    if (digits.length === 9 && digits.startsWith('9')) return `0${digits}`;
-    if (digits.length === 12 && digits.startsWith('251') && digits[3] === '9') {
+    if (digits.length === 10 && (digits.startsWith('09') || digits.startsWith('07'))) return digits;
+    if (digits.length === 9 && (digits.startsWith('9') || digits.startsWith('7'))) return `0${digits}`;
+    if (digits.length === 12 && digits.startsWith('251') && (digits[3] === '9' || digits[3] === '7')) {
         return `0${digits.slice(3)}`;
     }
     return null;
@@ -656,22 +657,25 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
 
     const chapaDebugFormContext = useMemo(
         () =>
-            buildChapaDebugFormContext(
-                providerId,
-                serviceId,
-                customerId,
-                selectedService,
-                selectedCustomer,
-                bookingDate,
-                quantity,
-                description,
-                customerAddress.address,
-                locality,
-                landmark,
-                selectedCoupon,
-                priceSummary
-            ),
+            isLocalhost
+                ? buildChapaDebugFormContext(
+                      providerId,
+                      serviceId,
+                      customerId,
+                      selectedService,
+                      selectedCustomer,
+                      bookingDate,
+                      quantity,
+                      description,
+                      customerAddress.address,
+                      locality,
+                      landmark,
+                      selectedCoupon,
+                      priceSummary
+                  )
+                : null,
         [
+            isLocalhost,
             providerId,
             serviceId,
             customerId,
@@ -689,7 +693,7 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
     );
 
     const chapaDebugPreview = useMemo(() => {
-        if (paymentPath !== 'pay_now' || !chapaDebugFormContext) return null;
+        if (!isLocalhost || paymentPath !== 'pay_now' || !chapaDebugFormContext) return null;
 
         const bookingIdPlaceholder = '<id from step 1 response>';
         const paymentIdPlaceholder = '<uuid generated on init>';
@@ -730,6 +734,7 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
             },
         };
     }, [
+        isLocalhost,
         paymentPath,
         chapaDebugFormContext,
         buildCreateRequestPayload,
@@ -748,10 +753,55 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
         if (!providerId) return 'Selected service has no provider';
         if (!customerId) return 'Select a customer';
         const qty = parseInt(quantity, 10);
-        if (!Number.isFinite(qty) || qty < 1) return 'Quantity must be at least 1';
+        const quantitySecurityError = bookingSecureQuantityError(quantity);
+        if (quantitySecurityError) return quantitySecurityError;
+        if (!Number.isFinite(qty) || qty < BOOKING_FIELD_LIMITS.quantityMin) {
+            return `Quantity must be at least ${BOOKING_FIELD_LIMITS.quantityMin}`;
+        }
+        if (qty > BOOKING_FIELD_LIMITS.quantityMax) {
+            return `Quantity cannot exceed ${BOOKING_FIELD_LIMITS.quantityMax}`;
+        }
         if (!bookingDate) return 'Booking date is required';
-        if (!customerAddress.address.trim()) return 'Customer address is required';
-        if (!locality.trim()) return 'Locality is required';
+        const bookingMs = Date.parse(bookingDate);
+        if (!Number.isFinite(bookingMs)) return 'Booking date is invalid';
+        const maxAheadMs =
+            Date.now() + BOOKING_FIELD_LIMITS.bookingDateMaxDaysAhead * 24 * 60 * 60 * 1000;
+        if (bookingMs > maxAheadMs) {
+            return `Booking date cannot be more than ${BOOKING_FIELD_LIMITS.bookingDateMaxDaysAhead} days ahead`;
+        }
+        const address = customerAddress.address.trim();
+        if (!address) return 'Customer address is required';
+        if (address.length > BOOKING_FIELD_LIMITS.addressMax) {
+            return `Address cannot exceed ${BOOKING_FIELD_LIMITS.addressMax} characters`;
+        }
+        const addressSecurityError = bookingSecureTextError('Address', address);
+        if (addressSecurityError) return addressSecurityError;
+        if (
+            typeof customerAddress.latitude !== 'number' ||
+            typeof customerAddress.longitude !== 'number'
+        ) {
+            return 'Pick an address from the map suggestions so coordinates are set';
+        }
+        const localityValue = locality.trim();
+        if (!localityValue) return 'Locality is required';
+        if (localityValue.length < BOOKING_FIELD_LIMITS.localityMin) {
+            return `Locality must be at least ${BOOKING_FIELD_LIMITS.localityMin} characters`;
+        }
+        if (localityValue.length > BOOKING_FIELD_LIMITS.localityMax) {
+            return `Locality cannot exceed ${BOOKING_FIELD_LIMITS.localityMax} characters`;
+        }
+        const localitySecurityError = bookingSecureTextError('Locality', localityValue);
+        if (localitySecurityError) return localitySecurityError;
+        if (landmark.trim().length > BOOKING_FIELD_LIMITS.landmarkMax) {
+            return `Landmark cannot exceed ${BOOKING_FIELD_LIMITS.landmarkMax} characters`;
+        }
+        const landmarkSecurityError = bookingSecureTextError('Landmark', landmark);
+        if (landmarkSecurityError) return landmarkSecurityError;
+        if (description.trim().length > BOOKING_FIELD_LIMITS.descriptionMax) {
+            return `Description cannot exceed ${BOOKING_FIELD_LIMITS.descriptionMax} characters`;
+        }
+        const descriptionSecurityError = bookingSecureTextError('Description', description);
+        if (descriptionSecurityError) return descriptionSecurityError;
         return null;
     }
 
@@ -767,9 +817,16 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
             return;
         }
 
-        if (path === 'pay_now' && !chapaPhoneNormalized) {
-            setError('Enter a valid Ethiopian mobile number for Chapa (e.g. 09xxxxxxxx)');
-            return;
+        if (path === 'pay_now') {
+            const phoneSecurityError = bookingSecurePhoneError(chapaPhone);
+            if (phoneSecurityError) {
+                setError(phoneSecurityError);
+                return;
+            }
+            if (!chapaPhoneNormalized) {
+                setError('Enter a valid Ethiopian mobile number for Chapa (e.g. 09xxxxxxxx or 07xxxxxxxx)');
+                return;
+            }
         }
 
         setLoading(true);
@@ -827,24 +884,26 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
             const payment = await dispatch(initiateBookingPayment(paymentRequestPayload)).unwrap();
             const bookingRecord = booking as unknown as Record<string, unknown>;
 
-            setChapaDebugTrace({
-                createRequest: createRequestPayload,
-                createTableWrites: chapaDebugFormContext
-                    ? buildChapaStep1TableWrites(chapaDebugFormContext, booking.id)
-                    : [],
-                createResponse: bookingRecord,
-                paymentRequest: paymentRequestPayload,
-                paymentTableWrites: chapaDebugFormContext
-                    ? buildChapaStep2TableWrites(
-                        chapaDebugFormContext,
-                        booking.id,
-                        String(bookingRecord.payment_id ?? '<uuid set on init — refresh debug row>'),
-                        payment.tx_ref
-                    )
-                    : [],
-                paymentResponse: payment as unknown as Record<string, unknown>,
-                capturedAt: new Date().toISOString(),
-            });
+            if (isLocalhost) {
+                setChapaDebugTrace({
+                    createRequest: createRequestPayload,
+                    createTableWrites: chapaDebugFormContext
+                        ? buildChapaStep1TableWrites(chapaDebugFormContext, booking.id)
+                        : [],
+                    createResponse: bookingRecord,
+                    paymentRequest: paymentRequestPayload,
+                    paymentTableWrites: chapaDebugFormContext
+                        ? buildChapaStep2TableWrites(
+                            chapaDebugFormContext,
+                            booking.id,
+                            String(bookingRecord.payment_id ?? '<uuid set on init — refresh debug row>'),
+                            payment.tx_ref
+                        )
+                        : [],
+                    paymentResponse: payment as unknown as Record<string, unknown>,
+                    capturedAt: new Date().toISOString(),
+                });
+            }
 
             if (!payment.checkout_url) {
                 setError('Chapa did not return a checkout URL');
@@ -856,7 +915,7 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
         } catch (err: unknown) {
             const message = typeof err === 'string' ? err : 'Failed to create booking';
             setError(message);
-            if (path === 'pay_now') {
+            if (path === 'pay_now' && isLocalhost) {
                 setChapaDebugTrace((current) => ({
                     createRequest: createRequestPayload,
                     createTableWrites:
@@ -968,8 +1027,10 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                             <Input
                                 id="booking-locality"
                                 value={locality}
-                                onChange={(e) => setLocality(e.target.value)}
+                                onChange={(e) => setLocality(e.target.value.slice(0, BOOKING_FIELD_LIMITS.localityMax))}
                                 placeholder="Area or neighborhood"
+                                maxLength={BOOKING_FIELD_LIMITS.localityMax}
+                                required
                             />
                         </div>
                         <div className="grid gap-1.5">
@@ -977,8 +1038,9 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                             <Input
                                 id="booking-landmark"
                                 value={landmark}
-                                onChange={(e) => setLandmark(e.target.value)}
+                                onChange={(e) => setLandmark(e.target.value.slice(0, BOOKING_FIELD_LIMITS.landmarkMax))}
                                 placeholder="Nearby landmark"
+                                maxLength={BOOKING_FIELD_LIMITS.landmarkMax}
                             />
                         </div>
                     </div>
@@ -1035,6 +1097,7 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                                 type="datetime-local"
                                 value={bookingDate}
                                 onChange={(e) => setBookingDate(e.target.value)}
+                                required
                             />
                         </div>
                         <div className="grid gap-1.5">
@@ -1042,9 +1105,13 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                             <Input
                                 id="booking-quantity"
                                 type="number"
-                                min={1}
+                                inputMode="numeric"
+                                min={BOOKING_FIELD_LIMITS.quantityMin}
+                                max={BOOKING_FIELD_LIMITS.quantityMax}
+                                step={1}
                                 value={quantity}
-                                onChange={(e) => setQuantity(e.target.value)}
+                                onChange={(e) => setQuantity(clampBookingQuantity(e.target.value))}
+                                required
                             />
                         </div>
                     </div>
@@ -1067,10 +1134,16 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                         <textarea
                             id="booking-description"
                             value={description}
-                            onChange={(e) => setDescription(e.target.value)}
+                            onChange={(e) =>
+                                setDescription(e.target.value.slice(0, BOOKING_FIELD_LIMITS.descriptionMax))
+                            }
                             rows={3}
+                            maxLength={BOOKING_FIELD_LIMITS.descriptionMax}
                             className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm"
                         />
+                        <p className="text-[12px] text-muted-foreground">
+                            {description.length}/{BOOKING_FIELD_LIMITS.descriptionMax}
+                        </p>
                     </div>
 
                     {priceSummary && selectedService && (
@@ -1241,17 +1314,20 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                                 inputMode="tel"
                                 autoComplete="tel"
                                 value={chapaPhone}
-                                onChange={(e) => setChapaPhone(e.target.value)}
-                                placeholder="09xxxxxxxx"
+                                onChange={(e) =>
+                                    setChapaPhone(e.target.value.slice(0, BOOKING_FIELD_LIMITS.phoneMax))
+                                }
+                                placeholder="09xxxxxxxx or 07xxxxxxxx"
+                                maxLength={BOOKING_FIELD_LIMITS.phoneMax}
                                 className="mt-1.5 bg-white"
                                 aria-invalid={chapaPhoneInvalid || undefined}
                             />
                             <p className="mt-1.5 text-[13px] text-muted-foreground">
-                                Prefills from the customer profile. They can complete payment on their phone with this number.
+                                Prefills from the customer profile. Ethiopian mobile: 09 or 07.
                             </p>
                             {chapaPhone.trim() && chapaPhoneInvalid && (
                                 <p className="mt-1.5 text-sm text-red-600">
-                                    Enter a valid Ethiopian mobile number (09xxxxxxxx).
+                                    Enter a valid Ethiopian mobile number (09xxxxxxxx or 07xxxxxxxx).
                                 </p>
                             )}
                         </div>

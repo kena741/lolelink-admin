@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { BOOKING_FIELD_LIMITS, assertBookingSecureTextFields, bookingSecureQuantityError } from '@/lib/booking-field-limits';
 import {
     computeBookingAmounts,
     resolveServiceImage,
@@ -135,21 +136,26 @@ async function resolveCoupon(
 
 function buildBookingAddressObject(input?: BookingAddressInput): Record<string, unknown> | null {
     if (!input) return null;
-    const address = (input.address ?? '').trim();
-    const locality = (input.locality ?? '').trim();
-    const landmark = (input.landmark ?? '').trim();
+    const address = (input.address ?? '').trim().slice(0, BOOKING_FIELD_LIMITS.addressMax);
+    const locality = (input.locality ?? '').trim().slice(0, BOOKING_FIELD_LIMITS.localityMax);
+    const landmark = (input.landmark ?? '').trim().slice(0, BOOKING_FIELD_LIMITS.landmarkMax);
     if (!address && !locality && !landmark) return null;
 
-    const location =
-        typeof input.latitude === 'number' && typeof input.longitude === 'number'
-            ? { latitude: input.latitude, longitude: input.longitude }
-            : undefined;
+    if (!address) throw new Error('Customer address is required');
+    if (locality.length < BOOKING_FIELD_LIMITS.localityMin) {
+        throw new Error(`Locality must be at least ${BOOKING_FIELD_LIMITS.localityMin} characters`);
+    }
+    if (typeof input.latitude !== 'number' || typeof input.longitude !== 'number') {
+        throw new Error('Customer address must include map coordinates');
+    }
+
+    assertBookingSecureTextFields({ address, locality, landmark });
 
     return {
         address,
         locality,
         landmark,
-        ...(location ? { location } : {}),
+        location: { latitude: input.latitude, longitude: input.longitude },
     };
 }
 
@@ -158,8 +164,34 @@ export async function buildBookingPayload(
     input: BuildBookingPayloadInput
 ): Promise<{ row: Record<string, unknown>; couponAmount: number; totalAmountNumber: number }> {
     const quantity = parseInt((input.quantity ?? '1').trim() || '1', 10);
-    if (!Number.isFinite(quantity) || quantity < 1) {
-        throw new Error('quantity must be at least 1');
+    if (!Number.isFinite(quantity) || quantity < BOOKING_FIELD_LIMITS.quantityMin) {
+        throw new Error(`Quantity must be at least ${BOOKING_FIELD_LIMITS.quantityMin}`);
+    }
+    if (quantity > BOOKING_FIELD_LIMITS.quantityMax) {
+        throw new Error(`Quantity cannot exceed ${BOOKING_FIELD_LIMITS.quantityMax}`);
+    }
+
+    const description = (input.description ?? '').trim();
+    if (description.length > BOOKING_FIELD_LIMITS.descriptionMax) {
+        throw new Error(`Description cannot exceed ${BOOKING_FIELD_LIMITS.descriptionMax} characters`);
+    }
+    assertBookingSecureTextFields({ description });
+
+    if (input.quantity) {
+        const quantitySecurityError = bookingSecureQuantityError(input.quantity);
+        if (quantitySecurityError) throw new Error(quantitySecurityError);
+    }
+
+    if (input.bookingDate) {
+        const bookingMs = Date.parse(input.bookingDate);
+        if (!Number.isFinite(bookingMs)) throw new Error('Booking date is invalid');
+        const maxAheadMs =
+            Date.now() + BOOKING_FIELD_LIMITS.bookingDateMaxDaysAhead * 24 * 60 * 60 * 1000;
+        if (bookingMs > maxAheadMs) {
+            throw new Error(
+                `Booking date cannot be more than ${BOOKING_FIELD_LIMITS.bookingDateMaxDaysAhead} days ahead`
+            );
+        }
     }
 
     const { data: customerRaw, error: customerError } = await admin
@@ -246,7 +278,7 @@ export async function buildBookingPayload(
         totalAmount: String(amounts.totalAmount),
         quantity: String(quantity),
         bookingDate: input.bookingDate || now,
-        description: input.description?.trim() || '',
+        description: description,
         status: bookingStatus,
         paymentCompleted: input.paymentMode === 'mark_paid',
         payment_status: paymentCompleted ? BOOKING_PAYMENT_STATUS.COMPLETED : BOOKING_PAYMENT_STATUS.PENDING,

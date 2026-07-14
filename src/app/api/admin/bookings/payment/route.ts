@@ -9,6 +9,7 @@ import { logAdminActivity } from '@/lib/admin-activity-log';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 import { BOOKING_PAYMENT_STATUS } from '@/lib/booking-status';
 import { upsertBookingPaymentRecord } from '@/lib/booking-payment-side-effects';
+import { bookingSecurePhoneError } from '@/lib/booking-field-limits';
 
 export const runtime = 'nodejs';
 
@@ -43,12 +44,12 @@ function bookingAmount(booking: BookingRow): number {
     return Number.isFinite(price) && price > 0 ? price : 0;
 }
 
-/** Normalize ET phone to 09xxxxxxxx for Chapa. */
+/** Normalize ET phone to 09xxxxxxxx / 07xxxxxxxx for Chapa. */
 function normalizeChapaPhone(raw: string | null | undefined): string | null {
     const digits = (raw ?? '').replace(/\D/g, '');
-    if (digits.length === 10 && digits.startsWith('09')) return digits;
-    if (digits.length === 9 && digits.startsWith('9')) return `0${digits}`;
-    if (digits.length === 12 && digits.startsWith('251') && digits[3] === '9') {
+    if (digits.length === 10 && (digits.startsWith('09') || digits.startsWith('07'))) return digits;
+    if (digits.length === 9 && (digits.startsWith('9') || digits.startsWith('7'))) return `0${digits}`;
+    if (digits.length === 12 && digits.startsWith('251') && (digits[3] === '9' || digits[3] === '7')) {
         return `0${digits.slice(3)}`;
     }
     return null;
@@ -118,13 +119,21 @@ export async function POST(request: Request) {
         const firstName = (booking.firstName ?? '').trim() || 'Customer';
         const lastName = (booking.lastName ?? '').trim() || '';
         const serviceName = (booking.serviceName ?? '').trim() || 'Service booking';
+        const phoneCandidate = (body.phone_number ?? booking.phoneNumber ?? '').trim();
+        if (phoneCandidate) {
+            const phoneSecurityError = bookingSecurePhoneError(phoneCandidate);
+            if (phoneSecurityError) {
+                return NextResponse.json({ error: phoneSecurityError }, { status: 400 });
+            }
+        }
+
         const phoneNumber =
             normalizeChapaPhone(body.phone_number) ||
             normalizeChapaPhone(booking.phoneNumber);
 
         if (!phoneNumber) {
             return NextResponse.json(
-                { error: 'A valid Ethiopian mobile number is required for Chapa (e.g. 09xxxxxxxx)' },
+                { error: 'A valid Ethiopian mobile number is required for Chapa (e.g. 09xxxxxxxx or 07xxxxxxxx)' },
                 { status: 400 }
             );
         }
