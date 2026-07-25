@@ -1,15 +1,14 @@
 "use client";
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { canAccessAdminRoute, useAdminPermissions } from '@/hooks/use-admin-permissions';
 import { 
     LayoutDashboard, 
     Users, 
     Briefcase, 
     CalendarCheck2, 
     LogOut, 
-    Banknote,
+    DollarSign, 
     Wallet,
     CreditCard, 
     Receipt, 
@@ -25,13 +24,11 @@ import {
     Ticket,
     CheckSquare,
     MessageSquare,
-    Smartphone,
     Moon,
     Sun,
     Shield,
     UserCog,
-    Activity,
-    Megaphone
+    Activity
 } from 'lucide-react';
 import { getSupabase } from '@/lib/supabaseClient';
 import { SupabaseEnvSwitcher, SupabaseStagingBanner } from '@/components/SupabaseEnvSwitcher';
@@ -84,7 +81,7 @@ const customersSubItems = [
 
 // System Management Section
 const financeSubItems = [
-    { href: '/admin/finance/payout-request', label: 'Payout Request', icon: Banknote },
+    { href: '/admin/finance/payout-request', label: 'Payout Request', icon: DollarSign },
     { href: '/admin/finance/payment', label: 'Payment', icon: CreditCard },
     { href: '/admin/finance/payment-settings', label: 'Payment Settings', icon: Settings },
     { href: '/admin/finance/wallet-transactions', label: 'Wallet Transactions', icon: Wallet },
@@ -93,53 +90,7 @@ const financeSubItems = [
 
 const Sidebar = () => {
     const pathname = usePathname();
-    const { can } = useAdminPermissions();
     const [theme, setTheme] = useState<'light' | 'dark'>('light');
-
-    const visibleWorksItems = useMemo(
-        () => worksSubItems.filter(({ href }) => canAccessAdminRoute(href, can)),
-        [can]
-    );
-    const visibleCustomersItems = useMemo(
-        () => customersSubItems.filter(({ href }) => canAccessAdminRoute(href, can)),
-        [can]
-    );
-    const visibleProviderItems = useMemo(
-        () => providerManagementSubItems.filter(({ href }) => canAccessAdminRoute(href, can)),
-        [can]
-    );
-    const visibleCategoryItems = useMemo(
-        () => categorySubItems.filter(({ href }) => canAccessAdminRoute(href, can)),
-        [can]
-    );
-    const visibleServiceItems = useMemo(
-        () =>
-            serviceManagementSubItems.filter(({ href, isCategory }) => {
-                if (isCategory) return visibleCategoryItems.length > 0;
-                return canAccessAdminRoute(href, can);
-            }),
-        [can, visibleCategoryItems.length]
-    );
-    const visibleFinanceItems = useMemo(
-        () => financeSubItems.filter(({ href }) => canAccessAdminRoute(href, can)),
-        [can]
-    );
-    const showSettings = canAccessAdminRoute('/admin/settings', can);
-    const showMobileAppConfig = canAccessAdminRoute('/admin/mobile-app-config', can);
-    const showAdmins = canAccessAdminRoute('/admin/admins', can);
-    const showActivityLogs = canAccessAdminRoute('/admin/activity-logs', can);
-    const showRoles = canAccessAdminRoute('/admin/roles', can);
-    const showContactMessages = canAccessAdminRoute('/admin/contact-messages', can);
-    const showPush = canAccessAdminRoute('/admin/push', can);
-    const showSystemSection =
-        visibleFinanceItems.length > 0 ||
-        showSettings ||
-        showMobileAppConfig ||
-        showAdmins ||
-        showActivityLogs ||
-        showRoles ||
-        showContactMessages ||
-        showPush;
     
     // Category sub-section (still collapsible)
     const isCategoryActive = pathname?.startsWith('/admin/categories') || pathname?.startsWith('/admin/subcategories');
@@ -187,7 +138,7 @@ const Sidebar = () => {
                     alt="Zemen Service logo"
                     width={32}
                     height={32}
-                    className="h-8 w-8 rounded-lg object-contain"
+                    className="h-8 w-8 rounded-[var(--radius)] object-contain"
                     priority
                 />
                 <span className="font-heading text-[15px] font-semibold tracking-normal text-sidebar-foreground">
@@ -204,7 +155,7 @@ const Sidebar = () => {
                             <Link
                                 href="/admin/dashboard"
                                 className={cn(
-                                    'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors',
+                                    'group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors',
                                     navClass(pathname === '/admin/dashboard'),
                                 )}
                             >
@@ -213,19 +164,19 @@ const Sidebar = () => {
                             </Link>
                         </li>
 
-                        {visibleWorksItems.length > 0 && (
+                        {/* Works Section */}
                         <li className="pt-5">
                             <div className="px-3 py-1 mb-1">
                                 <p className="text-[11px] font-semibold uppercase tracking-wider text-text-hint">Works</p>
                             </div>
                             <ul className="space-y-1">
-                                {visibleWorksItems.map(({ href, label, icon: Icon }) => {
+                                {worksSubItems.map(({ href, label, icon: Icon }) => {
                                     const active = pathname === href;
                                     return (
                                         <li key={href}>
                                             <Link
                                                 href={href}
-                                                className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${
+                                                className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                                     active
                                                         ? 'bg-primary/10 text-primary font-medium'
                                                         : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
@@ -239,15 +190,14 @@ const Sidebar = () => {
                                 })}
                             </ul>
                         </li>
-                        )}
 
-                        {visibleCustomersItems.length > 0 && (
+                        {/* Customers Section */}
                         <li className="pt-5">
                             <div className="px-3 py-1 mb-1">
                                 <p className="text-[11px] font-semibold uppercase tracking-wider text-text-hint">Customers</p>
                             </div>
                             <ul className="space-y-1">
-                                {visibleCustomersItems.map(({ href, label, icon: Icon }) => {
+                                {customersSubItems.map(({ href, label, icon: Icon }) => {
                                     const active = href === '/admin/customers'
                                         ? pathname === '/admin/customers'
                                         : pathname === href;
@@ -255,7 +205,7 @@ const Sidebar = () => {
                                         <li key={href}>
                                             <Link
                                                 href={href}
-                                                className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${
+                                                className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                                     active
                                                         ? 'bg-primary/10 text-primary font-medium'
                                                         : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
@@ -269,21 +219,20 @@ const Sidebar = () => {
                                 })}
                             </ul>
                         </li>
-                        )}
 
-                        {visibleProviderItems.length > 0 && (
+                        {/* Provider Management Section */}
                         <li className="pt-5">
                             <div className="px-3 py-1 mb-1">
                                 <p className="text-[11px] font-semibold uppercase tracking-wider text-text-hint">Provider Management</p>
                             </div>
                             <ul className="space-y-1">
-                                {visibleProviderItems.map(({ href, label, icon: Icon }) => {
+                                {providerManagementSubItems.map(({ href, label, icon: Icon }) => {
                                     const active = pathname === href || (href === '/admin/providers' && pathname?.startsWith('/admin/providers/'));
                                     return (
                                         <li key={href}>
                                             <Link
                                                 href={href}
-                                                className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${
+                                                className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                                     active
                                                         ? 'bg-primary/10 text-primary font-medium'
                                                         : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
@@ -297,22 +246,21 @@ const Sidebar = () => {
                                 })}
                             </ul>
                         </li>
-                        )}
 
-                        {visibleServiceItems.length > 0 && (
+                        {/* Service Management Section */}
                         <li className="pt-5">
                             <div className="px-3 py-1 mb-1">
                                 <p className="text-[11px] font-semibold uppercase tracking-wider text-text-hint">Service Management</p>
                             </div>
                             <ul className="space-y-1">
-                                {visibleServiceItems.map(({ href, label, icon: Icon, isCategory }) => {
+                                {serviceManagementSubItems.map(({ href, label, icon: Icon, isCategory }) => {
                                     if (isCategory) {
                                         // Categories sub-section (still collapsible)
                                         return (
                                             <li key="categories">
                                                 <button
                                                     onClick={() => setIsCategoryOpen(!isCategoryOpen)}
-                                                    className={`group w-full flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${
+                                                    className={`group w-full flex items-center justify-between gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                                         isCategoryActive
                                                             ? 'bg-primary/10 text-primary font-medium'
                                                             : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
@@ -330,13 +278,13 @@ const Sidebar = () => {
                                                 </button>
                                                 {isCategoryOpen && (
                                                     <ul className="ml-4 mt-0.5 space-y-0.5 border-l border-sidebar-border pl-3">
-                                                        {visibleCategoryItems.map(({ href: catHref, label: catLabel, icon: CatIcon }) => {
+                                                        {categorySubItems.map(({ href: catHref, label: catLabel, icon: CatIcon }) => {
                                                             const active = pathname === catHref || (catHref === '/admin/categories' && pathname?.startsWith('/admin/categories/'));
                                                             return (
                                                                 <li key={catHref}>
                                                                     <Link
                                                                         href={catHref}
-                                                                        className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${
+                                                                        className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                                                             active
                                                                                 ? 'bg-primary/10 text-primary font-medium'
                                                                                 : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
@@ -361,7 +309,7 @@ const Sidebar = () => {
                                         <li key={href}>
                                             <Link
                                                 href={href}
-                                                className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${
+                                                className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                                     active
                                                         ? 'bg-primary/10 text-primary font-medium'
                                                         : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
@@ -375,26 +323,25 @@ const Sidebar = () => {
                                 })}
                             </ul>
                         </li>
-                        )}
 
-                        {showSystemSection && (
+                        {/* System Management Section */}
                         <li className="pt-5">
                             <div className="px-3 py-1 mb-1">
                                 <p className="text-[11px] font-semibold uppercase tracking-wider text-text-hint">System Management</p>
                             </div>
                             <ul className="space-y-1">
-                                {visibleFinanceItems.length > 0 && (
+                                {/* Finance Sub-section (still collapsible) */}
                                 <li>
                                     <button
                                         onClick={() => setIsFinanceOpen(!isFinanceOpen)}
-                                        className={`group w-full flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${
+                                        className={`group w-full flex items-center justify-between gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                             isFinanceActive
                                                 ? 'bg-primary/10 text-primary font-medium'
                                                             : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
                                         }`}
                                     >
                                         <div className="flex items-center gap-3">
-                                            <Banknote className={`h-4 w-4 ${isFinanceActive ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
+                                            <DollarSign className={`h-4 w-4 ${isFinanceActive ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
                                             <span>Finance</span>
                                         </div>
                                         {isFinanceOpen ? (
@@ -405,13 +352,13 @@ const Sidebar = () => {
                                     </button>
                                     {isFinanceOpen && (
                                         <ul className="ml-4 mt-0.5 space-y-0.5 border-l border-sidebar-border pl-3">
-                                            {visibleFinanceItems.map(({ href, label, icon: Icon }) => {
+                                            {financeSubItems.map(({ href, label, icon: Icon }) => {
                                                 const active = pathname === href;
                                                 return (
                                                     <li key={href}>
                                                         <Link
                                                             href={href}
-                                                            className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${
+                                                            className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                                                 active
                                                                     ? 'bg-primary/10 text-primary font-medium'
                                                                     : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
@@ -426,13 +373,12 @@ const Sidebar = () => {
                                         </ul>
                                     )}
                                 </li>
-                                )}
 
-                                {showSettings && (
+                                {/* Global Settings */}
                                 <li>
                                     <Link
                                         href="/admin/settings"
-                                        className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${
+                                        className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                             pathname?.startsWith('/admin/settings')
                                                 ? 'bg-primary/10 text-primary font-medium'
                                                             : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
@@ -442,27 +388,10 @@ const Sidebar = () => {
                                         <span>Global Settings</span>
                                     </Link>
                                 </li>
-                                )}
-                                {showMobileAppConfig && (
-                                <li>
-                                    <Link
-                                        href="/admin/mobile-app-config"
-                                        className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${
-                                            pathname?.startsWith('/admin/mobile-app-config')
-                                                ? 'bg-primary/10 text-primary font-medium'
-                                                            : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
-                                        }`}
-                                    >
-                                        <Smartphone className={`h-4 w-4 ${pathname?.startsWith('/admin/mobile-app-config') ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
-                                        <span>Mobile App Config</span>
-                                    </Link>
-                                </li>
-                                )}
-                                {showAdmins && (
                                 <li>
                                     <Link
                                         href="/admin/admins"
-                                        className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${
+                                        className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                             pathname?.startsWith('/admin/admins')
                                                 ? 'bg-primary/10 text-primary font-medium'
                                                             : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
@@ -472,12 +401,10 @@ const Sidebar = () => {
                                         <span>Admins</span>
                                     </Link>
                                 </li>
-                                )}
-                                {showActivityLogs && (
                                 <li>
                                     <Link
                                         href="/admin/activity-logs"
-                                        className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${
+                                        className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                             pathname?.startsWith('/admin/activity-logs')
                                                 ? 'bg-primary/10 text-primary font-medium'
                                                             : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
@@ -487,12 +414,10 @@ const Sidebar = () => {
                                         <span>Activity Logs</span>
                                     </Link>
                                 </li>
-                                )}
-                                {showRoles && (
                                 <li>
                                     <Link
                                         href="/admin/roles"
-                                        className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${
+                                        className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                             pathname?.startsWith('/admin/roles')
                                                 ? 'bg-primary/10 text-primary font-medium'
                                                             : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
@@ -502,12 +427,10 @@ const Sidebar = () => {
                                         <span>Roles</span>
                                     </Link>
                                 </li>
-                                )}
-                                {showContactMessages && (
                                 <li>
                                     <Link
                                         href="/admin/contact-messages"
-                                        className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${
+                                        className={`group flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-[15px] transition-colors ${
                                             pathname === '/admin/contact-messages'
                                                 ? 'bg-primary/10 text-primary font-medium'
                                                             : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
@@ -515,44 +438,6 @@ const Sidebar = () => {
                                     >
                                         <MessageSquare className={`h-4 w-4 ${pathname === '/admin/contact-messages' ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
                                         <span>Contact Messages</span>
-                                    </Link>
-                                </li>
-                                )}
-                                {showPush && (
-                                <li>
-                                    <Link
-                                        href="/admin/push"
-                                        className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${
-                                            pathname?.startsWith('/admin/push')
-                                                ? 'bg-primary/10 text-primary font-medium'
-                                                            : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
-                                        }`}
-                                    >
-                                        <Megaphone className={`h-4 w-4 ${pathname?.startsWith('/admin/push') ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
-                                        <span>Push Notifications</span>
-                                    </Link>
-                                </li>
-                                )}
-                            </ul>
-                        </li>
-                        )}
-
-                        <li className="pt-5">
-                            <div className="px-3 py-1 mb-1">
-                                <p className="text-[11px] font-semibold uppercase tracking-wider text-text-hint">Marketing</p>
-                            </div>
-                            <ul className="space-y-1">
-                                <li>
-                                    <Link
-                                        href="/admin/marketing-tracker"
-                                        className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${
-                                            pathname?.startsWith('/admin/marketing-tracker')
-                                                ? 'bg-primary/10 text-primary font-medium'
-                                                : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
-                                        }`}
-                                    >
-                                        <Megaphone className={`h-4 w-4 ${pathname?.startsWith('/admin/marketing-tracker') ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
-                                        <span>Marketing Tracker</span>
                                     </Link>
                                 </li>
                             </ul>
@@ -569,14 +454,14 @@ const Sidebar = () => {
                         onClick={toggleTheme}
                         aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
                         title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
-                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius)] border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                     >
                         {theme === 'dark' ? <Moon className="h-3.5 w-3.5" /> : <Sun className="h-3.5 w-3.5" />}
                     </button>
                     <button
                         type="button"
                         onClick={async () => { await getSupabase().auth.signOut(); location.href = '/login'; }}
-                        className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[var(--radius)] border border-border bg-card px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                     >
                         <LogOut className="h-3.5 w-3.5" />
                         Sign out

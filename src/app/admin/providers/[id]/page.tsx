@@ -15,6 +15,7 @@ import { approveServicesByProvider } from '@/features/service/approveServicesSli
 import { fetchVerifyDocuments } from '@/features/verifyDocuments/verifyDocumentsSlice';
 import { fetchPayoutRequests } from '@/features/payout/payoutSlice';
 import { getDisplayImageUrl, resolveProfileImageUrl } from '@/lib/media-url';
+import { getMediaUrlExtension, isBrowserInlineImage } from '@/lib/document-media';
 import {
     filterServiceDiscountInput,
     getServiceDiscountError,
@@ -23,8 +24,7 @@ import {
 import { fetchHandymen, updateHandyman, deleteHandyman, type Handyman } from '@/features/handyman/handymanSlice';
 import { fetchCategories } from '@/features/category/categorySlice';
 import { fetchSubCategories } from '@/features/subcategory/subcategorySlice';
-import { Pencil, Trash2, FileText, Coins, Wrench, Clock, Briefcase, History, CreditCard, Wallet, Building2 } from 'lucide-react';
-import { formatBookingAmount } from '@/lib/booking-display';
+import { Pencil, Trash2, FileText, DollarSign, Wrench, Clock, Briefcase, History, CreditCard } from 'lucide-react';
 import { ActivationPaymentModal } from '@/components/ActivationPaymentModal';
 import { fetchSettings } from '@/features/settings/settingsSlice';
 import { Button } from '@/components/ui/button';
@@ -34,12 +34,8 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ProviderAddressPicker } from '@/components/ProviderAddressPicker';
 import { buildProviderUpdatesFromEditForm } from '@/lib/build-provider-updates';
-import { parseProviderLocation, type ProviderAddressValue } from '@/lib/provider-location';
+import { parseProviderLocation } from '@/lib/provider-location';
 import Image from 'next/image';
-import { ProviderWalletHistory } from './ProviderWalletHistory';
-import { SendProviderPushForm } from '@/components/providers/SendProviderPushForm';
-import { ProviderCompanyProfile } from './ProviderCompanyProfile';
-import { formatCompanyVerificationStatus, formatProviderType } from '@/lib/company-display';
 
 export default function ProviderDetailPage() {
     const params = useParams();
@@ -72,7 +68,7 @@ export default function ProviderDetailPage() {
         isActive: true,
     });
     const [deletingHandymanId, setDeletingHandymanId] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<'services' | 'documents' | 'wallet' | 'withdrawals' | 'handyman' | 'company'>('services');
+    const [activeTab, setActiveTab] = useState<'services' | 'documents' | 'withdrawals' | 'handyman'>('services');
     const [activationModalOpen, setActivationModalOpen] = useState(false);
 
     useEffect(() => {
@@ -105,26 +101,13 @@ export default function ProviderDetailPage() {
         .filter(req => req.paymentStatus === 'pending')
         .reduce((sum, req) => sum + (typeof req.amount === 'string' ? parseFloat(req.amount) || 0 : req.amount || 0), 0);
 
-    const providerWalletBalance = (() => {
-        const raw = provider?.walletAmount ?? (provider as { wallet_amount?: string | number } | undefined)?.wallet_amount;
-        const parsed = Number(raw ?? 0);
-        return Number.isFinite(parsed) ? parsed : 0;
-    })();
-
+    const bannerSrc = provider?.banner || undefined;
+    const profileSrc = resolveProfileImageUrl(provider) ?? undefined;
     const displayName = (() => {
         const first = provider?.firstName ?? provider?.first_name;
         const last = provider?.lastName ?? provider?.last_name;
         const full = [first, last].filter(Boolean).join(' ');
         return full || provider?.name || '—';
-    })();
-
-    const providerType = (() => {
-        const raw = (provider as { provider_type?: string | null } | undefined)?.provider_type;
-        return typeof raw === 'string' && raw.trim() ? raw.trim() : null;
-    })();
-    const companyVerificationStatus = (() => {
-        const raw = (provider as { company_verification_status?: string | null } | undefined)?.company_verification_status;
-        return typeof raw === 'string' && raw.trim() ? raw.trim() : null;
     })();
 
     // Edit modal state
@@ -188,8 +171,6 @@ export default function ProviderDetailPage() {
         imageUrl: '',
         price: '',
         address: '',
-        latitude: null as number | null,
-        longitude: null as number | null,
         categoryId: '',
         subCategoryId: '',
         discount: '',
@@ -207,14 +188,8 @@ export default function ProviderDetailPage() {
     // removed: local editVideo state (handled by EditServiceModal)
 
     const resetServiceForm = () => setServiceForm({
-        name: '', description: '', imageUrl: '', price: '', address: '', latitude: null, longitude: null, categoryId: '', subCategoryId: '', discount: '', duration: '', prePayment: false, feature: false, status: true, active: true, type: '', serviceLocationMode: 'onsite'
+        name: '', description: '', imageUrl: '', price: '', address: '', categoryId: '', subCategoryId: '', discount: '', duration: '', prePayment: false, feature: false, status: true, active: true, type: '', serviceLocationMode: 'onsite'
     });
-
-    const serviceAddressValue: ProviderAddressValue = {
-        address: serviceForm.address,
-        latitude: serviceForm.latitude,
-        longitude: serviceForm.longitude,
-    };
 
     const openAddService = () => {
         resetServiceForm();
@@ -268,19 +243,6 @@ export default function ProviderDetailPage() {
             alert('Please select a category and subcategory');
             return;
         }
-        if (!serviceForm.address.trim()) {
-            alert('Service address is required');
-            return;
-        }
-        if (
-            typeof serviceForm.latitude !== 'number' ||
-            typeof serviceForm.longitude !== 'number' ||
-            !Number.isFinite(serviceForm.latitude) ||
-            !Number.isFinite(serviceForm.longitude)
-        ) {
-            alert('Pick a service location on the map or from address suggestions');
-            return;
-        }
         const discountResult = validateServiceDiscount(serviceForm.discount);
         if (!discountResult.ok) {
             alert(discountResult.error);
@@ -292,7 +254,7 @@ export default function ProviderDetailPage() {
         const service = {
             serviceName: (serviceForm.name ?? '').toString().trim(),
             description: (serviceForm.description ?? '').toString().trim(),
-            address: serviceForm.address.trim(),
+            address: (serviceForm.address ?? '').toString().trim(),
             categoryId: serviceForm.categoryId,
             categoryModel: {
                 id: serviceForm.categoryId,
@@ -321,11 +283,7 @@ export default function ProviderDetailPage() {
             slug: undefined,
             type: (serviceForm.type ?? '').toString().trim(),
             serviceLocationMode: (serviceForm.serviceLocationMode ?? 'onsite').toString(),
-            location: {
-                latitude: serviceForm.latitude,
-                longitude: serviceForm.longitude,
-            },
-            // ponytail: skip geohash position; admin + booking distance use location only
+            location: undefined,
             position: undefined,
         } as import('@/features/service/addServiceSlice').AddServiceModel;
 
@@ -381,33 +339,29 @@ export default function ProviderDetailPage() {
                     {!selectedLoading && provider && (
                         <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
                             <AdminPageHeader
-                                title={
-                                    <span className="inline-flex items-center gap-2">
-                                        {displayName}
-                                        <button
-                                            type="button"
-                                            onClick={() => setOpen(true)}
-                                            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card text-text-primary transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                                            aria-label="Edit provider"
-                                            title="Edit provider"
-                                        >
-                                            <Pencil className="h-4 w-4" />
-                                        </button>
-                                    </span>
-                                }
+                                title={displayName}
                                 description={`${provider.email || '—'} · ${provider.phoneNumber || provider.phone || '—'} · ${provider.address || '—'}`}
                                 backHref="/admin/providers"
                                 actions={
-                                    !provider.activation_paid ? (
+                                    <>
+                                        {!provider.activation_paid && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setActivationModalOpen(true)}
+                                                className={adminHeaderButtonClassName()}
+                                            >
+                                                <CreditCard className="h-4 w-4" />
+                                                Pay Activation Fee
+                                            </button>
+                                        )}
                                         <button
                                             type="button"
-                                            onClick={() => setActivationModalOpen(true)}
+                                            onClick={() => setOpen(true)}
                                             className={adminHeaderButtonClassName()}
                                         >
-                                            <CreditCard className="h-4 w-4" />
-                                            Pay Activation Fee
+                                            Edit
                                         </button>
-                                    ) : null
+                                    </>
                                 }
                             />
                             <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -418,37 +372,14 @@ export default function ProviderDetailPage() {
                                 }`}>
                                     {provider.activation_paid ? 'Activation Paid' : 'Activation Fee Pending'}
                                 </span>
-                                {providerType ? (
-                                    <span className="inline-flex items-center rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700">
-                                        {formatProviderType(providerType)}
-                                    </span>
-                                ) : null}
-                                {companyVerificationStatus ? (
-                                    <span className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
-                                        {formatCompanyVerificationStatus(companyVerificationStatus)}
-                                    </span>
-                                ) : null}
                             </div>
 
                                     {/* Earnings Summary */}
-                                    <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-                                        <div className="rounded-lg bg-white p-6 shadow">
-                                            <div className="flex items-center gap-3">
-                                                <div className="rounded-lg bg-sky-100 p-3">
-                                                    <Wallet className="h-6 w-6 text-sky-600" />
-                                                </div>
-                                                <div>
-                                                    <p className="text-sm text-gray-600">Wallet Balance</p>
-                                                    <p className="text-2xl font-bold tabular-nums text-gray-900">
-                                                        ETB {providerWalletBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        </div>
+                                    <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
                                         <div className="bg-white rounded-lg shadow p-6">
                                             <div className="flex items-center gap-3">
                                                 <div className="p-3 bg-emerald-100 rounded-lg">
-                                                    <Coins className="h-6 w-6 text-emerald-600" />
+                                                    <DollarSign className="h-6 w-6 text-emerald-600" />
                                                 </div>
                                                 <div>
                                                     <p className="text-sm text-gray-600">Total Earnings</p>
@@ -480,10 +411,6 @@ export default function ProviderDetailPage() {
                                         </div>
                                     </div>
 
-                                    <div className="mb-6">
-                                        <SendProviderPushForm providerId={id} />
-                                    </div>
-
                                     {/* Tabs */}
                                     <div className="mb-6 flex items-center gap-2 bg-white rounded-lg p-1 shadow border border-gray-200">
                                         <button
@@ -509,17 +436,6 @@ export default function ProviderDetailPage() {
                                             Documents
                                         </button>
                                         <button
-                                            onClick={() => setActiveTab('wallet')}
-                                            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                                                activeTab === 'wallet'
-                                                    ? 'bg-indigo-500 text-white shadow-md'
-                                                    : 'text-gray-700 hover:bg-gray-100'
-                                            }`}
-                                        >
-                                            <Wallet className="h-4 w-4" />
-                                            Wallet
-                                        </button>
-                                        <button
                                             onClick={() => setActiveTab('withdrawals')}
                                             className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
                                                 activeTab === 'withdrawals'
@@ -540,17 +456,6 @@ export default function ProviderDetailPage() {
                                         >
                                             <Wrench className="h-4 w-4" />
                                             Handyman
-                                        </button>
-                                        <button
-                                            onClick={() => setActiveTab('company')}
-                                            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                                                activeTab === 'company'
-                                                    ? 'bg-indigo-500 text-white shadow-md'
-                                                    : 'text-gray-700 hover:bg-gray-100'
-                                            }`}
-                                        >
-                                            <Building2 className="h-4 w-4" />
-                                            Company
                                         </button>
                                     </div>
 
@@ -670,7 +575,7 @@ export default function ProviderDetailPage() {
                                                                     <div className="flex flex-wrap items-center gap-2">
                                                                         {s.price ? (
                                                                             <span className="text-base font-bold tabular-nums text-foreground">
-                                                                                {formatBookingAmount(s.price)}
+                                                                                {s.price}
                                                                             </span>
                                                                         ) : null}
                                                                         {s.discount ? (
@@ -714,49 +619,72 @@ export default function ProviderDetailPage() {
                                     <section>
                                         <h2 className="text-2xl font-semibold mb-4">Uploaded Documents</h2>
                                         {providerDocuments.length === 0 ? (
-                                            <div className="bg-white rounded-lg shadow p-6 text-gray-500">No documents uploaded.</div>
+                                            <div className="rounded-lg border border-border bg-card p-6 text-text-secondary">No documents uploaded.</div>
                                         ) : (
-                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                                {providerDocuments.map((doc) => (
-                                                    <div key={doc.id} className="bg-white rounded-lg shadow p-4">
-                                                        <div className="flex items-center justify-between mb-2">
-                                                            <div className="flex items-center gap-2">
-                                                                <FileText className="h-5 w-5 text-indigo-600" />
-                                                                <span className="font-semibold">{doc.documentName || 'Document'}</span>
+                                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                                                {providerDocuments.map((doc) => {
+                                                    const imageUrl = getDisplayImageUrl(doc.documentImage);
+                                                    const canPreviewInline = isBrowserInlineImage(imageUrl);
+                                                    const ext = getMediaUrlExtension(imageUrl);
+                                                    const status =
+                                                        doc.isVerify === true
+                                                            ? { label: 'Verified', className: 'bg-primary/10 text-primary' }
+                                                            : doc.isVerify === false
+                                                              ? { label: 'Rejected', className: 'bg-destructive/10 text-destructive' }
+                                                              : { label: 'Pending', className: 'bg-amber-100 text-amber-700' };
+
+                                                    return (
+                                                        <div key={doc.id} className="rounded-lg border border-border bg-card p-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+                                                            <div className="mb-2 flex items-start justify-between gap-2">
+                                                                <div className="flex min-w-0 items-center gap-2">
+                                                                    <FileText className="h-5 w-5 shrink-0 text-primary" />
+                                                                    <span className="truncate font-semibold text-text-primary">
+                                                                        {doc.documentName || 'Document'}
+                                                                    </span>
+                                                                </div>
+                                                                <span className={`shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${status.className}`}>
+                                                                    {status.label}
+                                                                </span>
                                                             </div>
-                                                            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                                                                doc.isVerify 
-                                                                    ? 'bg-emerald-100 text-emerald-700' 
-                                                                    : 'bg-amber-100 text-amber-700'
-                                                            }`}>
-                                                                {doc.isVerify ? 'Verified' : 'Pending'}
-                                                            </span>
+                                                            {imageUrl ? (
+                                                                canPreviewInline ? (
+                                                                    <button
+                                                                        type="button"
+                                                                        className="mt-3 block w-full overflow-hidden rounded-lg border border-border bg-muted/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                                                        onClick={() => setSelectedDocument(imageUrl)}
+                                                                    >
+                                                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                                        <img
+                                                                            src={imageUrl}
+                                                                            alt={doc.documentName || 'Document'}
+                                                                            loading="lazy"
+                                                                            className="mx-auto max-h-56 w-full object-contain"
+                                                                        />
+                                                                    </button>
+                                                                ) : (
+                                                                    <div className="mt-3 rounded-lg border border-border bg-muted/40 p-4">
+                                                                        <p className="text-sm text-text-secondary">
+                                                                            This file is <span className="font-semibold uppercase">{ext || 'unknown'}</span> and can’t be previewed in the browser.
+                                                                        </p>
+                                                                        <a
+                                                                            href={imageUrl}
+                                                                            target="_blank"
+                                                                            rel="noopener noreferrer"
+                                                                            className="mt-3 inline-flex text-sm font-medium text-primary underline-offset-4 hover:underline"
+                                                                        >
+                                                                            Open original file
+                                                                        </a>
+                                                                    </div>
+                                                                )
+                                                            ) : (
+                                                                <p className="mt-3 text-sm text-text-secondary">No image uploaded.</p>
+                                                            )}
                                                         </div>
-                                                        {getDisplayImageUrl(doc.documentImage) && (
-                                                            <div className="mt-3 relative">
-                                                                <Image
-                                                                    src={getDisplayImageUrl(doc.documentImage)!}
-                                                                    alt={doc.documentName || 'Document'}
-                                                                    width={640}
-                                                                    height={128}
-                                                                    loading="lazy"
-                                                                    className="w-full h-32 object-cover rounded cursor-pointer hover:opacity-80"
-                                                                    onClick={() => setSelectedDocument(getDisplayImageUrl(doc.documentImage))}
-                                                                />
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                ))}
+                                                    );
+                                                })}
                                             </div>
                                         )}
                                     </section>
-                                    )}
-
-                                    {activeTab === 'wallet' && (
-                                        <ProviderWalletHistory
-                                            providerId={id}
-                                            fallbackWalletAmount={providerWalletBalance}
-                                        />
                                     )}
 
                                     {/* Withdrawals Tab */}
@@ -927,10 +855,6 @@ export default function ProviderDetailPage() {
                                         )}
                                     </section>
                                     )}
-
-                                    {activeTab === 'company' && (
-                                        <ProviderCompanyProfile providerId={id} />
-                                    )}
                             {/* Edit dialog */}
                             <Dialog open={open} onClose={() => { setOpen(false); setSaveError(null); }}>
                                 <DialogHeader>
@@ -997,19 +921,10 @@ export default function ProviderDetailPage() {
                                         <Label htmlFor="svc-name">Service Name</Label>
                                         <Input id="svc-name" name="name" value={serviceForm.name} onChange={onServiceChange} placeholder="e.g. Home Cleaning" />
                                     </div>
-                                    <ProviderAddressPicker
-                                        id="svc-address"
-                                        label="Service address"
-                                        value={serviceAddressValue}
-                                        onChange={(next) =>
-                                            setServiceForm((f) => ({
-                                                ...f,
-                                                address: next.address,
-                                                latitude: next.latitude,
-                                                longitude: next.longitude,
-                                            }))
-                                        }
-                                    />
+                                    <div className="grid gap-1.5">
+                                        <Label htmlFor="svc-address">Address (optional)</Label>
+                                        <Input id="svc-address" name="address" value={serviceForm.address} onChange={onServiceChange} placeholder="Street, City" />
+                                    </div>
                                     <div className="grid gap-1.5">
                                         <Label htmlFor="svc-image">Images</Label>
                                         <input id="svc-image" aria-label="Upload service images" type="file" accept="image/*" multiple onChange={(e) => onAddImageFiles(e.target.files)} className="block w-full text-sm text-gray-700 file:mr-4 file:rounded-md file:border file:border-gray-200 file:bg-white file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-gray-700 hover:file:bg-gray-50" />
@@ -1069,8 +984,8 @@ export default function ProviderDetailPage() {
                                         </div>
                                     </div>
                                     <div className="grid gap-1.5">
-                                        <Label htmlFor="svc-price">Price (ETB)</Label>
-                                        <Input id="svc-price" name="price" value={serviceForm.price} onChange={onServiceChange} placeholder="1000" inputMode="decimal" />
+                                        <Label htmlFor="svc-price">Price</Label>
+                                        <Input id="svc-price" name="price" value={serviceForm.price} onChange={onServiceChange} placeholder="$100" />
                                     </div>
                                     <div className="grid gap-1.5">
                                         <Label htmlFor="svc-discount">Discount (%) (optional)</Label>
@@ -1171,14 +1086,48 @@ export default function ProviderDetailPage() {
 
                             {/* Document Image Modal */}
                             {selectedDocument && (
-                                <Dialog open={!!selectedDocument} onClose={() => setSelectedDocument(null)}>
-                                    <DialogHeader>
-                                        <DialogTitle>Document Image</DialogTitle>
+                                <Dialog
+                                    open={!!selectedDocument}
+                                    onClose={() => setSelectedDocument(null)}
+                                    className="max-w-4xl"
+                                    scrollable
+                                >
+                                    <DialogHeader className="border-b border-border px-4 py-3">
+                                        <DialogTitle>Document preview</DialogTitle>
                                     </DialogHeader>
-                                    <div className="p-4">
-                                        <Image src={selectedDocument} alt="Document" width={1200} height={800} className="w-full h-auto rounded-lg" />
+                                    <div className="overflow-auto p-4">
+                                        {isBrowserInlineImage(selectedDocument) ? (
+                                            // eslint-disable-next-line @next/next/no-img-element
+                                            <img
+                                                src={selectedDocument}
+                                                alt="Document"
+                                                className="mx-auto max-h-[70vh] w-auto max-w-full rounded-lg object-contain"
+                                            />
+                                        ) : (
+                                            <div className="rounded-lg border border-border bg-muted/40 p-6 text-center">
+                                                <p className="text-sm text-text-secondary">
+                                                    This file format can’t be previewed in the browser.
+                                                </p>
+                                                <a
+                                                    href={selectedDocument}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="mt-3 inline-flex text-sm font-medium text-primary underline-offset-4 hover:underline"
+                                                >
+                                                    Open original file
+                                                </a>
+                                            </div>
+                                        )}
                                     </div>
-                                    <DialogFooter>
+                                    <DialogFooter className="border-t border-border px-4 py-3">
+                                        <a
+                                            href={selectedDocument}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+                                        >
+                                            Open original
+                                        </a>
                                         <Button onClick={() => setSelectedDocument(null)}>Close</Button>
                                     </DialogFooter>
                                 </Dialog>

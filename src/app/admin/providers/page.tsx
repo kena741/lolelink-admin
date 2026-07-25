@@ -48,7 +48,6 @@ import AuthGuard from "@/components/AuthGuard";
 import AdminPageHeader, { adminHeaderButtonClassName } from "@/components/AdminPageHeader";
 import { ActivationPaymentModal } from "@/components/ActivationPaymentModal";
 import { fetchSettings } from "@/features/settings/settingsSlice";
-import { useAdminPermissions } from "@/hooks/use-admin-permissions";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 
@@ -157,7 +156,6 @@ function SegmentGroup<V extends string>({ label, value, options, onChange }: Seg
 
 const ProvidersPage = () => {
     const dispatch = useAppDispatch();
-    const { canWriteProviders } = useAdminPermissions();
     const { providers, loading, error, serviceCounts } = useAppSelector((state) => state.provider);
 
     type SortKey = "name" | "email" | "services" | "createdAt";
@@ -267,17 +265,10 @@ const ProvidersPage = () => {
         const q = query.toLowerCase();
         return sortedProviders.filter((p) => {
             const name = getName(p);
-            const userId = (p.id ?? "").toLowerCase();
             const email = (p.email ?? "").toLowerCase();
             const phone = (p.phoneNumber ?? p.phone ?? "").toString().toLowerCase();
             const address = (p.address ?? "").toLowerCase();
-            return (
-                name.includes(q) ||
-                userId.includes(q) ||
-                email.includes(q) ||
-                phone.includes(q) ||
-                address.includes(q)
-            );
+            return name.includes(q) || email.includes(q) || phone.includes(q) || address.includes(q);
         });
     }, [sortedProviders, query]);
 
@@ -487,7 +478,7 @@ const ProvidersPage = () => {
                                     <input
                                         value={query}
                                         onChange={(e) => setQuery(e.target.value)}
-                                        placeholder="Search name, email, phone, user ID, address…"
+                                        placeholder="Search name, email, phone, address…"
                                         className={cn(
                                             "h-10 w-full rounded-md border border-border bg-card py-2 pl-11 text-sm text-foreground shadow-[0_1px_3px_rgba(0,0,0,0.06)] placeholder:text-muted-foreground transition-colors",
                                             "focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/30",
@@ -823,7 +814,7 @@ const ProvidersPage = () => {
                                                                 </Link>
                                                             </DropdownMenuItem>
                                                         ) : null}
-                                                        {canWriteProviders && !archived && p.id ? (
+                                                        {!archived && p.id ? (
                                                             <DropdownMenuItem
                                                                 disabled={rowBusy}
                                                                 onSelect={() => {
@@ -836,7 +827,7 @@ const ProvidersPage = () => {
                                                                 </span>
                                                             </DropdownMenuItem>
                                                         ) : null}
-                                                        {canWriteProviders && archived && p.id ? (
+                                                        {archived && p.id ? (
                                                             <DropdownMenuItem
                                                                 disabled={rowBusy}
                                                                 onSelect={() => {
@@ -849,7 +840,7 @@ const ProvidersPage = () => {
                                                                 </span>
                                                             </DropdownMenuItem>
                                                         ) : null}
-                                                        {canWriteProviders && p.id ? (
+                                                        {p.id ? (
                                                             <>
                                                                 <DropdownMenuSeparator />
                                                                 <DropdownMenuItem
@@ -1054,7 +1045,7 @@ const ProvidersPage = () => {
                                                                                 </Link>
                                                                             </DropdownMenuItem>
                                                                         ) : null}
-                                                                        {canWriteProviders && !archived && p.id ? (
+                                                                        {!archived && p.id ? (
                                                                             <DropdownMenuItem
                                                                                 disabled={rowBusy}
                                                                                 onSelect={() => {
@@ -1067,7 +1058,7 @@ const ProvidersPage = () => {
                                                                                 </span>
                                                                             </DropdownMenuItem>
                                                                         ) : null}
-                                                                        {canWriteProviders && archived && p.id ? (
+                                                                        {archived && p.id ? (
                                                                             <DropdownMenuItem
                                                                                 disabled={rowBusy}
                                                                                 onSelect={() => {
@@ -1080,7 +1071,7 @@ const ProvidersPage = () => {
                                                                                 </span>
                                                                             </DropdownMenuItem>
                                                                         ) : null}
-                                                                        {canWriteProviders && p.id ? (
+                                                                        {p.id ? (
                                                                             <>
                                                                                 <DropdownMenuSeparator />
                                                                                 <DropdownMenuItem
