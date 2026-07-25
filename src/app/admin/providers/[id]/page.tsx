@@ -101,8 +101,6 @@ export default function ProviderDetailPage() {
         .filter(req => req.paymentStatus === 'pending')
         .reduce((sum, req) => sum + (typeof req.amount === 'string' ? parseFloat(req.amount) || 0 : req.amount || 0), 0);
 
-    const bannerSrc = provider?.banner || undefined;
-    const profileSrc = resolveProfileImageUrl(provider) ?? undefined;
     const displayName = (() => {
         const first = provider?.firstName ?? provider?.first_name;
         const last = provider?.lastName ?? provider?.last_name;
@@ -251,7 +249,18 @@ export default function ProviderDetailPage() {
 
         const selectedCategory = categories.find((cat) => cat.id === serviceForm.categoryId);
         const selectedSubCategory = subCategories.find((sub) => sub.id === serviceForm.subCategoryId);
-        const service = {
+        const providerCoords = parseProviderLocation(provider?.location ?? null);
+        if (
+            typeof providerCoords.latitude !== 'number' ||
+            typeof providerCoords.longitude !== 'number' ||
+            !Number.isFinite(providerCoords.latitude) ||
+            !Number.isFinite(providerCoords.longitude)
+        ) {
+            alert('Provider location is required before adding a service. Set the provider address first.');
+            return;
+        }
+
+        const service: import('@/features/service/addServiceSlice').AddServiceModel = {
             serviceName: (serviceForm.name ?? '').toString().trim(),
             description: (serviceForm.description ?? '').toString().trim(),
             address: (serviceForm.address ?? '').toString().trim(),
@@ -283,9 +292,12 @@ export default function ProviderDetailPage() {
             slug: undefined,
             type: (serviceForm.type ?? '').toString().trim(),
             serviceLocationMode: (serviceForm.serviceLocationMode ?? 'onsite').toString(),
-            location: undefined,
+            location: {
+                latitude: providerCoords.latitude,
+                longitude: providerCoords.longitude,
+            },
             position: undefined,
-        } as import('@/features/service/addServiceSlice').AddServiceModel;
+        };
 
         try {
             await dispatch(addService({ service, imageFiles: addImages, videoFile: addVideo })).unwrap();
