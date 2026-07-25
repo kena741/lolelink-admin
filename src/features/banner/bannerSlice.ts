@@ -5,6 +5,7 @@ export interface Banner {
     bannerName?: string;
     image?: string;
     link?: string;
+    active: boolean;
     createdAt?: string;
 }
 
@@ -26,6 +27,7 @@ type BannerRow = {
     bannerName?: string;
     image?: string;
     link?: string;
+    active?: boolean | null;
     created_at?: string;
 };
 
@@ -35,6 +37,7 @@ const normalizeRows = (rows: BannerRow[] | null | undefined): Banner[] =>
         bannerName: row.bannerName,
         image: row.image,
         link: row.link,
+        active: row.active !== false,
         createdAt: row.created_at,
     }));
 
@@ -60,7 +63,7 @@ export const fetchBanners = createAsyncThunk<
 
 export const createBanner = createAsyncThunk<
     Banner,
-    { bannerName: string; image: string; link?: string },
+    { bannerName: string; image: string; link?: string; active?: boolean },
     { rejectValue: string }
 >(
     'banner/createBanner',
@@ -86,7 +89,7 @@ export const createBanner = createAsyncThunk<
 
 export const updateBanner = createAsyncThunk<
     Banner,
-    { id: number; bannerName?: string; image?: string; link?: string },
+    { id: number; bannerName?: string; image?: string; link?: string; active?: boolean },
     { rejectValue: string }
 >(
     'banner/updateBanner',

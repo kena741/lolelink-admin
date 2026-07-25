@@ -11,6 +11,7 @@ interface BannerRow {
     bannerName?: string;
     image?: string;
     link?: string;
+    active?: boolean | null;
     created_at?: string;
 }
 
@@ -19,6 +20,7 @@ interface BannerMutationBody {
     bannerName?: string;
     image?: string;
     link?: string;
+    active?: boolean;
 }
 
 export async function GET(request: Request) {
@@ -50,11 +52,12 @@ export async function POST(request: Request) {
         const bannerName = (body.bannerName ?? '').trim();
         const image = (body.image ?? '').trim();
         const link = (body.link ?? '').trim();
+        const active = body.active !== false;
         if (!bannerName || !image)
             return NextResponse.json({ error: 'bannerName and image are required' }, { status: 400 });
         const { data, error } = await supabaseAdmin
             .from('banner')
-            .insert({ bannerName, image, link })
+            .insert({ bannerName, image, link, active })
             .select()
             .single();
         if (error)
@@ -66,7 +69,7 @@ export async function POST(request: Request) {
             resource_type: 'banner',
             resource_id: String(row.id),
             summary: `Created banner ${bannerName}`,
-            metadata: { bannerName, image, link },
+            metadata: { bannerName, image, link, active },
         });
         return NextResponse.json({ data: row });
     } catch (error: unknown) {
@@ -91,6 +94,8 @@ export async function PATCH(request: Request) {
             updates.image = body.image.trim();
         if (typeof body.link === 'string')
             updates.link = body.link.trim();
+        if (typeof body.active === 'boolean')
+            updates.active = body.active;
         if (Object.keys(updates).length === 0) {
             return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
         }

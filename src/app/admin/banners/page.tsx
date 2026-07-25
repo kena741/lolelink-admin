@@ -7,8 +7,12 @@ import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminP
 import { RefreshCw, Plus, Edit, Trash2, X, Upload } from 'lucide-react';
 import Image from 'next/image';
 import { fetchBanners, createBanner, updateBanner, deleteBanner } from '@/features/banner/bannerSlice';
-import { uploadFilesToSupabase } from '@/lib/upload';
+import { deleteStorageFilesFromUrls, uploadFilesToSupabase } from '@/lib/upload';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
+import { Switch } from '@/components/ui/switch';
+
+/** Display frame for banners — matches ~3.8:1 (1200 × 315 / 1140 × 300). */
+const BANNER_ASPECT = '1200 / 315';
 
 const BannersPage = () => {
     const dispatch = useAppDispatch();
@@ -20,10 +24,16 @@ const BannersPage = () => {
         bannerName: '',
         image: '',
         link: '',
+        active: true,
     });
     const [uploading, setUploading] = useState(false);
+    const [removingImage, setRemovingImage] = useState(false);
+    const [togglingId, setTogglingId] = useState<number | null>(null);
     const [deletingId, setDeletingId] = useState<number | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [originalImage, setOriginalImage] = useState<string | null>(null);
+
+    const hasImage = Boolean(imagePreview || formData.image);
 
     useEffect(() => {
         dispatch(fetchBanners());
@@ -36,16 +46,20 @@ const BannersPage = () => {
                 bannerName: banner.bannerName || '',
                 image: banner.image || '',
                 link: banner.link || '',
+                active: banner.active !== false,
             });
             setImagePreview(banner.image || null);
+            setOriginalImage(banner.image || null);
         } else {
             setEditingBanner(null);
             setFormData({
                 bannerName: '',
                 image: '',
                 link: '',
+                active: true,
             });
             setImagePreview(null);
+            setOriginalImage(null);
         }
         setIsModalOpen(true);
     };
@@ -57,21 +71,41 @@ const BannersPage = () => {
             bannerName: '',
             image: '',
             link: '',
+            active: true,
         });
         setImagePreview(null);
+        setOriginalImage(null);
+        setRemovingImage(false);
+    };
+
+    const handleRemoveImage = async () => {
+        const url = formData.image.trim();
+        setRemovingImage(true);
+        try {
+            // Delete unsaved uploads from storage; keep original file until replaced/saved
+            if (url && url !== originalImage) {
+                await deleteStorageFilesFromUrls([url]);
+            }
+            setImagePreview(null);
+            setFormData((prev) => ({ ...prev, image: '' }));
+        } catch (err) {
+            console.error('Failed to remove image:', err);
+            alert('Failed to remove image. Please try again.');
+        } finally {
+            setRemovingImage(false);
+        }
     };
 
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
+        e.target.value = '';
         if (!file) return;
 
-        // Validate file type
         if (!file.type.startsWith('image/')) {
             alert('Please select an image file');
             return;
         }
 
-        // Validate file size (max 5MB)
         if (file.size > 5 * 1024 * 1024) {
             alert('Image size should be less than 5MB');
             return;
@@ -79,19 +113,19 @@ const BannersPage = () => {
 
         setUploading(true);
         try {
-            // Create preview
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setImagePreview(reader.result as string);
-            };
-            reader.readAsDataURL(file);
-
             const urls = await uploadFilesToSupabase([file], 'banners');
             if (!urls[0]) {
                 throw new Error('Failed to get public URL');
             }
 
-            setFormData({ ...formData, image: urls[0] });
+            // Delete previous original after successful replacement upload
+            if (originalImage) {
+                await deleteStorageFilesFromUrls([originalImage]);
+                setOriginalImage(null);
+            }
+
+            setFormData((prev) => ({ ...prev, image: urls[0] }));
+            setImagePreview(urls[0]);
         } catch (err) {
             console.error('Failed to upload image:', err);
             alert('Failed to upload image. Please try again.');
@@ -114,12 +148,17 @@ const BannersPage = () => {
                     bannerName: formData.bannerName,
                     image: formData.image,
                     link: formData.link,
+                    active: formData.active,
                 })).unwrap();
+                if (originalImage && originalImage !== formData.image) {
+                    await deleteStorageFilesFromUrls([originalImage]);
+                }
             } else {
                 await dispatch(createBanner({
                     bannerName: formData.bannerName,
                     image: formData.image,
                     link: formData.link,
+                    active: formData.active,
                 })).unwrap();
             }
             dispatch(fetchBanners());
@@ -130,9 +169,25 @@ const BannersPage = () => {
         }
     };
 
+    const handleToggleActive = async (banner: typeof banners[0]) => {
+        if (!canWriteCatalog) return;
+        setTogglingId(banner.id);
+        try {
+            await dispatch(updateBanner({
+                id: banner.id,
+                active: !banner.active,
+            })).unwrap();
+        } catch (err) {
+            console.error('Failed to update banner status:', err);
+            alert('Failed to update banner status. Please try again.');
+        } finally {
+            setTogglingId(null);
+        }
+    };
+
     const handleDelete = async (id: number) => {
         if (!confirm('Are you sure you want to delete this banner?')) return;
-        
+
         setDeletingId(id);
         try {
             await dispatch(deleteBanner(id)).unwrap();
@@ -163,7 +218,7 @@ const BannersPage = () => {
                     <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
                         <AdminPageHeader
                             title="Banners"
-                            description="Manage banner images"
+                            description="Manage banner images · recommended 1200×315 (3.8:1)"
                             breadcrumbs={[
                                 { label: 'Dashboard', href: '/admin/dashboard' },
                                 { label: 'Banners' },
@@ -193,80 +248,84 @@ const BannersPage = () => {
                             }
                         />
 
-                        {/* Error Message */}
                         {error && (
-                            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+                            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
                                 {error}
                             </div>
                         )}
 
-                        {/* Table */}
-                        <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+                        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
                             <div className="overflow-x-auto">
                                 <table className="w-full">
-                                    <thead className="bg-gray-50 border-b border-gray-200">
+                                    <thead className="border-b border-gray-200 bg-gray-50">
                                         <tr>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                                                 <input type="checkbox" className="rounded border-gray-300" />
                                             </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                                                 ID
                                             </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                                                 Banner Name
                                             </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                                                 Image
                                             </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                                                 Link
                                             </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                                                Status
+                                            </th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                                                 Created At
                                             </th>
-                                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
                                                 Actions
                                             </th>
                                         </tr>
                                     </thead>
-                                    <tbody className="bg-white divide-y divide-gray-200">
+                                    <tbody className="divide-y divide-gray-200 bg-white">
                                         {loading && banners.length === 0 ? (
                                             <tr>
-                                                <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                                                <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
                                                     Loading banners...
                                                 </td>
                                             </tr>
                                         ) : banners.length === 0 ? (
                                             <tr>
-                                                <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                                                <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
                                                     No banners found
                                                 </td>
                                             </tr>
                                         ) : (
                                             banners.map((banner) => (
                                                 <tr key={banner.id} className="hover:bg-gray-50">
-                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                    <td className="whitespace-nowrap px-6 py-4">
                                                         <input type="checkbox" className="rounded border-gray-300" />
                                                     </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-600">
+                                                    <td className="whitespace-nowrap px-6 py-4 font-mono text-sm text-gray-600">
                                                         {banner.id}
                                                     </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-900">
                                                         {banner.bannerName || '-'}
                                                     </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                    <td className="whitespace-nowrap px-6 py-4">
                                                         {banner.image ? (
-                                                            <div className="relative w-20 h-16 rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
+                                                            <div
+                                                                className="relative w-44 overflow-hidden rounded-lg border border-gray-200 bg-gray-50"
+                                                                style={{ aspectRatio: BANNER_ASPECT }}
+                                                            >
                                                                 <Image
                                                                     src={banner.image}
                                                                     alt={banner.bannerName || 'Banner'}
                                                                     fill
                                                                     unoptimized
-                                                                    className="object-contain"
+                                                                    className="object-cover"
                                                                 />
                                                             </div>
                                                         ) : (
-                                                            <span className="text-gray-400 text-sm">No image</span>
+                                                            <span className="text-sm text-gray-400">No image</span>
                                                         )}
                                                     </td>
                                                     <td className="px-6 py-4 text-sm text-gray-600">
@@ -275,7 +334,7 @@ const BannersPage = () => {
                                                                 href={banner.link}
                                                                 target="_blank"
                                                                 rel="noreferrer"
-                                                                className="text-indigo-600 hover:text-indigo-900 break-all"
+                                                                className="break-all text-indigo-600 hover:text-indigo-900"
                                                             >
                                                                 {banner.link}
                                                             </a>
@@ -283,10 +342,27 @@ const BannersPage = () => {
                                                             '-'
                                                         )}
                                                     </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                                    <td className="whitespace-nowrap px-6 py-4">
+                                                        <div className="flex items-center gap-2">
+                                                            <Switch
+                                                                checked={banner.active}
+                                                                disabled={!canWriteCatalog || togglingId === banner.id}
+                                                                onCheckedChange={() => handleToggleActive(banner)}
+                                                                aria-label={banner.active ? 'Deactivate banner' : 'Activate banner'}
+                                                            />
+                                                            <span className={`text-xs font-medium ${banner.active ? 'text-primary' : 'text-gray-500'}`}>
+                                                                {togglingId === banner.id
+                                                                    ? 'Saving…'
+                                                                    : banner.active
+                                                                      ? 'Active'
+                                                                      : 'Inactive'}
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
                                                         {formatDate(banner.createdAt)}
                                                     </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                    <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
                                                         {canWriteCatalog ? (
                                                         <div className="flex items-center justify-end gap-2">
                                                             <button
@@ -316,11 +392,10 @@ const BannersPage = () => {
                 </main>
             </div>
 
-            {/* Add/Edit Modal */}
             {isModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-                        <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+                    <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white shadow-xl">
+                        <div className="sticky top-0 flex items-center justify-between border-b border-gray-200 bg-white p-6">
                             <h2 className="text-xl font-bold text-gray-900">
                                 {editingBanner ? 'Edit Banner' : 'Add Banner'}
                             </h2>
@@ -334,7 +409,7 @@ const BannersPage = () => {
                         <form onSubmit={handleSubmit} className="p-6">
                             <div className="space-y-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    <label className="mb-2 block text-sm font-medium text-gray-700">
                                         Banner Name *
                                     </label>
                                     <input
@@ -347,47 +422,87 @@ const BannersPage = () => {
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    <label className="mb-2 block text-sm font-medium text-gray-700">
                                         Image *
                                     </label>
+                                    <p className="mb-2 text-xs text-gray-500">
+                                        Best size: 1200 × 315 (or 1140 × 300) · about 3.8:1 wide.
+                                    </p>
                                     <div className="space-y-3">
-                                        {imagePreview && (
-                                            <div className="relative w-full h-48 rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
-                                                <Image
-                                                    src={imagePreview}
-                                                    alt="Preview"
-                                                    fill
-                                                    unoptimized
-                                                    className="object-contain"
-                                                />
-                                            </div>
-                                        )}
-                                        <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
-                                            <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                                                <Upload className="h-8 w-8 text-gray-400 mb-2" />
-                                                <p className="mb-2 text-sm text-gray-500">
-                                                    <span className="font-semibold">Click to upload</span> or drag and drop
+                                        {hasImage ? (
+                                            <div className="space-y-2">
+                                                <div
+                                                    className="relative w-full overflow-hidden rounded-lg border border-gray-200 bg-gray-50"
+                                                    style={{ aspectRatio: BANNER_ASPECT }}
+                                                >
+                                                    <Image
+                                                        src={imagePreview || formData.image}
+                                                        alt="Preview"
+                                                        fill
+                                                        unoptimized
+                                                        className="object-cover"
+                                                    />
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleRemoveImage}
+                                                    disabled={removingImage || uploading}
+                                                    className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                                >
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                    {removingImage ? 'Removing…' : 'Remove image'}
+                                                </button>
+                                                <p className="text-xs text-gray-500">
+                                                    Remove the current image to upload a new one.
                                                 </p>
-                                                <p className="text-xs text-gray-500">PNG, JPG, GIF up to 5MB</p>
                                             </div>
-                                            <input
-                                                type="file"
-                                                accept="image/*"
-                                                onChange={handleImageUpload}
-                                                className="hidden"
-                                                disabled={uploading}
-                                            />
-                                        </label>
+                                        ) : (
+                                            <label className="flex h-32 w-full cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 transition-colors hover:bg-gray-50">
+                                                <div className="flex flex-col items-center justify-center pb-6 pt-5">
+                                                    <Upload className="mb-2 h-8 w-8 text-gray-400" />
+                                                    <p className="mb-2 text-sm text-gray-500">
+                                                        <span className="font-semibold">Click to upload</span> or drag and drop
+                                                    </p>
+                                                    <p className="text-xs text-gray-500">PNG, JPG up to 5MB · 1200×315 recommended</p>
+                                                </div>
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    onChange={handleImageUpload}
+                                                    className="hidden"
+                                                    disabled={uploading}
+                                                />
+                                            </label>
+                                        )}
                                         {uploading && (
                                             <p className="text-sm text-indigo-600">Uploading image...</p>
-                                        )}
-                                        {formData.image && !imagePreview && (
-                                            <p className="text-sm text-gray-600">Image URL: {formData.image.substring(0, 50)}...</p>
                                         )}
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    <label className="mb-2 block text-sm font-medium text-gray-700">
+                                        Status
+                                    </label>
+                                    <div className="flex items-center gap-3 rounded-lg border border-gray-200 px-4 py-3">
+                                        <Switch
+                                            checked={formData.active}
+                                            onCheckedChange={(checked) => setFormData({ ...formData, active: checked })}
+                                            aria-label={formData.active ? 'Banner active' : 'Banner inactive'}
+                                        />
+                                        <div>
+                                            <p className="text-sm font-medium text-gray-900">
+                                                {formData.active ? 'Active' : 'Inactive'}
+                                            </p>
+                                            <p className="text-xs text-gray-500">
+                                                {formData.active
+                                                    ? 'This banner will be shown in the app.'
+                                                    : 'This banner is hidden until activated.'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="mb-2 block text-sm font-medium text-gray-700">
                                         Link
                                     </label>
                                     <input
@@ -399,18 +514,18 @@ const BannersPage = () => {
                                     />
                                 </div>
                             </div>
-                            <div className="flex items-center justify-end gap-3 mt-6 pt-6 border-t border-gray-200">
+                            <div className="mt-6 flex items-center justify-end gap-3 border-t border-gray-200 pt-6">
                                 <button
                                     type="button"
                                     onClick={handleCloseModal}
-                                    className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+                                    className="rounded-lg border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     type="submit"
-                                    disabled={uploading || !formData.bannerName.trim() || !formData.image.trim()}
-                                    className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    disabled={uploading || removingImage || !formData.bannerName.trim() || !formData.image.trim()}
+                                    className="rounded-lg bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                     {editingBanner ? 'Update' : 'Create'}
                                 </button>
@@ -424,4 +539,3 @@ const BannersPage = () => {
 };
 
 export default BannersPage;
-
