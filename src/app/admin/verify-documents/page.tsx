@@ -21,7 +21,8 @@ import {
     RotateCcw,
 } from 'lucide-react';
 import Link from 'next/link';
-import Image from 'next/image';
+import { StorageImage } from '@/components/StorageImage';
+import { DocumentMediaPreview } from '@/components/DocumentMediaPreview';
 import {
     fetchVerifyDocuments,
     verifyDocument,
@@ -339,7 +340,7 @@ const VerifyDocumentsPage = () => {
                                         className={cn(
                                             'inline-flex h-9 items-center rounded-lg px-3 text-sm font-medium transition-colors',
                                             statusFilter === value
-                                                ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white'
+                                                ? 'bg-primary text-primary-foreground'
                                                 : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50',
                                         )}
                                     >
@@ -355,7 +356,7 @@ const VerifyDocumentsPage = () => {
                                     id="verify-doc-subcat"
                                     value={subCategoryFilter}
                                     onChange={(e) => setSubCategoryFilter(e.target.value)}
-                                    className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200/50"
+                                    className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                                 >
                                     <option value="all">All categories</option>
                                     {subCategoryOptions.map((name) => (
@@ -373,7 +374,7 @@ const VerifyDocumentsPage = () => {
                                         setStatusFilter('all');
                                         setSubCategoryFilter('all');
                                     }}
-                                    className="h-9 rounded-lg px-3 text-sm font-semibold text-indigo-700 hover:bg-indigo-50 lg:ml-auto"
+                                    className="h-9 rounded-lg px-3 text-sm font-semibold text-primary hover:bg-primary/10 lg:ml-auto"
                                 >
                                     Clear filters
                                 </button>
@@ -383,7 +384,7 @@ const VerifyDocumentsPage = () => {
                         {/* Documents Grid */}
                         {loading && (
                             <div className="mb-4 text-center py-12">
-                                <RefreshCw className="h-8 w-8 animate-spin text-indigo-600 mx-auto mb-4" />
+                                <RefreshCw className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
                                 <p className="text-gray-600">Loading documents...</p>
                             </div>
                         )}
@@ -423,15 +424,15 @@ const VerifyDocumentsPage = () => {
                                                 className="rounded-2xl bg-white/80 backdrop-blur-xl border border-white/20 shadow-xl overflow-hidden"
                                             >
                                                 {/* Provider Header */}
-                                                <div className="bg-gradient-to-r from-indigo-50/50 to-purple-50/50 border-b border-white/20 p-6">
+                                                <div className="border-b border-border bg-muted/40 p-6">
                                                     <div className="flex items-center justify-between flex-wrap gap-4">
                                                         <div className="flex-1">
                                                             <div className="flex items-center gap-3 mb-2">
-                                                                <User className="h-5 w-5 text-indigo-600" />
+                                                                <User className="h-5 w-5 text-primary" />
                                                                 {group.providerId ? (
                                                                     <Link 
                                                                         href={`/admin/providers/${group.providerId}`}
-                                                                        className="text-xl font-bold text-gray-900 hover:text-indigo-600 transition-colors"
+                                                                        className="text-xl font-bold text-gray-900 hover:text-primary transition-colors"
                                                                     >
                                                                         {group.providerName}
                                                                     </Link>
@@ -694,23 +695,19 @@ const VerifyDocumentsPage = () => {
                                     {getDisplayImageUrl(selectedDocument.documentImage) && (
                                         <div>
                                             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 block">Document Image</label>
-                                            <div className="rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
-                                                <div className="relative">
-                                                    <Image
-                                                        src={getDisplayImageUrl(selectedDocument.documentImage)!}
-                                                        alt={selectedDocument.documentName || 'Document'}
-                                                        width={1200}
-                                                        height={900}
-                                                        className="w-full h-auto max-h-96 object-contain cursor-pointer"
-                                                        onClick={() => setSelectedImage(getDisplayImageUrl(selectedDocument.documentImage))}
-                                                    />
-                                                    <button
-                                                        onClick={() => setSelectedImage(getDisplayImageUrl(selectedDocument.documentImage))}
-                                                        className="absolute top-4 right-4 p-2 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg hover:bg-white transition-colors"
-                                                    >
-                                                        <Eye className="h-5 w-5 text-gray-700" />
-                                                    </button>
-                                                </div>
+                                            <div className="relative rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
+                                                <DocumentMediaPreview
+                                                    src={getDisplayImageUrl(selectedDocument.documentImage)!}
+                                                    alt={selectedDocument.documentName || 'Document'}
+                                                    onOpen={() => setSelectedImage(getDisplayImageUrl(selectedDocument.documentImage))}
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSelectedImage(getDisplayImageUrl(selectedDocument.documentImage))}
+                                                    className="absolute top-4 right-4 p-2 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg hover:bg-white transition-colors"
+                                                >
+                                                    <Eye className="h-5 w-5 text-gray-700" />
+                                                </button>
                                             </div>
                                         </div>
                                     )}
@@ -824,7 +821,7 @@ const VerifyDocumentsPage = () => {
                                 >
                                     <XCircle className="h-6 w-6" />
                                 </button>
-                                <Image
+                                <StorageImage
                                     src={selectedImage}
                                     alt="Document Preview"
                                     width={1600}

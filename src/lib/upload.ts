@@ -25,7 +25,8 @@ export async function uploadFilesToSupabase(files: File[], folderPath: string): 
         const file = rawFile.type.startsWith('image/')
             ? await compressImageFile(rawFile)
             : rawFile;
-        const filePath = `${folderPath}/${Date.now()}_${file.name}`;
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, '_');
+        const filePath = `${folderPath}/${Date.now()}_${safeName || 'file'}`;
         const { error } = await getSupabase().storage
             .from(BUCKET)
             .upload(filePath, file, { cacheControl: CACHE_CONTROL, upsert: false });

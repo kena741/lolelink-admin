@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import Image from 'next/image';
+import { StorageImage } from '@/components/StorageImage';
 import { Check, ChevronDown, Loader2, Trash2 } from 'lucide-react';
 import {
     getBookingCustomerDisplayName,
@@ -430,7 +430,7 @@ export function BookingDetailModal({
 
                             {serviceImage && (
                                 <SectionCard title="Service image">
-                                    <Image
+                                    <StorageImage
                                         src={serviceImage}
                                         alt="service"
                                         width={800}

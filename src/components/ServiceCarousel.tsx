@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import Image from "next/image";
+import { StorageImage } from "@/components/StorageImage";
 import styles from "./ServiceCarousel.module.css";
 
 interface ServiceCarouselProps {
@@ -43,13 +43,12 @@ const ServiceCarousel: React.FC<ServiceCarouselProps> = ({ images, alt }) => {
                                 <div className="w-full h-full bg-gray-50 absolute hidden">
                                     <div className="w-8 h-8 border-4 border-sky-600 border-t-transparent rounded-full animate-spin"></div>
                                 </div>
-                                <Image
+                                <StorageImage
                                     src={img}
                                     alt={alt}
                                     fill
                                     className="w-full h-full object-cover transition-opacity duration-300 opacity-100"
                                     loading="lazy"
-                                    decoding="async"
                                 />
                             </div>
                         </div>

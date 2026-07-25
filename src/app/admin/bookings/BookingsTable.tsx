@@ -1,6 +1,6 @@
 'use client';
 
-import Image from 'next/image';
+import { StorageImage } from '@/components/StorageImage';
 import { Briefcase, Bug, Eye, Loader2, Trash2 } from 'lucide-react';
 import {
     getBookingCustomerDisplayName,
@@ -189,7 +189,7 @@ export function BookingsTable({
                                     <td className="px-4 py-3 align-top">
                                         <div className="flex items-start gap-2.5">
                                             {serviceImage ? (
-                                                <Image
+                                                <StorageImage
                                                     src={serviceImage}
                                                     alt=""
                                                     width={36}

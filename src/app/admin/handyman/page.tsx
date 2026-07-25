@@ -17,7 +17,7 @@ import {
     Phone,
     MapPin
 } from 'lucide-react';
-import Image from 'next/image';
+import { StorageImage } from '@/components/StorageImage';
 import { fetchHandymen, createHandyman, updateHandyman, deleteHandyman } from '@/features/handyman/handymanSlice';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 
@@ -244,7 +244,7 @@ const HandymanPage = () => {
                                                         <td className="px-6 py-4">
                                                             <div className="flex items-center gap-2">
                                                                 {getDisplayImageUrl(handyman.profileImage) ? (
-                                                                    <Image
+                                                                    <StorageImage
                                                                         src={getDisplayImageUrl(handyman.profileImage)!}
                                                                         alt={`${handyman.firstName} ${handyman.lastName}`}
                                                                         width={32}

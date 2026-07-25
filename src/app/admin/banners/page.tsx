@@ -5,7 +5,7 @@ import Sidebar from '@/components/Sidebar';
 import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import { RefreshCw, Plus, Edit, Trash2, X, Upload } from 'lucide-react';
-import Image from 'next/image';
+import { StorageImage } from '@/components/StorageImage';
 import { fetchBanners, createBanner, updateBanner, deleteBanner } from '@/features/banner/bannerSlice';
 import { deleteStorageFilesFromUrls, uploadFilesToSupabase } from '@/lib/upload';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
@@ -316,11 +316,10 @@ const BannersPage = () => {
                                                                 className="relative w-44 overflow-hidden rounded-lg border border-gray-200 bg-gray-50"
                                                                 style={{ aspectRatio: BANNER_ASPECT }}
                                                             >
-                                                                <Image
+                                                                <StorageImage
                                                                     src={banner.image}
                                                                     alt={banner.bannerName || 'Banner'}
                                                                     fill
-                                                                    unoptimized
                                                                     className="object-cover"
                                                                 />
                                                             </div>
@@ -435,11 +434,10 @@ const BannersPage = () => {
                                                     className="relative w-full overflow-hidden rounded-lg border border-gray-200 bg-gray-50"
                                                     style={{ aspectRatio: BANNER_ASPECT }}
                                                 >
-                                                    <Image
+                                                    <StorageImage
                                                         src={imagePreview || formData.image}
                                                         alt="Preview"
                                                         fill
-                                                        unoptimized
                                                         className="object-cover"
                                                     />
                                                 </div>

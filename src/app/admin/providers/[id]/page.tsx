@@ -15,7 +15,7 @@ import { approveServicesByProvider } from '@/features/service/approveServicesSli
 import { fetchVerifyDocuments } from '@/features/verifyDocuments/verifyDocumentsSlice';
 import { fetchPayoutRequests } from '@/features/payout/payoutSlice';
 import { getDisplayImageUrl, resolveProfileImageUrl } from '@/lib/media-url';
-import { getMediaUrlExtension, isBrowserInlineImage } from '@/lib/document-media';
+import { isBrowserInlineImage } from '@/lib/document-media';
 import {
     filterServiceDiscountInput,
     getServiceDiscountError,
@@ -35,7 +35,8 @@ import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } fr
 import { ProviderAddressPicker } from '@/components/ProviderAddressPicker';
 import { buildProviderUpdatesFromEditForm } from '@/lib/build-provider-updates';
 import { parseProviderLocation } from '@/lib/provider-location';
-import Image from 'next/image';
+import { StorageImage } from '@/components/StorageImage';
+import { DocumentMediaPreview } from '@/components/DocumentMediaPreview';
 
 export default function ProviderDetailPage() {
     const params = useParams();
@@ -520,7 +521,7 @@ export default function ProviderDetailPage() {
                                                         >
                                                             <div className="h-40 w-full overflow-hidden bg-muted">
                                                                 {primaryImage ? (
-                                                                    <Image
+                                                                    <StorageImage
                                                                         src={primaryImage}
                                                                         alt={serviceTitle}
                                                                         width={640}
@@ -605,7 +606,7 @@ export default function ProviderDetailPage() {
                                                                 {s.images && s.images.length > 1 ? (
                                                                     <div className="mt-3 flex gap-2">
                                                                         {s.images.slice(1, 5).map((img, idx) => (
-                                                                            <Image
+                                                                            <StorageImage
                                                                                 key={idx}
                                                                                 src={img}
                                                                                 alt={`${serviceTitle} ${idx + 2}`}
@@ -636,8 +637,6 @@ export default function ProviderDetailPage() {
                                             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                                                 {providerDocuments.map((doc) => {
                                                     const imageUrl = getDisplayImageUrl(doc.documentImage);
-                                                    const canPreviewInline = isBrowserInlineImage(imageUrl);
-                                                    const ext = getMediaUrlExtension(imageUrl);
                                                     const status =
                                                         doc.isVerify === true
                                                             ? { label: 'Verified', className: 'bg-primary/10 text-primary' }
@@ -659,35 +658,12 @@ export default function ProviderDetailPage() {
                                                                 </span>
                                                             </div>
                                                             {imageUrl ? (
-                                                                canPreviewInline ? (
-                                                                    <button
-                                                                        type="button"
-                                                                        className="mt-3 block w-full overflow-hidden rounded-lg border border-border bg-muted/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                                                        onClick={() => setSelectedDocument(imageUrl)}
-                                                                    >
-                                                                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                                                                        <img
-                                                                            src={imageUrl}
-                                                                            alt={doc.documentName || 'Document'}
-                                                                            loading="lazy"
-                                                                            className="mx-auto max-h-56 w-full object-contain"
-                                                                        />
-                                                                    </button>
-                                                                ) : (
-                                                                    <div className="mt-3 rounded-lg border border-border bg-muted/40 p-4">
-                                                                        <p className="text-sm text-text-secondary">
-                                                                            This file is <span className="font-semibold uppercase">{ext || 'unknown'}</span> and can’t be previewed in the browser.
-                                                                        </p>
-                                                                        <a
-                                                                            href={imageUrl}
-                                                                            target="_blank"
-                                                                            rel="noopener noreferrer"
-                                                                            className="mt-3 inline-flex text-sm font-medium text-primary underline-offset-4 hover:underline"
-                                                                        >
-                                                                            Open original file
-                                                                        </a>
-                                                                    </div>
-                                                                )
+                                                                <DocumentMediaPreview
+                                                                    src={imageUrl}
+                                                                    alt={doc.documentName || 'Document'}
+                                                                    imgClassName="max-h-56"
+                                                                    onOpen={() => setSelectedDocument(imageUrl)}
+                                                                />
                                                             ) : (
                                                                 <p className="mt-3 text-sm text-text-secondary">No image uploaded.</p>
                                                             )}
@@ -777,7 +753,7 @@ export default function ProviderDetailPage() {
                                                                 <td className="px-6 py-4">
                                                                     <div className="flex items-center gap-2">
                                                                         {getDisplayImageUrl(handyman.profileImage) ? (
-                                                                            <Image src={getDisplayImageUrl(handyman.profileImage)!} alt={`${handyman.firstName} ${handyman.lastName}`} width={32} height={32} loading="lazy" className="w-8 h-8 rounded-full object-cover" />
+                                                                            <StorageImage src={getDisplayImageUrl(handyman.profileImage)!} alt={`${handyman.firstName} ${handyman.lastName}`} width={32} height={32} loading="lazy" className="w-8 h-8 rounded-full object-cover" />
                                                                         ) : (
                                                                             <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center">
                                                                                 <Wrench className="h-4 w-4 text-indigo-600" />

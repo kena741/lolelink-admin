@@ -17,7 +17,7 @@ import {
     Image as ImageIcon
 } from 'lucide-react';
 import Link from 'next/link';
-import Image from 'next/image';
+import { StorageImage } from '@/components/StorageImage';
 import { fetchCategories, createCategory, updateCategory, deleteCategory } from '@/features/category/categorySlice';
 import { fetchSubCategories } from '@/features/subcategory/subcategorySlice';
 import { uploadFilesToSupabase } from '@/lib/upload';
@@ -221,7 +221,7 @@ const CategoriesPage = () => {
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         {category.image ? (
                                                             <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100">
-                                                                <Image
+                                                                <StorageImage
                                                                     src={category.image}
                                                                     alt={category.categoryName}
                                                                     width={48}
@@ -380,7 +380,7 @@ const CategoriesPage = () => {
                                         </label>
                                         {imagePreview && (
                                             <div className="mb-3 relative">
-                                                <Image
+                                                <StorageImage
                                                     src={imagePreview}
                                                     alt="Preview"
                                                     width={800}

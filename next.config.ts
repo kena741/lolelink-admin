@@ -22,8 +22,8 @@ const resolvedStagingUrl =
 const resolvedStagingAnonKey =
   readEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY_STAGING") || readEnv("SUPABASE_ANON_KEY_STAGING");
 
-const supabaseHost =
-  safeSupabaseHostname(resolvedProdUrl) ?? safeSupabaseHostname(resolvedStagingUrl);
+const prodHost = safeSupabaseHostname(resolvedProdUrl);
+const stagingHost = safeSupabaseHostname(resolvedStagingUrl);
 
 const allowedDevOrigins = process.env.NEXT_ALLOWED_DEV_ORIGINS?.split(",")
   .map((origin) => origin.trim())
@@ -67,12 +67,23 @@ const nextConfig: NextConfig = {
       : {}),
   },
   images: {
+    // Supabase Storage often breaks Next image optimization in production
+    // ("upstream response is invalid"). Serve remote media as-is.
+    unoptimized: true,
     remotePatterns: [
-      ...(supabaseHost
-        ? [{ protocol: "https" as const, hostname: supabaseHost, pathname: "/storage/v1/object/public/**" }]
+      {
+        protocol: "https",
+        hostname: "*.supabase.co",
+        pathname: "/storage/v1/object/public/**",
+      },
+      ...(prodHost
+        ? [{ protocol: "https" as const, hostname: prodHost, pathname: "/storage/v1/object/public/**" }]
+        : []),
+      ...(stagingHost && stagingHost !== prodHost
+        ? [{ protocol: "https" as const, hostname: stagingHost, pathname: "/storage/v1/object/public/**" }]
         : []),
       { protocol: "https", hostname: "rffptyqhqvzrpmyxlwwu.supabase.co", pathname: "/storage/v1/object/public/**" },
-      { protocol: "https", hostname: "cdmgxbepfixfeumytkag.supabase.co", pathname: "/storage/v1/object/public/**" },
+      { protocol: "https", hostname: "cdmgxbeppmfeumytkag.supabase.co", pathname: "/storage/v1/object/public/**" },
     ],
   },
 };
