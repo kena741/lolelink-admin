@@ -360,15 +360,15 @@ interface ActivationPaymentResponse {
 
 export const initiateActivationPayment = createAsyncThunk<
     { checkout_url: string; tx_ref: string },
-    { providerId: string },
+    { providerId: string; feeAmount: number },
     { rejectValue: string }
 >(
     "provider/initiateActivationPayment",
-    async ({ providerId }, { rejectWithValue }) => {
+    async ({ providerId, feeAmount }, { rejectWithValue }) => {
         const response = await fetch('/api/provider/activate-payment', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ providerId, mode: 'chapa' }),
+            body: JSON.stringify({ providerId, mode: 'chapa', feeAmount }),
         });
         const payload = (await response.json()) as ActivationPaymentResponse;
         if (!response.ok || payload.status !== 'success' || !payload.checkout_url) {
@@ -422,15 +422,15 @@ export const verifyActivationPayment = createAsyncThunk<
 
 export const markActivationPaid = createAsyncThunk<
     Provider,
-    { providerId: string; txRef?: string; note?: string },
+    { providerId: string; feeAmount: number; txRef?: string; note?: string },
     { rejectValue: string }
 >(
     "provider/markActivationPaid",
-    async ({ providerId, txRef, note }, { rejectWithValue }) => {
+    async ({ providerId, feeAmount, txRef, note }, { rejectWithValue }) => {
         const response = await fetch('/api/provider/activate-payment', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ providerId, mode: 'manual', txRef, note }),
+            body: JSON.stringify({ providerId, mode: 'manual', feeAmount, txRef, note }),
         });
         const payload = (await response.json()) as ActivationPaymentResponse;
         if (!response.ok || payload.status !== 'success') {

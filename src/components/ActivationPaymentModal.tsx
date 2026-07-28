@@ -1,13 +1,18 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { initiateActivationPayment, markActivationPaid, verifyActivationPayment } from '@/features/provider/providerSlice';
+import { fetchProviderById, initiateActivationPayment } from '@/features/provider/providerSlice';
 import { getSupabase } from '@/lib/supabaseClient';
+import {
+    DEFAULT_SERVICE_POSTING_TIERS,
+    formatServicePostingTierLabel,
+    parseServicePostingTiers,
+} from '@/lib/service-posting-tiers';
 
 interface ActivationPaymentModalProps {
     open: boolean;
@@ -26,9 +31,16 @@ interface DebugLog {
 
 export function ActivationPaymentModal({ open, onClose, providerId, providerName }: ActivationPaymentModalProps) {
     const dispatch = useAppDispatch();
-    const feeAmount = useAppSelector(
-        (s) => s.settings.settings?.constants?.provider_activation_account_activation_fee_amount || '0'
+    const tiersFromSettings = useAppSelector((s) => s.settings.settings?.constants?.service_posting_tiers);
+    const tiers = useMemo(
+        () => (tiersFromSettings?.length ? parseServicePostingTiers(tiersFromSettings) : DEFAULT_SERVICE_POSTING_TIERS),
+        [tiersFromSettings]
     );
+    const defaultPrice = useMemo(
+        () => (tiers.find((tier) => tier.total_price === 499) ?? tiers[0]).total_price,
+        [tiers]
+    );
+    const [selectedPrice, setSelectedPrice] = useState(defaultPrice);
 
     const [view, setView] = useState<ModalView>('main');
     const [txRef, setTxRef] = useState('');
@@ -39,6 +51,11 @@ export function ActivationPaymentModal({ open, onClose, providerId, providerName
     const [debugLogs, setDebugLogs] = useState<DebugLog[]>([]);
     const [showDebug, setShowDebug] = useState(true);
     const [isFinanceAdmin, setIsFinanceAdmin] = useState(false);
+
+    useEffect(() => {
+        if (!open) return;
+        setSelectedPrice(defaultPrice);
+    }, [open, defaultPrice]);
 
     useEffect(() => {
         let isMounted = true;
@@ -77,10 +94,10 @@ export function ActivationPaymentModal({ open, onClose, providerId, providerName
     const handlePayViaChapa = async () => {
         setLoading(true);
         setError(null);
-        addDebugLog('initiateActivationPayment', { providerId, status: 'calling...' });
+        addDebugLog('initiateActivationPayment', { providerId, feeAmount: selectedPrice, status: 'calling...' });
         try {
             const result = await dispatch(
-                initiateActivationPayment({ providerId })
+                initiateActivationPayment({ providerId, feeAmount: selectedPrice })
             ).unwrap();
             addDebugLog('initiateActivationPayment SUCCESS', result);
             window.open(result.checkout_url, '_blank');
@@ -132,8 +149,8 @@ export function ActivationPaymentModal({ open, onClose, providerId, providerName
                 addDebugLog('wallet_transaction SKIPPED', rawData);
             }
 
-            await dispatch(verifyActivationPayment({ providerId })).unwrap();
-            addDebugLog('verifyActivationPayment SUCCESS (provider reloaded)', { providerId });
+            await dispatch(fetchProviderById(providerId)).unwrap();
+            addDebugLog('provider reloaded after verify', { providerId });
             setSuccessMessage(
                 rawData.wallet_skipped
                     ? 'Payment verified. Existing customer wallet top-up was used — no duplicate wallet credit was created.'
@@ -152,13 +169,25 @@ export function ActivationPaymentModal({ open, onClose, providerId, providerName
     const handleManualMark = async () => {
         setLoading(true);
         setError(null);
-        addDebugLog('markActivationPaid (manual)', { providerId, txRef, note, status: 'calling...' });
+        addDebugLog('markActivationPaid (manual)', {
+            providerId,
+            feeAmount: selectedPrice,
+            txRef,
+            note,
+            status: 'calling...',
+        });
 
         try {
             const rawResponse = await fetch('/api/provider/activate-payment', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ providerId, mode: 'manual', txRef: txRef.trim() || undefined, note: note.trim() || undefined }),
+                body: JSON.stringify({
+                    providerId,
+                    mode: 'manual',
+                    feeAmount: selectedPrice,
+                    txRef: txRef.trim() || undefined,
+                    note: note.trim() || undefined,
+                }),
             });
             const rawData = await rawResponse.json();
             addDebugLog(`manual API (${rawResponse.status})`, rawData);
@@ -179,7 +208,7 @@ export function ActivationPaymentModal({ open, onClose, providerId, providerName
                 addDebugLog('wallet_transaction SKIPPED', rawData);
             }
 
-            await dispatch(markActivationPaid({ providerId, txRef: txRef.trim() || undefined, note: note.trim() || undefined })).unwrap();
+            await dispatch(fetchProviderById(providerId)).unwrap();
             addDebugLog('markActivationPaid SUCCESS', { providerId });
             if (rawData.wallet_skipped) {
                 setSuccessMessage('Activation confirmed using existing customer wallet top-up. No duplicate wallet credit was created.');
@@ -202,6 +231,7 @@ export function ActivationPaymentModal({ open, onClose, providerId, providerName
         setNote('');
         setError(null);
         setSuccessMessage(null);
+        setSelectedPrice(defaultPrice);
         onClose();
     };
 
@@ -236,16 +266,50 @@ export function ActivationPaymentModal({ open, onClose, providerId, providerName
                     <span className="text-muted-foreground">Provider ID</span>
                     <span className="font-mono text-xs text-card-foreground">{providerId}</span>
                 </div>
-                <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Activation Fee</span>
-                    <span className="font-semibold text-card-foreground">ETB {feeAmount}</span>
-                </div>
+                {(view === 'main' || view === 'manual') && (
+                    <div className="space-y-2 pt-1">
+                        <span className="text-sm text-muted-foreground">Activation plan</span>
+                        <div className="grid gap-2">
+                            {tiers.map((tier) => {
+                                const selected = Math.abs(tier.total_price - selectedPrice) < 0.01;
+                                return (
+                                    <label
+                                        key={tier.total_price}
+                                        className={`flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2 text-sm transition-colors ${
+                                            selected
+                                                ? 'border-primary bg-background'
+                                                : 'border-border bg-background/60 hover:bg-background'
+                                        }`}
+                                    >
+                                        <input
+                                            type="radio"
+                                            name="activation-tier"
+                                            className="h-4 w-4"
+                                            checked={selected}
+                                            disabled={loading}
+                                            onChange={() => setSelectedPrice(tier.total_price)}
+                                        />
+                                        <span className="font-medium text-card-foreground">
+                                            {formatServicePostingTierLabel(tier)}
+                                        </span>
+                                    </label>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+                {view === 'verify' && (
+                    <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Selected Fee</span>
+                        <span className="font-semibold text-card-foreground">ETB {selectedPrice}</span>
+                    </div>
+                )}
             </div>
 
             {view === 'main' && (
                 <div className="mt-4 flex flex-col gap-3">
                     <Button onClick={handlePayViaChapa} disabled={loading} className="w-full">
-                        {loading ? 'Initializing...' : 'Pay via Chapa'}
+                        {loading ? 'Initializing...' : `Pay ETB ${selectedPrice} via Chapa`}
                     </Button>
                     {isFinanceAdmin && (
                         <Button
@@ -316,7 +380,6 @@ export function ActivationPaymentModal({ open, onClose, providerId, providerName
                 </div>
             )}
 
-            {/* Debug Panel */}
             <div className="mt-3 border-t border-border pt-3">
                 <button
                     onClick={() => setShowDebug((v) => !v)}
@@ -351,7 +414,7 @@ export function ActivationPaymentModal({ open, onClose, providerId, providerName
                         Back
                     </Button>
                     <Button onClick={handleManualMark} disabled={loading}>
-                        {loading ? 'Processing...' : 'Confirm Payment'}
+                        {loading ? 'Processing...' : `Confirm ETB ${selectedPrice}`}
                     </Button>
                 </DialogFooter>
             )}

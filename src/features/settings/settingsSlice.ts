@@ -54,10 +54,16 @@ export interface BookingStatusOption {
     name: string;
 }
 
+export interface ServicePostingTierConstant {
+    total_price: number;
+    max_services: number;
+}
+
 export interface ConstantSettings {
     minimum_wallet_balance_to_keep?: string;
     provider_service_featured_request_fee_amount?: string;
     provider_activation_account_activation_fee_amount?: string;
+    service_posting_tiers?: ServicePostingTierConstant[];
 }
 
 export interface LanguageSetting {
@@ -211,11 +217,39 @@ function parseAdminCommission(data: Record<string, unknown>): AdminCommissionSet
     };
 }
 
+function parseServicePostingTiersConstant(data: unknown): ServicePostingTierConstant[] | undefined {
+    if (!Array.isArray(data)) return undefined;
+    const tiers: ServicePostingTierConstant[] = [];
+    for (const row of data) {
+        if (!row || typeof row !== 'object' || Array.isArray(row)) continue;
+        const record = row as Record<string, unknown>;
+        const totalPrice =
+            typeof record.total_price === 'number'
+                ? record.total_price
+                : typeof record.total_price === 'string'
+                    ? Number.parseFloat(record.total_price)
+                    : NaN;
+        const maxServices =
+            typeof record.max_services === 'number'
+                ? record.max_services
+                : typeof record.max_services === 'string'
+                    ? Number.parseFloat(record.max_services)
+                    : NaN;
+        if (!Number.isFinite(totalPrice) || totalPrice <= 0 || !Number.isFinite(maxServices)) continue;
+        tiers.push({
+            total_price: Math.round(totalPrice * 100) / 100,
+            max_services: Math.trunc(maxServices),
+        });
+    }
+    return tiers.length > 0 ? tiers : undefined;
+}
+
 function parseConstants(data: Record<string, unknown>): ConstantSettings {
     return {
         minimum_wallet_balance_to_keep: readString(data.minimum_wallet_balance_to_keep),
         provider_service_featured_request_fee_amount: readString(data.provider_service_featured_request_fee_amount),
         provider_activation_account_activation_fee_amount: readString(data.provider_activation_account_activation_fee_amount),
+        service_posting_tiers: parseServicePostingTiersConstant(data.service_posting_tiers),
     };
 }
 

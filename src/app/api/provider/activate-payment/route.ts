@@ -12,12 +12,17 @@ import { findPriorCustomerWalletTopUp } from '@/lib/wallet-transaction-activatio
 import { hasCustomerWalletTopUpTransactionId } from '@/lib/wallet-transaction-metrics';
 import { readAuthUserId } from '@/lib/wallet-transaction-user';
 import { walletTransactionProfileColumns } from '@/lib/wallet-transaction-profile';
+import {
+    parseServicePostingTiers,
+    type ServicePostingTier,
+} from '@/lib/service-posting-tiers';
 
 export const runtime = 'nodejs';
 
 interface ActivatePaymentBody {
     providerId: string;
     mode: 'chapa' | 'manual';
+    feeAmount?: number | string;
     txRef?: string;
     note?: string;
 }
@@ -159,22 +164,82 @@ async function loadProviderAndFee(admin: SupabaseClient, providerId: string) {
         .maybeSingle();
 
     const constants = parseObjectValue((constantRow as AppSettingsRow | null)?.data);
-    const feeAmount = typeof constants.provider_activation_account_activation_fee_amount === 'string'
+    const tiers = parseServicePostingTiers(constants.service_posting_tiers);
+    const legacyFeeRaw = typeof constants.provider_activation_account_activation_fee_amount === 'string'
         ? constants.provider_activation_account_activation_fee_amount
         : '0';
 
     const providerName = [provider.firstName, provider.lastName].filter(Boolean).join(' ') || provider.name || 'Provider';
 
-    return { provider, feeAmount, providerName } as const;
+    return { provider, tiers, legacyFeeRaw, providerName } as const;
+}
+
+function resolveSelectedTier(
+    tiers: ServicePostingTier[],
+    feeAmount: number | string | undefined,
+    legacyFeeRaw: string
+): ServicePostingTier | { error: string } {
+    const parseFee = (value: number | string | undefined): number | null => {
+        if (typeof value === 'number' && Number.isFinite(value)) return value;
+        if (typeof value === 'string' && value.trim()) {
+            const parsed = Number.parseFloat(value);
+            return Number.isFinite(parsed) ? parsed : null;
+        }
+        return null;
+    };
+
+    const requested = parseFee(feeAmount);
+    if (requested != null) {
+        const exact = tiers.find((tier) => Math.abs(tier.total_price - requested) < 0.01);
+        if (!exact) {
+            const options = tiers.map((tier) => tier.total_price).join(', ');
+            return { error: `Invalid activation fee. Choose one of: ${options}` };
+        }
+        return exact;
+    }
+
+    const legacy = parseFee(legacyFeeRaw);
+    if (legacy != null) {
+        const exact = tiers.find((tier) => Math.abs(tier.total_price - legacy) < 0.01);
+        if (exact) return exact;
+    }
+
+    return tiers.find((tier) => tier.total_price === 499) ?? tiers[0];
+}
+
+async function recordServiceTierPayment(
+    admin: SupabaseClient,
+    params: {
+        providerId: string;
+        userId: string;
+        tier: ServicePostingTier;
+        txRef: string;
+        chapaStatus: string;
+    }
+): Promise<void> {
+    const { error } = await admin.from('service_tier_payment').insert({
+        provider_id: params.providerId,
+        user_id: params.userId,
+        from_tier_max: 0,
+        to_tier_max: params.tier.max_services,
+        amount: params.tier.total_price,
+        tx_ref: params.txRef,
+        chapa_status: params.chapaStatus,
+    });
+    // ponytail: ignore unique tx_ref conflicts on verify/webhook retries
+    if (error && !error.message.toLowerCase().includes('duplicate') && error.code !== '23505') {
+        console.error('service_tier_payment insert failed:', error.message);
+    }
 }
 
 async function handleChapaCheckout(
     admin: SupabaseClient,
     provider: ProviderRow,
-    feeAmount: string,
+    tier: ServicePostingTier,
     providerName: string,
     request: Request
 ) {
+    const feeAmount = tier.total_price.toFixed(2);
     const { data: paymentRow } = await admin
         .from('app_settings')
         .select('id, data')
@@ -251,6 +316,7 @@ async function handleChapaCheckout(
         metadata: {
             tx_ref: txRef,
             fee_amount: feeAmount,
+            service_tier_max: tier.max_services,
             mode: 'chapa',
             source: 'admin',
         },
@@ -264,13 +330,14 @@ async function handleChapaCheckout(
         provider_id: provider.id,
         provider_name: providerName,
         fee_amount: feeAmount,
+        service_tier_max: tier.max_services,
     });
 }
 
 async function handleManualMark(
     admin: SupabaseClient,
     provider: ProviderRow,
-    feeAmount: string,
+    tier: ServicePostingTier,
     providerName: string,
     txRef: string | undefined,
     note: string | undefined,
@@ -280,6 +347,7 @@ async function handleManualMark(
             return NextResponse.json({ error: 'Provider is not linked to an auth account' }, { status: 400 });
         }
 
+        const feeAmount = tier.total_price.toFixed(2);
         const now = new Date().toISOString();
         const priorTopUp = await findPriorCustomerWalletTopUp(admin, provider.user_id);
     const ref = priorTopUp?.transactionId
@@ -291,6 +359,7 @@ async function handleManualMark(
             activation_paid: true,
             activation_paid_at: now,
             activation_tx_ref: ref,
+            service_tier_max: tier.max_services,
         })
         .eq('id', provider.id);
 
@@ -345,6 +414,14 @@ async function handleManualMark(
         }
     }
 
+    await recordServiceTierPayment(admin, {
+        providerId: provider.id,
+        userId: provider.user_id,
+        tier,
+        txRef: ref,
+        chapaStatus: 'manual',
+    });
+
     await insertNotification(admin, {
         title: 'Account Activated',
         description: `Your activation fee of ETB ${feeAmount} has been confirmed. Your account is now active.`,
@@ -361,6 +438,7 @@ async function handleManualMark(
         metadata: {
             tx_ref: ref,
             fee_amount: feeAmount,
+            service_tier_max: tier.max_services,
             mode: 'manual',
             note: note || null,
             wallet_skipped: walletSkipped,
@@ -376,6 +454,7 @@ async function handleManualMark(
         activation_paid_at: now,
         tx_ref: ref,
         fee_amount: feeAmount,
+        service_tier_max: tier.max_services,
         note: note || null,
         wallet_skipped: walletSkipped,
         wallet_skipped_reason: walletSkipped ? 'prior_customer_top_up' : null,
@@ -399,13 +478,17 @@ export async function POST(request: Request) {
             );
         }
 
-        const { provider, feeAmount, providerName } = result;
-
-        if (body.mode === 'chapa') {
-            return handleChapaCheckout(supabaseAdmin, provider, feeAmount, providerName, request);
+        const { provider, tiers, legacyFeeRaw, providerName } = result;
+        const selected = resolveSelectedTier(tiers, body.feeAmount, legacyFeeRaw);
+        if ('error' in selected) {
+            return NextResponse.json({ error: selected.error }, { status: 400 });
         }
 
-        return handleManualMark(supabaseAdmin, provider, feeAmount, providerName, body.txRef, body.note, request);
+        if (body.mode === 'chapa') {
+            return handleChapaCheckout(supabaseAdmin, provider, selected, providerName, request);
+        }
+
+        return handleManualMark(supabaseAdmin, provider, selected, providerName, body.txRef, body.note, request);
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unexpected error';
         return NextResponse.json({ error: message }, { status: 500 });

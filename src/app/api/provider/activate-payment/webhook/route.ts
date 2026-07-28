@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 import { logAdminActivity } from '@/lib/admin-activity-log';
+import {
+    parseServicePostingTiers,
+    resolveServicePostingTierByPrice,
+} from '@/lib/service-posting-tiers';
 
 export const runtime = 'nodejs';
 
@@ -18,6 +22,19 @@ interface ChapaWebhookPayload {
 function isSuccessStatus(status: string | undefined): boolean {
     const normalized = (status || '').toLowerCase().trim();
     return ['success', 'successful', 'completed', 'paid'].includes(normalized);
+}
+
+function parseObjectValue(value: unknown): Record<string, unknown> {
+    if (!value) return {};
+    if (typeof value === 'string') {
+        try {
+            return (JSON.parse(value) as Record<string, unknown>) ?? {};
+        } catch {
+            return {};
+        }
+    }
+    if (typeof value === 'object') return value as Record<string, unknown>;
+    return {};
 }
 
 export async function POST(request: Request) {
@@ -40,7 +57,12 @@ export async function POST(request: Request) {
             .eq('activation_tx_ref', txRef)
             .maybeSingle();
 
-        const provider = providerRaw as { id: string; activation_paid?: boolean; activation_tx_ref?: string } | null;
+        const provider = providerRaw as {
+            id: string;
+            user_id?: string;
+            activation_paid?: boolean;
+            activation_tx_ref?: string;
+        } | null;
 
         if (!provider) {
             return NextResponse.json({ status: 'error', reason: 'Provider not found for tx_ref' }, { status: 404 });
@@ -50,6 +72,31 @@ export async function POST(request: Request) {
             return NextResponse.json({ status: 'already_processed' });
         }
 
+        const { data: constantRow } = await supabaseAdmin
+            .from('app_settings')
+            .select('id, data')
+            .eq('id', 'constant')
+            .maybeSingle();
+
+        const constants = parseObjectValue((constantRow as { data: unknown } | null)?.data);
+        const tiers = parseServicePostingTiers(constants.service_posting_tiers);
+        const paidRaw = body.amount;
+        const paidAmount =
+            typeof paidRaw === 'number'
+                ? paidRaw
+                : typeof paidRaw === 'string'
+                    ? Number.parseFloat(paidRaw)
+                    : NaN;
+        const tier = Number.isFinite(paidAmount)
+            ? resolveServicePostingTierByPrice(tiers, paidAmount)
+            : null;
+
+        const feeAmount = tier
+            ? tier.total_price.toFixed(2)
+            : typeof constants.provider_activation_account_activation_fee_amount === 'string'
+                ? constants.provider_activation_account_activation_fee_amount
+                : '0';
+
         const now = new Date().toISOString();
 
         const { error: updateError } = await supabaseAdmin
@@ -57,6 +104,7 @@ export async function POST(request: Request) {
             .update({
                 activation_paid: true,
                 activation_paid_at: now,
+                ...(tier ? { service_tier_max: tier.max_services } : {}),
             })
             .eq('id', provider.id);
 
@@ -64,17 +112,22 @@ export async function POST(request: Request) {
             return NextResponse.json({ status: 'error', reason: 'Failed to update provider' }, { status: 500 });
         }
 
-        const { data: constantRow } = await supabaseAdmin
-            .from('app_settings')
-            .select('id, data')
-            .eq('id', 'constant')
-            .maybeSingle();
-
-        let feeAmount = '0';
-        if (constantRow && typeof constantRow === 'object' && 'data' in constantRow) {
-            const data = constantRow.data as Record<string, unknown> | null;
-            if (data && typeof data.provider_activation_account_activation_fee_amount === 'string') {
-                feeAmount = data.provider_activation_account_activation_fee_amount;
+        if (tier && provider.user_id) {
+            const { error: tierPaymentError } = await supabaseAdmin.from('service_tier_payment').insert({
+                provider_id: provider.id,
+                user_id: provider.user_id,
+                from_tier_max: 0,
+                to_tier_max: tier.max_services,
+                amount: tier.total_price,
+                tx_ref: txRef,
+                chapa_status: 'success',
+            });
+            if (
+                tierPaymentError &&
+                !tierPaymentError.message.toLowerCase().includes('duplicate') &&
+                tierPaymentError.code !== '23505'
+            ) {
+                console.error('service_tier_payment insert failed:', tierPaymentError.message);
             }
         }
 
@@ -120,6 +173,7 @@ export async function POST(request: Request) {
             metadata: {
                 tx_ref: txRef,
                 fee_amount: feeAmount,
+                service_tier_max: tier?.max_services ?? null,
                 source: 'chapa_webhook',
             },
         });

@@ -39,6 +39,7 @@ import { DEFAULT_CONTACT_US } from '@/features/settings/contactDefaults';
 import HTMLEditor from '@/components/RichTextEditor';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 import { CountryTaxSettingsPanel } from '@/app/admin/settings/CountryTaxSettingsPanel';
+import { DEFAULT_SERVICE_POSTING_TIERS } from '@/lib/service-posting-tiers';
 
 type TabType = 'app' | 'general' | 'policy' | 'contact' | 'commission' | 'status' | 'constants' | 'language' | 'country_tax';
 
@@ -81,11 +82,48 @@ const SettingsPage = () => {
                     ? settings.statusOptions.map((s) => ({ ...s }))
                     : [{ flag: '', name: '' }]
             );
-            setConstants(settings.constants || {});
+            setConstants({
+                ...(settings.constants || {}),
+                service_posting_tiers:
+                    settings.constants?.service_posting_tiers?.length
+                        ? settings.constants.service_posting_tiers.map((tier) => ({ ...tier }))
+                        : DEFAULT_SERVICE_POSTING_TIERS.map((tier) => ({ ...tier })),
+            });
             setLanguageSettings(settings.languageSettings || []);
             setLanguageDeletedIds([]);
         }
     }, [settings]);
+
+    function updateServicePostingTier(index: number, field: 'total_price' | 'max_services', value: string) {
+        const parsed = value.trim() === '' ? 0 : Number(value);
+        setConstants((prev) => {
+            const tiers = [...(prev.service_posting_tiers ?? DEFAULT_SERVICE_POSTING_TIERS)];
+            const current = tiers[index] ?? { total_price: 0, max_services: 0 };
+            tiers[index] = {
+                ...current,
+                [field]: Number.isFinite(parsed) ? parsed : current[field],
+            };
+            return { ...prev, service_posting_tiers: tiers };
+        });
+    }
+
+    function addServicePostingTier() {
+        setConstants((prev) => ({
+            ...prev,
+            service_posting_tiers: [
+                ...(prev.service_posting_tiers ?? DEFAULT_SERVICE_POSTING_TIERS),
+                { total_price: 0, max_services: 0 },
+            ],
+        }));
+    }
+
+    function removeServicePostingTier(index: number) {
+        setConstants((prev) => {
+            const tiers = [...(prev.service_posting_tiers ?? DEFAULT_SERVICE_POSTING_TIERS)];
+            if (tiers.length <= 1) return prev;
+            return { ...prev, service_posting_tiers: tiers.filter((_, i) => i !== index) };
+        });
+    }
 
     const handleSave = async () => {
         setSaving(true);
@@ -685,20 +723,72 @@ const SettingsPage = () => {
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Provider activation fee
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={constants.provider_activation_account_activation_fee_amount || ''}
-                                            onChange={(e) =>
-                                                setConstants({
-                                                    ...constants,
-                                                    provider_activation_account_activation_fee_amount: e.target.value,
-                                                })
-                                            }
-                                            className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                                        />
+                                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                                            <label className="block text-sm font-medium text-gray-700">
+                                                Service posting / activation plans
+                                            </label>
+                                            {canWriteSettings && (
+                                                <button
+                                                    type="button"
+                                                    onClick={addServicePostingTier}
+                                                    className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                                                >
+                                                    <Plus className="h-3.5 w-3.5" />
+                                                    Add plan
+                                                </button>
+                                            )}
+                                        </div>
+                                        <p className="mb-3 text-xs text-gray-500">
+                                            Shown in Pay Activation Fee. Use <code className="rounded bg-gray-100 px-1">-1</code> for unlimited services.
+                                        </p>
+                                        <div className="space-y-2">
+                                            {(constants.service_posting_tiers ?? DEFAULT_SERVICE_POSTING_TIERS).map((tier, index) => (
+                                                <div
+                                                    key={`tier-${index}`}
+                                                    className="grid grid-cols-[1fr_1fr_auto] gap-2 rounded-lg border border-gray-200 bg-white p-2"
+                                                >
+                                                    <div>
+                                                        <label className="mb-1 block text-xs font-medium text-gray-500">
+                                                            Price (ETB)
+                                                        </label>
+                                                        <input
+                                                            type="number"
+                                                            value={tier.total_price}
+                                                            disabled={!canWriteSettings}
+                                                            onChange={(e) =>
+                                                                updateServicePostingTier(index, 'total_price', e.target.value)
+                                                            }
+                                                            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:bg-gray-50"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="mb-1 block text-xs font-medium text-gray-500">
+                                                            Max services
+                                                        </label>
+                                                        <input
+                                                            type="number"
+                                                            value={tier.max_services}
+                                                            disabled={!canWriteSettings}
+                                                            onChange={(e) =>
+                                                                updateServicePostingTier(index, 'max_services', e.target.value)
+                                                            }
+                                                            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:bg-gray-50"
+                                                        />
+                                                    </div>
+                                                    {canWriteSettings && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removeServicePostingTier(index)}
+                                                            disabled={(constants.service_posting_tiers ?? []).length <= 1}
+                                                            className="mt-5 inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-50 disabled:opacity-40"
+                                                            aria-label="Remove plan"
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
                                 </div>
                             </div>

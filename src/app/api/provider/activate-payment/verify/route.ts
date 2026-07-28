@@ -5,6 +5,10 @@ import { findPriorCustomerWalletTopUp } from '@/lib/wallet-transaction-activatio
 import { resolveChapaSettlementAmount } from '@/lib/chapa-config';
 import { readAuthUserId } from '@/lib/wallet-transaction-user';
 import { walletTransactionProfileColumns } from '@/lib/wallet-transaction-profile';
+import {
+    parseServicePostingTiers,
+    resolveServicePostingTierByPrice,
+} from '@/lib/service-posting-tiers';
 
 const MIN_ACTIVATION_SETTLEMENT_ETB = 50;
 
@@ -135,20 +139,6 @@ export async function POST(request: Request) {
 
         const now = new Date().toISOString();
 
-        if (!provider.activation_paid) {
-            const { error: updateError } = await supabaseAdmin
-                .from('provider')
-                .update({
-                    activation_paid: true,
-                    activation_paid_at: now,
-                })
-                .eq('id', body.providerId);
-
-            if (updateError) {
-                return NextResponse.json({ error: 'Failed to update provider' }, { status: 500 });
-            }
-        }
-
         const { data: constantRow } = await supabaseAdmin
             .from('app_settings')
             .select('id, data')
@@ -156,13 +146,46 @@ export async function POST(request: Request) {
             .maybeSingle();
 
         const constants = parseObjectValue((constantRow as { data: unknown } | null)?.data);
+        const tiers = parseServicePostingTiers(constants.service_posting_tiers);
+        const chargedRaw = verifyData.data?.amount;
+        const chargedAmount =
+            typeof chargedRaw === 'number'
+                ? chargedRaw
+                : typeof chargedRaw === 'string'
+                    ? Number.parseFloat(chargedRaw)
+                    : NaN;
+        const tier = Number.isFinite(chargedAmount)
+            ? resolveServicePostingTierByPrice(tiers, chargedAmount)
+            : null;
+
+        if (!provider.activation_paid) {
+            const { error: updateError } = await supabaseAdmin
+                .from('provider')
+                .update({
+                    activation_paid: true,
+                    activation_paid_at: now,
+                    ...(tier ? { service_tier_max: tier.max_services } : {}),
+                })
+                .eq('id', body.providerId);
+
+            if (updateError) {
+                return NextResponse.json({ error: 'Failed to update provider' }, { status: 500 });
+            }
+        } else if (tier) {
+            await supabaseAdmin
+                .from('provider')
+                .update({ service_tier_max: tier.max_services })
+                .eq('id', body.providerId);
+        }
+
         const configuredFeeRaw = typeof constants.provider_activation_account_activation_fee_amount === 'string'
             ? constants.provider_activation_account_activation_fee_amount
             : verifyData.data?.amount?.toString() || '0';
         const settlementAmount = resolveChapaSettlementAmount(verifyData.data ?? {});
         const feeAmount = settlementAmount != null && settlementAmount >= MIN_ACTIVATION_SETTLEMENT_ETB
             ? settlementAmount.toFixed(2)
-            : configuredFeeRaw;
+            : (tier ? tier.total_price.toFixed(2) : configuredFeeRaw);
+        const displayFee = tier ? tier.total_price.toFixed(2) : feeAmount;
 
         const providerAuthUserId = readAuthUserId(provider.user_id);
         if (!providerAuthUserId) {
@@ -210,6 +233,25 @@ export async function POST(request: Request) {
             }
         }
 
+        if (tier) {
+            const { error: tierPaymentError } = await supabaseAdmin.from('service_tier_payment').insert({
+                provider_id: body.providerId,
+                user_id: providerAuthUserId,
+                from_tier_max: 0,
+                to_tier_max: tier.max_services,
+                amount: tier.total_price,
+                tx_ref: txRef,
+                chapa_status: 'success',
+            });
+            if (
+                tierPaymentError &&
+                !tierPaymentError.message.toLowerCase().includes('duplicate') &&
+                tierPaymentError.code !== '23505'
+            ) {
+                console.error('service_tier_payment insert failed:', tierPaymentError.message);
+            }
+        }
+
         const { data: existingNotif } = await supabaseAdmin
             .from('notification')
             .select('id')
@@ -221,7 +263,7 @@ export async function POST(request: Request) {
         if (!existingNotif) {
             await supabaseAdmin.from('notification').insert({
                 title: 'Account Activated',
-                description: `Your activation fee of ETB ${feeAmount} has been confirmed. Your account is now active.`,
+                description: `Your activation fee of ETB ${displayFee} has been confirmed. Your account is now active.`,
                 type: 'activation_payment_confirmed',
                 provider_id: body.providerId,
                 is_read: false,
@@ -233,7 +275,7 @@ export async function POST(request: Request) {
                     providerId: body.providerId,
                     input: {
                         title: 'Account Activated',
-                        body: `Your activation fee of ETB ${feeAmount} has been confirmed. Your account is now active.`,
+                        body: `Your activation fee of ETB ${displayFee} has been confirmed. Your account is now active.`,
                         route: '/profile',
                         type: 'account',
                     },
@@ -252,6 +294,7 @@ export async function POST(request: Request) {
             metadata: {
                 tx_ref: txRef,
                 fee_amount: feeAmount,
+                service_tier_max: tier?.max_services ?? null,
                 chapa_reference: verifyData.data?.reference ?? null,
                 wallet_skipped: walletSkipped,
                 wallet_skipped_reason: walletSkippedReason,
@@ -265,6 +308,7 @@ export async function POST(request: Request) {
             activation_paid_at: now,
             tx_ref: txRef,
             fee_amount: feeAmount,
+            service_tier_max: tier?.max_services ?? null,
             chapa_reference: verifyData.data?.reference,
             wallet_skipped: walletSkipped,
             wallet_skipped_reason: walletSkippedReason,
