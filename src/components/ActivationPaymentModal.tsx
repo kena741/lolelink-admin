@@ -388,7 +388,7 @@ export function ActivationPaymentModal({ open, onClose, providerId, providerName
                     {showDebug ? '▼' : '▶'} Debug Logs ({debugLogs.length})
                 </button>
                 {showDebug && (
-                    <div className="mt-2 max-h-[200px] overflow-y-auto rounded-md border border-border bg-gray-950 p-2 space-y-2">
+                    <div className="mt-2 max-h-50 overflow-y-auto rounded-md border border-border bg-gray-950 p-2 space-y-2">
                         {debugLogs.length === 0 && (
                             <p className="text-xs font-mono text-gray-500">No logs yet. Click an action to see responses.</p>
                         )}

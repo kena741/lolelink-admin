@@ -17,19 +17,17 @@ interface DashboardBarChartProps {
 }
 
 function formatChartCurrency(value: number): string {
-    return value.toLocaleString("en-US", {
-        style: "currency",
-        currency: "USD",
+    return `ETB ${value.toLocaleString("en-US", {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
-    });
+    })}`;
 }
 
 function formatChartAxisCurrency(value: number): string {
     if (Math.abs(value) >= 1000) {
-        return `$${(value / 1000).toLocaleString("en-US", { maximumFractionDigits: 1 })}k`;
+        return `ETB ${(value / 1000).toLocaleString("en-US", { maximumFractionDigits: 1 })}k`;
     }
-    return `$${value.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+    return `ETB ${value.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 }
 
 export function DashboardBarChart({
@@ -54,7 +52,7 @@ export function DashboardBarChart({
 
     if (!hasData) {
         return (
-            <div className="flex h-[240px] items-center justify-center rounded-xl border border-dashed border-border bg-background/60 px-4 text-center text-sm text-text-secondary">
+            <div className="flex h-60 items-center justify-center rounded-xl border border-dashed border-border bg-background/60 px-4 text-center text-sm text-text-secondary">
                 {emptyLabel}
             </div>
         );
@@ -63,7 +61,7 @@ export function DashboardBarChart({
     return (
         <ChartContainer
             config={chartConfig}
-            className="h-[240px] w-full min-h-[240px] rounded-xl border border-border bg-background/60 p-2"
+            className="h-60 w-full min-h-60 rounded-xl border border-border bg-background/60 p-2"
             initialDimension={{ width: 640, height: 220 }}
         >
             <BarChart data={chartData} margin={{ top: 12, right: 12, bottom: 4, left: 0 }}>
@@ -80,7 +78,7 @@ export function DashboardBarChart({
                     tickLine={false}
                     axisLine={false}
                     tickMargin={8}
-                    width={isCurrency ? 52 : 44}
+                    width={isCurrency ? 72 : 44}
                     allowDecimals={isCurrency}
                     tickFormatter={isCurrency ? formatChartAxisCurrency : undefined}
                 />

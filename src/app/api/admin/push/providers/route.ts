@@ -2,6 +2,17 @@ import { NextResponse } from 'next/server';
 import { requireAdminSession } from '@/lib/admin-auth';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 import { sendProviderPush, type PushDeliveryInput } from '@/lib/push/sendProviderPush';
+import {
+    emptyBroadcastCounts,
+    formatBroadcastSmsMessage,
+    parseBroadcastChannel,
+    resolveBroadcastPhone,
+    sendSmsUpstream,
+    wantsPush,
+    wantsSms,
+    type BroadcastChannel,
+} from '@/lib/broadcast-notify';
+import { logAdminActivity } from '@/lib/admin-activity-log';
 
 export const runtime = 'nodejs';
 
@@ -10,9 +21,12 @@ type BroadcastBody = {
     body?: unknown;
     route?: unknown;
     activeOnly?: unknown;
+    channel?: unknown;
 };
 
-function parseBody(body: unknown): { input: PushDeliveryInput; activeOnly: boolean } | string {
+function parseBody(
+    body: unknown
+): { input: PushDeliveryInput; activeOnly: boolean; channel: BroadcastChannel } | string {
     if (!body || typeof body !== 'object') return 'Invalid request body';
     const data = body as BroadcastBody;
     const title = typeof data.title === 'string' ? data.title.trim() : '';
@@ -20,8 +34,10 @@ function parseBody(body: unknown): { input: PushDeliveryInput; activeOnly: boole
     const route = typeof data.route === 'string' ? data.route.trim() : undefined;
     if (!title) return 'Title is required';
     if (!messageBody) return 'Message body is required';
+    const channel = parseBroadcastChannel(data.channel);
+    if (!channel) return 'channel must be push, sms, or both';
     const activeOnly = typeof data.activeOnly === 'boolean' ? data.activeOnly : true;
-    return { input: { title, body: messageBody, route, type: 'general' }, activeOnly };
+    return { input: { title, body: messageBody, route, type: 'general' }, activeOnly, channel };
 }
 
 export async function POST(request: Request) {
@@ -43,7 +59,9 @@ export async function POST(request: Request) {
     }
 
     const serviceClient = getSupabaseAdminFromRequest(request);
-    let query = serviceClient.from('provider').select('id').not('fcmToken', 'is', null);
+    let query = serviceClient
+        .from('provider')
+        .select('id, fcmToken, phoneNumber, phone, mobile_number, countryCode, country_code');
     if (parsed.activeOnly) query = query.eq('active', true);
 
     const { data: providers, error } = await query;
@@ -51,25 +69,64 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const ids = (providers ?? []).map((row) => row.id as string).filter(Boolean);
-    const results = { attempted: ids.length, sent: 0, skipped: 0, failed: 0 };
+    const rows = (providers ?? []) as Array<Record<string, unknown>>;
+    const push = emptyBroadcastCounts();
+    const sms = emptyBroadcastCounts();
+    const smsMessage = formatBroadcastSmsMessage(parsed.input.title, parsed.input.body);
+    const doPush = wantsPush(parsed.channel);
+    const doSms = wantsSms(parsed.channel);
 
-    for (const id of ids) {
-        const res = await sendProviderPush({
-            serviceClient,
-            providerId: id,
-            input: parsed.input,
-        });
-        if (!res.ok) {
-            results.failed += 1;
-            continue;
+    for (const row of rows) {
+        const id = typeof row.id === 'string' ? row.id : '';
+        if (!id) continue;
+
+        if (doPush) {
+            push.attempted += 1;
+            const res = await sendProviderPush({
+                serviceClient,
+                providerId: id,
+                input: parsed.input,
+            });
+            if (!res.ok) push.failed += 1;
+            else if ('skipped' in res) push.skipped += 1;
+            else push.sent += 1;
         }
-        if ('skipped' in res) {
-            results.skipped += 1;
-            continue;
+
+        if (doSms) {
+            sms.attempted += 1;
+            const recipient = resolveBroadcastPhone(row);
+            if (!recipient) {
+                sms.skipped += 1;
+                continue;
+            }
+            const smsResult = await sendSmsUpstream(recipient, smsMessage);
+            if (smsResult.ok) sms.sent += 1;
+            else sms.failed += 1;
         }
-        results.sent += 1;
     }
 
-    return NextResponse.json({ ok: true, ...results });
+    await logAdminActivity({
+        request,
+        action: 'send',
+        resource_type: 'broadcast',
+        summary: `Broadcast ${parsed.channel} to providers`,
+        metadata: {
+            audience: 'providers',
+            channel: parsed.channel,
+            title: parsed.input.title,
+            push,
+            sms,
+        },
+    });
+
+    return NextResponse.json({
+        ok: true,
+        channel: parsed.channel,
+        attempted: Math.max(push.attempted, sms.attempted),
+        sent: push.sent + sms.sent,
+        skipped: push.skipped + sms.skipped,
+        failed: push.failed + sms.failed,
+        push,
+        sms,
+    });
 }

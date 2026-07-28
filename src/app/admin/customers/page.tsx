@@ -111,7 +111,9 @@ export default function CustomersPage() {
     }, [dispatch, pendingDeleteCustomerId]);
 
     const filtered = useMemo(() => {
-        const visible = customers.filter((c) => showArchived || !customerIsArchived(c));
+        const visible = customers.filter((c) =>
+            showArchived ? customerIsArchived(c) : !customerIsArchived(c)
+        );
         const sorted = [...visible].sort((a, b) => {
             const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
             const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
@@ -198,7 +200,7 @@ export default function CustomersPage() {
                                             : 'border-gray-200 bg-white/80 text-gray-700 hover:bg-white'
                                     }`}
                                 >
-                                    {showArchived ? 'Showing archived' : 'Show archived'}
+                                    {showArchived ? 'Archived only' : 'Show archived'}
                                 </button>
                                 <button
                                     onClick={exportToXlsx}

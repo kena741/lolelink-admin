@@ -2,6 +2,7 @@ import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { getSupabase } from '@/lib/supabaseClient';
 import { logClientAdminActivity } from '@/lib/record-admin-activity';
 import { buildChangeMetadata } from '@/lib/activity-log-changes';
+import { requestPushNotify } from '@/lib/push/requestPushNotify';
 
 export interface VerifyDocument {
     id: string;
@@ -314,12 +315,15 @@ export const verifyDocument = createAsyncThunk<
 
 export const rejectDocument = createAsyncThunk<
     VerifyDocument,
-    string,
+    { id: string; rejectionReason: string; providerName?: string; documentName?: string },
     { rejectValue: string }
 >(
     'verifyDocuments/rejectDocument',
-    async (id, { rejectWithValue }) => {
+    async ({ id, rejectionReason, providerName, documentName }, { rejectWithValue }) => {
         try {
+            const trimmedReason = rejectionReason.trim();
+            if (!trimmedReason) return rejectWithValue('Rejection reason is required');
+
             const { data: existingDocument, error: existingError } = await getSupabase()
                 .from('verify_documents')
                 .select('id, isVerify, providerId, documentId')
@@ -354,6 +358,8 @@ export const rejectDocument = createAsyncThunk<
                 }
             }
 
+            const normalized = normalizeRows([data as VerifyDocumentRow])[0];
+
             logClientAdminActivity({
                 action: 'reject',
                 resource_type: 'document',
@@ -369,9 +375,19 @@ export const rejectDocument = createAsyncThunk<
                     ),
                     provider_id: rowProviderId,
                     revoked_approval: wasApproved,
+                    rejection_reason: trimmedReason,
                 },
             });
-            return normalizeRows([data as VerifyDocumentRow])[0];
+
+            await requestPushNotify({
+                providerId: rowProviderId,
+                event: 'document_rejected',
+                providerName: providerName ?? normalized.providerName ?? '',
+                documentName: documentName ?? normalized.documentName ?? 'document',
+                rejectionReason: trimmedReason,
+            });
+
+            return normalized;
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to reject document';
             return rejectWithValue(msg);

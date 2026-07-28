@@ -312,6 +312,11 @@ export function BookingDetailModal({
                                 <SectionCard title="Provider">
                                     <div className="space-y-3">
                                         <DetailField label="Name" value={sanitizePersonDisplayName(getBookingProviderDisplayName(booking)) || '—'} />
+                                        <DetailField label="Email" value={booking.providerEmail || '—'} />
+                                        <DetailField
+                                            label="Phone"
+                                            value={formatDisplayPhone(booking.providerPhone) || '—'}
+                                        />
                                         <DetailField
                                             label="Provider ID"
                                             value={<span className="font-mono text-[13px]">{booking.provider_id}</span>}

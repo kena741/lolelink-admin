@@ -45,6 +45,7 @@ const VerifyDocumentsPage = () => {
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [selectedDocument, setSelectedDocument] = useState<typeof documents[0] | null>(null);
     const [providerPhone, setProviderPhone] = useState<string | null>(null);
+    const [rejectionReason, setRejectionReason] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
     const [subCategoryFilter, setSubCategoryFilter] = useState<string>('all');
@@ -65,9 +66,11 @@ const VerifyDocumentsPage = () => {
         return `ሰላም ${name}! ከዘመን ሰለተመዘገቡ ፕሮቫይደር እናመሰግናለን። ሁሉም ሰነዶችዎ ተገምግመው ጸድቀዋል። አሁን በዘመን ፕሮቫይደር መተግበሪያ ላይ አገልግሎት መስጠት ይችላሉ። መልካም ስራ!`;
     }
 
-    function getRejectMessage(providerName?: string) {
+    function getRejectMessage(providerName?: string, reason?: string) {
         const name = providerName || '';
-        return `ሰላም ${name}! ለዘመን አገልግሎት ሰጪነት ያቀረቡት ጥያቄ ውድቅ ተደርጓል እባክዎ ትክክለኛ ሰነድ ያስገቡ ወይም በዚህ ስልክ 0951175959 ደውለው ይጠይቁ:: ለትብብርዎ እናመሰግናለን!!`;
+        const base = `ሰላም ${name}! ለዘመን አገልግሎት ሰጪነት ያቀረቡት ጥያቄ ውድቅ ተደርጓል እባክዎ ትክክለኛ ሰነድ ያስገቡ ወይም በዚህ ስልክ 0951175959 ደውለው ይጠይቁ:: ለትብብርዎ እናመሰግናለን!!`;
+        const trimmed = reason?.trim();
+        return trimmed ? `${base} Reason: ${trimmed}` : base;
     }
 
     async function fetchProviderPhone(providerId: string): Promise<string> {
@@ -104,6 +107,7 @@ const VerifyDocumentsPage = () => {
 
     async function openDocumentDetail(doc: typeof documents[0]) {
         setSelectedDocument(doc);
+        setRejectionReason('');
         setProviderPhone(null);
         const phone = await fetchProviderPhone(doc.providerId);
         setProviderPhone(phone);
@@ -128,17 +132,33 @@ const VerifyDocumentsPage = () => {
         }
     };
 
-    const handleReject = async (id: string) => {
+    const handleReject = async (
+        id: string,
+        docHint?: (typeof documents)[0]
+    ): Promise<boolean> => {
+        const trimmedReason = rejectionReason.trim();
+        if (!trimmedReason) return false;
+
         setProcessingId(id);
         try {
-            const result = await dispatch(rejectDocument(id)).unwrap();
+            const result = await dispatch(
+                rejectDocument({
+                    id,
+                    rejectionReason: trimmedReason,
+                    providerName: docHint?.providerName,
+                    documentName: docHint?.documentName,
+                })
+            ).unwrap();
             dispatch(fetchVerifyDocuments());
             await notifyProviderViaSms(
                 result.providerId,
-                getRejectMessage(result.providerName)
+                getRejectMessage(docHint?.providerName ?? result.providerName, trimmedReason)
             );
+            setRejectionReason('');
+            return true;
         } catch (err) {
             console.error('Failed to reject document:', err);
+            return false;
         } finally {
             setProcessingId(null);
         }
@@ -348,7 +368,7 @@ const VerifyDocumentsPage = () => {
                                     </button>
                                 ))}
                             </div>
-                            <div className="flex w-full min-w-[200px] max-w-xs flex-col gap-1 lg:w-auto">
+                            <div className="flex w-full min-w-50 max-w-xs flex-col gap-1 lg:w-auto">
                                 <label htmlFor="verify-doc-subcat" className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                                     Category
                                 </label>
@@ -466,7 +486,7 @@ const VerifyDocumentsPage = () => {
                                                                 <button
                                                                     onClick={() => handleApproveAll(group.providerId, group.providerName)}
                                                                     disabled={isProcessingAll}
-                                                                    className="px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600 text-white text-sm font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                                                                    className="px-4 py-2 rounded-lg bg-linear-to-r from-emerald-500 to-teal-600 text-white text-sm font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                                                                 >
                                                                     {isProcessingAll ? 'Processing...' : `Approve All (${pendingDocs.length})`}
                                                                 </button>
@@ -520,7 +540,7 @@ const VerifyDocumentsPage = () => {
                                                                         >
                                                                             <div className="flex items-center gap-3 flex-1 min-w-0">
                                                                                 <div
-                                                                                    className={`flex-shrink-0 w-2 h-2 rounded-full ${
+                                                                                    className={`shrink-0 w-2 h-2 rounded-full ${
                                                                                         status === true
                                                                                             ? 'bg-emerald-500'
                                                                                             : status === false
@@ -539,7 +559,7 @@ const VerifyDocumentsPage = () => {
                                                                                     )}
                                                                                 </div>
                                                                             </div>
-                                                                            <div className="flex items-center gap-2 flex-shrink-0">
+                                                                            <div className="flex items-center gap-2 shrink-0">
                                                                                 <span
                                                                                     className={`text-xs px-2 py-1 rounded ${
                                                                                         status === true
@@ -736,11 +756,22 @@ const VerifyDocumentsPage = () => {
                                             <div className="rounded-lg border border-red-200 bg-red-50/50 p-4 space-y-2">
                                                 <div className="flex items-center gap-2 text-sm font-semibold text-red-700">
                                                     <MessageSquare className="h-4 w-4" />
-                                                    ሲከለከል የሚላከው SMS
+                                                    Rejection reason
                                                 </div>
+                                                <textarea
+                                                    value={rejectionReason}
+                                                    onChange={(e) => setRejectionReason(e.target.value)}
+                                                    rows={3}
+                                                    placeholder="Explain why this document is being rejected."
+                                                    className="w-full rounded-md border border-red-100 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-red-200"
+                                                />
                                                 <div className="rounded-md bg-white border border-red-100 px-3 py-2 text-sm text-gray-800">
-                                                    {getRejectMessage(selectedDocument.providerName)}
+                                                    <p className="mb-1 text-xs font-medium text-red-600">SMS preview</p>
+                                                    {getRejectMessage(selectedDocument.providerName, rejectionReason)}
                                                 </div>
+                                                <p className="text-xs text-red-600/80">
+                                                    Provider will also get a push: Document rejected · Reason: …
+                                                </p>
                                             </div>
                                         </div>
                                     )}
@@ -771,17 +802,21 @@ const VerifyDocumentsPage = () => {
                                                     setSelectedDocument(null);
                                                 }}
                                                 disabled={processingId === selectedDocument.id}
-                                                className="flex-1 px-4 py-2.5 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                                                className="flex-1 px-4 py-2.5 rounded-lg bg-linear-to-r from-emerald-500 to-teal-600 text-white font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                                             >
                                                 {processingId === selectedDocument.id ? 'Processing...' : 'Approve Document'}
                                             </button>
                                             <button
                                                 onClick={() => {
-                                                    handleReject(selectedDocument.id);
-                                                    setSelectedDocument(null);
+                                                    void handleReject(selectedDocument.id, selectedDocument).then((ok) => {
+                                                        if (ok) setSelectedDocument(null);
+                                                    });
                                                 }}
-                                                disabled={processingId === selectedDocument.id}
-                                                className="flex-1 px-4 py-2.5 rounded-lg bg-gradient-to-r from-red-500 to-rose-600 text-white font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                                                disabled={
+                                                    processingId === selectedDocument.id ||
+                                                    !rejectionReason.trim()
+                                                }
+                                                className="flex-1 px-4 py-2.5 rounded-lg bg-linear-to-r from-red-500 to-rose-600 text-white font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                                             >
                                                 Reject Document
                                             </button>
@@ -796,7 +831,7 @@ const VerifyDocumentsPage = () => {
                                                     setSelectedDocument(null);
                                                 }}
                                                 disabled={processingId === selectedDocument.id}
-                                                className="inline-flex flex-1 items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                                                className="inline-flex flex-1 items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-linear-to-r from-emerald-500 to-teal-600 text-white font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                                             >
                                                 <RotateCcw className="h-4 w-4" />
                                                 {processingId === selectedDocument.id ? 'Processing...' : 'Re-approve Document'}
@@ -811,7 +846,7 @@ const VerifyDocumentsPage = () => {
                     {/* Image Fullscreen Modal */}
                     {selectedImage && (
                         <div 
-                            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4"
+                            className="fixed inset-0 z-60 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4"
                             onClick={() => setSelectedImage(null)}
                         >
                             <div className="relative max-w-6xl max-h-[95vh]">

@@ -1213,13 +1213,14 @@ function DashboardContent() {
 		const Icon = config.icon;
 
 		return (
-			<div
-				className={`flex items-center gap-3 rounded-xl border border-border bg-background p-4 transition-colors hover:bg-muted ${config.bg}`}
+			<Link
+				href={`/admin/bookings?status=${encodeURIComponent(status)}`}
+				className={`flex items-center gap-3 rounded-xl border border-border bg-background p-4 transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${config.bg}`}
 			>
 				<div className={`${config.color} rounded-lg bg-card p-2`}>
 					<Icon className="h-5 w-5" />
 				</div>
-				<div className="flex-1">
+				<div className="min-w-0 flex-1">
 					<p className="text-sm font-medium text-text-secondary capitalize">
 						{status}
 					</p>
@@ -1227,7 +1228,8 @@ function DashboardContent() {
 						{count}
 					</p>
 				</div>
-			</div>
+				<ArrowUpRight className="h-4 w-4 shrink-0 text-text-secondary" />
+			</Link>
 		);
 	};
 
@@ -1650,6 +1652,17 @@ function DashboardContent() {
 											href="/admin/bookings"
 										>
 											<span className="text-sm font-medium">Bookings</span>
+											<ArrowUpRight className="h-4 w-4 text-text-secondary transition-transform group-hover:-translate-y-1 group-hover:translate-x-1" />
+										</Link>
+									</li>
+									<li>
+										<Link
+											className="group flex w-full items-center justify-between rounded-md border border-border bg-background px-4 py-3 text-text-primary transition-all duration-150 hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+											href="/admin/push"
+										>
+											<span className="text-sm font-medium">
+												Send notifications
+											</span>
 											<ArrowUpRight className="h-4 w-4 text-text-secondary transition-transform group-hover:-translate-y-1 group-hover:translate-x-1" />
 										</Link>
 									</li>

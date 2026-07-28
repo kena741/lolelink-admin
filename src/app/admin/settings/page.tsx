@@ -216,7 +216,7 @@ const SettingsPage = () => {
             <div className="flex min-h-screen">
                 <Sidebar />
                 <main className="ml-64 w-full min-h-screen">
-                    <div className="mx-auto max-w-[1100px] px-6 py-8 lg:px-8">
+                    <div className="mx-auto max-w-275 px-6 py-8 lg:px-8">
                         <AdminPageHeader
                             title="Settings"
                             breadcrumbs={[
@@ -250,7 +250,7 @@ const SettingsPage = () => {
                         <div className="overflow-hidden rounded-2xl border border-white/30 bg-white/95 shadow-lg shadow-gray-200/40 backdrop-blur-sm">
                             <div className="flex flex-col gap-1 border-b border-gray-200/90 sm:flex-row sm:items-stretch sm:justify-between sm:gap-4">
                                 <nav
-                                    className="-mb-px flex min-h-[52px] gap-1 overflow-x-auto px-2 sm:px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                                    className="-mb-px flex min-h-13 gap-1 overflow-x-auto px-2 sm:px-4 scrollbar-none [&::-webkit-scrollbar]:hidden"
                                     aria-label="Settings sections"
                                 >
                                     {sections.map((s) => {

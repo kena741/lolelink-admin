@@ -40,6 +40,8 @@ export interface BookedService {
     paymentType?: string | null;
     payment_id?: string | null;
     providerName?: string;
+    providerEmail?: string;
+    providerPhone?: string;
     customerName?: string;
     customer_user_id?: string | null;
     provider_user_id?: string | null;
@@ -167,7 +169,10 @@ async function enrichBookingsWithNames(rows: BookedService[]): Promise<BookedSer
 
     const [providersResult, customersResult, serviceMetaById] = await Promise.all([
         providerIds.length > 0
-            ? getSupabase().from('provider').select('id, firstName, lastName, userName, user_id').in('id', providerIds)
+            ? getSupabase()
+                  .from('provider')
+                  .select('id, firstName, lastName, userName, user_id, email, phoneNumber, phone')
+                  .in('id', providerIds)
             : Promise.resolve({ data: [], error: null }),
         customerIds.length > 0
             ? getSupabase().from('customer').select('id, first_name, last_name, user_name, user_id').in('id', customerIds)
@@ -178,13 +183,27 @@ async function enrichBookingsWithNames(rows: BookedService[]): Promise<BookedSer
     if (providersResult.error) throw providersResult.error;
     if (customersResult.error) throw customersResult.error;
 
-    const providerMetaById = new Map<string, { name?: string; userId?: string }>();
+    const providerMetaById = new Map<
+        string,
+        { name?: string; userId?: string; email?: string; phone?: string }
+    >();
     for (const provider of (providersResult.data ?? []) as Record<string, unknown>[]) {
         const id = typeof provider.id === 'string' ? provider.id : '';
         if (!id) continue;
         const name = resolveProviderName(provider);
         const userId = typeof provider.user_id === 'string' && provider.user_id.trim() ? provider.user_id.trim() : undefined;
-        providerMetaById.set(id, { name: name || undefined, userId });
+        const email = typeof provider.email === 'string' && provider.email.trim() ? provider.email.trim() : undefined;
+        const phoneRaw =
+            (typeof provider.phoneNumber === 'string' && provider.phoneNumber.trim()
+                ? provider.phoneNumber.trim()
+                : null) ||
+            (typeof provider.phone === 'string' && provider.phone.trim() ? provider.phone.trim() : null);
+        providerMetaById.set(id, {
+            name: name || undefined,
+            userId,
+            email,
+            phone: phoneRaw || undefined,
+        });
     }
 
     const customerMetaById = new Map<string, { name?: string; userId?: string }>();
@@ -208,6 +227,8 @@ async function enrichBookingsWithNames(rows: BookedService[]): Promise<BookedSer
         return {
             ...row,
             providerName: providerMeta?.name,
+            providerEmail: providerMeta?.email,
+            providerPhone: providerMeta?.phone,
             customerName: customerMeta?.name,
             provider_user_id: readAuthUserId(row.provider_user_id) ?? providerMeta?.userId ?? null,
             customer_user_id: readAuthUserId(row.customer_user_id) ?? customerMeta?.userId ?? null,

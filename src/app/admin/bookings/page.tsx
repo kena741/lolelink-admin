@@ -317,6 +317,12 @@ const BookingsPage = () => {
     const [recollectingPayment, setRecollectingPayment] = useState(false);
     const [updatingStatus, setUpdatingStatus] = useState(false);
 
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const status = (new URLSearchParams(window.location.search).get('status') ?? '').trim().toLowerCase();
+        if (status) setJobStatusFilter(status);
+    }, []);
+
     const debugListRow = useMemo(
         () => items.find((item) => item.id === debugBookingId) ?? null,
         [items, debugBookingId]
@@ -585,6 +591,21 @@ const BookingsPage = () => {
                                     <option value="accepted">Accepted</option>
                                     <option value="in_progress">In progress</option>
                                     <option value="on_the_way">On the way</option>
+                                    <option value="ongoing">Ongoing</option>
+                                    <option value="cancelled">Cancelled</option>
+                                    {jobStatusFilter !== 'all'
+                                        && ![
+                                            'pending',
+                                            'completed',
+                                            'rejected',
+                                            'accepted',
+                                            'in_progress',
+                                            'on_the_way',
+                                            'ongoing',
+                                            'cancelled',
+                                        ].includes(jobStatusFilter) ? (
+                                        <option value={jobStatusFilter}>{jobStatusFilter}</option>
+                                    ) : null}
                                 </AdminSelect>
                                 <AdminSelect value={paymentMethodFilter} onChange={setPaymentMethodFilter}>
                                     <option value="all">All payment methods</option>
