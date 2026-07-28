@@ -36,8 +36,9 @@ import {
     deleteCustomer,
     restoreCustomer,
 } from '@/features/customer/customerSlice';
-import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 import { CustomerWalletHistory } from './CustomerWalletHistory';
+import { AdminNoteField } from '@/components/AdminNoteField';
+import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 
 interface CustomerDetail {
     id: string;
@@ -60,6 +61,7 @@ interface CustomerDetail {
     default_address?: unknown;
     customer_addresses?: unknown;
     address?: string | null;
+    admin_note?: string | null;
 }
 
 interface CustomerStats {
@@ -332,6 +334,20 @@ export default function CustomerDetailPage() {
                                         Linked provider
                                     </span>
                                 ) : null}
+                                <AdminNoteField
+                                    value={customer.admin_note}
+                                    disabled={!canWriteCustomers}
+                                    onSave={async (note) => {
+                                        const response = await fetch(`/api/admin/customers/${customerId}`, {
+                                            method: 'PATCH',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ admin_note: note || null }),
+                                        });
+                                        const payload = (await response.json()) as { error?: string };
+                                        if (!response.ok) throw new Error(payload.error || 'Failed to save note');
+                                        setCustomer((prev) => (prev ? { ...prev, admin_note: note || null } : prev));
+                                    }}
+                                />
                             </div>
 
                             {actionError ? (

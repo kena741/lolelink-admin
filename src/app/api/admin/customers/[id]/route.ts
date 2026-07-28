@@ -19,9 +19,12 @@ async function getIdFromParams(params: Promise<RouteParams> | RouteParams): Prom
 
 interface PatchBody {
     action?: 'archive' | 'restore';
+    admin_note?: string | null;
 }
 
 function columnHintMessage(raw: string): string {
+    if (raw.includes('admin_note'))
+        return `${raw} Run scripts/sql/add-provider-customer-admin-note.sql`;
     if (raw.includes('archived_at') || raw.includes('column') || raw.includes('schema'))
         return `${raw} Run in SQL editor: ${ARCHIVE_COLUMN_SQL}`;
     return raw;
@@ -129,6 +132,55 @@ export async function PATCH(request: Request, context: { params: Promise<RoutePa
         if (!id) return NextResponse.json({ error: 'Invalid customer id' }, { status: 400 });
 
         const body = (await request.json()) as PatchBody;
+
+        if (typeof body.admin_note === 'string' || body.admin_note === null) {
+            const { data: existing, error: existingError } = await supabaseAdmin
+                .from('customer')
+                .select('id, first_name, last_name, user_name, admin_note')
+                .eq('id', id)
+                .maybeSingle();
+
+            if (existingError) {
+                return NextResponse.json(
+                    { error: columnHintMessage(existingError.message) },
+                    { status: 500 }
+                );
+            }
+            if (!existing) return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
+
+            const nextNote = body.admin_note === null ? null : body.admin_note;
+            const { data: updated, error: noteError } = await supabaseAdmin
+                .from('customer')
+                .update({ admin_note: nextNote })
+                .eq('id', id)
+                .select('id, admin_note')
+                .single();
+
+            if (noteError) {
+                return NextResponse.json({ error: columnHintMessage(noteError.message) }, { status: 500 });
+            }
+
+            const customerName =
+                [existing.first_name, existing.last_name].filter(Boolean).join(' ').trim()
+                || (existing.user_name as string | undefined)?.trim()
+                || id;
+
+            await logAdminActivity({
+                request,
+                action: 'update',
+                resource_type: 'customer',
+                resource_id: id,
+                summary: `Updated admin note for customer ${customerName}`,
+                metadata: buildChangeMetadata(
+                    existing as Record<string, unknown>,
+                    { ...existing, admin_note: nextNote } as Record<string, unknown>,
+                    ['admin_note']
+                ),
+            });
+
+            return NextResponse.json({ ok: true, customer: updated });
+        }
+
         const action = body.action;
         if (action !== 'archive' && action !== 'restore')
             return NextResponse.json({ error: 'action must be archive or restore' }, { status: 400 });

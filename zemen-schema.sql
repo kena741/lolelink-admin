@@ -234,6 +234,7 @@ CREATE TABLE public.provider (
   service_tier_max integer NOT NULL DEFAULT 0,
   service_tier_paid_at timestamp with time zone,
   service_tier_tx_ref text,
+  admin_note text,
   CONSTRAINT provider_pkey PRIMARY KEY (id),
   CONSTRAINT provider_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
@@ -259,6 +260,7 @@ CREATE TABLE public.customer (
   customer_addresses jsonb,
   updated_at timestamp with time zone DEFAULT now(),
   archived_at timestamp with time zone,
+  admin_note text,
   CONSTRAINT customer_pkey PRIMARY KEY (id),
   CONSTRAINT customer_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );

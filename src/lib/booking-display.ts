@@ -84,6 +84,8 @@ export interface BookingWalletTransaction {
     isCredit?: boolean | null;
     note?: string | null;
     transactionId?: string | null;
+    createdDate?: string | null;
+    amount?: string | number | null;
 }
 
 export function hasBookingCustomerRefund(
@@ -111,6 +113,74 @@ export function hasBookingCustomerRefund(
 
         return note.includes(`order #${shortId}`);
     });
+}
+
+function isBookingRelatedWalletTx(bookingId: string, tx: BookingWalletTransaction): boolean {
+    const id = bookingId.trim().toLowerCase();
+    if (!id) return false;
+    const shortId = id.slice(0, 8);
+    const note = (tx.note ?? '').toLowerCase();
+    const transactionId = (tx.transactionId ?? '').toLowerCase();
+
+    if (transactionId.includes(id) || note.includes(id)) return true;
+    if (note.includes(`order #${shortId}`)) return true;
+    if (
+        note.includes(shortId) &&
+        (note.includes('refund') ||
+            note.includes('decline') ||
+            note.includes('re-collection') ||
+            note.includes('booking') ||
+            note.includes('payment') ||
+            note.includes('service fee'))
+    ) {
+        return true;
+    }
+    return false;
+}
+
+function isBookingRefundCredit(tx: BookingWalletTransaction): boolean {
+    if (tx.isCredit !== true) return false;
+    const note = (tx.note ?? '').toLowerCase();
+    return note.includes('refund') || note.includes('decline');
+}
+
+/**
+ * True when the latest related customer ledger activity leaves payment held
+ * (a debit / re-collection after any refund).
+ */
+export function customerBookingFundsHeld(
+    bookingId: string,
+    transactions: BookingWalletTransaction[]
+): boolean {
+    return netCustomerBookingHeldAmount(bookingId, transactions) > 0;
+}
+
+/** Net customer wallet amount still held for this booking (debits minus refunds). */
+export function netCustomerBookingHeldAmount(
+    bookingId: string,
+    transactions: BookingWalletTransaction[]
+): number {
+    const related = transactions
+        .filter((tx) => isBookingRelatedWalletTx(bookingId, tx))
+        .slice()
+        .sort((a, b) => {
+            const aTime = Date.parse(String(a.createdDate ?? '')) || 0;
+            const bTime = Date.parse(String(b.createdDate ?? '')) || 0;
+            return aTime - bTime;
+        });
+
+    let net = 0;
+    for (const tx of related) {
+        const magnitude = Math.abs(Number(tx.amount ?? 0)) || 0;
+        if (isBookingRefundCredit(tx)) {
+            net = Math.max(0, Math.round((net - magnitude) * 100) / 100);
+            continue;
+        }
+        if (tx.isCredit !== true) {
+            net = Math.round((net + magnitude) * 100) / 100;
+        }
+    }
+    return net > 0 ? net : 0;
 }
 
 function isRejectedPaidBooking(

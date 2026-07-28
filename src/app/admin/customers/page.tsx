@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { fetchAllCustomers, convertToProvider, resetConvertState, archiveCustomer, restoreCustomer, deleteCustomer } from '@/features/customer/customerSlice';
+import { fetchAllCustomers, convertToProvider, resetConvertState, archiveCustomer, restoreCustomer, deleteCustomer, setCustomerAdminNote } from '@/features/customer/customerSlice';
 import { ChevronLeft, ChevronRight, Download, Users, ArrowRightLeft, CheckCircle2, Loader2, Archive, ArchiveRestore, Trash2, MoreVertical, ExternalLink } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,7 @@ import {
     AdminShell,
 } from '@/components/admin/admin-layout';
 import { AdminTableShell } from '@/components/admin/data-table';
+import { AdminNoteField } from '@/components/AdminNoteField';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
@@ -228,6 +229,7 @@ export default function CustomersPage() {
                                         <TableHead>Address</TableHead>
                                         <TableHead>Created</TableHead>
                                         <TableHead>Last Request</TableHead>
+                                        <TableHead className="min-w-[10rem]">Note</TableHead>
                                         <TableHead className="text-right">Actions</TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -313,6 +315,30 @@ export default function CustomersPage() {
                                             </TableCell>
                                             <TableCell>
                                                 <span className="text-sm text-gray-600">{c.last_request_at ? new Date(c.last_request_at).toLocaleString() : '—'}</span>
+                                            </TableCell>
+                                            <TableCell onClick={(e) => e.stopPropagation()}>
+                                                {c.id ? (
+                                                    <AdminNoteField
+                                                        display="text"
+                                                        value={c.admin_note}
+                                                        disabled={!canWriteCustomers}
+                                                        onSave={async (note) => {
+                                                            const response = await fetch(`/api/admin/customers/${c.id}`, {
+                                                                method: 'PATCH',
+                                                                headers: { 'Content-Type': 'application/json' },
+                                                                body: JSON.stringify({ admin_note: note || null }),
+                                                            });
+                                                            const payload = (await response.json()) as { error?: string };
+                                                            if (!response.ok) throw new Error(payload.error || 'Failed to save note');
+                                                            dispatch(
+                                                                setCustomerAdminNote({
+                                                                    id: c.id,
+                                                                    admin_note: note || null,
+                                                                })
+                                                            );
+                                                        }}
+                                                    />
+                                                ) : null}
                                             </TableCell>
                                             <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                                                 <div className="flex items-center justify-end gap-2">

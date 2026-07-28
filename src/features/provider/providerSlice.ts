@@ -46,12 +46,16 @@ export interface Provider {
     activation_paid?: boolean;
     activation_paid_at?: string;
     activation_tx_ref?: string;
+    service_tier_max?: number;
+    service_tier_paid_at?: string;
+    service_tier_tx_ref?: string;
     verified_subcategory_ids?: string[];
     archived_at?: string | null;
     provider_type?: string | null;
     company_verification_status?: string | null;
     company_license_url?: string | null;
     company_rejection_reason?: string | null;
+    admin_note?: string | null;
 }
 
 export interface ProviderState {
@@ -280,6 +284,7 @@ const PROVIDER_UPDATE_KEYS = new Set([
     "profileBio",
     "companyName",
     "countryCode",
+    "admin_note",
 ]);
 
 function sanitizeProviderUpdates(updates: Partial<Provider>): Record<string, unknown> {

@@ -37,6 +37,8 @@ import { buildProviderUpdatesFromEditForm } from '@/lib/build-provider-updates';
 import { parseProviderLocation } from '@/lib/provider-location';
 import { StorageImage } from '@/components/StorageImage';
 import { DocumentMediaPreview } from '@/components/DocumentMediaPreview';
+import { ServiceTierBadge } from '@/components/ServiceTierBadge';
+import { AdminNoteField } from '@/components/AdminNoteField';
 
 export default function ProviderDetailPage() {
     const params = useParams();
@@ -385,6 +387,14 @@ export default function ProviderDetailPage() {
                                 }`}>
                                     {provider.activation_paid ? 'Activation Paid' : 'Activation Fee Pending'}
                                 </span>
+                                <ServiceTierBadge tierMax={provider.service_tier_max} />
+                                <AdminNoteField
+                                    value={provider.admin_note}
+                                    onSave={async (note) => {
+                                        await dispatch(updateProvider({ id, updates: { admin_note: note || null } })).unwrap();
+                                        await dispatch(fetchProviderById(id));
+                                    }}
+                                />
                             </div>
 
                                     {/* Earnings Summary */}
@@ -476,7 +486,10 @@ export default function ProviderDetailPage() {
                                     {activeTab === 'services' && (
                                     <section>
                                         <div className="mb-4 flex items-center justify-between">
-                                            <h2 className="text-2xl font-semibold">Services</h2>
+                                            <div className="flex flex-wrap items-center gap-3">
+                                                <h2 className="text-2xl font-semibold tracking-tight text-foreground">Services</h2>
+                                                <ServiceTierBadge tierMax={provider.service_tier_max} />
+                                            </div>
                                             <div className="flex gap-2">
                                                 <Button onClick={openAddService}>Add Service</Button>
                                                 <Button

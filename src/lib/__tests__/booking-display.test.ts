@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+    customerBookingFundsHeld,
     getBookingAnomalies,
     hasBookingCustomerRefund,
     hasBookingPaymentFlagConflict,
     isSameOwnerBooking,
+    netCustomerBookingHeldAmount,
     resolveBookingServiceName,
 } from '@/lib/booking-display';
 
@@ -192,5 +194,95 @@ describe('hasBookingCustomerRefund', () => {
                 },
             ])
         ).toBe(false);
+    });
+});
+
+describe('customerBookingFundsHeld', () => {
+    const bookingId = '405b83ec-24e3-42eb-a629-bc3cfc6b02b3';
+
+    it('is false after decline refund with no later debit', () => {
+        expect(
+            customerBookingFundsHeld(bookingId, [
+                {
+                    isCredit: false,
+                    note: 'Service fee debited',
+                    transactionId: bookingId,
+                    createdDate: '2026-07-08T14:18:23Z',
+                },
+                {
+                    isCredit: true,
+                    note: 'Order #405b83 decline refund',
+                    transactionId: bookingId,
+                    createdDate: '2026-07-08T14:18:54Z',
+                },
+            ])
+        ).toBe(false);
+    });
+
+    it('is true after re-collection debit following refund', () => {
+        expect(
+            customerBookingFundsHeld(bookingId, [
+                {
+                    isCredit: false,
+                    note: 'Service fee debited',
+                    transactionId: bookingId,
+                    createdDate: '2026-07-08T14:18:23Z',
+                    amount: 1.11,
+                },
+                {
+                    isCredit: true,
+                    note: 'Order #405b83 decline refund',
+                    transactionId: bookingId,
+                    createdDate: '2026-07-08T14:18:54Z',
+                    amount: 1.11,
+                },
+                {
+                    isCredit: false,
+                    note: `Booking re-collection ${bookingId}`,
+                    transactionId: bookingId,
+                    createdDate: '2026-07-28T15:00:00Z',
+                    amount: 1.11,
+                },
+            ])
+        ).toBe(true);
+    });
+
+    it('computes net held amount across debit refund recollect', () => {
+        expect(
+            netCustomerBookingHeldAmount(bookingId, [
+                {
+                    isCredit: false,
+                    note: 'Service fee debited',
+                    transactionId: bookingId,
+                    createdDate: '2026-07-08T14:18:23Z',
+                    amount: 1.11,
+                },
+                {
+                    isCredit: true,
+                    note: 'Order #405b83 decline refund',
+                    transactionId: bookingId,
+                    createdDate: '2026-07-08T14:18:54Z',
+                    amount: 1.11,
+                },
+            ])
+        ).toBe(0);
+        expect(
+            netCustomerBookingHeldAmount(bookingId, [
+                {
+                    isCredit: false,
+                    note: 'Service fee debited',
+                    transactionId: bookingId,
+                    createdDate: '2026-07-08T14:18:23Z',
+                    amount: 1.11,
+                },
+                {
+                    isCredit: false,
+                    note: `Booking re-collection ${bookingId} (admin mark paid)`,
+                    transactionId: bookingId,
+                    createdDate: '2026-07-28T15:00:00Z',
+                    amount: 0,
+                },
+            ])
+        ).toBe(1.11);
     });
 });

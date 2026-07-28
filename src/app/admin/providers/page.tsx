@@ -3,8 +3,9 @@ import React, { useEffect, useMemo, useState, useCallback } from "react";
 import Link from "next/link";
 import Sidebar from "../../../components/Sidebar";
 import { useAppDispatch, useAppSelector } from "../../../store/hooks";
-import { fetchProviders, fetchServiceCountsByProvider, archiveProvider, restoreProvider, deleteProvider } from "../../../features/provider/providerSlice";
+import { fetchProviders, fetchServiceCountsByProvider, archiveProvider, restoreProvider, deleteProvider, updateProvider } from "../../../features/provider/providerSlice";
 import type { Provider } from "@/features/provider/providerSlice";
+import { AdminNoteField } from "@/components/AdminNoteField";
 import { resolveProfileImageUrl } from "@/lib/media-url";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,7 @@ import {
 import AuthGuard from "@/components/AuthGuard";
 import AdminPageHeader, { adminHeaderButtonClassName } from "@/components/AdminPageHeader";
 import { ActivationPaymentModal } from "@/components/ActivationPaymentModal";
+import { ServiceTierBadge } from "@/components/ServiceTierBadge";
 import { fetchSettings } from "@/features/settings/settingsSlice";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
@@ -84,26 +86,26 @@ function ProviderActivationStatus({
 
     if (paid) {
         return (
-            <span className="inline-flex items-center gap-1.5 rounded-md bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
-                <BadgeCheck className="h-3.5 w-3.5 shrink-0" strokeWidth={2.25} />
+            <span className="inline-flex h-5 items-center gap-1 rounded-md bg-primary/10 px-1.5 text-[10px] font-medium text-primary">
+                <BadgeCheck className="h-3 w-3 shrink-0" strokeWidth={2.25} />
                 Activation paid
             </span>
         );
     }
 
     return (
-        <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center rounded-md bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+        <>
+            <span className="inline-flex h-5 items-center rounded-md bg-muted px-1.5 text-[10px] font-medium text-muted-foreground">
                 Fee pending
             </span>
             <button
                 type="button"
                 onClick={onPay}
-                className="inline-flex h-8 shrink-0 items-center rounded-md bg-primary px-3 text-xs font-semibold text-primary-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="inline-flex h-5 shrink-0 items-center rounded-md bg-primary px-2 text-[10px] font-medium text-primary-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
                 Pay fee
             </button>
-        </div>
+        </>
     );
 }
 
@@ -121,10 +123,10 @@ interface SegmentGroupProps<V extends string> {
 
 function SegmentGroup<V extends string>({ label, value, options, onChange }: SegmentGroupProps<V>) {
     return (
-        <div className="flex flex-col gap-2.5">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</span>
+        <div className="flex min-w-0 flex-col gap-1.5">
+            <span className="text-[11px] font-medium text-muted-foreground">{label}</span>
             <div
-                className="flex flex-wrap gap-1.5"
+                className="inline-flex max-w-full flex-nowrap overflow-x-auto rounded-lg border border-border bg-muted/50 p-0.5"
                 role="radiogroup"
                 aria-label={label}
             >
@@ -138,11 +140,11 @@ function SegmentGroup<V extends string>({ label, value, options, onChange }: Seg
                             aria-checked={selected}
                             onClick={() => onChange(opt.value)}
                             className={cn(
-                                "inline-flex h-9 min-h-[36px] shrink-0 items-center justify-center rounded-md px-3 text-sm font-medium transition-colors duration-150",
-                                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                                "inline-flex h-7 shrink-0 items-center justify-center rounded-md px-2 text-xs font-medium transition-colors duration-150",
+                                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
                                 selected
-                                    ? "bg-primary text-primary-foreground"
-                                    : "bg-muted/70 text-foreground hover:bg-muted"
+                                    ? "bg-card text-foreground shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
+                                    : "text-muted-foreground hover:text-foreground"
                             )}
                         >
                             {opt.label}
@@ -172,10 +174,12 @@ const ProvidersPage = () => {
     type ActivationFilter = "all" | "paid" | "unpaid";
     type ServicesFilter = "all" | "with_services" | "no_services";
     type AccountFilter = "all" | "active" | "inactive";
+    type TierFilter = "all" | "0" | "1" | "5" | "10" | "10_plus";
     const [archiveVisibility, setArchiveVisibility] = useState<ArchiveVisibility>("active_only");
     const [activationFilter, setActivationFilter] = useState<ActivationFilter>("all");
     const [servicesFilter, setServicesFilter] = useState<ServicesFilter>("all");
     const [accountFilter, setAccountFilter] = useState<AccountFilter>("all");
+    const [tierFilter, setTierFilter] = useState<TierFilter>("all");
     const [actionBusyId, setActionBusyId] = useState<string | null>(null);
     const [actionError, setActionError] = useState<string | null>(null);
     const [pendingDeleteProviderId, setPendingDeleteProviderId] = useState<string | null>(null);
@@ -187,14 +191,16 @@ const ProvidersPage = () => {
         if (activationFilter !== "all") n += 1;
         if (servicesFilter !== "all") n += 1;
         if (accountFilter !== "all") n += 1;
+        if (tierFilter !== "all") n += 1;
         return n;
-    }, [archiveVisibility, activationFilter, servicesFilter, accountFilter]);
+    }, [archiveVisibility, activationFilter, servicesFilter, accountFilter, tierFilter]);
 
     const resetFilters = useCallback(() => {
         setArchiveVisibility("active_only");
         setActivationFilter("all");
         setServicesFilter("all");
         setAccountFilter("all");
+        setTierFilter("all");
     }, []);
 
     const toggleSort = (key: SortKey) => {
@@ -222,9 +228,15 @@ const ProvidersPage = () => {
             const ac = providerAccountActive(p);
             if (accountFilter === "active" && !ac) return false;
             if (accountFilter === "inactive" && ac) return false;
+            const tier = p.service_tier_max ?? 0;
+            if (tierFilter === "0" && tier !== 0) return false;
+            if (tierFilter === "1" && tier !== 1) return false;
+            if (tierFilter === "5" && tier !== 5) return false;
+            if (tierFilter === "10" && tier !== 10) return false;
+            if (tierFilter === "10_plus" && tier <= 10) return false;
             return true;
         });
-    }, [providers, archiveVisibility, activationFilter, servicesFilter, accountFilter, serviceCounts]);
+    }, [providers, archiveVisibility, activationFilter, servicesFilter, accountFilter, tierFilter, serviceCounts]);
 
     const sortedProviders = useMemo(() => {
         const arr = [...attributeFilteredProviders];
@@ -278,6 +290,7 @@ const ProvidersPage = () => {
             'Phone': p.phoneNumber ?? p.phone ?? '',
             'Email': p.email ?? '',
             'Activation paid': providerActivationPaid(p) ? 'Yes' : 'No',
+            'Service tier max': p.service_tier_max ?? 0,
             'Services': p.id ? (serviceCounts[p.id] ?? 0) : 0,
             'Archived': providerIsArchived(p) ? 'Yes' : 'No',
         }));
@@ -351,7 +364,7 @@ const ProvidersPage = () => {
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [query, archiveVisibility, activationFilter, servicesFilter, accountFilter]);
+    }, [query, archiveVisibility, activationFilter, servicesFilter, accountFilter, tierFilter]);
 
     // Calculate statistics
     const stats = useMemo(() => {
@@ -571,65 +584,51 @@ const ProvidersPage = () => {
                                 id="providers-filters-panel"
                                 role="region"
                                 aria-labelledby="providers-filters-trigger"
-                                className="rounded-2xl border border-border bg-card px-6 py-5 shadow-[0_1px_3px_rgba(0,0,0,0.06)] sm:px-8 sm:py-6"
+                                className="rounded-xl border border-border bg-card px-4 py-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)] sm:px-5"
                             >
-                                <div>
-                                    <div className="mb-5 flex flex-wrap items-start justify-between gap-4 pb-2">
-                                        <div className="flex min-w-0 items-start gap-3">
-                                            <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15">
-                                                <Filter className="h-[18px] w-[18px] text-primary" />
-                                            </div>
-                                            <div className="min-w-0">
-                                                <div className="flex flex-wrap items-center gap-2">
-                                                    <h2 className="text-base font-semibold text-foreground">Filters</h2>
-                                                    {nonDefaultFilterCount > 0 ? (
-                                                        <span className="inline-flex items-center rounded-full bg-primary/15 px-2 py-0.5 text-xs font-bold tabular-nums text-primary">
-                                                            {nonDefaultFilterCount} active
-                                                        </span>
-                                                    ) : (
-                                                        <span className="text-xs font-medium text-muted-foreground">Defaults</span>
-                                                    )}
-                                                </div>
-                                                <p className="mt-0.5 text-sm text-muted-foreground">
-                                                    Showing <span className="font-semibold text-foreground">{filtered.length}</span> of{" "}
-                                                    <span className="font-semibold text-foreground">{attributeFilteredProviders.length}</span>
-                                                    {query.trim() ? (
-                                                        <>
-                                                            {" "}
-                                                            <span className="text-muted-foreground">(after search)</span>
-                                                        </>
-                                                    ) : null}
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                                            <button
-                                                type="button"
-                                                onClick={resetFilters}
-                                                disabled={nonDefaultFilterCount === 0}
-                                                className={cn(
-                                                    "inline-flex h-10 shrink-0 items-center gap-2 rounded-md border px-4 text-sm font-semibold transition-colors duration-150",
-                                                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                                                    nonDefaultFilterCount > 0
-                                                        ? "border-border bg-card text-foreground hover:bg-muted"
-                                                        : "cursor-not-allowed border-border bg-muted text-muted-foreground"
-                                                )}
-                                            >
-                                                <RotateCcw className={cn("h-4 w-4 shrink-0", nonDefaultFilterCount === 0 && "opacity-50")} />
-                                                Reset
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setFiltersPanelOpen(false)}
-                                                className="inline-flex h-10 min-w-10 shrink-0 items-center justify-center rounded-md border border-border bg-card px-3 text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                                                aria-label="Close filters"
-                                            >
-                                                <X className="h-4 w-4" />
-                                            </button>
+                                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <h2 className="text-sm font-semibold text-foreground">Filters</h2>
+                                            {nonDefaultFilterCount > 0 ? (
+                                                <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium tabular-nums text-muted-foreground">
+                                                    {nonDefaultFilterCount} active
+                                                </span>
+                                            ) : null}
+                                            <span className="text-xs text-muted-foreground">
+                                                {filtered.length}
+                                                {query.trim() ? ` match · ${attributeFilteredProviders.length} before search` : ` providers`}
+                                            </span>
                                         </div>
                                     </div>
+                                    <div className="flex shrink-0 items-center gap-1.5">
+                                        <button
+                                            type="button"
+                                            onClick={resetFilters}
+                                            disabled={nonDefaultFilterCount === 0}
+                                            className={cn(
+                                                "inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors duration-150",
+                                                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                                                nonDefaultFilterCount > 0
+                                                    ? "text-muted-foreground hover:bg-muted hover:text-foreground"
+                                                    : "cursor-not-allowed text-muted-foreground/50"
+                                            )}
+                                        >
+                                            <RotateCcw className="h-3.5 w-3.5 shrink-0" />
+                                            Reset
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setFiltersPanelOpen(false)}
+                                            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                            aria-label="Close filters"
+                                        >
+                                            <X className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                </div>
 
-                                    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
+                                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                                         <SegmentGroup
                                             label="Archive"
                                             value={archiveVisibility}
@@ -648,6 +647,19 @@ const ProvidersPage = () => {
                                                 { value: "all", label: "All" },
                                                 { value: "paid", label: "Paid" },
                                                 { value: "unpaid", label: "Unpaid" },
+                                            ]}
+                                        />
+                                        <SegmentGroup
+                                            label="Tier"
+                                            value={tierFilter}
+                                            onChange={setTierFilter}
+                                            options={[
+                                                { value: "all", label: "All" },
+                                                { value: "0", label: "0" },
+                                                { value: "1", label: "1" },
+                                                { value: "5", label: "5" },
+                                                { value: "10", label: "10" },
+                                                { value: "10_plus", label: "10+" },
                                             ]}
                                         />
                                         <SegmentGroup
@@ -670,7 +682,6 @@ const ProvidersPage = () => {
                                                 { value: "inactive", label: "Inactive" },
                                             ]}
                                         />
-                                    </div>
                                 </div>
                             </div>
                             ) : null}
@@ -712,94 +723,14 @@ const ProvidersPage = () => {
                                             key={p.id}
                                             className={`relative overflow-hidden rounded-2xl border border-border bg-card shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-all duration-150 hover:bg-muted/30 hover:shadow-[0_2px_8px_rgba(0,0,0,0.08)] ${archived ? "opacity-75" : ""}`}
                                         >
-                                            <Link
-                                                href={p.id ? `/admin/providers/${p.id}` : "#"}
-                                                className="group relative block p-6"
-                                            >
-                                            <div>
-                                                <div className="flex items-start justify-between mb-4">
-                                                    <div className="flex items-center gap-4">
-                                                        {src && !failedImages.has(p.id) ? (
-                                                            // eslint-disable-next-line @next/next/no-img-element
-                                                            <img
-                                                                src={src}
-                                                                alt={label}
-                                                                className="h-16 w-16 rounded-xl object-cover shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-all"
-                                                                onError={() => setFailedImages((prev) => new Set(prev).add(p.id))}
-                                                            />
-                                                        ) : (
-                                                            <div className="grid h-16 w-16 place-items-center rounded-xl bg-primary text-xl font-bold text-primary-foreground shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-                                                                {getInitials(p)}
-                                                            </div>
-                                                        )}
-                                                        <div className="flex-1">
-                                                            <h3 className="text-lg font-bold text-foreground transition-colors group-hover:text-primary">
-                                                                {label}
-                                                            </h3>
-                                                            <p className="mt-1 text-sm text-muted-foreground">{p.email ?? "—"}</p>
-                                                            {archived ? (
-                                                                <span className="mt-2 inline-flex rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
-                                                                    Archived
-                                                                </span>
-                                                            ) : null}
-                                                            <div className="mt-2">
-                                                                <ProviderActivationStatus
-                                                                    provider={p}
-                                                                    onPay={(e) => {
-                                                                        e.preventDefault();
-                                                                        e.stopPropagation();
-                                                                        const first = p.firstName ?? p.first_name;
-                                                                        const last = p.lastName ?? p.last_name;
-                                                                        const name = [first, last].filter(Boolean).join(" ") || p.name || "Provider";
-                                                                        setActivationTarget({ id: p.id, name });
-                                                                    }}
-                                                                />
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                <div className="space-y-3">
-                                                    {p.phoneNumber || p.phone ? (
-                                                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                                            <Phone className="h-4 w-4 text-muted-foreground" />
-                                                            <span>{p.phoneNumber ?? p.phone}</span>
-                                                        </div>
-                                                    ) : null}
-                                                    {p.address ? (
-                                                        <div className="flex items-start gap-2 text-sm text-muted-foreground">
-                                                            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                                                            <span className="line-clamp-2">{p.address}</span>
-                                                        </div>
-                                                    ) : null}
-                                                    {p.createdAt && (
-                                                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                                            <Calendar className="h-4 w-4 text-muted-foreground" />
-                                                            <span>{new Date(p.createdAt).toLocaleDateString()}</span>
-                                                        </div>
-                                                    )}
-                                                </div>
-
-                                                <div className="mt-4 flex items-center justify-between pt-1">
-                                                    <div className="flex items-center gap-2">
-                                                        <Briefcase className="h-4 w-4 text-muted-foreground" />
-                                                        <span className="text-sm font-medium text-foreground">{serviceCount} Services</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-1 text-primary opacity-0 transition-opacity group-hover:opacity-100">
-                                                        <span className="text-sm font-semibold">View</span>
-                                                        <ArrowUpRight className="h-4 w-4" />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            </Link>
-                                            <div className="flex items-center justify-end bg-muted/30 px-3 py-2">
+                                            <div className="absolute right-2 top-2 z-10">
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger asChild>
                                                         <Button
                                                             type="button"
                                                             variant="ghost"
                                                             size="icon"
-                                                            className="h-9 w-9 text-muted-foreground hover:text-foreground"
+                                                            className="h-8 w-8 text-muted-foreground hover:bg-muted hover:text-foreground"
                                                             aria-label="Provider actions"
                                                         >
                                                             <MoreVertical className="h-4 w-4" />
@@ -858,6 +789,87 @@ const ProvidersPage = () => {
                                                     </DropdownMenuContent>
                                                 </DropdownMenu>
                                             </div>
+                                            <Link
+                                                href={p.id ? `/admin/providers/${p.id}` : "#"}
+                                                className="group relative block p-6 pr-12"
+                                            >
+                                            <div>
+                                                <div className="flex items-start justify-between mb-4">
+                                                    <div className="flex items-center gap-4">
+                                                        {src && !failedImages.has(p.id) ? (
+                                                            // eslint-disable-next-line @next/next/no-img-element
+                                                            <img
+                                                                src={src}
+                                                                alt={label}
+                                                                className="h-16 w-16 rounded-xl object-cover shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-all"
+                                                                onError={() => setFailedImages((prev) => new Set(prev).add(p.id))}
+                                                            />
+                                                        ) : (
+                                                            <div className="grid h-16 w-16 place-items-center rounded-xl bg-primary text-xl font-bold text-primary-foreground shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+                                                                {getInitials(p)}
+                                                            </div>
+                                                        )}
+                                                        <div className="flex-1">
+                                                            <h3 className="text-lg font-bold text-foreground transition-colors group-hover:text-primary">
+                                                                {label}
+                                                            </h3>
+                                                            <p className="mt-1 text-sm text-muted-foreground">{p.email ?? "—"}</p>
+                                                            {archived ? (
+                                                                <span className="mt-2 inline-flex rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+                                                                    Archived
+                                                                </span>
+                                                            ) : null}
+                                                            <div className="mt-2 flex flex-nowrap items-center gap-1.5 overflow-x-auto">
+                                                                <ProviderActivationStatus
+                                                                    provider={p}
+                                                                    onPay={(e) => {
+                                                                        e.preventDefault();
+                                                                        e.stopPropagation();
+                                                                        const first = p.firstName ?? p.first_name;
+                                                                        const last = p.lastName ?? p.last_name;
+                                                                        const name = [first, last].filter(Boolean).join(" ") || p.name || "Provider";
+                                                                        setActivationTarget({ id: p.id, name });
+                                                                    }}
+                                                                />
+                                                                <ServiceTierBadge tierMax={p.service_tier_max} />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="space-y-3">
+                                                    {p.phoneNumber || p.phone ? (
+                                                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                            <Phone className="h-4 w-4 text-muted-foreground" />
+                                                            <span>{p.phoneNumber ?? p.phone}</span>
+                                                        </div>
+                                                    ) : null}
+                                                    {p.address ? (
+                                                        <div className="flex items-start gap-2 text-sm text-muted-foreground">
+                                                            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                                                            <span className="line-clamp-2">{p.address}</span>
+                                                        </div>
+                                                    ) : null}
+                                                    {p.createdAt && (
+                                                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                            <Calendar className="h-4 w-4 text-muted-foreground" />
+                                                            <span>{new Date(p.createdAt).toLocaleDateString()}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <div className="mt-4 flex items-center justify-between pt-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <Briefcase className="h-4 w-4 text-muted-foreground" />
+                                                        <span className="text-sm font-medium text-foreground">{serviceCount} Services</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-1 text-primary opacity-0 transition-opacity group-hover:opacity-100">
+                                                        <span className="text-sm font-semibold">View</span>
+                                                        <ArrowUpRight className="h-4 w-4" />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            </Link>
                                         </div>
                                     );
                                 })}
@@ -911,6 +923,7 @@ const ProvidersPage = () => {
                                                         <ChevronsUpDown className="h-4 w-4 opacity-60" />
                                                     </button>
                                                 </TableHead>
+                                                <TableHead className="min-w-[10rem] font-semibold text-foreground">Note</TableHead>
                                                 <TableHead className="text-right font-semibold text-foreground">Actions</TableHead>
                                             </TableRow>
                                         </TableHeader>
@@ -962,7 +975,7 @@ const ProvidersPage = () => {
                                                                         <Mail className="h-3 w-3" />
                                                                         {p.email ?? ""}
                                                                     </span>
-                                                                    <div className="mt-1.5">
+                                                                    <div className="mt-1.5 flex flex-nowrap items-center gap-1.5 overflow-x-auto">
                                                                         <ProviderActivationStatus
                                                                             provider={p}
                                                                             onPay={(e) => {
@@ -971,6 +984,7 @@ const ProvidersPage = () => {
                                                                                 setActivationTarget({ id: p.id, name: label });
                                                                             }}
                                                                         />
+                                                                        <ServiceTierBadge tierMax={p.service_tier_max} />
                                                                     </div>
                                                                 </div>
                                                             ) : (
@@ -980,11 +994,12 @@ const ProvidersPage = () => {
                                                                         <Mail className="h-3 w-3" />
                                                                         {p.email ?? ""}
                                                                     </span>
-                                                                    <div className="mt-1.5">
+                                                                    <div className="mt-1.5 flex flex-nowrap items-center gap-1.5 overflow-x-auto">
                                                                         <ProviderActivationStatus
                                                                             provider={p}
                                                                             onPay={() => setActivationTarget({ id: p.id, name: label })}
                                                                         />
+                                                                        <ServiceTierBadge tierMax={p.service_tier_max} />
                                                                     </div>
                                                                 </div>
                                                             )}
@@ -1016,6 +1031,22 @@ const ProvidersPage = () => {
                                                                 <Calendar className="h-4 w-4 text-muted-foreground" />
                                                                 {p.createdAt ? new Date(p.createdAt).toLocaleDateString() : "—"}
                                                             </div>
+                                                        </TableCell>
+                                                        <TableCell onClick={(e) => e.stopPropagation()}>
+                                                            {p.id ? (
+                                                                <AdminNoteField
+                                                                    display="text"
+                                                                    value={p.admin_note}
+                                                                    onSave={async (note) => {
+                                                                        await dispatch(
+                                                                            updateProvider({
+                                                                                id: p.id,
+                                                                                updates: { admin_note: note || null },
+                                                                            })
+                                                                        ).unwrap();
+                                                                    }}
+                                                                />
+                                                            ) : null}
                                                         </TableCell>
                                                         <TableCell className="text-right">
                                                             <div className="flex items-center justify-end gap-2">

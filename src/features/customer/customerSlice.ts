@@ -36,6 +36,7 @@ export interface Customer {
     address?: string; // Legacy field, use default_address
     last_request_at?: string | null; // Computed field, not from DB
     archived_at?: string | null;
+    admin_note?: string | null;
 }
 
 interface CustomerListState {
@@ -348,6 +349,18 @@ const customerSlice = createSlice({
             state.convertError = null;
             state.convertSuccess = false;
         },
+        setCustomerAdminNote: (
+            state,
+            action: { payload: { id: string; admin_note: string | null } }
+        ) => {
+            const idx = state.customers.findIndex((c) => c.id === action.payload.id);
+            if (idx !== -1) {
+                state.customers[idx] = {
+                    ...state.customers[idx],
+                    admin_note: action.payload.admin_note,
+                };
+            }
+        },
     },
     extraReducers: (builder) => {
         builder
@@ -437,5 +450,5 @@ const customerSlice = createSlice({
     },
 });
 
-export const { resetCustomerState, resetConvertState } = customerSlice.actions;
+export const { resetCustomerState, resetConvertState, setCustomerAdminNote } = customerSlice.actions;
 export default customerSlice.reducer;

@@ -1,7 +1,7 @@
 "use client";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAppDispatch, useAppSelector } from "../../../store/hooks";
-import { fetchAllBookings, fetchBookingById, clearSingle, deleteBooking, verifyBookingPayment, updateBookingStatus, getBookingCustomerDisplayName, getBookingProviderDisplayName } from "../../../features/bookedService/bookedServiceSlice";
+import { fetchAllBookings, fetchBookingById, clearSingle, deleteBooking, verifyBookingPayment, updateBookingStatus, recollectBookingPayment, getBookingCustomerDisplayName, getBookingProviderDisplayName } from "../../../features/bookedService/bookedServiceSlice";
 import { Plus, RefreshCw } from "lucide-react";
 import AuthGuard from "@/components/AuthGuard";
 import AdminPageHeader, { adminHeaderButtonClassName } from "@/components/AdminPageHeader";
@@ -314,6 +314,7 @@ const BookingsPage = () => {
     const [toast, setToast] = useState<ToastState | null>(null);
     const chapaReturnHandledRef = useRef<string | null>(null);
     const [verifyingPaymentId, setVerifyingPaymentId] = useState<string | null>(null);
+    const [recollectingPayment, setRecollectingPayment] = useState(false);
     const [updatingStatus, setUpdatingStatus] = useState(false);
 
     const debugListRow = useMemo(
@@ -401,11 +402,34 @@ const BookingsPage = () => {
         }
     };
 
+    const handleRecollectPayment = async (id: string, mode: 'wallet' | 'mark_paid') => {
+        setRecollectingPayment(true);
+        try {
+            const result = await dispatch(recollectBookingPayment({ bookingId: id, mode })).unwrap();
+            setToast({
+                message:
+                    mode === 'wallet'
+                        ? `Re-collected ETB ${result.amount.toFixed(2)} from customer wallet. You can complete the job now.`
+                        : `Marked re-collected (admin). You can complete the job now.`,
+                variant: 'success',
+            });
+            await dispatch(fetchBookingById(id));
+            dispatch(fetchAllBookings());
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Failed to re-collect payment';
+            setToast({ message, variant: 'error' });
+        } finally {
+            setRecollectingPayment(false);
+        }
+    };
+
     const handleUpdateBookingStatus = async (id: string, status: BookedServiceStatus) => {
         setUpdatingStatus(true);
         try {
             const result = await dispatch(updateBookingStatus({ bookingId: id, status })).unwrap();
             const payout = result.provider_payout;
+            const clawback = result.provider_clawback;
+            const refund = result.customer_refund;
             if (status === 'completed' && payout && payout.skipped === false) {
                 setToast({
                     message: `Job completed. Provider wallet credited ETB ${payout.amount.toFixed(2)}.`,
@@ -414,6 +438,20 @@ const BookingsPage = () => {
             } else if (status === 'completed' && payout?.skipped && payout.reason === 'already_credited') {
                 setToast({
                     message: 'Job completed. Provider payout was already recorded.',
+                    variant: 'success',
+                });
+            } else if (status === 'rejected' && (clawback?.skipped === false || refund?.skipped === false)) {
+                const parts: string[] = ['Job rejected.'];
+                if (clawback && clawback.skipped === false) {
+                    parts.push(`Provider payout reversed ETB ${clawback.amount.toFixed(2)}.`);
+                }
+                if (refund && refund.skipped === false) {
+                    parts.push(`Customer refunded ETB ${refund.amount.toFixed(2)}.`);
+                }
+                setToast({ message: parts.join(' '), variant: 'success' });
+            } else if (clawback && clawback.skipped === false) {
+                setToast({
+                    message: `Job status updated. Provider completion payout reversed ETB ${clawback.amount.toFixed(2)}.`,
                     variant: 'success',
                 });
             } else {
@@ -592,6 +630,8 @@ const BookingsPage = () => {
                     canDelete={canWriteBookings}
                     onVerifyPayment={canWriteBookings ? handleVerifyPaymentFromDetail : undefined}
                     verifyingPayment={Boolean(verifyingPaymentId)}
+                    onRecollectPayment={canWriteBookings ? handleRecollectPayment : undefined}
+                    recollectingPayment={recollectingPayment}
                     onUpdateStatus={canWriteBookings ? handleUpdateBookingStatus : undefined}
                     updatingStatus={updatingStatus}
                 />

@@ -16,6 +16,8 @@ import {
     formatBookingShortId,
     formatPaymentMethodLabel,
     getBookingAnomalies,
+    customerBookingFundsHeld,
+    hasBookingCustomerRefund,
     parseBookingAmount,
     parseBookingCoupon,
     resolveBookingServiceImage,
@@ -138,6 +140,8 @@ export function BookingDetailModal({
     canDelete,
     onVerifyPayment,
     verifyingPayment = false,
+    onRecollectPayment,
+    recollectingPayment = false,
     onUpdateStatus,
     updatingStatus = false,
 }: {
@@ -151,6 +155,8 @@ export function BookingDetailModal({
     canDelete: boolean;
     onVerifyPayment?: (id: string) => Promise<void>;
     verifyingPayment?: boolean;
+    onRecollectPayment?: (id: string, mode: 'wallet' | 'mark_paid') => Promise<void>;
+    recollectingPayment?: boolean;
     onUpdateStatus?: (id: string, status: BookedServiceStatus) => Promise<void>;
     updatingStatus?: boolean;
 }) {
@@ -163,6 +169,16 @@ export function BookingDetailModal({
         Boolean(booking?.id) &&
         booking?.paymentCompleted !== true &&
         (booking?.payment_status ?? '') === 'pending_payment';
+
+    const needsRecollect =
+        Boolean(onRecollectPayment) &&
+        Boolean(booking?.id) &&
+        (booking?.customer_refund_recorded === true ||
+            hasBookingCustomerRefund(
+                booking?.id ?? '',
+                walletRows.filter((row) => row.isCredit === true)
+            )) &&
+        !customerBookingFundsHeld(booking?.id ?? '', walletRows);
 
     const canEditStatus = Boolean(onUpdateStatus) && Boolean(booking?.id);
 
@@ -200,7 +216,7 @@ export function BookingDetailModal({
         return () => {
             cancelled = true;
         };
-    }, [open, booking?.id]);
+    }, [open, booking?.id, booking?.paymentType, booking?.payment_id, booking?.paymentCompleted]);
 
     const bookingRecord = booking as unknown as Record<string, unknown>;
     const anomalies = booking ? getBookingAnomalies(bookingRecord) : [];
@@ -343,6 +359,31 @@ export function BookingDetailModal({
                                                 )
                                             }
                                         />
+                                        {needsRecollect && onRecollectPayment ? (
+                                            <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3">
+                                                <p className="text-[13px] text-amber-900">
+                                                    Customer was refunded. Re-collect payment before completing.
+                                                </p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    <button
+                                                        type="button"
+                                                        disabled={recollectingPayment}
+                                                        onClick={() => void onRecollectPayment(booking.id, 'wallet')}
+                                                        className="inline-flex h-8 items-center rounded-md bg-accent-primary px-3 text-[12px] font-medium text-text-inverse hover:bg-accent-primary-hover disabled:opacity-50"
+                                                    >
+                                                        {recollectingPayment ? 'Working…' : 'Re-collect from wallet'}
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        disabled={recollectingPayment}
+                                                        onClick={() => void onRecollectPayment(booking.id, 'mark_paid')}
+                                                        className="inline-flex h-8 items-center rounded-md border border-border bg-card px-3 text-[12px] font-medium text-foreground hover:bg-muted disabled:opacity-50"
+                                                    >
+                                                        Mark re-collected
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : null}
                                     </div>
                                 </SectionCard>
 
@@ -444,6 +485,26 @@ export function BookingDetailModal({
             </SheetBody>
 
             <SheetFooter>
+                    {booking && needsRecollect && onRecollectPayment && (
+                        <>
+                            <button
+                                type="button"
+                                onClick={() => void onRecollectPayment(booking.id, 'wallet')}
+                                disabled={recollectingPayment}
+                                className="inline-flex h-10 items-center rounded-md bg-accent-primary px-4 text-[14px] font-medium text-text-inverse hover:bg-accent-primary-hover disabled:opacity-50"
+                            >
+                                {recollectingPayment ? 'Working…' : 'Re-collect from wallet'}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => void onRecollectPayment(booking.id, 'mark_paid')}
+                                disabled={recollectingPayment}
+                                className="inline-flex h-10 items-center rounded-md border border-gray-200 bg-white px-4 text-[14px] font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                            >
+                                Mark re-collected
+                            </button>
+                        </>
+                    )}
                     {booking && canVerifyChapa && onVerifyPayment && (
                         <button
                             type="button"

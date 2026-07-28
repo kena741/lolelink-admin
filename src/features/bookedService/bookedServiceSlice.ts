@@ -482,6 +482,43 @@ export const verifyBookingPayment = createAsyncThunk<
     }
 });
 
+export const recollectBookingPayment = createAsyncThunk<
+    { ok: true; mode: 'wallet' | 'mark_paid'; amount: number },
+    { bookingId: string; mode: 'wallet' | 'mark_paid' },
+    { rejectValue: string }
+>('bookedService/recollectBookingPayment', async ({ bookingId, mode }, { rejectWithValue }) => {
+    try {
+        const response = await fetch(
+            `/api/admin/bookings/${encodeURIComponent(bookingId)}/recollect-payment`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode }),
+            }
+        );
+
+        const payload = (await response.json()) as {
+            ok?: boolean;
+            mode?: 'wallet' | 'mark_paid';
+            amount?: number;
+            error?: string;
+        };
+
+        if (!response.ok) {
+            return rejectWithValue(payload.error || `Request failed (${response.status})`);
+        }
+
+        return {
+            ok: true,
+            mode: payload.mode === 'mark_paid' ? 'mark_paid' : 'wallet',
+            amount: Number(payload.amount ?? 0),
+        };
+    } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : 'Failed to re-collect payment';
+        return rejectWithValue(msg);
+    }
+});
+
 export const deleteBooking = createAsyncThunk<
     string,
     string,
@@ -511,6 +548,14 @@ export const updateBookingStatus = createAsyncThunk<
             | { skipped: true; reason: string }
             | { skipped: false; amount: number; walletAmount: number }
             | null;
+        provider_clawback?:
+            | { skipped: true; reason: string }
+            | { skipped: false; amount: number; walletAmount: number }
+            | null;
+        customer_refund?:
+            | { skipped: true; reason: string }
+            | { skipped: false; amount: number; walletAmount: number }
+            | null;
     },
     { bookingId: string; status: BookedServiceStatus },
     { rejectValue: string }
@@ -531,12 +576,22 @@ export const updateBookingStatus = createAsyncThunk<
                 | { skipped: true; reason: string }
                 | { skipped: false; amount: number; walletAmount: number }
                 | null;
+            provider_clawback?:
+                | { skipped: true; reason: string }
+                | { skipped: false; amount: number; walletAmount: number }
+                | null;
+            customer_refund?:
+                | { skipped: true; reason: string }
+                | { skipped: false; amount: number; walletAmount: number }
+                | null;
         };
 
         return {
             bookingId,
             status,
             provider_payout: payload.provider_payout ?? null,
+            provider_clawback: payload.provider_clawback ?? null,
+            customer_refund: payload.customer_refund ?? null,
         };
     } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : 'Failed to update booking status';

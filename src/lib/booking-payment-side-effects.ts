@@ -1,5 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { BOOKING_PAYMENT_STATUS } from '@/lib/booking-status';
+import {
+    customerBookingFundsHeld,
+    netCustomerBookingHeldAmount,
+} from '@/lib/booking-display';
 import { resolveCustomerAuthUserId } from '@/lib/wallet-transaction-user';
 import { walletTransactionProfileColumns } from '@/lib/wallet-transaction-profile';
 
@@ -101,7 +105,8 @@ export async function debitCustomerWalletForBooking(
     admin: SupabaseClient,
     bookingId: string,
     customerId: string,
-    amount: number
+    amount: number,
+    options?: { note?: string; transactionId?: string }
 ): Promise<{ ok: true; paymentId: string } | { ok: false; error: string; status: number }> {
     const authUser = await resolveCustomerAuthUserId(admin, customerId);
     if (!authUser.ok) {
@@ -127,14 +132,14 @@ export async function debitCustomerWalletForBooking(
     }
 
     const now = new Date().toISOString();
-    const txRef = `wallet-bkg-${bookingId.slice(0, 8)}-${Date.now()}`;
+    const txRef = options?.transactionId?.trim() || `wallet-bkg-${bookingId.slice(0, 8)}-${Date.now()}`;
     const paymentId = crypto.randomUUID();
 
     const { error: walletTxError } = await admin.from('wallet_transaction').insert({
         amount: amount.toFixed(2),
         createdDate: now,
         isCredit: false,
-        note: `Booking payment ${bookingId}`,
+        note: options?.note?.trim() || `Booking payment ${bookingId}`,
         paymentType: 'wallet',
         transactionId: txRef,
         type: 'customer',
@@ -172,6 +177,200 @@ export async function debitCustomerWalletForBooking(
     }
 
     return { ok: true, paymentId };
+}
+
+export async function recollectBookingPayment(
+    admin: SupabaseClient,
+    bookingId: string,
+    mode: 'wallet' | 'mark_paid'
+): Promise<
+    | { ok: true; mode: 'wallet' | 'mark_paid'; amount: number }
+    | { ok: false; error: string; status: number }
+> {
+    const id = bookingId.trim();
+    if (!id) return { ok: false, error: 'bookingId is required', status: 400 };
+
+    const { data: bookingRaw, error: bookingError } = await admin
+        .from('booked_service')
+        .select('id, customer_id, totalAmount, price, paymentType, payment_status, paymentCompleted')
+        .eq('id', id)
+        .maybeSingle();
+
+    if (bookingError) return { ok: false, error: bookingError.message, status: 500 };
+    if (!bookingRaw) return { ok: false, error: 'Booking not found', status: 404 };
+
+    const booking = bookingRaw as BookingRow & {
+        paymentType?: string | null;
+        payment_status?: string | null;
+        paymentCompleted?: boolean | null;
+    };
+    const customerId = (booking.customer_id ?? '').trim();
+    if (!customerId) return { ok: false, error: 'Booking has no customer', status: 400 };
+
+    const amount = bookingTotalAmount(booking);
+    if (!(amount > 0)) return { ok: false, error: 'Booking amount must be positive', status: 400 };
+
+    if (mode === 'wallet') {
+        const debit = await debitCustomerWalletForBooking(admin, id, customerId, amount, {
+            note: `Booking re-collection ${id}`,
+            transactionId: id,
+        });
+        if (!debit.ok) return debit;
+
+        await upsertBookingPaymentRecord(admin, booking, {
+            paymentId: debit.paymentId,
+            providerRef: debit.paymentId,
+            paymentMethod: 'wallet',
+            provider: 'wallet',
+            status: BOOKING_PAYMENT_STATUS.COMPLETED,
+        });
+
+        return { ok: true, mode: 'wallet', amount };
+    }
+
+    const authUser = await resolveCustomerAuthUserId(admin, customerId);
+    if (!authUser.ok) {
+        return { ok: false, error: authUser.error, status: authUser.status };
+    }
+
+    const now = new Date().toISOString();
+    const { error: markerError } = await admin.from('wallet_transaction').insert({
+        amount: '0.00',
+        createdDate: now,
+        isCredit: false,
+        note: `Booking re-collection ${id} (admin mark paid)`,
+        paymentType: 'admin',
+        transactionId: id,
+        type: 'customer',
+        ...walletTransactionProfileColumns({
+            type: 'customer',
+            authUserId: authUser.authUserId,
+            customerId,
+        }),
+    });
+
+    if (markerError) return { ok: false, error: markerError.message, status: 500 };
+
+    const paymentId = crypto.randomUUID();
+    const attachedPaymentId = await upsertBookingPaymentRecord(admin, booking, {
+        paymentId,
+        providerRef: paymentId,
+        paymentMethod: 'admin',
+        provider: 'admin',
+        status: BOOKING_PAYMENT_STATUS.COMPLETED,
+    });
+
+    const { error: bookingUpdateError } = await admin
+        .from('booked_service')
+        .update({
+            payment_status: BOOKING_PAYMENT_STATUS.COMPLETED,
+            paymentCompleted: true,
+            paymentType: 'admin',
+            payment_id: attachedPaymentId,
+        })
+        .eq('id', id);
+
+    if (bookingUpdateError) return { ok: false, error: bookingUpdateError.message, status: 500 };
+
+    return { ok: true, mode: 'mark_paid', amount };
+}
+
+export function rejectRefundNote(bookingId: string): string {
+    return `Order #${bookingId.slice(0, 6)} reject refund`;
+}
+
+/**
+ * Credits customer wallet for held booking payment when admin rejects.
+ * Idempotent when no net held amount remains.
+ */
+export async function refundCustomerForRejectedBooking(
+    admin: SupabaseClient,
+    bookingId: string
+): Promise<
+    | { ok: true; skipped: true; reason: 'nothing_to_refund' | 'no_customer' }
+    | { ok: true; skipped: false; amount: number; walletAmount: number }
+    | { ok: false; error: string; status: number }
+> {
+    const id = bookingId.trim();
+    if (!id) return { ok: false, error: 'bookingId is required', status: 400 };
+
+    const { data: bookingRaw, error: bookingError } = await admin
+        .from('booked_service')
+        .select('id, customer_id, totalAmount, price, paymentType')
+        .eq('id', id)
+        .maybeSingle();
+
+    if (bookingError) return { ok: false, error: bookingError.message, status: 500 };
+    if (!bookingRaw) return { ok: false, error: 'Booking not found', status: 404 };
+
+    const booking = bookingRaw as BookingRow & { paymentType?: string | null };
+    const customerId = (booking.customer_id ?? '').trim();
+    if (!customerId) return { ok: true, skipped: true, reason: 'no_customer' };
+
+    const authUser = await resolveCustomerAuthUserId(admin, customerId);
+    if (!authUser.ok) {
+        return { ok: false, error: authUser.error, status: authUser.status };
+    }
+
+    const { data: txs, error: txError } = await admin
+        .from('wallet_transaction')
+        .select('isCredit, note, transactionId, createdDate, amount')
+        .eq('userId', authUser.authUserId);
+
+    if (txError) return { ok: false, error: txError.message, status: 500 };
+
+    const rows = (txs ?? []) as Array<{
+        isCredit?: boolean | null;
+        note?: string | null;
+        transactionId?: string | null;
+        createdDate?: string | null;
+        amount?: string | number | null;
+    }>;
+
+    const refundAmount = netCustomerBookingHeldAmount(id, rows);
+    if (!(refundAmount > 0) || !customerBookingFundsHeld(id, rows)) {
+        return { ok: true, skipped: true, reason: 'nothing_to_refund' };
+    }
+
+    const { data: customerRaw, error: customerError } = await admin
+        .from('customer')
+        .select('id, wallet_amount')
+        .eq('id', customerId)
+        .maybeSingle();
+
+    if (customerError) return { ok: false, error: customerError.message, status: 500 };
+    if (!customerRaw) return { ok: false, error: 'Customer not found', status: 404 };
+
+    const currentWallet = parseAmount((customerRaw as { wallet_amount?: string | number }).wallet_amount);
+    const nextWallet = Math.round((currentWallet + refundAmount) * 100) / 100;
+    const now = new Date().toISOString();
+    const paymentType = (booking.paymentType ?? 'wallet').toString();
+
+    const { error: insertError } = await admin.from('wallet_transaction').insert({
+        amount: refundAmount.toFixed(2),
+        createdDate: now,
+        isCredit: true,
+        note: rejectRefundNote(id),
+        paymentType,
+        transactionId: id,
+        type: 'customer',
+        ...walletTransactionProfileColumns({
+            type: 'customer',
+            authUserId: authUser.authUserId,
+            customerId,
+        }),
+    });
+
+    if (insertError) return { ok: false, error: insertError.message, status: 500 };
+
+    const { error: walletUpdateError } = await admin
+        .from('customer')
+        .update({ wallet_amount: nextWallet.toFixed(2) })
+        .eq('id', customerId);
+
+    if (walletUpdateError) return { ok: false, error: walletUpdateError.message, status: 500 };
+
+    return { ok: true, skipped: false, amount: refundAmount, walletAmount: nextWallet };
 }
 
 interface ProviderRow {

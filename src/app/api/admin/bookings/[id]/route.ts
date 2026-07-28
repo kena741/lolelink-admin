@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
 import { logAdminActivity } from '@/lib/admin-activity-log';
 import { requireAdminPermission } from '@/lib/admin-auth';
-import { creditProviderForCompletedBooking } from '@/lib/booking-completion-payout';
+import {
+    clawbackProviderCompletionPayout,
+    creditProviderForCompletedBooking,
+} from '@/lib/booking-completion-payout';
+import { refundCustomerForRejectedBooking } from '@/lib/booking-payment-side-effects';
 import { sendBookingStatusUpdatedNotifications } from '@/lib/booking-notifications';
 import { formatBookingJobStatusLabel, isBookedServiceStatus } from '@/lib/booking-status';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
@@ -71,6 +75,36 @@ export async function PATCH(request: Request, context: { params: Promise<RoutePa
             | { skipped: false; amount: number; walletAmount: number }
             | null = null;
 
+        let clawback:
+            | { skipped: true; reason: string }
+            | { skipped: false; amount: number; walletAmount: number }
+            | null = null;
+
+        let customerRefund:
+            | { skipped: true; reason: string }
+            | { skipped: false; amount: number; walletAmount: number }
+            | null = null;
+
+        if (previousStatus === 'completed' && nextStatus !== 'completed') {
+            const reverse = await clawbackProviderCompletionPayout(supabaseAdmin, id);
+            if (!reverse.ok) {
+                return NextResponse.json({ error: reverse.error }, { status: reverse.status });
+            }
+            clawback = reverse.skipped
+                ? { skipped: true, reason: reverse.reason }
+                : { skipped: false, amount: reverse.amount, walletAmount: reverse.walletAmount };
+        }
+
+        if (nextStatus === 'rejected' && !statusUnchanged) {
+            const refund = await refundCustomerForRejectedBooking(supabaseAdmin, id);
+            if (!refund.ok) {
+                return NextResponse.json({ error: refund.error }, { status: refund.status });
+            }
+            customerRefund = refund.skipped
+                ? { skipped: true, reason: refund.reason }
+                : { skipped: false, amount: refund.amount, walletAmount: refund.walletAmount };
+        }
+
         if (nextStatus === 'completed') {
             const credit = await creditProviderForCompletedBooking(supabaseAdmin, id);
             if (!credit.ok) {
@@ -79,6 +113,15 @@ export async function PATCH(request: Request, context: { params: Promise<RoutePa
             if (credit.skipped && credit.reason === 'unpaid') {
                 return NextResponse.json(
                     { error: 'Booking must be paid before marking completed (provider payout requires payment).' },
+                    { status: 400 }
+                );
+            }
+            if (credit.skipped && credit.reason === 'customer_refunded') {
+                return NextResponse.json(
+                    {
+                        error:
+                            'Cannot complete: customer was refunded for this booking. Re-collect payment in booking detail first.',
+                    },
                     { status: 400 }
                 );
             }
@@ -123,6 +166,8 @@ export async function PATCH(request: Request, context: { params: Promise<RoutePa
                     from_status: previousStatus || null,
                     to_status: nextStatus,
                     provider_payout: payout,
+                    provider_clawback: clawback,
+                    customer_refund: customerRefund,
                 },
             });
         }
@@ -132,6 +177,8 @@ export async function PATCH(request: Request, context: { params: Promise<RoutePa
             status: nextStatus,
             unchanged: statusUnchanged,
             provider_payout: payout,
+            provider_clawback: clawback,
+            customer_refund: customerRefund,
         });
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unexpected error';
