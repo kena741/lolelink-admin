@@ -317,13 +317,16 @@ export default function CustomersPage() {
                                                 <span className="text-sm text-gray-600">{c.last_request_at ? new Date(c.last_request_at).toLocaleString() : '—'}</span>
                                             </TableCell>
                                             <TableCell onClick={(e) => e.stopPropagation()}>
-                                                {c.id ? (
+                                                {(() => {
+                                                    const customerId = c.id;
+                                                    if (!customerId) return null;
+                                                    return (
                                                     <AdminNoteField
                                                         display="text"
                                                         value={c.admin_note}
                                                         disabled={!canWriteCustomers}
                                                         onSave={async (note) => {
-                                                            const response = await fetch(`/api/admin/customers/${c.id}`, {
+                                                            const response = await fetch(`/api/admin/customers/${customerId}`, {
                                                                 method: 'PATCH',
                                                                 headers: { 'Content-Type': 'application/json' },
                                                                 body: JSON.stringify({ admin_note: note || null }),
@@ -332,13 +335,14 @@ export default function CustomersPage() {
                                                             if (!response.ok) throw new Error(payload.error || 'Failed to save note');
                                                             dispatch(
                                                                 setCustomerAdminNote({
-                                                                    id: c.id,
+                                                                    id: customerId,
                                                                     admin_note: note || null,
                                                                 })
                                                             );
                                                         }}
                                                     />
-                                                ) : null}
+                                                    );
+                                                })()}
                                             </TableCell>
                                             <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                                                 <div className="flex items-center justify-end gap-2">
