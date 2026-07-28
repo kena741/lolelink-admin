@@ -522,7 +522,7 @@ const BookingsPage = () => {
         <AuthGuard>
             <AdminShell>
                         {toast ? (
-                            <div className="fixed right-6 top-6 z-[120]">
+                            <div className="fixed right-6 top-6 z-120">
                                 <div
                                     className={`rounded-lg border px-4 py-3 text-sm font-semibold shadow-xl ${
                                         toast.variant === 'success'

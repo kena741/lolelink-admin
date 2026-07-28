@@ -1,3 +1,5 @@
+import { formatDisplayPhone } from '@/lib/phone-display';
+
 interface CustomerAddressLike {
     city?: string;
     state?: string;
@@ -27,7 +29,7 @@ export function getCustomerPhone(customer: Record<string, unknown> | null | unde
     if (!customer) return '';
     const candidates = [customer.phoneNumber, customer.phone, customer.mobile_number, customer.mobileNumber];
     for (const value of candidates) {
-        if (typeof value === 'string' && value.trim()) return value.trim();
+        if (typeof value === 'string' && value.trim()) return formatDisplayPhone(value);
     }
     return '';
 }

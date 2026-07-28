@@ -527,7 +527,7 @@ const ProvidersPage = () => {
                                         <Filter className="h-4 w-4 shrink-0" />
                                         <span>Filters</span>
                                         {nonDefaultFilterCount > 0 ? (
-                                            <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-primary-foreground/20 px-1.5 text-[11px] font-bold tabular-nums">
+                                            <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-primary-foreground/20 px-1.5 text-[11px] font-bold tabular-nums">
                                                 {nonDefaultFilterCount}
                                             </span>
                                         ) : null}
@@ -892,7 +892,7 @@ const ProvidersPage = () => {
                                     <Table>
                                         <TableHeader className="[&_tr]:border-0">
                                             <TableRow className="border-0 bg-muted/40">
-                                                <TableHead className="w-[60px] font-semibold text-foreground">#</TableHead>
+                                                <TableHead className="w-15 font-semibold text-foreground">#</TableHead>
                                                 <TableHead className="font-semibold text-foreground">Provider</TableHead>
                                                 <TableHead className="font-semibold text-foreground">
                                                     <button 
@@ -923,7 +923,7 @@ const ProvidersPage = () => {
                                                         <ChevronsUpDown className="h-4 w-4 opacity-60" />
                                                     </button>
                                                 </TableHead>
-                                                <TableHead className="min-w-[10rem] font-semibold text-foreground">Note</TableHead>
+                                                <TableHead className="min-w-40 font-semibold text-foreground">Note</TableHead>
                                                 <TableHead className="text-right font-semibold text-foreground">Actions</TableHead>
                                             </TableRow>
                                         </TableHeader>
@@ -1157,7 +1157,7 @@ const ProvidersPage = () => {
                                     >
                                         <ChevronLeft className="h-4 w-4" />
                                     </button>
-                                    <span className="min-w-[80px] text-center text-sm font-medium text-foreground">
+                                    <span className="min-w-20 text-center text-sm font-medium text-foreground">
                                         Page {safePage} of {totalPages}
                                     </span>
                                     <button

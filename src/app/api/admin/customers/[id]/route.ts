@@ -3,6 +3,7 @@ import { requireAdminPermission } from '@/lib/admin-auth';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 import { logAdminActivity } from '@/lib/admin-activity-log';
 import { buildChangeMetadata } from '@/lib/activity-log-changes';
+import { clearCustomerDeleteBlockers } from '@/lib/customer-delete-cleanup';
 
 export const runtime = 'nodejs';
 
@@ -61,8 +62,8 @@ export async function GET(request: Request, context: { params: Promise<RoutePara
 
         const customerRecord = customer as Record<string, unknown>;
         const refIds = [id];
-        const externalId = customerRecord.customer_id;
-        if (typeof externalId === 'string' && externalId.trim()) refIds.push(externalId.trim());
+        const authUserId = customerRecord.user_id;
+        if (typeof authUserId === 'string' && authUserId.trim()) refIds.push(authUserId.trim());
         const uniqueRefIds = [...new Set(refIds)];
 
         const { data: providerRow } = await supabaseAdmin
@@ -235,7 +236,7 @@ export async function DELETE(request: Request, context: { params: Promise<RouteP
 
         const { data: customerRow, error: customerFetchError } = await supabaseAdmin
             .from('customer')
-            .select('customer_id, first_name, last_name, user_name')
+            .select('id, user_id, first_name, last_name, user_name')
             .eq('id', id)
             .maybeSingle();
 
@@ -248,8 +249,8 @@ export async function DELETE(request: Request, context: { params: Promise<RouteP
             || id;
 
         const refIds = [id];
-        const externalId = customerRow?.customer_id;
-        if (typeof externalId === 'string' && externalId.trim().length > 0) refIds.push(externalId.trim());
+        const authUserId = (customerRow as { user_id?: string | null }).user_id;
+        if (typeof authUserId === 'string' && authUserId.trim().length > 0) refIds.push(authUserId.trim());
         const uniqueRefIds = [...new Set(refIds)];
 
         for (const refId of uniqueRefIds) {
@@ -259,6 +260,9 @@ export async function DELETE(request: Request, context: { params: Promise<RouteP
                 .eq('customerId', refId);
             if (jobRequestError) return NextResponse.json({ error: jobRequestError.message }, { status: 500 });
         }
+
+        const cleanup = await clearCustomerDeleteBlockers(supabaseAdmin, id);
+        if (!cleanup.ok) return NextResponse.json({ error: cleanup.error }, { status: 500 });
 
         const { error } = await supabaseAdmin.from('customer').delete().eq('id', id);
         if (error) return NextResponse.json({ error: error.message }, { status: 500 });

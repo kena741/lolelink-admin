@@ -7,7 +7,7 @@ export const runtime = 'nodejs';
 
 interface CustomerLookupRow {
     id: string;
-    customer_id?: string | null;
+    user_id?: string | null;
     first_name?: string | null;
     last_name?: string | null;
     phone?: string | null;
@@ -26,8 +26,6 @@ function buildCustomerLookup(rows: CustomerLookupRow[]): Map<string, CustomerLoo
     const map = new Map<string, CustomerLookupRow>();
     for (const customer of rows) {
         map.set(customer.id, customer);
-        const alt = customer.customer_id;
-        if (typeof alt === 'string' && alt.trim().length > 0) map.set(alt.trim(), customer);
     }
     return map;
 }
@@ -89,15 +87,21 @@ export async function GET(request: Request) {
 
             const unresolved = customerRefs.filter((ref) => !customerLookup.has(ref));
             if (unresolved.length > 0) {
-                const { data: byCustomerId, error: errByCustomerId } = await supabaseAdmin
+                const { data: byUserId, error: errByUserId } = await supabaseAdmin
                     .from('customer')
                     .select('*')
-                    .in('customer_id', unresolved);
-                if (errByCustomerId)
-                    return NextResponse.json({ error: errByCustomerId.message || 'Failed to fetch customers' }, { status: 500 });
-                const extra = buildCustomerLookup((byCustomerId ?? []) as CustomerLookupRow[]);
+                    .in('user_id', unresolved);
+                if (errByUserId)
+                    return NextResponse.json({ error: errByUserId.message || 'Failed to fetch customers' }, { status: 500 });
+                const extra = buildCustomerLookup((byUserId ?? []) as CustomerLookupRow[]);
                 for (const [key, value] of extra) {
                     if (!customerLookup.has(key)) customerLookup.set(key, value);
+                }
+                for (const row of (byUserId ?? []) as CustomerLookupRow[]) {
+                    const userId = (row as { user_id?: string | null }).user_id;
+                    if (typeof userId === 'string' && userId.trim()) {
+                        customerLookup.set(userId.trim(), row);
+                    }
                 }
             }
         }

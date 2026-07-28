@@ -32,7 +32,7 @@ export async function GET(
 
         const { data: customer, error: customerError } = await supabaseAdmin
             .from('customer')
-            .select('id, customer_id')
+            .select('id, user_id')
             .eq('id', customerId)
             .maybeSingle();
 
@@ -44,8 +44,8 @@ export async function GET(
         }
 
         const refIds = [customerId];
-        const externalId = (customer as { customer_id?: string | null }).customer_id;
-        if (typeof externalId === 'string' && externalId.trim()) refIds.push(externalId.trim());
+        const authUserId = (customer as { user_id?: string | null }).user_id;
+        if (typeof authUserId === 'string' && authUserId.trim()) refIds.push(authUserId.trim());
         const uniqueRefIds = [...new Set(refIds)];
 
         const { data, error } = await supabaseAdmin

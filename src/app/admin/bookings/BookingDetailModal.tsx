@@ -24,6 +24,12 @@ import {
     resolveBookingServiceName,
     sanitizePersonDisplayName,
 } from '@/lib/booking-display';
+import {
+    parseAdminCommissionConfig,
+    resolveBookingAdminCommissionAmount,
+    type AdminCommissionConfig,
+} from '@/lib/booking-admin-commission';
+import { formatDisplayPhone } from '@/lib/phone-display';
 import { getSupabase } from '@/lib/supabaseClient';
 import {
     BOOKING_JOB_STATUS_OPTIONS,
@@ -104,7 +110,7 @@ function JobStatusDropdown({
                     <ChevronDown className="h-3.5 w-3.5 opacity-70" />
                 </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="z-[110] w-56">
+            <DropdownMenuContent align="start" className="z-110 w-56">
                 {BOOKING_JOB_STATUS_OPTIONS.map((option) => {
                     const selected = option.value === current;
                     return (
@@ -162,6 +168,7 @@ export function BookingDetailModal({
 }) {
     const [walletRows, setWalletRows] = useState<WalletLedgerRow[]>([]);
     const [walletLoading, setWalletLoading] = useState(false);
+    const [commissionConfig, setCommissionConfig] = useState<AdminCommissionConfig | null>(null);
     const issuesSectionRef = useRef<HTMLElement>(null);
 
     const canVerifyChapa =
@@ -181,6 +188,27 @@ export function BookingDetailModal({
         !customerBookingFundsHeld(booking?.id ?? '', walletRows);
 
     const canEditStatus = Boolean(onUpdateStatus) && Boolean(booking?.id);
+
+    useEffect(() => {
+        if (!open) return;
+        let cancelled = false;
+        void (async () => {
+            try {
+                const { data } = await getSupabase()
+                    .from('app_settings')
+                    .select('data')
+                    .eq('id', 'admin_commission')
+                    .maybeSingle();
+                if (cancelled) return;
+                setCommissionConfig(parseAdminCommissionConfig((data as { data?: unknown } | null)?.data));
+            } catch {
+                if (!cancelled) setCommissionConfig(null);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [open]);
 
     useEffect(() => {
         if (!open || !booking?.id) {
@@ -272,11 +300,7 @@ export function BookingDetailModal({
                                         <DetailField label="Email" value={booking.email || '—'} />
                                         <DetailField
                                             label="Phone"
-                                            value={
-                                                booking.countryCode && booking.phoneNumber
-                                                    ? `${booking.countryCode} ${booking.phoneNumber}`
-                                                    : booking.phoneNumber || '—'
-                                            }
+                                            value={formatDisplayPhone(booking.phoneNumber) || '—'}
                                         />
                                         <DetailField
                                             label="Customer ID"
@@ -314,7 +338,17 @@ export function BookingDetailModal({
                                                 : '—'
                                         }
                                     />
-                                    <DetailField label="Admin commission" value={booking.adminCommission ?? '—'} />
+                                    <DetailField
+                                        label="Admin commission"
+                                        value={(() => {
+                                            if (!booking) return '—';
+                                            const fee = resolveBookingAdminCommissionAmount(
+                                                booking,
+                                                commissionConfig
+                                            );
+                                            return fee > 0 ? formatBookingAmount(fee) : '—';
+                                        })()}
+                                    />
                                     <DetailField
                                         label="Total"
                                         value={

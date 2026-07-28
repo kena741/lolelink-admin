@@ -33,6 +33,7 @@ import {
     customerIsArchived,
     getCustomerDisplayName,
 } from '@/lib/customer-display';
+import { formatDisplayPhone } from '@/lib/phone-display';
 
 const PAGE_SIZE = 20;
 
@@ -191,7 +192,7 @@ export default function CustomersPage() {
                                 <button
                                     type="button"
                                     onClick={() => setShowArchived((v) => !v)}
-                                    className={`inline-flex h-[40px] items-center rounded-md border px-3 text-sm font-semibold transition-colors ${
+                                    className={`inline-flex h-10 items-center rounded-md border px-3 text-sm font-semibold transition-colors ${
                                         showArchived
                                             ? 'border-indigo-300 bg-indigo-50 text-indigo-800'
                                             : 'border-gray-200 bg-white/80 text-gray-700 hover:bg-white'
@@ -202,7 +203,7 @@ export default function CustomersPage() {
                                 <button
                                     onClick={exportToXlsx}
                                     disabled={filtered.length === 0}
-                                    className="inline-flex h-[40px] items-center gap-2 rounded-md border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                    className="inline-flex h-10 items-center gap-2 rounded-md border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
                                 >
                                     <Download className="h-4 w-4" />
                                     Export XLSX
@@ -219,7 +220,7 @@ export default function CustomersPage() {
                             <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead className="w-[60px]">#</TableHead>
+                                        <TableHead className="w-15">#</TableHead>
                                         <TableHead>Customer</TableHead>
                                         <TableHead>Email</TableHead>
                                         <TableHead>Phone</TableHead>
@@ -229,7 +230,7 @@ export default function CustomersPage() {
                                         <TableHead>Address</TableHead>
                                         <TableHead>Created</TableHead>
                                         <TableHead>Last Request</TableHead>
-                                        <TableHead className="min-w-[10rem]">Note</TableHead>
+                                        <TableHead className="min-w-40">Note</TableHead>
                                         <TableHead className="text-right">Actions</TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -258,7 +259,7 @@ export default function CustomersPage() {
                                             </TableCell>
                                             <TableCell className="text-gray-700">{c.email || '—'}</TableCell>
                                             <TableCell className="text-gray-700">
-                                                {c.phoneNumber ?? c.mobile_number ?? c.phone ?? '—'}
+                                                {formatDisplayPhone(c.phoneNumber ?? c.mobile_number ?? c.phone) || '—'}
                                             </TableCell>
                                             <TableCell className="text-gray-700">
                                                 <span className="capitalize">{c.gender || '—'}</span>
@@ -487,7 +488,7 @@ export default function CustomersPage() {
                                     >
                                         <ChevronLeft className="h-4 w-4" />
                                     </button>
-                                    <span className="min-w-[80px] text-center text-sm font-medium text-gray-700">
+                                    <span className="min-w-20 text-center text-sm font-medium text-gray-700">
                                         Page {safePage} of {totalPages}
                                     </span>
                                     <button

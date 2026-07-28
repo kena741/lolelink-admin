@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { StorageImage } from '@/components/StorageImage';
 import { fetchHandymen, createHandyman, updateHandyman, deleteHandyman } from '@/features/handyman/handymanSlice';
+import { formatDisplayPhone } from '@/lib/phone-display';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 
 const HandymanPage = () => {
@@ -205,7 +206,7 @@ const HandymanPage = () => {
                                         {canWriteProviders && (
                                         <button
                                             onClick={() => handleOpenModal()}
-                                            className="inline-flex items-center gap-2 rounded-lg inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-accent"
+                                            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-accent"
                                         >
                                             <Plus className="h-4 w-4" />
                                             Add Handyman
@@ -271,9 +272,7 @@ const HandymanPage = () => {
                                                         <td className="px-6 py-4 whitespace-nowrap">
                                                             <div className="flex items-center gap-1 text-sm text-gray-600">
                                                                 <Phone className="h-3 w-3" />
-                                                                {handyman.countryCode && handyman.phoneNumber 
-                                                                    ? `${handyman.countryCode} ${handyman.phoneNumber}`
-                                                                    : handyman.phoneNumber || 'N/A'}
+                                                                {formatDisplayPhone(handyman.phoneNumber) || 'N/A'}
                                                             </div>
                                                         </td>
                                                         <td className="px-6 py-4 whitespace-nowrap">
@@ -290,7 +289,7 @@ const HandymanPage = () => {
                                                         </td>
                                                         <td className="px-6 py-4">
                                                             <div className="flex items-center gap-1 text-sm text-gray-600 max-w-xs truncate">
-                                                                <MapPin className="h-3 w-3 flex-shrink-0" />
+                                                                <MapPin className="h-3 w-3 shrink-0" />
                                                                 {handyman.address || 'N/A'}
                                                             </div>
                                                         </td>

@@ -26,6 +26,12 @@ import {
     sanitizeDisplayText,
 } from '@/app/admin/finance/payout-request/payout-request-display';
 import { formatAdminDateTimeUtc } from '@/lib/admin-datetime';
+import {
+    dashboardRangeLabel,
+    isDateInDashboardRange,
+    parseDashboardRange,
+} from '@/lib/dashboard-range';
+import { isMissingPaymentMethodPayout } from '@/lib/payout-missing-payment-method';
 import { calculateWithdrawalPayoutBreakdown } from '@/lib/withdrawal-payout';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
@@ -348,6 +354,7 @@ function PayoutRequestPageContent() {
     const pendingRequests = requests.filter(r => r.paymentStatus === 'pending');
 
     const segment = (searchParams.get('segment') || '').trim().toLowerCase();
+    const range = parseDashboardRange(searchParams.get('range'));
     const isToday = (value?: string) => {
         if (!value) return false;
         const date = new Date(value);
@@ -360,12 +367,15 @@ function PayoutRequestPageContent() {
     const filteredRequests = requests.filter((request) => {
         const status = (request.paymentStatus || '').toLowerCase();
         const note = (request.adminNote || '').toLowerCase();
+        const dateRef = request.paymentDate || request.createdDate;
+        const inRange = !range || isDateInDashboardRange(dateRef, range);
+
         if (segment === 'waiting_confirmation')
-            return status === 'approved' && note.includes('reference=');
+            return status === 'approved' && note.includes('reference=') && inRange;
         if (segment === 'failed_rejected')
-            return status === 'rejected';
+            return status === 'rejected' && inRange;
         if (segment === 'missing_payment_method')
-            return ['pending', 'approved'].includes(status) && !request.bankDetails;
+            return isMissingPaymentMethodPayout(request.paymentStatus, request.bankDetails) && inRange;
         if (segment === 'completed_today')
             return status === 'completed' && isToday(request.paymentDate);
         return true;
@@ -384,8 +394,11 @@ function PayoutRequestPageContent() {
                 : segment === 'completed_today'
                     ? 'Completed Today'
                     : '';
-    const exportAuditHref = segment
-        ? `/api/payout/export-audit?segment=${encodeURIComponent(segment)}`
+    const exportParams = new URLSearchParams();
+    if (segment) exportParams.set('segment', segment);
+    if (range) exportParams.set('range', range);
+    const exportAuditHref = exportParams.toString()
+        ? `/api/payout/export-audit?${exportParams.toString()}`
         : '/api/payout/export-audit';
 
     return (
@@ -418,7 +431,10 @@ function PayoutRequestPageContent() {
                         />
                         {segmentLabel && (
                             <div className="mb-4 flex items-center justify-between rounded-xl border border-border bg-muted px-4 py-3">
-                                <p className="text-sm font-semibold text-text-primary">Active segment: {segmentLabel}</p>
+                                <p className="text-sm font-semibold text-text-primary">
+                                    Active segment: {segmentLabel}
+                                    {range ? ` · ${dashboardRangeLabel(range)}` : ''}
+                                </p>
                                 <Link href="/admin/finance/payout-request" className="text-sm font-semibold text-primary transition-colors hover:text-accent">
                                     Clear filter
                                 </Link>

@@ -1,4 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import {
+    computeAdminCommissionFee,
+    loadAdminCommissionConfig,
+} from '@/lib/booking-admin-commission';
 import { BOOKING_FIELD_LIMITS, assertBookingSecureTextFields, bookingSecureQuantityError } from '@/lib/booking-field-limits';
 import {
     computeBookingAmounts,
@@ -86,23 +90,6 @@ function parseObjectValue(value: unknown): Record<string, unknown> {
     }
     if (typeof value === 'object') return value as Record<string, unknown>;
     return {};
-}
-
-async function loadAdminCommission(admin: SupabaseClient): Promise<number> {
-    const { data } = await admin
-        .from('settings')
-        .select('data')
-        .eq('id', 'admin_commission')
-        .maybeSingle();
-
-    const row = parseObjectValue((data as { data?: unknown } | null)?.data);
-    const value = row.value;
-    if (typeof value === 'number' && Number.isFinite(value)) return value;
-    if (typeof value === 'string') {
-        const parsed = parseFloat(value);
-        return Number.isFinite(parsed) ? parsed : 0;
-    }
-    return 0;
 }
 
 async function loadExtraChargeGst(admin: SupabaseClient): Promise<boolean> {
@@ -241,7 +228,8 @@ export async function buildBookingPayload(
     const discountRaw = typeof service.discount === 'string' ? service.discount : undefined;
     const couponRow = await resolveCoupon(admin, input.coupon);
     const amounts = computeBookingAmounts(unitPrice, discountRaw, quantity, couponRow);
-    const adminCommission = await loadAdminCommission(admin);
+    const commissionConfig = await loadAdminCommissionConfig(admin);
+    const adminCommission = computeAdminCommissionFee(amounts.totalAmount, commissionConfig);
     const extraChargeGst = await loadExtraChargeGst(admin);
     const now = new Date().toISOString();
     const bookingId = input.bookingId ?? crypto.randomUUID();

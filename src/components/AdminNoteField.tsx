@@ -72,7 +72,7 @@ export function AdminNoteField({
                 title={hasNote ? note : 'Add admin note'}
                 aria-label={hasNote ? 'Edit admin note' : 'Add admin note'}
                 className={cn(
-                    'max-w-[12rem] truncate text-left text-sm transition-colors',
+                    'max-w-48 truncate text-left text-sm transition-colors',
                     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
                     'disabled:cursor-not-allowed disabled:opacity-40',
                     hasNote

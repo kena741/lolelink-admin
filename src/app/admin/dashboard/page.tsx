@@ -44,6 +44,14 @@ import {
 	type WalletDashboardBreakdown,
 	type WalletTransactionMetricRow,
 } from "@/lib/wallet-transaction-metrics";
+import {
+	isDateInDashboardRange,
+	type DashboardRange,
+} from "@/lib/dashboard-range";
+import {
+	isMissingPaymentMethodPayout,
+	type PayoutPaymentMethodDetails,
+} from "@/lib/payout-missing-payment-method";
 import { DashboardBarChart } from "@/components/admin/dashboard-bar-chart";
 import {
 	DashboardLineChart,
@@ -140,14 +148,7 @@ interface WithdrawalRow {
 	createdDate?: string | null;
 }
 
-interface ProviderPaymentMethodLiteRow {
-	providerID?: string | null;
-	is_active?: boolean | null;
-}
-
 type WalletTransactionLiteRow = WalletTransactionMetricRow;
-
-type DashboardRange = "today" | "7d" | "30d" | "all";
 
 function isCompletedBooking(value: BookedServiceRow): boolean {
 	const normalized = (value.status ?? "").toString().trim().toLowerCase();
@@ -554,26 +555,14 @@ function DashboardContent() {
 		useState<DashboardRange>(initialRange);
 
 	const isDateInRange = useCallback(
-		(dateString?: string | null): boolean => {
-			if (dashboardRange === "all") return true;
-			if (!dateString) return false;
-			const date = new Date(dateString);
-			if (Number.isNaN(date.getTime())) return false;
+		(dateString?: string | null): boolean =>
+			isDateInDashboardRange(dateString, dashboardRange),
+		[dashboardRange],
+	);
 
-			const now = new Date();
-			if (dashboardRange === "today") {
-				return (
-					date.getFullYear() === now.getFullYear() &&
-					date.getMonth() === now.getMonth() &&
-					date.getDate() === now.getDate()
-				);
-			}
-
-			const days = dashboardRange === "7d" ? 7 : 30;
-			const from = new Date();
-			from.setDate(now.getDate() - days);
-			return date >= from;
-		},
+	const payoutSegmentHref = useCallback(
+		(segment: string) =>
+			`/admin/finance/payout-request?segment=${encodeURIComponent(segment)}&range=${encodeURIComponent(dashboardRange)}`,
 		[dashboardRange],
 	);
 
@@ -871,25 +860,41 @@ function DashboardContent() {
 					.select(
 						"id, providerId, paymentStatus, adminNote, paymentDate, createdDate",
 					);
-			const { data: paymentMethodRows, error: paymentMethodError } =
-				await getSupabase()
-					.from("provider_payment_methods")
-					.select("providerID, is_active");
 
-			if (
-				!withdrawalError &&
-				!paymentMethodError &&
-				withdrawalRows &&
-				paymentMethodRows
-			) {
+			if (!withdrawalError && withdrawalRows) {
 				const withdrawals = withdrawalRows as WithdrawalRow[];
-				const methods = paymentMethodRows as ProviderPaymentMethodLiteRow[];
-				const activeProviderIds = new Set(
-					methods
-						.filter((row) => row.is_active === true)
-						.map((row) => (row.providerID || "").trim())
-						.filter(Boolean),
-				);
+				const providerIds = [
+					...new Set(
+						withdrawals
+							.map((row) => (row.providerId || "").trim())
+							.filter(Boolean),
+					),
+				];
+
+				const methodsByProviderId: Record<
+					string,
+					PayoutPaymentMethodDetails | null
+				> = {};
+				if (providerIds.length > 0) {
+					try {
+						const response = await fetch(
+							"/api/payout/provider-payment-methods",
+							{
+								method: "POST",
+								headers: { "Content-Type": "application/json" },
+								body: JSON.stringify({ providerIds }),
+							},
+						);
+						const payload = (await response.json()) as {
+							data?: Record<string, PayoutPaymentMethodDetails | null>;
+						};
+						if (response.ok && payload.data) {
+							Object.assign(methodsByProviderId, payload.data);
+						}
+					} catch {
+						// Keep empty map; missing-method count falls back to treating all as missing.
+					}
+				}
 
 				const today = new Date();
 				today.setHours(0, 0, 0, 0);
@@ -928,13 +933,13 @@ function DashboardContent() {
 				}).length;
 
 				const payoutMissingPaymentMethod = withdrawals.filter((row) => {
-					const status = (row.paymentStatus || "").toLowerCase();
-					if (!["pending", "approved"].includes(status)) return false;
 					const dateRef = row.paymentDate || row.createdDate;
 					if (!isDateInRange(dateRef)) return false;
 					const providerId = (row.providerId || "").trim();
-					if (!providerId) return true;
-					return !activeProviderIds.has(providerId);
+					return isMissingPaymentMethodPayout(
+						row.paymentStatus,
+						providerId ? methodsByProviderId[providerId] ?? null : null,
+					);
 				}).length;
 
 				const payoutCompletedToday = withdrawals.filter((row) => {
@@ -1483,14 +1488,14 @@ function DashboardContent() {
 							</div>
 							<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
 								<Link
-									href="/admin/finance/payout-request?segment=waiting_confirmation"
+									href={payoutSegmentHref("waiting_confirmation")}
 									className="group relative rounded-xl border border-border bg-background p-4 transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
 								>
 									<p className="flex items-center gap-1 text-xs font-medium text-text-secondary">
 										Waiting Confirmation
 										<CircleHelp className="h-3.5 w-3.5" />
 									</p>
-									<span className="pointer-events-none absolute left-4 top-9 z-20 hidden w-[220px] rounded-md border border-border bg-popover px-2 py-1.5 text-[11px] font-medium text-popover-foreground shadow-[0_8px_18px_rgba(0,0,0,0.12)] group-hover:block">
+									<span className="pointer-events-none absolute left-4 top-9 z-20 hidden w-55 rounded-md border border-border bg-popover px-2 py-1.5 text-[11px] font-medium text-popover-foreground shadow-[0_8px_18px_rgba(0,0,0,0.12)] group-hover:block">
 										Transfer was initiated but completion confirmation has not
 										arrived yet. Open this to verify and resolve stuck payouts.
 									</span>
@@ -1499,14 +1504,14 @@ function DashboardContent() {
 									</p>
 								</Link>
 								<Link
-									href="/admin/finance/payout-request?segment=failed_rejected"
+									href={payoutSegmentHref("failed_rejected")}
 									className="group relative rounded-xl border border-border bg-background p-4 transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
 								>
 									<p className="flex items-center gap-1 text-xs font-medium text-text-secondary">
 										Failed / Rejected
 										<CircleHelp className="h-3.5 w-3.5" />
 									</p>
-									<span className="pointer-events-none absolute left-4 top-9 z-20 hidden w-[220px] rounded-md border border-border bg-popover px-2 py-1.5 text-[11px] font-medium text-popover-foreground shadow-[0_8px_18px_rgba(0,0,0,0.12)] group-hover:block">
+									<span className="pointer-events-none absolute left-4 top-9 z-20 hidden w-55 rounded-md border border-border bg-popover px-2 py-1.5 text-[11px] font-medium text-popover-foreground shadow-[0_8px_18px_rgba(0,0,0,0.12)] group-hover:block">
 										Chapa payout failed or the request was rejected. Open this
 										list to review reason and retry or close the case.
 									</span>
@@ -1515,14 +1520,14 @@ function DashboardContent() {
 									</p>
 								</Link>
 								<Link
-									href="/admin/finance/payout-request?segment=missing_payment_method"
+									href={payoutSegmentHref("missing_payment_method")}
 									className="group relative rounded-xl border border-border bg-background p-4 transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
 								>
 									<p className="flex items-center gap-1 text-xs font-medium text-text-secondary">
 										Missing Payment Method
 										<CircleHelp className="h-3.5 w-3.5" />
 									</p>
-									<span className="pointer-events-none absolute left-4 top-9 z-20 hidden w-[220px] rounded-md border border-border bg-popover px-2 py-1.5 text-[11px] font-medium text-popover-foreground shadow-[0_8px_18px_rgba(0,0,0,0.12)] group-hover:block">
+									<span className="pointer-events-none absolute left-4 top-9 z-20 hidden w-55 rounded-md border border-border bg-popover px-2 py-1.5 text-[11px] font-medium text-popover-foreground shadow-[0_8px_18px_rgba(0,0,0,0.12)] group-hover:block">
 										Provider payout request exists but required bank or wallet
 										method is incomplete or unavailable.
 									</span>
@@ -1531,14 +1536,14 @@ function DashboardContent() {
 									</p>
 								</Link>
 								<Link
-									href="/admin/finance/payout-request?segment=completed_today"
+									href={payoutSegmentHref("completed_today")}
 									className="group relative rounded-xl border border-border bg-background p-4 transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
 								>
 									<p className="flex items-center gap-1 text-xs font-medium text-text-secondary">
 										Completed Today
 										<CircleHelp className="h-3.5 w-3.5" />
 									</p>
-									<span className="pointer-events-none absolute left-4 top-9 z-20 hidden w-[220px] rounded-md border border-border bg-popover px-2 py-1.5 text-[11px] font-medium text-popover-foreground shadow-[0_8px_18px_rgba(0,0,0,0.12)] group-hover:block">
+									<span className="pointer-events-none absolute left-4 top-9 z-20 hidden w-55 rounded-md border border-border bg-popover px-2 py-1.5 text-[11px] font-medium text-popover-foreground shadow-[0_8px_18px_rgba(0,0,0,0.12)] group-hover:block">
 										Count of payouts marked completed during today in your
 										selected dashboard range.
 									</span>
@@ -1547,14 +1552,14 @@ function DashboardContent() {
 									</p>
 								</Link>
 								<Link
-									href="/admin/finance/payout-request?segment=failed_rejected"
+									href={payoutSegmentHref("failed_rejected")}
 									className="group relative rounded-xl border border-border bg-background p-4 transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
 								>
 									<p className="flex items-center gap-1 text-xs font-medium text-text-secondary">
 										Integration Issues
 										<CircleHelp className="h-3.5 w-3.5" />
 									</p>
-									<span className="pointer-events-none absolute left-4 top-9 z-20 hidden w-[220px] rounded-md border border-border bg-popover px-2 py-1.5 text-[11px] font-medium text-popover-foreground shadow-[0_8px_18px_rgba(0,0,0,0.12)] group-hover:block">
+									<span className="pointer-events-none absolute left-4 top-9 z-20 hidden w-55 rounded-md border border-border bg-popover px-2 py-1.5 text-[11px] font-medium text-popover-foreground shadow-[0_8px_18px_rgba(0,0,0,0.12)] group-hover:block">
 										Transfer records with webhook or verification problems
 										requiring manual payout investigation.
 									</span>

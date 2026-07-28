@@ -39,6 +39,7 @@ import { StorageImage } from '@/components/StorageImage';
 import { DocumentMediaPreview } from '@/components/DocumentMediaPreview';
 import { ServiceTierBadge } from '@/components/ServiceTierBadge';
 import { AdminNoteField } from '@/components/AdminNoteField';
+import { formatDisplayPhone } from '@/lib/phone-display';
 
 export default function ProviderDetailPage() {
     const params = useParams();
@@ -779,9 +780,7 @@ export default function ProviderDetailPage() {
                                                                 </td>
                                                                 <td className="px-6 py-4 text-sm text-gray-600">{handyman.email || '—'}</td>
                                                                 <td className="px-6 py-4 text-sm text-gray-600">
-                                                                    {handyman.countryCode && handyman.phoneNumber 
-                                                                        ? `${handyman.countryCode} ${handyman.phoneNumber}`
-                                                                        : handyman.phoneNumber || '—'}
+                                                                    {formatDisplayPhone(handyman.phoneNumber) || '—'}
                                                                 </td>
                                                                 <td className="px-6 py-4 text-sm text-gray-600">
                                                                     {handyman.categoryId
@@ -1009,7 +1008,7 @@ export default function ProviderDetailPage() {
                                     </div>
                                     <div className="grid gap-1.5">
                                         <Label htmlFor="svc-desc">Description</Label>
-                                        <textarea id="svc-desc" name="description" value={serviceForm.description} onChange={onServiceChange} className="min-h-[90px] rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="Short description" />
+                                        <textarea id="svc-desc" name="description" value={serviceForm.description} onChange={onServiceChange} className="min-h-22.5 rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="Short description" />
                                     </div>
                                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                         <div className="grid gap-1.5">

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { logAdminActivity } from '@/lib/admin-activity-log';
+import { clearCustomerDeleteBlockers } from '@/lib/customer-delete-cleanup';
 import { getDisplayImageUrl } from '@/lib/media-url';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 import { readAuthUserId } from '@/lib/wallet-transaction-user';
@@ -132,6 +133,12 @@ export async function POST(request: Request) {
                 { error: walletRetagError.message || 'Failed to migrate customer wallet transactions' },
                 { status: 500 }
             );
+        }
+
+        const cleanup = await clearCustomerDeleteBlockers(supabaseAdmin, customerId);
+        if (!cleanup.ok) {
+            await supabaseAdmin.from('provider').delete().eq('id', customerId);
+            return NextResponse.json({ error: cleanup.error }, { status: 500 });
         }
 
         const { error: deleteCustomerError } = await supabaseAdmin

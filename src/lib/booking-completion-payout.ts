@@ -1,4 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import {
+    computeAdminCommissionFee,
+    loadAdminCommissionConfig,
+    type AdminCommissionConfig,
+} from '@/lib/booking-admin-commission';
 import { customerBookingFundsHeld, hasBookingCustomerRefund } from '@/lib/booking-display';
 import { BOOKING_PAYMENT_STATUS, resolveBookingPaymentStatus } from '@/lib/booking-status';
 import { walletTransactionMagnitude } from '@/lib/wallet-transaction-metrics';
@@ -17,11 +22,6 @@ interface BookingPayoutRow {
     status?: string | null;
 }
 
-interface AdminCommissionConfig {
-    value: number;
-    isFix: boolean;
-}
-
 interface WalletNoteRow {
     note?: string | null;
     isCredit?: boolean | null;
@@ -38,19 +38,6 @@ function roundMoney(value: number): number {
     return Math.round(value * 100) / 100;
 }
 
-function parseObjectValue(value: unknown): Record<string, unknown> {
-    if (!value) return {};
-    if (typeof value === 'string') {
-        try {
-            return (JSON.parse(value) as Record<string, unknown>) ?? {};
-        } catch {
-            return {};
-        }
-    }
-    if (typeof value === 'object') return value as Record<string, unknown>;
-    return {};
-}
-
 export function bookingGrossAmount(booking: {
     totalAmount?: string | number | null;
     price?: string | number | null;
@@ -62,12 +49,10 @@ export function bookingGrossAmount(booking: {
 
 export function computeProviderPayoutAmount(
     gross: number,
-    commission: AdminCommissionConfig
+    commission: Pick<AdminCommissionConfig, 'value' | 'isFix' | 'active'>
 ): number {
     if (!(gross > 0)) return 0;
-    const fee = commission.isFix
-        ? commission.value
-        : roundMoney((gross * commission.value) / 100);
+    const fee = computeAdminCommissionFee(gross, commission);
     return Math.max(0, roundMoney(gross - fee));
 }
 
@@ -134,28 +119,6 @@ function completionPaymentTypeLabel(paymentType: string | null | undefined): str
     if (normalized === 'wallet') return 'Wallet';
     if (normalized === 'admin') return 'Wallet';
     return 'Wallet';
-}
-
-async function loadAdminCommissionConfig(admin: SupabaseClient): Promise<AdminCommissionConfig> {
-    const { data } = await admin
-        .from('app_settings')
-        .select('data')
-        .eq('id', 'admin_commission')
-        .maybeSingle();
-
-    const row = parseObjectValue((data as { data?: unknown } | null)?.data);
-    const rawValue = row.value;
-    let value = 0;
-    if (typeof rawValue === 'number' && Number.isFinite(rawValue)) value = rawValue;
-    else if (typeof rawValue === 'string') {
-        const parsed = parseFloat(rawValue);
-        if (Number.isFinite(parsed)) value = parsed;
-    }
-
-    return {
-        value,
-        isFix: row.isFix === true,
-    };
 }
 
 async function loadProviderCompletionLedgerRows(
@@ -261,7 +224,8 @@ export async function creditProviderForCompletedBooking(
 
     const commission = await loadAdminCommissionConfig(admin);
     const gross = bookingGrossAmount(booking);
-    const payoutAmount = computeProviderPayoutAmount(gross, commission);
+    const commissionFee = computeAdminCommissionFee(gross, commission);
+    const payoutAmount = Math.max(0, roundMoney(gross - commissionFee));
     if (payoutAmount <= 0) {
         return { ok: true, skipped: true, reason: 'zero_amount' };
     }
@@ -301,6 +265,14 @@ export async function creditProviderForCompletedBooking(
         .eq('id', providerId);
 
     if (walletUpdateError) return { ok: false, error: walletUpdateError.message, status: 500 };
+
+    const storedCommission = parseAmount(booking.adminCommission);
+    if (!(storedCommission > 0) && commissionFee > 0) {
+        await admin
+            .from('booked_service')
+            .update({ adminCommission: commissionFee })
+            .eq('id', id);
+    }
 
     return { ok: true, skipped: false, amount: payoutAmount, walletAmount: nextWallet };
 }
