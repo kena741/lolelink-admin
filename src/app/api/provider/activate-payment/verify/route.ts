@@ -195,8 +195,8 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Provider is not linked to an auth account' }, { status: 400 });
         }
 
-        let walletSkipped = Boolean(existingWalletTx);
-        let walletSkippedReason: string | null = existingWalletTx ? 'existing_wallet_transaction' : null;
+        const walletSkipped = Boolean(existingWalletTx);
+        const walletSkippedReason: string | null = existingWalletTx ? 'existing_wallet_transaction' : null;
 
         if (!existingWalletTx) {
             const { error: walletError } = await supabaseAdmin.from('wallet_transaction').insert({
