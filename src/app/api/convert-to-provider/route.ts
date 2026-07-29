@@ -77,46 +77,69 @@ export async function POST(request: Request) {
         }
 
         const phoneNumber = c.phoneNumber || c.mobile_number || c.phone || '';
-        const slug = [c.first_name, c.last_name]
+        const rawSlug = [c.first_name, c.last_name]
             .filter(Boolean)
             .join('-')
             .toLowerCase()
-            .replace(/[^a-z0-9-]/g, '');
+            .replace(/[^a-z0-9-]/g, '-')
+            .replace(/-+/g, '-')
+            .replace(/^-+|-+$/g, '');
+        const baseSlug = rawSlug || `provider-${customerId.toLowerCase().slice(0, 8)}`;
 
         const walletAmount =
             typeof c.wallet_amount === 'number' && Number.isFinite(c.wallet_amount)
                 ? c.wallet_amount.toFixed(2)
                 : undefined;
 
-        const providerRow = {
-            id: c.id,
-            user_id: customerAuthUserId,
-            firstName: c.first_name || '',
-            lastName: c.last_name || '',
-            email: c.email || '',
-            phoneNumber,
-            countryCode: c.country_code || '+251',
-            address: c.address || '',
-            profileImage: getDisplayImageUrl(c.avatar) || '',
-            password: c.password || '',
-            slug,
-            userType: 'Provider',
-            active: true,
-            activation_paid: false,
-            verified_subcategory_ids: [],
-            ...(walletAmount !== undefined ? { walletAmount } : {}),
-        };
+        let provider: Record<string, unknown> | null = null;
 
-        const { data: provider, error: insertError } = await supabaseAdmin
-            .from('provider')
-            .insert(providerRow)
-            .select('*')
-            .single();
+        for (let attempt = 0; attempt < 25; attempt += 1) {
+            const slugCandidate = attempt === 0 ? baseSlug : `${baseSlug}-${attempt + 1}`;
+            const providerRow = {
+                id: c.id,
+                user_id: customerAuthUserId,
+                firstName: c.first_name || '',
+                lastName: c.last_name || '',
+                email: c.email || '',
+                phoneNumber,
+                countryCode: c.country_code || '+251',
+                address: c.address || '',
+                profileImage: getDisplayImageUrl(c.avatar) || '',
+                password: c.password || '',
+                slug: slugCandidate,
+                userType: 'Provider',
+                active: true,
+                activation_paid: false,
+                verified_subcategory_ids: [],
+                ...(walletAmount !== undefined ? { walletAmount } : {}),
+            };
 
-        if (insertError) {
+            const { data: insertedProvider, error: insertError } = await supabaseAdmin
+                .from('provider')
+                .insert(providerRow)
+                .select('*')
+                .single();
+
+            if (!insertError && insertedProvider) {
+                provider = insertedProvider as Record<string, unknown>;
+                break;
+            }
+
+            const isSlugConflict =
+                insertError?.code === '23505' &&
+                insertError.message.toLowerCase().includes('provider_slug_unique_idx');
+            if (!isSlugConflict) {
+                return NextResponse.json(
+                    { error: insertError?.message || 'Failed to create provider' },
+                    { status: 500 }
+                );
+            }
+        }
+
+        if (!provider) {
             return NextResponse.json(
-                { error: insertError.message || 'Failed to create provider' },
-                { status: 500 }
+                { error: 'Could not generate a unique provider slug for this customer' },
+                { status: 409 }
             );
         }
 

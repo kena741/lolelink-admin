@@ -42,17 +42,37 @@ export function resolveBroadcastPhone(row: Record<string, unknown>): string {
             phone = value.trim();
             break;
         }
+        if (typeof value === 'number' && Number.isFinite(value)) {
+            phone = String(value).trim();
+            break;
+        }
     }
     if (!phone) return '';
 
     const codeRaw = row.countryCode ?? row.country_code;
-    const code = typeof codeRaw === 'string' ? codeRaw.trim() : '';
+    const code =
+        typeof codeRaw === 'string'
+            ? codeRaw.trim()
+            : typeof codeRaw === 'number' && Number.isFinite(codeRaw)
+              ? String(codeRaw).trim()
+              : '';
     const cleanedPhone = phone.replace(/\s+/g, '');
     if (cleanedPhone.startsWith('+')) return cleanedPhone;
-    if (!code) return cleanedPhone;
+
+    const digitsOnly = cleanedPhone.replace(/\D+/g, '');
+    const localEthiopian = /^(?:0?9\d{8})$/.test(digitsOnly);
+    if (!code) {
+        if (localEthiopian) {
+            const local = digitsOnly.length === 10 ? digitsOnly.slice(1) : digitsOnly;
+            return `+251${local}`;
+        }
+        if (/^\d{11,15}$/.test(digitsOnly)) return `+${digitsOnly}`;
+        return cleanedPhone;
+    }
     const cleanedCode = code.replace(/\s+/g, '');
     const withPlus = cleanedCode.startsWith('+') ? cleanedCode : `+${cleanedCode}`;
-    return `${withPlus}${cleanedPhone}`;
+    const localPart = digitsOnly.startsWith('0') ? digitsOnly.slice(1) : digitsOnly;
+    return `${withPlus}${localPart || cleanedPhone}`;
 }
 
 export async function sendSmsUpstream(

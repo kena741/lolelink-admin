@@ -24,7 +24,7 @@ import {
 import { fetchHandymen, updateHandyman, deleteHandyman, type Handyman } from '@/features/handyman/handymanSlice';
 import { fetchCategories } from '@/features/category/categorySlice';
 import { fetchSubCategories } from '@/features/subcategory/subcategorySlice';
-import { Pencil, Trash2, FileText, DollarSign, Wrench, Clock, Briefcase, History, CreditCard } from 'lucide-react';
+import { Pencil, Trash2, FileText, DollarSign, Wrench, Clock, Briefcase, History, CreditCard, Megaphone } from 'lucide-react';
 import { ActivationPaymentModal } from '@/components/ActivationPaymentModal';
 import { fetchSettings } from '@/features/settings/settingsSlice';
 import { Button } from '@/components/ui/button';
@@ -40,6 +40,20 @@ import { DocumentMediaPreview } from '@/components/DocumentMediaPreview';
 import { ServiceTierBadge } from '@/components/ServiceTierBadge';
 import { AdminNoteField } from '@/components/AdminNoteField';
 import { formatDisplayPhone } from '@/lib/phone-display';
+import { AdminNotifyComposer } from '@/components/admin/AdminNotifyComposer';
+import {
+    createAdminNotifyDraft,
+    sendAdminProviderNotify,
+    type AdminNotifyDraft,
+} from '@/lib/admin-notify';
+
+interface ProviderNotifyStatus {
+    fcmRegistered: boolean;
+    smsReady: boolean;
+    smsRecipient?: string;
+    reason?: string | null;
+    debug?: { providerId?: string; phoneRow?: Record<string, unknown> | null };
+}
 
 export default function ProviderDetailPage() {
     const params = useParams();
@@ -72,8 +86,22 @@ export default function ProviderDetailPage() {
         isActive: true,
     });
     const [deletingHandymanId, setDeletingHandymanId] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<'services' | 'documents' | 'withdrawals' | 'handyman'>('services');
+    const [activeTab, setActiveTab] = useState<'services' | 'documents' | 'withdrawals' | 'handyman' | 'notifications'>('services');
     const [activationModalOpen, setActivationModalOpen] = useState(false);
+    const [notifyDraft, setNotifyDraft] = useState<AdminNotifyDraft>(
+        createAdminNotifyDraft(
+            {
+                title: 'Update from Zemen Provider',
+                body: 'Hello, we have an update for your provider account.',
+            },
+            'both'
+        )
+    );
+    const [notifyRoute, setNotifyRoute] = useState('/profile');
+    const [notifySending, setNotifySending] = useState(false);
+    const [notifyMessage, setNotifyMessage] = useState<string | null>(null);
+    const [notifyStatus, setNotifyStatus] = useState<ProviderNotifyStatus | null>(null);
+    const [notifyStatusLoading, setNotifyStatusLoading] = useState(false);
 
     useEffect(() => {
         if (!id) return;
@@ -111,6 +139,50 @@ export default function ProviderDetailPage() {
         const full = [first, last].filter(Boolean).join(' ');
         return full || provider?.name || '—';
     })();
+    useEffect(() => {
+        if (!id || activeTab !== 'notifications') return;
+        let cancelled = false;
+        setNotifyStatusLoading(true);
+        void (async () => {
+            try {
+                const response = await fetch(`/api/admin/push/providers/${id}`);
+                const data = (await response.json()) as ProviderNotifyStatus;
+                if (!cancelled && response.ok) setNotifyStatus(data);
+            } catch {
+                if (!cancelled) setNotifyStatus(null);
+            } finally {
+                if (!cancelled) setNotifyStatusLoading(false);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [id, activeTab]);
+
+    const providerHasPushToken = notifyStatus?.fcmRegistered ?? Boolean(provider?.fcmToken?.trim());
+    const notifyNeedsPush = notifyDraft.channel === 'push' || notifyDraft.channel === 'both';
+    const notifyNeedsSms = notifyDraft.channel === 'sms' || notifyDraft.channel === 'both';
+    const providerHasSmsRecipient = notifyStatus?.smsReady ?? false;
+    const cannotDeliverSelectedChannel =
+        (notifyDraft.channel === 'push' && !providerHasPushToken)
+        || (notifyDraft.channel === 'sms' && !providerHasSmsRecipient)
+        || (notifyDraft.channel === 'both' && (!providerHasPushToken || !providerHasSmsRecipient));
+
+    useEffect(() => {
+        if (!id) return;
+        const name = displayName === '—' ? 'there' : displayName;
+        setNotifyDraft(
+            createAdminNotifyDraft(
+                {
+                    title: 'Update from Zemen Provider',
+                    body: `Hello ${name}, we have an update for your provider account.`,
+                },
+                'both'
+            )
+        );
+        setNotifyRoute('/profile');
+        setNotifyMessage(null);
+    }, [id, displayName]);
 
     // Edit modal state
     const [open, setOpen] = useState(false);
@@ -341,6 +413,27 @@ export default function ProviderDetailPage() {
         }
     };
 
+    const handleSendProviderNotification = async () => {
+        if (!id) return;
+        if (cannotDeliverSelectedChannel) {
+            setNotifyMessage('Warning: selected channel is not ready (missing phone and/or push token).');
+            return;
+        }
+        setNotifySending(true);
+        setNotifyMessage(null);
+        const result = await sendAdminProviderNotify({
+            providerId: id,
+            draft: notifyDraft,
+            route: notifyRoute.trim() || '/',
+        });
+        setNotifySending(false);
+        if (!result.ok) {
+            setNotifyMessage(result.error ?? 'Failed to send notification');
+            return;
+        }
+        setNotifyMessage('Notification sent.');
+    };
+
     return (
         <AuthGuard>
             <div className="flex min-h-screen">
@@ -480,6 +573,17 @@ export default function ProviderDetailPage() {
                                         >
                                             <Wrench className="h-4 w-4" />
                                             Handyman
+                                        </button>
+                                        <button
+                                            onClick={() => setActiveTab('notifications')}
+                                            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                                                activeTab === 'notifications'
+                                                    ? 'bg-indigo-500 text-white shadow-md'
+                                                    : 'text-gray-700 hover:bg-gray-100'
+                                            }`}
+                                        >
+                                            <Megaphone className="h-4 w-4" />
+                                            Notifications
                                         </button>
                                     </div>
 
@@ -853,6 +957,54 @@ export default function ProviderDetailPage() {
                                                 </table>
                                             </div>
                                         )}
+                                    </section>
+                                    )}
+
+                                    {activeTab === 'notifications' && (
+                                    <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+                                        <h2 className="mb-4 text-2xl font-semibold">Send notification</h2>
+                                        {notifyStatusLoading ? (
+                                            <div className="mb-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+                                                Checking push/SMS readiness…
+                                            </div>
+                                        ) : null}
+                                        {(notifyNeedsPush && !providerHasPushToken) || (notifyNeedsSms && !providerHasSmsRecipient) ? (
+                                            <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                                                {!providerHasPushToken && notifyNeedsPush
+                                                    ? `Push unavailable: no FCM token registered.${notifyStatus?.reason ? ` (${notifyStatus.reason})` : ''}`
+                                                    : null}
+                                                {!providerHasPushToken && notifyNeedsPush && !providerHasSmsRecipient && notifyNeedsSms ? ' ' : null}
+                                                {!providerHasSmsRecipient && notifyNeedsSms
+                                                    ? `SMS unavailable: no resolvable phone. API response: ${JSON.stringify(notifyStatus ?? 'no response')}`
+                                                    : null}
+                                            </div>
+                                        ) : null}
+                                        <AdminNotifyComposer
+                                            value={notifyDraft}
+                                            onChange={setNotifyDraft}
+                                            disabled={notifySending}
+                                            showRoute
+                                            route={notifyRoute}
+                                            onRouteChange={setNotifyRoute}
+                                        />
+                                        <div className="mt-4 flex items-center gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => void handleSendProviderNotification()}
+                                                disabled={
+                                                    notifySending
+                                                    || !notifyDraft.title.trim()
+                                                    || !notifyDraft.body.trim()
+                                                    || cannotDeliverSelectedChannel
+                                                }
+                                                className="inline-flex h-10 items-center rounded-md bg-accent-primary px-4 text-sm font-medium text-text-inverse transition-all duration-150 hover:bg-accent-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+                                            >
+                                                {notifySending ? 'Sending…' : 'Send notification'}
+                                            </button>
+                                            {notifyMessage ? (
+                                                <p className="text-sm text-gray-600">{notifyMessage}</p>
+                                            ) : null}
+                                        </div>
                                     </section>
                                     )}
                             {/* Edit dialog */}

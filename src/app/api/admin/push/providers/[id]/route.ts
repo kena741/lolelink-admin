@@ -6,6 +6,7 @@ import {
     providerPushReadiness,
     sendProviderPush,
 } from '@/lib/push/sendProviderPush';
+import { resolveBroadcastPhone } from '@/lib/broadcast-notify';
 
 export const runtime = 'nodejs';
 
@@ -26,12 +27,27 @@ export async function GET(
     const readiness = providerPushReadiness(
         profile ?? { fcmToken: null, firstName: null, lastName: null }
     );
+    const { data: phoneRow, error: phoneError } = await serviceClient
+        .from('provider')
+        .select('phoneNumber, countryCode')
+        .or(`id.eq.${id},user_id.eq.${id}`)
+        .maybeSingle();
+    const smsRecipient = phoneRow
+        ? resolveBroadcastPhone(phoneRow as Record<string, unknown>)
+        : '';
 
     return NextResponse.json({
         fcmRegistered: Boolean(profile?.fcmToken?.trim()),
         canSend: readiness.canSend,
         reason: readiness.reason,
         name: [profile?.firstName, profile?.lastName].filter(Boolean).join(' ') || null,
+        smsReady: Boolean(smsRecipient),
+        smsRecipient,
+        debug: {
+            providerId: id,
+            phoneRow: phoneRow ?? null,
+            phoneError: phoneError?.message ?? null,
+        },
     });
 }
 

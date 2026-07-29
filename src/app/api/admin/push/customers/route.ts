@@ -62,7 +62,7 @@ export async function POST(request: Request) {
     const serviceClient = getSupabaseAdminFromRequest(request);
     let query = serviceClient
         .from('customer')
-        .select('id, fcm_token, phoneNumber, phone, mobile_number, countryCode, country_code');
+        .select('id, fcm_token, phone, mobile_number, countryCode, country_code');
     if (parsed.activeOnly) query = query.eq('active', true);
 
     const { data: customers, error } = await query;

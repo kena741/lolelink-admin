@@ -16,6 +16,7 @@ import {
     Trash2,
     UserRound,
     Wallet,
+    Megaphone,
 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import AuthGuard from '@/components/AuthGuard';
@@ -39,6 +40,20 @@ import {
 import { CustomerWalletHistory } from './CustomerWalletHistory';
 import { AdminNoteField } from '@/components/AdminNoteField';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
+import { AdminNotifyComposer } from '@/components/admin/AdminNotifyComposer';
+import {
+    createAdminNotifyDraft,
+    sendAdminCustomerNotify,
+    type AdminNotifyDraft,
+} from '@/lib/admin-notify';
+
+interface CustomerNotifyStatus {
+    fcmRegistered: boolean;
+    smsReady: boolean;
+    smsRecipient?: string;
+    reason?: string | null;
+    debug?: { customerId?: string; phoneRow?: Record<string, unknown> | null };
+}
 
 interface CustomerDetail {
     id: string;
@@ -96,7 +111,7 @@ interface CustomerJobRequestRow {
     bidCount: number;
 }
 
-type CustomerTab = 'bookings' | 'wallet' | 'job_requests' | 'profile';
+type CustomerTab = 'bookings' | 'wallet' | 'job_requests' | 'profile' | 'notifications';
 
 function formatCurrency(value: number): string {
     return `ETB ${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -138,6 +153,20 @@ export default function CustomerDetailPage() {
     const [confirmConvert, setConfirmConvert] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [convertedProviderId, setConvertedProviderId] = useState<string | null>(null);
+    const [notifyDraft, setNotifyDraft] = useState<AdminNotifyDraft>(
+        createAdminNotifyDraft(
+            {
+                title: 'Update from Zemen Service',
+                body: 'Hello, we have an update for your account.',
+            },
+            'both'
+        )
+    );
+    const [notifyRoute, setNotifyRoute] = useState('/home');
+    const [notifySending, setNotifySending] = useState(false);
+    const [notifyMessage, setNotifyMessage] = useState<string | null>(null);
+    const [notifyStatus, setNotifyStatus] = useState<CustomerNotifyStatus | null>(null);
+    const [notifyStatusLoading, setNotifyStatusLoading] = useState(false);
 
     const loadCustomer = useCallback(async () => {
         if (!customerId) return;
@@ -209,6 +238,50 @@ export default function CustomerDetailPage() {
     const address = formatCustomerAddress(customer);
     const archived = customerIsArchived(customer);
     const walletBalance = Number(customer?.wallet_amount ?? 0);
+    const customerHasPushToken = notifyStatus?.fcmRegistered ?? false;
+    const notifyNeedsPush = notifyDraft.channel === 'push' || notifyDraft.channel === 'both';
+    const notifyNeedsSms = notifyDraft.channel === 'sms' || notifyDraft.channel === 'both';
+    const customerHasSmsRecipient = notifyStatus?.smsReady ?? false;
+    const cannotDeliverSelectedChannel =
+        (notifyDraft.channel === 'push' && !customerHasPushToken)
+        || (notifyDraft.channel === 'sms' && !customerHasSmsRecipient)
+        || (notifyDraft.channel === 'both' && (!customerHasPushToken || !customerHasSmsRecipient));
+
+    useEffect(() => {
+        if (!customerId) return;
+        const name = displayName === '—' ? 'there' : displayName;
+        setNotifyDraft(
+            createAdminNotifyDraft(
+                {
+                    title: 'Update from Zemen Service',
+                    body: `Hello ${name}, we have an update for your account.`,
+                },
+                'both'
+            )
+        );
+        setNotifyRoute('/home');
+        setNotifyMessage(null);
+    }, [customerId, displayName]);
+
+    useEffect(() => {
+        if (!customerId || activeTab !== 'notifications') return;
+        let cancelled = false;
+        setNotifyStatusLoading(true);
+        void (async () => {
+            try {
+                const response = await fetch(`/api/admin/push/customers/${customerId}`);
+                const data = (await response.json()) as CustomerNotifyStatus;
+                if (!cancelled && response.ok) setNotifyStatus(data);
+            } catch {
+                if (!cancelled) setNotifyStatus(null);
+            } finally {
+                if (!cancelled) setNotifyStatusLoading(false);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [customerId, activeTab]);
 
     async function handleArchiveToggle() {
         if (!customerId || !customer) return;
@@ -251,6 +324,23 @@ export default function CustomerDetailPage() {
             return;
         }
         router.push('/admin/customers');
+    }
+
+    async function handleSendNotification() {
+        if (!customerId) return;
+        if (cannotDeliverSelectedChannel) {
+            setNotifyMessage('Warning: selected channel is not ready (missing phone and/or push token).');
+            return;
+        }
+        setNotifySending(true);
+        setNotifyMessage(null);
+        const result = await sendAdminCustomerNotify({
+            customerId,
+            draft: notifyDraft,
+            route: notifyRoute.trim() || '/',
+        });
+        setNotifySending(false);
+        setNotifyMessage(result.ok ? 'Notification sent.' : result.error ?? 'Failed to send notification');
     }
 
     return (
@@ -413,6 +503,7 @@ export default function CustomerDetailPage() {
                                     ['wallet', 'Wallet', Wallet],
                                     ['job_requests', 'Job requests', ClipboardList],
                                     ['profile', 'Profile', UserRound],
+                                    ['notifications', 'Notifications', Megaphone],
                                 ] as const).map(([tab, label, Icon]) => (
                                     <button
                                         key={tab}
@@ -610,6 +701,55 @@ export default function CustomerDetailPage() {
                                                 {formatJsonValue(customer.customer_addresses)}
                                             </pre>
                                         </div>
+                                    </div>
+                                </section>
+                            ) : null}
+
+                            {activeTab === 'notifications' ? (
+                                <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+                                    <h2 className="mb-4 text-xl font-semibold text-gray-900">Send notification</h2>
+                                    {notifyStatusLoading ? (
+                                        <div className="mb-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+                                            Checking push/SMS readiness…
+                                        </div>
+                                    ) : null}
+                                    {(notifyNeedsPush && !customerHasPushToken) || (notifyNeedsSms && !customerHasSmsRecipient) ? (
+                                        <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                                            {!customerHasPushToken && notifyNeedsPush
+                                                ? `Push unavailable: no FCM token registered.${notifyStatus?.reason ? ` (${notifyStatus.reason})` : ''}`
+                                                : null}
+                                            {!customerHasPushToken && notifyNeedsPush && !customerHasSmsRecipient && notifyNeedsSms ? ' ' : null}
+                                            {!customerHasSmsRecipient && notifyNeedsSms
+                                                ? `SMS unavailable: no resolvable phone. DB row: ${JSON.stringify(notifyStatus?.debug?.phoneRow ?? 'N/A')}`
+                                                : null}
+                                        </div>
+                                    ) : null}
+                                    <AdminNotifyComposer
+                                        value={notifyDraft}
+                                        onChange={setNotifyDraft}
+                                        disabled={notifySending || !canWriteCustomers}
+                                        showRoute
+                                        route={notifyRoute}
+                                        onRouteChange={setNotifyRoute}
+                                    />
+                                    <div className="mt-4 flex items-center gap-3">
+                                        <button
+                                            type="button"
+                                            onClick={() => void handleSendNotification()}
+                                            disabled={
+                                                notifySending
+                                                || !canWriteCustomers
+                                                || !notifyDraft.title.trim()
+                                                || !notifyDraft.body.trim()
+                                                || cannotDeliverSelectedChannel
+                                            }
+                                            className="inline-flex h-10 items-center rounded-md bg-accent-primary px-4 text-sm font-medium text-text-inverse transition-all duration-150 hover:bg-accent-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                            {notifySending ? 'Sending…' : 'Send notification'}
+                                        </button>
+                                        {notifyMessage ? (
+                                            <p className="text-sm text-gray-600">{notifyMessage}</p>
+                                        ) : null}
                                     </div>
                                 </section>
                             ) : null}

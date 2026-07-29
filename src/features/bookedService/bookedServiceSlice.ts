@@ -171,7 +171,7 @@ async function enrichBookingsWithNames(rows: BookedService[]): Promise<BookedSer
         providerIds.length > 0
             ? getSupabase()
                   .from('provider')
-                  .select('id, firstName, lastName, userName, user_id, email, phoneNumber, phone')
+                  .select('id, firstName, lastName, userName, user_id, email, phoneNumber')
                   .in('id', providerIds)
             : Promise.resolve({ data: [], error: null }),
         customerIds.length > 0

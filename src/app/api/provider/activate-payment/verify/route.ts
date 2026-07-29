@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 import { logAdminActivity } from '@/lib/admin-activity-log';
-import { findPriorCustomerWalletTopUp } from '@/lib/wallet-transaction-activation';
 import { resolveChapaSettlementAmount } from '@/lib/chapa-config';
 import { readAuthUserId } from '@/lib/wallet-transaction-user';
 import { walletTransactionProfileColumns } from '@/lib/wallet-transaction-profile';
@@ -77,6 +76,9 @@ export async function POST(request: Request) {
             .maybeSingle();
 
         if (provider.activation_paid && existingWalletTx) {
+            if (provider.active !== true) {
+                await supabaseAdmin.from('provider').update({ active: true }).eq('id', body.providerId);
+            }
             return NextResponse.json({
                 status: 'success',
                 already_paid: true,
@@ -164,6 +166,7 @@ export async function POST(request: Request) {
                 .update({
                     activation_paid: true,
                     activation_paid_at: now,
+                    active: true,
                     ...(tier ? { service_tier_max: tier.max_services } : {}),
                 })
                 .eq('id', body.providerId);
@@ -174,7 +177,7 @@ export async function POST(request: Request) {
         } else if (tier) {
             await supabaseAdmin
                 .from('provider')
-                .update({ service_tier_max: tier.max_services })
+                .update({ service_tier_max: tier.max_services, active: true })
                 .eq('id', body.providerId);
         }
 
@@ -196,40 +199,29 @@ export async function POST(request: Request) {
         let walletSkippedReason: string | null = existingWalletTx ? 'existing_wallet_transaction' : null;
 
         if (!existingWalletTx) {
-            const priorTopUp = await findPriorCustomerWalletTopUp(supabaseAdmin, providerAuthUserId);
-
-            if (priorTopUp) {
-                walletSkipped = true;
-                walletSkippedReason = 'prior_customer_top_up';
-                await supabaseAdmin
-                    .from('provider')
-                    .update({ activation_tx_ref: priorTopUp.transactionId })
-                    .eq('id', body.providerId);
-            } else {
-                const { error: walletError } = await supabaseAdmin.from('wallet_transaction').insert({
-                    amount: feeAmount,
-                    createdDate: now,
-                    isCredit: true,
-                    note: 'Activation payment top up (Chapa, net after fee)',
-                    paymentType: 'chapa',
-                    transactionId: txRef,
+            const { error: walletError } = await supabaseAdmin.from('wallet_transaction').insert({
+                amount: feeAmount,
+                createdDate: now,
+                isCredit: true,
+                note: 'Activation payment top up (Chapa, net after fee)',
+                paymentType: 'chapa',
+                transactionId: txRef,
+                type: 'provider',
+                ...walletTransactionProfileColumns({
                     type: 'provider',
-                    ...walletTransactionProfileColumns({
-                        type: 'provider',
-                        authUserId: providerAuthUserId,
-                        providerId: body.providerId,
-                    }),
-                });
+                    authUserId: providerAuthUserId,
+                    providerId: body.providerId,
+                }),
+            });
 
-                if (walletError) {
-                    return NextResponse.json({
-                        status: 'partial',
-                        message: `Provider activated but wallet transaction failed: ${walletError.message}`,
-                        provider_id: body.providerId,
-                        activation_paid_at: now,
-                        wallet_error: walletError.message,
-                    });
-                }
+            if (walletError) {
+                return NextResponse.json({
+                    status: 'partial',
+                    message: `Provider activated but wallet transaction failed: ${walletError.message}`,
+                    provider_id: body.providerId,
+                    activation_paid_at: now,
+                    wallet_error: walletError.message,
+                });
             }
         }
 

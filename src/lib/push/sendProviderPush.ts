@@ -28,7 +28,7 @@ export async function fetchProviderPushProfile(
     const { data, error } = await serviceClient
         .from('provider')
         .select('fcmToken, firstName, lastName')
-        .eq('id', providerId)
+        .or(`id.eq.${providerId},user_id.eq.${providerId}`)
         .maybeSingle();
 
     if (error) return { profile: null, error: error.message };
@@ -38,7 +38,10 @@ export async function fetchProviderPushProfile(
 }
 
 async function clearStaleProviderFcmToken(serviceClient: SupabaseClient, providerId: string) {
-    await serviceClient.from('provider').update({ fcmToken: null }).eq('id', providerId);
+    await serviceClient
+        .from('provider')
+        .update({ fcmToken: null })
+        .or(`id.eq.${providerId},user_id.eq.${providerId}`);
 }
 
 export async function sendProviderPush({

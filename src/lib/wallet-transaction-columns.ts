@@ -1,7 +1,6 @@
 export const WALLET_TRANSACTION_COLUMN_STORAGE_KEY = 'wallet-transactions-column-visibility-v2';
 
 export const WALLET_TRANSACTION_COLUMNS = [
-    { id: 'date', label: 'Date', defaultVisible: true },
     { id: 'amount', label: 'Amount', defaultVisible: true },
     { id: 'event', label: 'Event', defaultVisible: true },
     { id: 'type', label: 'Type', defaultVisible: true },
@@ -14,6 +13,7 @@ export const WALLET_TRANSACTION_COLUMNS = [
     { id: 'bookingTotal', label: 'Booking total', defaultVisible: false },
     { id: 'transactionId', label: 'Transaction ID', defaultVisible: true },
     { id: 'note', label: 'Note', defaultVisible: true },
+    { id: 'date', label: 'Date', defaultVisible: true },
 ] as const;
 
 export type WalletTransactionColumnId = (typeof WALLET_TRANSACTION_COLUMNS)[number]['id'];

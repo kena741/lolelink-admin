@@ -401,7 +401,7 @@ export async function sendBookingProviderSms(
 ): Promise<void> {
     const { data: providerRaw } = await admin
         .from('provider')
-        .select('id, phone, phoneNumber, countryCode, country_code, firstName, last_name')
+        .select('id, phoneNumber, countryCode, country_code, firstName, last_name')
         .eq('id', params.providerId)
         .maybeSingle();
 

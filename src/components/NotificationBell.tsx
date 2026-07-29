@@ -25,12 +25,12 @@ export function NotificationBell() {
     return (
         <Link
             href="/admin/notifications"
-            className="fixed right-6 top-6 z-50 inline-flex h-11 w-11 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-700 shadow-lg transition-all hover:bg-gray-50"
+            className="fixed bottom-6 right-4 z-50 inline-flex h-11 w-11 items-center justify-center rounded-full border border-subtle bg-surface text-primary shadow-[0_1px_3px_rgba(0,0,0,0.12)] transition-all duration-150 hover:bg-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-info focus-visible:ring-offset-2 md:bottom-8 md:right-8"
             aria-label="Open notifications"
         >
             <Bell className="h-5 w-5" />
             {unreadCount > 0 && (
-                <span className="absolute -right-1 -top-1 inline-flex min-w-[20px] items-center justify-center rounded-full bg-indigo-600 px-1.5 py-0.5 text-xs font-semibold text-white">
+                <span className="absolute -right-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full bg-indigo-600 px-1.5 py-0.5 text-xs font-semibold text-white">
                     {unreadCount > 99 ? '99+' : unreadCount}
                 </span>
             )}

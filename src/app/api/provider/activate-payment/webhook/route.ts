@@ -69,6 +69,9 @@ export async function POST(request: Request) {
         }
 
         if (provider.activation_paid) {
+            if ((provider as { active?: boolean }).active !== true) {
+                await supabaseAdmin.from('provider').update({ active: true }).eq('id', provider.id);
+            }
             return NextResponse.json({ status: 'already_processed' });
         }
 
@@ -104,6 +107,7 @@ export async function POST(request: Request) {
             .update({
                 activation_paid: true,
                 activation_paid_at: now,
+                active: true,
                 ...(tier ? { service_tier_max: tier.max_services } : {}),
             })
             .eq('id', provider.id);

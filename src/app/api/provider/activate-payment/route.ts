@@ -8,7 +8,6 @@ import {
     resolveChapaWalletCreditAmount,
     verifyChapaTransaction,
 } from '@/lib/chapa-config';
-import { findPriorCustomerWalletTopUp } from '@/lib/wallet-transaction-activation';
 import { hasCustomerWalletTopUpTransactionId } from '@/lib/wallet-transaction-metrics';
 import { readAuthUserId } from '@/lib/wallet-transaction-user';
 import { walletTransactionProfileColumns } from '@/lib/wallet-transaction-profile';
@@ -37,6 +36,7 @@ interface ProviderRow {
     activation_paid?: boolean;
     activation_paid_at?: string;
     activation_tx_ref?: string;
+    active?: boolean;
 }
 
 interface AppSettingsRow {
@@ -147,6 +147,7 @@ async function loadProviderAndFee(admin: SupabaseClient, providerId: string) {
         activation_paid: (raw.activation_paid as boolean) || false,
         activation_paid_at: (raw.activation_paid_at as string) || undefined,
         activation_tx_ref: (raw.activation_tx_ref as string) || undefined,
+        active: (raw.active as boolean) ?? false,
     };
 
     if (!provider.user_id) {
@@ -154,6 +155,9 @@ async function loadProviderAndFee(admin: SupabaseClient, providerId: string) {
     }
 
     if (provider.activation_paid) {
+        if (!provider.active) {
+            await admin.from('provider').update({ active: true }).eq('id', provider.id);
+        }
         return { error: 'Activation fee already paid', status: 409, activation_paid_at: provider.activation_paid_at } as const;
     }
 
@@ -349,9 +353,7 @@ async function handleManualMark(
 
         const feeAmount = tier.total_price.toFixed(2);
         const now = new Date().toISOString();
-        const priorTopUp = await findPriorCustomerWalletTopUp(admin, provider.user_id);
-    const ref = priorTopUp?.transactionId
-        ?? ((txRef || '').trim() || `manual-${provider.id.slice(0, 8)}-${Date.now()}`);
+    const ref = (txRef || '').trim() || `manual-${provider.id.slice(0, 8)}-${Date.now()}`;
 
     const { error: updateError } = await admin
         .from('provider')
@@ -360,6 +362,7 @@ async function handleManualMark(
             activation_paid_at: now,
             activation_tx_ref: ref,
             service_tier_max: tier.max_services,
+            active: true,
         })
         .eq('id', provider.id);
 
@@ -367,51 +370,47 @@ async function handleManualMark(
         return NextResponse.json({ error: 'Failed to update provider activation status' }, { status: 500 });
     }
 
-    const walletSkipped = Boolean(priorTopUp);
+    let walletAmount = feeAmount;
+    let paymentType = 'manual';
+    let walletNote = `Activation payment top up (manual)${note ? ` - ${note}` : ''}`;
 
-    if (!walletSkipped) {
-        let walletAmount = feeAmount;
-        let paymentType = 'manual';
-        let walletNote = `Activation payment top up (manual)${note ? ` - ${note}` : ''}`;
-
-        if (hasCustomerWalletTopUpTransactionId(ref)) {
-            const chapaSecretKey = await loadChapaSecretKey(admin);
-            if (chapaSecretKey) {
-                const verified = await verifyChapaTransaction(chapaSecretKey, ref);
-                if (verified.ok) {
-                    const settlement = resolveChapaSettlementAmount(verified.data);
-                    walletAmount = settlement != null
-                        ? settlement.toFixed(2)
-                        : resolveChapaWalletCreditAmount(verified.data, feeAmount);
-                    paymentType = 'chapa';
-                    walletNote = `Activation payment top up (Chapa, net after fee)${note ? ` - ${note}` : ''}`;
-                }
+    if (hasCustomerWalletTopUpTransactionId(ref)) {
+        const chapaSecretKey = await loadChapaSecretKey(admin);
+        if (chapaSecretKey) {
+            const verified = await verifyChapaTransaction(chapaSecretKey, ref);
+            if (verified.ok) {
+                const settlement = resolveChapaSettlementAmount(verified.data);
+                walletAmount = settlement != null
+                    ? settlement.toFixed(2)
+                    : resolveChapaWalletCreditAmount(verified.data, feeAmount);
+                paymentType = 'chapa';
+                walletNote = `Activation payment top up (Chapa, net after fee)${note ? ` - ${note}` : ''}`;
             }
         }
+    }
 
-        const { error: walletError } = await admin.from('wallet_transaction').insert({
-            amount: walletAmount,
-            createdDate: now,
-            isCredit: true,
-            note: walletNote,
-            paymentType,
-            transactionId: ref,
+    const { error: walletError } = await admin.from('wallet_transaction').insert({
+        amount: walletAmount,
+        createdDate: now,
+        isCredit: true,
+        note: walletNote,
+        paymentType,
+        transactionId: ref,
+        type: 'provider',
+        ...walletTransactionProfileColumns({
             type: 'provider',
-            ...walletTransactionProfileColumns({
-                type: 'provider',
-                authUserId: provider.user_id,
-                providerId: provider.id,
-            }),
-        });
+            authUserId: provider.user_id,
+            providerId: provider.id,
+        }),
+    });
 
-        if (walletError) {
-            return NextResponse.json({
-                status: 'partial',
-                message: `Provider activated but wallet transaction failed: ${walletError.message}`,
-                provider_id: provider.id,
-                wallet_error: walletError.message,
-            });
-        }
+    if (walletError) {
+        return NextResponse.json({
+            status: 'partial',
+            message: `Provider activated but wallet transaction failed: ${walletError.message}`,
+            provider_id: provider.id,
+            wallet_error: walletError.message,
+        });
     }
 
     await recordServiceTierPayment(admin, {
@@ -441,7 +440,7 @@ async function handleManualMark(
             service_tier_max: tier.max_services,
             mode: 'manual',
             note: note || null,
-            wallet_skipped: walletSkipped,
+            wallet_skipped: false,
             source: 'admin',
         },
     });
@@ -456,8 +455,8 @@ async function handleManualMark(
         fee_amount: feeAmount,
         service_tier_max: tier.max_services,
         note: note || null,
-        wallet_skipped: walletSkipped,
-        wallet_skipped_reason: walletSkipped ? 'prior_customer_top_up' : null,
+        wallet_skipped: false,
+        wallet_skipped_reason: null,
     });
 }
 

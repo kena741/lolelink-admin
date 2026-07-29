@@ -41,6 +41,17 @@ export interface WalletTransactionFilterOptions {
     paymentTypes: string[];
 }
 
+function collectUniqueCaseInsensitive(values: string[]): string[] {
+    const byKey = new Map<string, string>();
+    for (const value of values) {
+        const trimmed = value.trim();
+        if (!trimmed) continue;
+        const key = trimmed.toLowerCase();
+        if (!byKey.has(key)) byKey.set(key, key);
+    }
+    return [...byKey.values()].sort((a, b) => a.localeCompare(b));
+}
+
 function toDateInputValue(date: Date): string {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -132,12 +143,8 @@ function matchesProfileFilter(item: WalletTransaction, profileFilter: WalletProf
 export function collectWalletTransactionFilterOptions(
     items: WalletTransaction[]
 ): WalletTransactionFilterOptions {
-    const types = [...new Set(items.map((item) => item.type.trim()).filter(Boolean))].sort((a, b) =>
-        a.localeCompare(b)
-    );
-    const paymentTypes = [...new Set(items.map((item) => item.paymentType.trim()).filter(Boolean))].sort((a, b) =>
-        a.localeCompare(b)
-    );
+    const types = collectUniqueCaseInsensitive(items.map((item) => item.type));
+    const paymentTypes = collectUniqueCaseInsensitive(items.map((item) => item.paymentType));
     return { types, paymentTypes };
 }
 

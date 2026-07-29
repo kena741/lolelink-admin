@@ -87,14 +87,15 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         if (!checking || didNavigate.current) return;
-        const t = setTimeout(() => {
-            if (!didNavigate.current) {
-                didNavigate.current = true;
-                router.replace(
-                    "/login?error=timeout&next=" + encodeURIComponent(pathname || "/admin/dashboard")
-                );
-            }
-        }, 6000);
+        const t = setTimeout(async () => {
+            if (didNavigate.current) return;
+            const { data: sessionData } = await getSupabase().auth.getSession();
+            if (sessionData.session?.user) return;
+            didNavigate.current = true;
+            router.replace(
+                "/login?error=timeout&next=" + encodeURIComponent(pathname || "/admin/dashboard")
+            );
+        }, 20000);
         return () => clearTimeout(t);
     }, [checking, router, pathname]);
 
