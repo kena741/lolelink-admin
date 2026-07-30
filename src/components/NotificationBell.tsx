@@ -25,15 +25,15 @@ export function NotificationBell() {
     return (
         <Link
             href="/admin/notifications"
-            className="fixed bottom-6 right-4 z-50 inline-flex h-11 w-11 items-center justify-center rounded-full border border-subtle bg-surface text-primary shadow-[0_1px_3px_rgba(0,0,0,0.12)] transition-all duration-150 hover:bg-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-info focus-visible:ring-offset-2 md:bottom-8 md:right-8"
+            className="relative inline-flex h-10 w-10 items-center justify-center rounded-md border border-border bg-card text-text-primary transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             aria-label="Open notifications"
         >
             <Bell className="h-5 w-5" />
-            {unreadCount > 0 && (
+            {unreadCount > 0 ? (
                 <span className="absolute -right-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full bg-indigo-600 px-1.5 py-0.5 text-xs font-semibold text-white">
                     {unreadCount > 99 ? '99+' : unreadCount}
                 </span>
-            )}
+            ) : null}
         </Link>
     );
 }
