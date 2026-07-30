@@ -9,6 +9,7 @@ import {
     AdminShell,
     AdminStatCard,
 } from '@/components/admin/admin-layout';
+import { AdminListPagination } from '@/components/admin/AdminListPagination';
 import { AdminStatusBadge, AdminTableShell } from '@/components/admin/data-table';
 import { getPaymentRecordStatusTone } from '@/lib/admin-status-badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -30,6 +31,8 @@ const PaymentPage = () => {
     const dispatch = useAppDispatch();
     const { payments, loading, error } = useAppSelector((state) => state.payments);
     const [processingId, setProcessingId] = useState<string | null>(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(20);
 
     useEffect(() => {
         dispatch(fetchPayments());
@@ -43,6 +46,17 @@ const PaymentPage = () => {
 
         return { pending, successful, failed, totalAmount };
     }, [payments]);
+
+    const totalPages = payments.length > 0 ? Math.ceil(payments.length / pageSize) : 1;
+    const safePage = Math.min(currentPage, totalPages);
+    const startIdx = (safePage - 1) * pageSize;
+    const paginated = payments.slice(startIdx, startIdx + pageSize);
+    useEffect(() => {
+        if (currentPage > totalPages) setCurrentPage(totalPages);
+    }, [currentPage, totalPages]);
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [pageSize]);
 
     function formatDate(value: string) {
         return new Date(value).toLocaleDateString('en-GB', {
@@ -140,7 +154,7 @@ const PaymentPage = () => {
                                                     </TableCell>
                                                 </TableRow>
                                             ) : (
-                                                payments.map((payment) => {
+                                                paginated.map((payment) => {
                                                     const isProcessing = processingId === payment.id;
                                                     const currentStatus = payment.paymentStatus || 'pending_payment';
 
@@ -191,6 +205,15 @@ const PaymentPage = () => {
                                 </div>
                             ) : null}
                         </AdminTableShell>
+
+                        <AdminListPagination
+                            page={safePage}
+                            pageSize={pageSize}
+                            totalItems={payments.length}
+                            totalPages={totalPages}
+                            onPageChange={setCurrentPage}
+                            onPageSizeChange={setPageSize}
+                        />
             </AdminShell>
         </AuthGuard>
     );

@@ -11,6 +11,7 @@ import {
     AdminSearchInput,
     AdminShell,
 } from '@/components/admin/admin-layout';
+import { AdminListPagination } from '@/components/admin/AdminListPagination';
 import { AdminDataTableEmpty, AdminTableShell } from '@/components/admin/data-table';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { formatBookingAmount } from '@/lib/booking-display';
@@ -55,6 +56,8 @@ const JobRequestsPage = () => {
     const [query, setQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'accepted' | 'rejected'>('all');
     const [updatingId, setUpdatingId] = useState<string | null>(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(20);
 
     async function fetchJobRequests() {
         setLoading(true);
@@ -126,6 +129,18 @@ const JobRequestsPage = () => {
                 || serviceName.toLowerCase().includes(normalized);
         });
     }, [items, query, statusFilter]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [query, statusFilter, pageSize]);
+
+    const totalPages = filteredItems.length > 0 ? Math.ceil(filteredItems.length / pageSize) : 1;
+    const safePage = Math.min(currentPage, totalPages);
+    const startIdx = (safePage - 1) * pageSize;
+    const paginated = filteredItems.slice(startIdx, startIdx + pageSize);
+    useEffect(() => {
+        if (currentPage > totalPages) setCurrentPage(totalPages);
+    }, [currentPage, totalPages]);
 
     return (
         <AuthGuard>
@@ -206,7 +221,7 @@ const JobRequestsPage = () => {
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {filteredItems.map((item) => {
+                                        {paginated.map((item) => {
                                             const bidsCount = Array.isArray(item.bidList) ? item.bidList.length : 0;
                                             const displayStatus = item.accepted ? 'accepted' : (item.status || 'pending');
                                             return (
@@ -265,6 +280,15 @@ const JobRequestsPage = () => {
                                 </Table>
                             ) : null}
                         </AdminTableShell>
+
+                        <AdminListPagination
+                            page={safePage}
+                            pageSize={pageSize}
+                            totalItems={filteredItems.length}
+                            totalPages={totalPages}
+                            onPageChange={setCurrentPage}
+                            onPageSizeChange={setPageSize}
+                        />
             </AdminShell>
         </AuthGuard>
     );

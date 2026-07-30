@@ -34,6 +34,7 @@ import {
 import { isMissingPaymentMethodPayout } from '@/lib/payout-missing-payment-method';
 import { calculateWithdrawalPayoutBreakdown } from '@/lib/withdrawal-payout';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { AdminListPagination } from '@/components/admin/AdminListPagination';
 
 const primaryButtonClassName =
     'inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
@@ -70,6 +71,8 @@ function PayoutRequestPageContent() {
         action: PayoutRiskReviewAction;
     } | null>(null);
     const [rejectingRequest, setRejectingRequest] = useState<PayoutRequest | null>(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(20);
     const autoVerifyInFlightRef = useRef<Set<string>>(new Set());
     const autoVerifyLastAttemptMsRef = useRef<Record<string, number>>({});
 
@@ -380,6 +383,16 @@ function PayoutRequestPageContent() {
             return status === 'completed' && isToday(request.paymentDate);
         return true;
     });
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [segment, range, pageSize]);
+    const totalPages = filteredRequests.length > 0 ? Math.ceil(filteredRequests.length / pageSize) : 1;
+    const safePage = Math.min(currentPage, totalPages);
+    const startIdx = (safePage - 1) * pageSize;
+    const paginatedRequests = filteredRequests.slice(startIdx, startIdx + pageSize);
+    useEffect(() => {
+        if (currentPage > totalPages) setCurrentPage(totalPages);
+    }, [currentPage, totalPages]);
     const totalPendingAmount = filteredRequests
         .filter(r => r.paymentStatus === 'pending')
         .reduce((sum, r) => sum + getAmountAsNumber(r.amount), 0);
@@ -491,7 +504,7 @@ function PayoutRequestPageContent() {
                                                     </TableCell>
                                                 </TableRow>
                                             ) : (
-                                                filteredRequests.map((request) => {
+                                                paginatedRequests.map((request) => {
                                                     const isProcessing = processingId === request.id;
                                                     const normalizedPaymentStatus = request.paymentStatus.toLowerCase();
                                                     const hasChapaTransferStarted = Boolean(
@@ -596,6 +609,16 @@ function PayoutRequestPageContent() {
                                 </div>
                             ) : null}
                         </AdminTableShell>
+
+                        <AdminListPagination
+                            page={safePage}
+                            pageSize={pageSize}
+                            totalItems={filteredRequests.length}
+                            totalPages={totalPages}
+                            onPageChange={setCurrentPage}
+                            onPageSizeChange={setPageSize}
+                        />
+
                         <PayoutWalletAnalysisSheet
                             open={walletAnalysisRequest !== null}
                             onClose={handleCloseWalletAnalysis}

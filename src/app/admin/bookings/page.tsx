@@ -13,6 +13,7 @@ import {
     AdminSelect,
     AdminShell,
 } from "@/components/admin/admin-layout";
+import { AdminListPagination } from "@/components/admin/AdminListPagination";
 import { getSupabase } from "@/lib/supabaseClient";
 import type { BookedService } from "@/features/bookedService/bookedServiceSlice";
 import { CreateBookingModal } from "./CreateBookingModal";
@@ -308,6 +309,8 @@ const BookingsPage = () => {
     const [jobStatusFilter, setJobStatusFilter] = useState("all");
     const [paymentMethodFilter, setPaymentMethodFilter] = useState("all");
     const [flaggedOnly, setFlaggedOnly] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(20);
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [debugBookingId, setDebugBookingId] = useState<string | null>(null);
     const [highlightIssues, setHighlightIssues] = useState(false);
@@ -524,6 +527,18 @@ const BookingsPage = () => {
         });
     }, [items, query, jobStatusFilter, paymentMethodFilter, flaggedOnly]);
 
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [query, jobStatusFilter, paymentMethodFilter, flaggedOnly, pageSize]);
+
+    const totalPages = filtered.length > 0 ? Math.ceil(filtered.length / pageSize) : 1;
+    const safePage = Math.min(currentPage, totalPages);
+    const startIdx = (safePage - 1) * pageSize;
+    const paginated = filtered.slice(startIdx, startIdx + pageSize);
+    useEffect(() => {
+        if (currentPage > totalPages) setCurrentPage(totalPages);
+    }, [currentPage, totalPages]);
+
     return (
         <AuthGuard>
             <AdminShell>
@@ -629,7 +644,7 @@ const BookingsPage = () => {
                         {error ? <AdminErrorAlert message={error} /> : null}
 
                         <BookingsTable
-                            bookings={filtered}
+                            bookings={paginated}
                             loading={loading}
                             deletingId={deletingId}
                             canWriteBookings={canWriteBookings}
@@ -638,6 +653,15 @@ const BookingsPage = () => {
                             onOpenIssues={(id) => onOpenDetail(id, { focusIssues: true })}
                             onDelete={(id) => void handleDeleteBooking(id)}
                             onDebug={setDebugBookingId}
+                        />
+
+                        <AdminListPagination
+                            page={safePage}
+                            pageSize={pageSize}
+                            totalItems={filtered.length}
+                            totalPages={totalPages}
+                            onPageChange={setCurrentPage}
+                            onPageSizeChange={setPageSize}
                         />
 
                 <BookingDetailModal

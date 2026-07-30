@@ -15,12 +15,13 @@ import {
     User,
     Mail,
     Phone,
-    MapPin
+    MapPin,
 } from 'lucide-react';
 import { StorageImage } from '@/components/StorageImage';
 import { fetchHandymen, createHandyman, updateHandyman, deleteHandyman } from '@/features/handyman/handymanSlice';
 import { formatDisplayPhone } from '@/lib/phone-display';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
+import { AdminListPagination } from '@/components/admin/AdminListPagination';
 
 const HandymanPage = () => {
     const dispatch = useAppDispatch();
@@ -28,6 +29,8 @@ const HandymanPage = () => {
     const { handymen, loading, error } = useAppSelector((state) => state.handyman);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingHandyman, setEditingHandyman] = useState<typeof handymen[0] | null>(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(20);
     const [formData, setFormData] = useState({
         firstName: '',
         lastName: '',
@@ -47,6 +50,17 @@ const HandymanPage = () => {
     useEffect(() => {
         dispatch(fetchHandymen());
     }, [dispatch]);
+
+    const totalPages = handymen.length > 0 ? Math.ceil(handymen.length / pageSize) : 1;
+    const safePage = Math.min(currentPage, totalPages);
+    const startIdx = (safePage - 1) * pageSize;
+    const paginated = handymen.slice(startIdx, startIdx + pageSize);
+    useEffect(() => {
+        if (currentPage > totalPages) setCurrentPage(totalPages);
+    }, [currentPage, totalPages]);
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [pageSize]);
 
     const handleOpenModal = (handyman?: typeof handymen[0]) => {
         if (handyman) {
@@ -234,7 +248,7 @@ const HandymanPage = () => {
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-gray-200/50">
-                                                {handymen.map((handyman) => (
+                                                {paginated.map((handyman) => (
                                                     <tr 
                                                         key={handyman.id}
                                                         className="hover:bg-gray-50/50 transition-colors"
@@ -346,6 +360,14 @@ const HandymanPage = () => {
                                         </table>
                                     </div>
                                 )}
+                                <AdminListPagination
+                                    page={safePage}
+                                    pageSize={pageSize}
+                                    totalItems={handymen.length}
+                                    totalPages={totalPages}
+                                    onPageChange={setCurrentPage}
+                                    onPageSizeChange={setPageSize}
+                                />
                             </div>
                         )}
                     </div>
