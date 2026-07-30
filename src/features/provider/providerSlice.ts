@@ -525,12 +525,13 @@ export const createService = createAsyncThunk<
                 .single();
             if (error) throw error;
             const created = normalizeService([data as ServiceRow])[0];
-            logClientAdminActivity({
+            const logged = await logClientAdminActivity({
                 action: 'create',
                 resource_type: 'service',
                 resource_id: created.id,
                 summary: `Created service ${created.serviceName || created.id} for provider ${provider_id}`,
             });
+            if (!logged) return rejectWithValue('Service created, but failed to write admin activity log');
             return created;
     } catch {
             const { data, error } = await getSupabase()
@@ -540,12 +541,13 @@ export const createService = createAsyncThunk<
                 .single();
             if (error) return rejectWithValue(error.message);
             const created = normalizeService([data as ServiceRow])[0];
-            logClientAdminActivity({
+            const logged = await logClientAdminActivity({
                 action: 'create',
                 resource_type: 'service',
                 resource_id: created.id,
                 summary: `Created service ${created.serviceName || created.id} for provider ${provider_id}`,
             });
+            if (!logged) return rejectWithValue('Service created, but failed to write admin activity log');
             return created;
         }
     }
@@ -580,7 +582,7 @@ export const updateService = createAsyncThunk<
                 .single();
             if (error) throw error;
             const updated = normalizeService([data as ServiceRow])[0];
-            logClientAdminActivity({
+            const logged = await logClientAdminActivity({
                 action: 'update',
                 resource_type: 'service',
                 resource_id: id,
@@ -591,6 +593,7 @@ export const updateService = createAsyncThunk<
                     Object.keys(base)
                 ),
             });
+            if (!logged) return rejectWithValue('Service updated, but failed to write admin activity log');
             return updated;
     } catch {
             const { data, error } = await getSupabase()
@@ -601,7 +604,7 @@ export const updateService = createAsyncThunk<
                 .single();
             if (error) return rejectWithValue(error.message);
             const updated = normalizeService([data as ServiceRow])[0];
-            logClientAdminActivity({
+            const logged = await logClientAdminActivity({
                 action: 'update',
                 resource_type: 'service',
                 resource_id: id,
@@ -612,6 +615,7 @@ export const updateService = createAsyncThunk<
                     Object.keys(base)
                 ),
             });
+            if (!logged) return rejectWithValue('Service updated, but failed to write admin activity log');
             return updated;
         }
     }

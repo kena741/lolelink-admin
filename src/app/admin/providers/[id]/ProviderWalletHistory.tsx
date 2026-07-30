@@ -55,7 +55,7 @@ export function ProviderWalletHistory({ providerId, fallbackWalletAmount = 0 }: 
         setLoading(true);
         setError(null);
         try {
-            const response = await fetch(`/api/providers/${providerId}/wallet-transactions`);
+            const response = await fetch(`/api/admin/providers/${providerId}/wallet-transactions`);
             const payload = (await response.json()) as {
                 data?: ProviderWalletTransactionItem[];
                 stats?: ProviderWalletStats;

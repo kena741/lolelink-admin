@@ -33,6 +33,6 @@ export async function recordAdminActivity(input: RecordAdminActivityInput): Prom
     }
 }
 
-export function logClientAdminActivity(input: RecordAdminActivityInput): void {
-    void recordAdminActivity(input);
+export async function logClientAdminActivity(input: RecordAdminActivityInput): Promise<boolean> {
+    return recordAdminActivity(input);
 }

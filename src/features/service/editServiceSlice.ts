@@ -287,7 +287,7 @@ export const updateService = createAsyncThunk<ServiceModel, UpdateServiceArgs, {
             }
 
             const updated = { ...(original as ServiceModel), ...serviceData, ...data } as ServiceModel;
-            logClientAdminActivity({
+            const logged = await logClientAdminActivity({
                 action: 'update',
                 resource_type: 'service',
                 resource_id: id,
@@ -298,6 +298,9 @@ export const updateService = createAsyncThunk<ServiceModel, UpdateServiceArgs, {
                     Object.keys(serviceData)
                 ),
             });
+            if (!logged) {
+                return thunkAPI.rejectWithValue('Service updated, but failed to write admin activity log');
+            }
 
             return updated;
         } catch (error: unknown) {

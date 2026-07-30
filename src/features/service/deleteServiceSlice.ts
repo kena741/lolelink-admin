@@ -53,12 +53,15 @@ export const deleteService = createAsyncThunk<string, string, { rejectValue: str
                 }
 
                 const serviceName = typeof found.serviceName === 'string' ? found.serviceName : serviceId;
-                logClientAdminActivity({
+                const logged = await logClientAdminActivity({
                     action: 'archive',
                     resource_type: 'service',
                     resource_id: serviceId,
                     summary: `Archived service ${serviceName} (has bookings)`,
                 });
+                if (!logged) {
+                    return thunkAPI.rejectWithValue('Service archived, but failed to write admin activity log');
+                }
 
                 return serviceId;
             } else {
@@ -72,12 +75,15 @@ export const deleteService = createAsyncThunk<string, string, { rejectValue: str
                 }
 
                 const serviceName = typeof found.serviceName === 'string' ? found.serviceName : serviceId;
-                logClientAdminActivity({
+                const logged = await logClientAdminActivity({
                     action: 'delete',
                     resource_type: 'service',
                     resource_id: serviceId,
                     summary: `Deleted service ${serviceName}`,
                 });
+                if (!logged) {
+                    return thunkAPI.rejectWithValue('Service deleted, but failed to write admin activity log');
+                }
 
                 return serviceId;
             }

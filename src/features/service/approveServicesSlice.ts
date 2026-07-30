@@ -129,13 +129,14 @@ export const approveServicesByProvider = createAsyncThunk<number, string, { reje
 
             if (updateError) return thunkAPI.rejectWithValue(updateError.message || 'Failed to approve services');
 
-            logClientAdminActivity({
+            const logged = await logClientAdminActivity({
                 action: 'approve',
                 resource_type: 'service',
                 resource_id: providerId,
                 summary: `Approved ${ids.length} service(s) for provider ${providerId}`,
                 metadata: { service_ids: ids },
             });
+            if (!logged) return thunkAPI.rejectWithValue('Services approved, but failed to write admin activity log');
 
             return ids.length;
         } catch (err) {
@@ -159,12 +160,13 @@ export const approveServiceById = createAsyncThunk<number, string, { rejectValue
 
             if (updateError) return thunkAPI.rejectWithValue(updateError.message || 'Failed to approve service');
 
-            logClientAdminActivity({
+            const logged = await logClientAdminActivity({
                 action: 'approve',
                 resource_type: 'service',
                 resource_id: serviceId,
                 summary: `Approved service ${serviceId}`,
             });
+            if (!logged) return thunkAPI.rejectWithValue('Service approved, but failed to write admin activity log');
 
             return 1;
         } catch (err) {
@@ -199,12 +201,13 @@ export const approveFeatureRequestById = createAsyncThunk<number, string, { reje
                 if (secondError) return thunkAPI.rejectWithValue(secondError.message || 'Failed to approve featured service');
             }
 
-            logClientAdminActivity({
+            const logged = await logClientAdminActivity({
                 action: 'approve',
                 resource_type: 'service',
                 resource_id: serviceId,
                 summary: `Approved featured listing request for service ${serviceId}`,
             });
+            if (!logged) return thunkAPI.rejectWithValue('Feature request approved, but failed to write admin activity log');
 
             return 1;
         } catch (err) {
@@ -239,12 +242,13 @@ export const rejectFeatureRequestById = createAsyncThunk<number, string, { rejec
                 if (secondError) return thunkAPI.rejectWithValue(secondError.message || 'Failed to reject featured service');
             }
 
-            logClientAdminActivity({
+            const logged = await logClientAdminActivity({
                 action: 'reject',
                 resource_type: 'service',
                 resource_id: serviceId,
                 summary: `Rejected featured listing request for service ${serviceId}`,
             });
+            if (!logged) return thunkAPI.rejectWithValue('Feature request rejected, but failed to write admin activity log');
 
             return 1;
         } catch (err) {
@@ -279,12 +283,13 @@ export const unfeatureServiceById = createAsyncThunk<number, string, { rejectVal
                 if (secondError) return thunkAPI.rejectWithValue(secondError.message || 'Failed to remove featured status');
             }
 
-            logClientAdminActivity({
+            const logged = await logClientAdminActivity({
                 action: 'update',
                 resource_type: 'service',
                 resource_id: serviceId,
                 summary: `Removed featured status from service ${serviceId}`,
             });
+            if (!logged) return thunkAPI.rejectWithValue('Featured status removed, but failed to write admin activity log');
 
             return 1;
         } catch (err) {

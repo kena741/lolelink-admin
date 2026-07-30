@@ -94,13 +94,16 @@ export const addService = createAsyncThunk(
         return thunkAPI.rejectWithValue(error.message);
       }
       const row = data as { id?: string; serviceName?: string };
-      logClientAdminActivity({
+      const logged = await logClientAdminActivity({
         action: 'create',
         resource_type: 'service',
         resource_id: row.id,
         summary: `Created service ${row.serviceName || serviceToSave.serviceName}`,
         metadata: { provider_id: serviceToSave.provider_id, categoryId: serviceToSave.categoryId },
       });
+      if (!logged) {
+        return thunkAPI.rejectWithValue('Service created, but failed to write admin activity log');
+      }
       return { ...serviceToSave, id: row.id };
     } catch (error) {
       if (error instanceof Error) {

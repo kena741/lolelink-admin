@@ -24,7 +24,7 @@ import {
 import { fetchHandymen, updateHandyman, deleteHandyman, type Handyman } from '@/features/handyman/handymanSlice';
 import { fetchCategories } from '@/features/category/categorySlice';
 import { fetchSubCategories } from '@/features/subcategory/subcategorySlice';
-import { Pencil, Trash2, FileText, DollarSign, Wrench, Clock, Briefcase, History, CreditCard, Megaphone } from 'lucide-react';
+import { Pencil, Trash2, FileText, DollarSign, Wrench, Clock, Briefcase, History, CreditCard, Megaphone, Wallet } from 'lucide-react';
 import { ActivationPaymentModal } from '@/components/ActivationPaymentModal';
 import { fetchSettings } from '@/features/settings/settingsSlice';
 import { Button } from '@/components/ui/button';
@@ -46,6 +46,7 @@ import {
     sendAdminProviderNotify,
     type AdminNotifyDraft,
 } from '@/lib/admin-notify';
+import { ProviderWalletHistory } from './ProviderWalletHistory';
 
 interface ProviderNotifyStatus {
     fcmRegistered: boolean;
@@ -86,7 +87,7 @@ export default function ProviderDetailPage() {
         isActive: true,
     });
     const [deletingHandymanId, setDeletingHandymanId] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<'services' | 'documents' | 'withdrawals' | 'handyman' | 'notifications'>('services');
+    const [activeTab, setActiveTab] = useState<'services' | 'documents' | 'withdrawals' | 'wallet' | 'handyman' | 'notifications'>('services');
     const [activationModalOpen, setActivationModalOpen] = useState(false);
     const [notifyDraft, setNotifyDraft] = useState<AdminNotifyDraft>(
         createAdminNotifyDraft(
@@ -132,6 +133,7 @@ export default function ProviderDetailPage() {
     const totalPending = providerWithdrawals
         .filter(req => req.paymentStatus === 'pending')
         .reduce((sum, req) => sum + (typeof req.amount === 'string' ? parseFloat(req.amount) || 0 : req.amount || 0), 0);
+    const walletBalance = Number(provider?.walletAmount ?? 0);
 
     const displayName = (() => {
         const first = provider?.firstName ?? provider?.first_name;
@@ -492,7 +494,20 @@ export default function ProviderDetailPage() {
                             </div>
 
                                     {/* Earnings Summary */}
-                                    <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                                        <div className="bg-white rounded-lg shadow p-6">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-3 bg-sky-100 rounded-lg">
+                                                    <Wallet className="h-6 w-6 text-sky-600" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm text-gray-600">Wallet balance</p>
+                                                    <p className="text-2xl font-bold tabular-nums text-gray-900">
+                                                        ETB {(Number.isFinite(walletBalance) ? walletBalance : 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
                                         <div className="bg-white rounded-lg shadow p-6">
                                             <div className="flex items-center gap-3">
                                                 <div className="p-3 bg-emerald-100 rounded-lg">
@@ -562,6 +577,17 @@ export default function ProviderDetailPage() {
                                         >
                                             <History className="h-4 w-4" />
                                             Withdrawals
+                                        </button>
+                                        <button
+                                            onClick={() => setActiveTab('wallet')}
+                                            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                                                activeTab === 'wallet'
+                                                    ? 'bg-indigo-500 text-white shadow-md'
+                                                    : 'text-gray-700 hover:bg-gray-100'
+                                            }`}
+                                        >
+                                            <Wallet className="h-4 w-4" />
+                                            Wallet
                                         </button>
                                         <button
                                             onClick={() => setActiveTab('handyman')}
@@ -842,6 +868,13 @@ export default function ProviderDetailPage() {
                                             </div>
                                         )}
                                     </section>
+                                    )}
+
+                                    {activeTab === 'wallet' && (
+                                        <ProviderWalletHistory
+                                            providerId={id}
+                                            fallbackWalletAmount={Number.isFinite(walletBalance) ? walletBalance : 0}
+                                        />
                                     )}
 
                                     {/* Handyman Tab */}
