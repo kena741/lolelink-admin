@@ -60,7 +60,7 @@ interface ProviderNotifyStatus {
 export default function ProviderDetailPage() {
     const params = useParams();
     const id = (params?.id as string) || '';
-    const { canWriteProviders, canWriteServices } = useAdminPermissions();
+    const { canWriteProviders, canWriteServices, canWriteNotifications } = useAdminPermissions();
 
     const dispatch = useAppDispatch();
     const { selected: provider, selectedLoading, error, services, servicesLoading } = useAppSelector((s) => s.provider);
@@ -221,7 +221,7 @@ export default function ProviderDetailPage() {
     };
 
     const onSave = async () => {
-        if (!provider || !id) return;
+        if (!provider || !id || !canWriteProviders) return;
         setSaveError(null);
         setSaveLoading(true);
         try {
@@ -432,7 +432,7 @@ export default function ProviderDetailPage() {
     };
 
     const handleSendProviderNotification = async () => {
-        if (!id) return;
+        if (!id || !canWriteNotifications) return;
         if (cannotDeliverSelectedChannel) {
             setNotifyMessage('Warning: selected channel is not ready (missing phone and/or push token).');
             return;
@@ -504,7 +504,9 @@ export default function ProviderDetailPage() {
                                 <ServiceTierBadge tierMax={provider.service_tier_max} />
                                 <AdminNoteField
                                     value={provider.admin_note}
+                                    disabled={!canWriteProviders}
                                     onSave={async (note) => {
+                                        if (!canWriteProviders) return;
                                         await dispatch(updateProvider({ id, updates: { admin_note: note || null } })).unwrap();
                                         await dispatch(fetchProviderById(id));
                                     }}
@@ -618,6 +620,7 @@ export default function ProviderDetailPage() {
                                             <Wrench className="h-4 w-4" />
                                             Handyman
                                         </button>
+                                        {canWriteNotifications ? (
                                         <button
                                             onClick={() => setActiveTab('notifications')}
                                             className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
@@ -629,6 +632,7 @@ export default function ProviderDetailPage() {
                                             <Megaphone className="h-4 w-4" />
                                             Notifications
                                         </button>
+                                        ) : null}
                                     </div>
 
                                     {/* Services Tab */}
@@ -1019,7 +1023,7 @@ export default function ProviderDetailPage() {
                                     </section>
                                     )}
 
-                                    {activeTab === 'notifications' && (
+                                    {activeTab === 'notifications' && canWriteNotifications && (
                                     <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
                                         <h2 className="mb-4 text-2xl font-semibold">Send notification</h2>
                                         {notifyStatusLoading ? (
@@ -1067,6 +1071,7 @@ export default function ProviderDetailPage() {
                                     </section>
                                     )}
                             {/* Edit dialog */}
+                            {canWriteProviders ? (
                             <Dialog open={open} onClose={() => { setOpen(false); setSaveError(null); }}>
                                 <DialogHeader>
                                     <DialogTitle>Edit Provider</DialogTitle>
@@ -1116,6 +1121,7 @@ export default function ProviderDetailPage() {
                                     <Button onClick={onSave} disabled={saveLoading}>{saveLoading ? 'Saving…' : 'Save changes'}</Button>
                                 </DialogFooter>
                             </Dialog>
+                            ) : null}
 
                             {/* Add Service dialog */}
                             <Dialog

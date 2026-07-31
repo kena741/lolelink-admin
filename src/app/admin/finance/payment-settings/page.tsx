@@ -11,6 +11,7 @@ import {
     EyeOff
 } from 'lucide-react';
 import { fetchSettings, updateSettings, PaymentSettings } from '@/features/settings/settingsSlice';
+import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 
 interface ChapaFormValues {
     name: string;
@@ -28,6 +29,8 @@ interface ToastState {
 
 const PaymentSettingsPage = () => {
     const dispatch = useAppDispatch();
+    const { canWriteFinance, canWriteSettings } = useAdminPermissions();
+    const canAlterPaymentSettings = canWriteFinance || canWriteSettings;
     const { settings, loading, error } = useAppSelector((state) => state.settings);
     const [saving, setSaving] = useState(false);
     const [paymentSettings, setPaymentSettings] = useState<PaymentSettings>({});
@@ -80,6 +83,7 @@ const PaymentSettingsPage = () => {
     };
 
     const handleSave = async () => {
+        if (!canAlterPaymentSettings) return;
         setSaving(true);
         try {
             await dispatch(updateSettings({
@@ -102,7 +106,7 @@ const PaymentSettingsPage = () => {
         <AuthGuard>
             <div className="flex min-h-screen">
                 {toast && (
-                    <div className="fixed right-6 top-6 z-[100]">
+                    <div className="fixed right-6 top-6 z-100">
                         <div
                             className={`rounded-lg border px-4 py-3 text-sm font-semibold shadow-xl ${
                                 toast.variant === 'success'
@@ -134,15 +138,17 @@ const PaymentSettingsPage = () => {
                                         <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                                         Refresh
                                     </button>
-                                    <button
-                                        type="button"
-                                        onClick={handleSave}
-                                        disabled={saving}
-                                        className={adminHeaderButtonClassName()}
-                                    >
-                                        <Save className="h-4 w-4" />
-                                        {saving ? 'Saving...' : 'Save'}
-                                    </button>
+                                    {canAlterPaymentSettings ? (
+                                        <button
+                                            type="button"
+                                            onClick={handleSave}
+                                            disabled={saving}
+                                            className={adminHeaderButtonClassName()}
+                                        >
+                                            <Save className="h-4 w-4" />
+                                            {saving ? 'Saving...' : 'Save'}
+                                        </button>
+                                    ) : null}
                                 </>
                             }
                         />
@@ -152,7 +158,7 @@ const PaymentSettingsPage = () => {
                             </div>
                         )}
 
-                        <div className="space-y-6">
+                        <fieldset disabled={!canAlterPaymentSettings} className="space-y-6 disabled:opacity-90">
                             {/* Chapa */}
                             <div className="rounded-2xl bg-white/80 backdrop-blur-xl border border-white/20 shadow-xl p-6">
                                 <h3 className="text-lg font-bold text-gray-900 mb-4">Chapa</h3>
@@ -339,7 +345,7 @@ const PaymentSettingsPage = () => {
                                     ))}
                                 </div>
                             </div>
-                        </div>
+                        </fieldset>
                     </div>
                 </main>
             </div>

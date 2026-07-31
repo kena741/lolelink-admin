@@ -68,9 +68,9 @@ export function AdminNoteField({
             <button
                 type="button"
                 onClick={() => setOpen(true)}
-                disabled={disabled}
-                title={hasNote ? note : 'Add admin note'}
-                aria-label={hasNote ? 'Edit admin note' : 'Add admin note'}
+                disabled={disabled && !hasNote}
+                title={hasNote ? note : disabled ? 'No admin note' : 'Add admin note'}
+                aria-label={hasNote ? (disabled ? 'View admin note' : 'Edit admin note') : 'Add admin note'}
                 className={cn(
                     'max-w-48 truncate text-left text-sm transition-colors',
                     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
@@ -87,9 +87,9 @@ export function AdminNoteField({
             <button
                 type="button"
                 onClick={() => setOpen(true)}
-                disabled={disabled}
-                title={hasNote ? 'View admin note' : 'Add admin note'}
-                aria-label={hasNote ? 'View admin note' : 'Add admin note'}
+                disabled={disabled && !hasNote}
+                title={hasNote ? (disabled ? 'View admin note' : 'View admin note') : 'Add admin note'}
+                aria-label={hasNote ? (disabled ? 'View admin note' : 'View admin note') : 'Add admin note'}
                 className={cn(
                     'inline-flex h-8 w-8 items-center justify-center rounded-md border transition-colors',
                     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',

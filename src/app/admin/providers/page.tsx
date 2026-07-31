@@ -1053,7 +1053,9 @@ const ProvidersPage = () => {
                                                                 <AdminNoteField
                                                                     display="text"
                                                                     value={p.admin_note}
+                                                                    disabled={!canWriteProviders}
                                                                     onSave={async (note) => {
+                                                                        if (!canWriteProviders) return;
                                                                         await dispatch(
                                                                             updateProvider({
                                                                                 id: p.id,

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAdminSession } from '@/lib/admin-auth';
+import { hasPermission } from '@/lib/admin-permissions';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 import { notifyProviderPayoutStatus, type PayoutNotifyEvent } from '@/lib/push/payoutNotify';
 import {
@@ -138,6 +139,13 @@ export async function POST(request: Request) {
     const channel = parseBroadcastChannel(body.channel) ?? 'push';
     const titleOverride = (body.title ?? '').trim();
     const bodyOverride = (body.body ?? '').trim();
+
+    if (
+        event === 'custom'
+        && !hasPermission(auth.context.permissions, 'notifications:write')
+    ) {
+        return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
 
     try {
         if (audience === 'customer') {

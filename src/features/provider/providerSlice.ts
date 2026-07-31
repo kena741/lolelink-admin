@@ -309,39 +309,22 @@ export const updateProvider = createAsyncThunk<
             return rejectWithValue("No valid fields to update");
         }
 
-        const { data: existingProvider, error: existingError } = await getSupabase()
-            .from("provider")
-            .select("*")
-            .eq("id", id)
-            .maybeSingle();
-        if (existingError) return rejectWithValue(existingError.message);
-        if (!existingProvider) return rejectWithValue("Provider not found");
-
-        const { data, error } = await getSupabase()
-            .from("provider")
-            .update(payload)
-            .eq("id", id)
-            .select("*")
-            .single();
-        if (error) return rejectWithValue(error.message);
-    type ProviderRow = Provider & { created_at?: string };
-    const row = data as ProviderRow;
-        const { created_at, ...rest } = row ?? {};
-        const updated = { ...rest, createdAt: row?.createdAt ?? created_at } as Provider;
-
-        logClientAdminActivity({
-            action: 'update',
-            resource_type: 'provider',
-            resource_id: id,
-            summary: `Updated provider ${updated.firstName || updated.userName || id}`,
-            metadata: buildChangeMetadata(
-                existingProvider as Record<string, unknown>,
-                updated as unknown as Record<string, unknown>,
-                Object.keys(payload)
-            ),
+        const response = await fetch(`/api/admin/providers/${id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
         });
+        const result = (await response.json()) as {
+            error?: string;
+            data?: Provider & { created_at?: string };
+        };
+        if (!response.ok || !result.data) {
+            return rejectWithValue(result.error || "Failed to update provider");
+        }
 
-        return updated;
+        const row = result.data;
+        const { created_at, ...rest } = row;
+        return { ...rest, createdAt: row.createdAt ?? created_at } as Provider;
     }
 );
 

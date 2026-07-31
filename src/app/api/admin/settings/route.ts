@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { requireAdminPermission } from '@/lib/admin-auth';
+import { requireAdminSession } from '@/lib/admin-auth';
+import { hasPermission } from '@/lib/admin-permissions';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 
 interface AppSettings {
@@ -134,11 +135,29 @@ async function upsertSection(
 }
 
 export async function POST(request: Request) {
-    const auth = await requireAdminPermission(request, 'settings:write');
+    const auth = await requireAdminSession(request);
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
     const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const payload = (await request.json()) as SettingsPayload;
+
+        const hasNonPaymentUpdates = Boolean(
+            payload.appSettings
+            || payload.generalSettings
+            || payload.policySettings
+            || payload.contactUs
+            || payload.adminCommission
+            || payload.statusOptions !== undefined
+            || payload.constants
+            || payload.languageSettings !== undefined
+            || (payload.languageDeletedIds?.length ?? 0) > 0
+        );
+        const canWriteSettings = hasPermission(auth.context.permissions, 'settings:write');
+        const canWriteFinance = hasPermission(auth.context.permissions, 'finance:write');
+        const paymentOnly = Boolean(payload.paymentSettings) && !hasNonPaymentUpdates;
+        if (!(paymentOnly ? canWriteSettings || canWriteFinance : canWriteSettings)) {
+            return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+        }
 
         const rootPatch: Record<string, unknown> = {
             ...(payload.appSettings ?? {}),
