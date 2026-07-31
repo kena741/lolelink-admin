@@ -95,7 +95,7 @@ export const fetchServices = createAsyncThunk<unknown[], void, { rejectValue: st
                 });
             }
 
-            const enriched = rows.map((r) => {
+            const enriched: Array<Record<string, unknown>> = rows.map((r) => {
                 const pid = typeof r.provider_id === 'string' ? r.provider_id : '';
                 const provider = pid ? providerById.get(pid) : undefined;
                 return {
