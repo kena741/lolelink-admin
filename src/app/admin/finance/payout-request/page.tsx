@@ -6,9 +6,11 @@ import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminP
 import {
     AdminErrorAlert,
     AdminLoadingRow,
+    AdminSegmentedControl,
     AdminShell,
     AdminStatCard,
 } from '@/components/admin/admin-layout';
+import { AdminFilterSelect } from '@/components/admin/AdminFilterSelect';
 import { AdminDataTableEmpty, AdminPersonCell, AdminStatusBadge, AdminTableShell } from '@/components/admin/data-table';
 import { RefreshCw } from 'lucide-react';
 import Link from 'next/link';
@@ -30,11 +32,30 @@ import {
     dashboardRangeLabel,
     isDateInDashboardRange,
     parseDashboardRange,
+    type DashboardRange,
 } from '@/lib/dashboard-range';
 import { isMissingPaymentMethodPayout } from '@/lib/payout-missing-payment-method';
 import { calculateWithdrawalPayoutBreakdown } from '@/lib/withdrawal-payout';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AdminListPagination } from '@/components/admin/AdminListPagination';
+import { useAdminPermissions } from '@/hooks/use-admin-permissions';
+
+type PayoutStatusFilter = 'all' | 'pending' | 'approved' | 'completed' | 'rejected';
+
+const DATE_FILTER_OPTIONS: Array<{ value: DashboardRange; label: string }> = [
+    { value: 'all', label: 'All' },
+    { value: 'today', label: 'Today' },
+    { value: '7d', label: 'Week' },
+    { value: '30d', label: 'Month' },
+];
+
+const STATUS_FILTER_OPTIONS: Array<{ value: PayoutStatusFilter; label: string }> = [
+    { value: 'all', label: 'All statuses' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'approved', label: 'Approved' },
+    { value: 'completed', label: 'Completed' },
+    { value: 'rejected', label: 'Rejected' },
+];
 
 const primaryButtonClassName =
     'inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
@@ -45,6 +66,7 @@ const secondaryButtonClassName =
 function PayoutRequestPageContent() {
     const dispatch = useAppDispatch();
     const searchParams = useSearchParams();
+    const { canWriteFinance } = useAdminPermissions();
     const { requests, loading, error } = useAppSelector((state) => state.payout);
     const [processingId, setProcessingId] = useState<string | null>(null);
     const [confirmingRequest, setConfirmingRequest] = useState<PayoutRequest | null>(null);
@@ -73,12 +95,19 @@ function PayoutRequestPageContent() {
     const [rejectingRequest, setRejectingRequest] = useState<PayoutRequest | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(20);
+    const [statusFilter, setStatusFilter] = useState<PayoutStatusFilter>('all');
+    const [dateFilter, setDateFilter] = useState<DashboardRange>('all');
     const autoVerifyInFlightRef = useRef<Set<string>>(new Set());
     const autoVerifyLastAttemptMsRef = useRef<Record<string, number>>({});
 
     useEffect(() => {
         dispatch(fetchPayoutRequests());
     }, [dispatch]);
+
+    useEffect(() => {
+        const urlRange = parseDashboardRange(searchParams.get('range'));
+        if (urlRange) setDateFilter(urlRange);
+    }, [searchParams]);
 
     const fetchAnalysisForRequest = useCallback(async (request: PayoutRequest): Promise<ProviderPayoutAnalysis | null> => {
         if (!request.providerId) return null;
@@ -166,6 +195,7 @@ function PayoutRequestPageContent() {
     }
 
     async function beginPayoutAction(request: PayoutRequest, action: PayoutRiskReviewAction) {
+        if (!canWriteFinance) return;
         setProcessingId(request.id);
         try {
             const analysis = await resolveWalletAnalysis(request);
@@ -208,11 +238,12 @@ function PayoutRequestPageContent() {
     };
 
     const handleReject = (request: PayoutRequest) => {
+        if (!canWriteFinance) return;
         setRejectingRequest(request);
     };
 
     const handleConfirmReject = async (rejectionReason: string) => {
-        if (!rejectingRequest) return;
+        if (!canWriteFinance || !rejectingRequest) return;
         const id = rejectingRequest.id;
         setProcessingId(id);
         try {
@@ -261,6 +292,7 @@ function PayoutRequestPageContent() {
     };
 
     const handleVerifyChapaTransfer = async (withdrawalId: string) => {
+        if (!canWriteFinance) return;
         setProcessingId(withdrawalId);
         try {
             const response = await fetch('/api/payout/chapa-verify-transfer', {
@@ -306,6 +338,8 @@ function PayoutRequestPageContent() {
     }, [requests]);
 
     useEffect(() => {
+        if (!canWriteFinance) return;
+
         const intervalMs = 15000;
         const perIdCooldownMs = 45000;
         const maxPerTick = 3;
@@ -343,7 +377,7 @@ function PayoutRequestPageContent() {
         void runAutoVerify();
         const timerId = window.setInterval(() => void runAutoVerify(), intervalMs);
         return () => window.clearInterval(timerId);
-    }, [autoVerifyCandidateIds, dispatch]);
+    }, [autoVerifyCandidateIds, canWriteFinance, dispatch]);
 
     const formatCurrency = (amount: string | number) => {
         const numAmount = typeof amount === 'string' ? parseFloat(amount) || 0 : amount;
@@ -357,7 +391,6 @@ function PayoutRequestPageContent() {
     const pendingRequests = requests.filter(r => r.paymentStatus === 'pending');
 
     const segment = (searchParams.get('segment') || '').trim().toLowerCase();
-    const range = parseDashboardRange(searchParams.get('range'));
     const isToday = (value?: string) => {
         if (!value) return false;
         const date = new Date(value);
@@ -371,7 +404,7 @@ function PayoutRequestPageContent() {
         const status = (request.paymentStatus || '').toLowerCase();
         const note = (request.adminNote || '').toLowerCase();
         const dateRef = request.paymentDate || request.createdDate;
-        const inRange = !range || isDateInDashboardRange(dateRef, range);
+        const inRange = isDateInDashboardRange(dateRef, dateFilter);
 
         if (segment === 'waiting_confirmation')
             return status === 'approved' && note.includes('reference=') && inRange;
@@ -381,11 +414,13 @@ function PayoutRequestPageContent() {
             return isMissingPaymentMethodPayout(request.paymentStatus, request.bankDetails) && inRange;
         if (segment === 'completed_today')
             return status === 'completed' && isToday(request.paymentDate);
-        return true;
+
+        if (statusFilter !== 'all' && status !== statusFilter) return false;
+        return inRange;
     });
     useEffect(() => {
         setCurrentPage(1);
-    }, [segment, range, pageSize]);
+    }, [segment, dateFilter, statusFilter, pageSize]);
     const totalPages = filteredRequests.length > 0 ? Math.ceil(filteredRequests.length / pageSize) : 1;
     const safePage = Math.min(currentPage, totalPages);
     const startIdx = (safePage - 1) * pageSize;
@@ -409,7 +444,7 @@ function PayoutRequestPageContent() {
                     : '';
     const exportParams = new URLSearchParams();
     if (segment) exportParams.set('segment', segment);
-    if (range) exportParams.set('range', range);
+    if (dateFilter !== 'all') exportParams.set('range', dateFilter);
     const exportAuditHref = exportParams.toString()
         ? `/api/payout/export-audit?${exportParams.toString()}`
         : '/api/payout/export-audit';
@@ -446,13 +481,48 @@ function PayoutRequestPageContent() {
                             <div className="mb-4 flex items-center justify-between rounded-xl border border-border bg-muted px-4 py-3">
                                 <p className="text-sm font-semibold text-text-primary">
                                     Active segment: {segmentLabel}
-                                    {range ? ` · ${dashboardRangeLabel(range)}` : ''}
+                                    {dateFilter !== 'all' ? ` · ${dashboardRangeLabel(dateFilter)}` : ''}
                                 </p>
                                 <Link href="/admin/finance/payout-request" className="text-sm font-semibold text-primary transition-colors hover:text-accent">
                                     Clear filter
                                 </Link>
                             </div>
                         )}
+                        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <AdminFilterSelect
+                                    aria-label="Status"
+                                    value={statusFilter}
+                                    options={STATUS_FILTER_OPTIONS}
+                                    onChange={setStatusFilter}
+                                />
+                                <AdminSegmentedControl
+                                    aria-label="Date range"
+                                    value={dateFilter}
+                                    options={DATE_FILTER_OPTIONS}
+                                    onChange={(value) => setDateFilter(value as DashboardRange)}
+                                />
+                            </div>
+                            <div className="flex items-center gap-3 text-sm text-gray-500">
+                                <p>
+                                    <span className="tabular-nums text-gray-900">{filteredRequests.length}</span>
+                                    <span className="mx-1 text-gray-300">/</span>
+                                    <span className="tabular-nums">{requests.length}</span>
+                                </p>
+                                {(statusFilter !== 'all' || dateFilter !== 'all') && !segmentLabel ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setStatusFilter('all');
+                                            setDateFilter('all');
+                                        }}
+                                        className="font-medium text-gray-600 transition-colors hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200"
+                                    >
+                                        Clear
+                                    </button>
+                                ) : null}
+                            </div>
+                        </div>
                         <section className="mb-6 grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:gap-4">
                             <AdminStatCard
                                 title="Pending Requests"
@@ -479,7 +549,9 @@ function PayoutRequestPageContent() {
                             {!loading && !error ? (
                                 <div className="w-full min-w-0">
                                     <p className="border-b border-gray-100 bg-gray-50/80 px-4 py-2.5 text-xs text-gray-600">
-                                        Click a row for wallet analysis. Approve, reject, or send from the Actions column or the sheet footer.
+                                        {canWriteFinance
+                                            ? 'Click a row for wallet analysis. Approve, reject, or send from the Actions column or the sheet footer.'
+                                            : 'Click a row for wallet analysis. Viewers cannot approve or reject withdrawals.'}
                                     </p>
                                     <table className="w-full table-fixed border-collapse text-left">
                                         <TableHeader>
@@ -590,15 +662,19 @@ function PayoutRequestPageContent() {
                                                                         Review
                                                                     </button>
                                                                 </div>
-                                                                <PayoutRequestActions
-                                                                    paymentStatus={normalizedPaymentStatus}
-                                                                    hasChapaTransferStarted={hasChapaTransferStarted}
-                                                                    isProcessing={isProcessing}
-                                                                    onApprove={() => handleApprove(request)}
-                                                                    onReject={() => handleReject(request)}
-                                                                    onSendWithChapa={() => handleSendWithChapa(request)}
-                                                                    onVerifyTransfer={() => handleVerifyChapaTransfer(request.id)}
-                                                                />
+                                                                {canWriteFinance ? (
+                                                                    <PayoutRequestActions
+                                                                        paymentStatus={normalizedPaymentStatus}
+                                                                        hasChapaTransferStarted={hasChapaTransferStarted}
+                                                                        isProcessing={isProcessing}
+                                                                        onApprove={() => handleApprove(request)}
+                                                                        onReject={() => handleReject(request)}
+                                                                        onSendWithChapa={() => handleSendWithChapa(request)}
+                                                                        onVerifyTransfer={() => handleVerifyChapaTransfer(request.id)}
+                                                                    />
+                                                                ) : (
+                                                                    <span className="text-xs text-gray-400">—</span>
+                                                                )}
                                                             </TableCell>
                                                         </TableRow>
                                                     );
@@ -648,22 +724,22 @@ function PayoutRequestPageContent() {
                             }
                             isProcessing={walletAnalysisRequest ? processingId === walletAnalysisRequest.id : false}
                             onApprove={
-                                walletAnalysisRequest
+                                canWriteFinance && walletAnalysisRequest
                                     ? () => handleApprove(walletAnalysisRequest)
                                     : undefined
                             }
                             onReject={
-                                walletAnalysisRequest
+                                canWriteFinance && walletAnalysisRequest
                                     ? () => handleReject(walletAnalysisRequest)
                                     : undefined
                             }
                             onSend={
-                                walletAnalysisRequest
+                                canWriteFinance && walletAnalysisRequest
                                     ? () => handleSendWithChapa(walletAnalysisRequest)
                                     : undefined
                             }
                             onVerifyTransfer={
-                                walletAnalysisRequest
+                                canWriteFinance && walletAnalysisRequest
                                     ? () => handleVerifyChapaTransfer(walletAnalysisRequest.id)
                                     : undefined
                             }

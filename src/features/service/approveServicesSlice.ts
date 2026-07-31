@@ -33,6 +33,21 @@ function resolveProviderName(raw: Record<string, unknown>): string {
     return '';
 }
 
+function parseFeaturedServiceIdFromNote(note: string): string | null {
+    const match = note.match(/service[=:\s]+([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+    return match?.[1]?.toLowerCase() ?? null;
+}
+
+function isFeaturedRequestPaymentNote(note: string): boolean {
+    const normalized = note.toLowerCase();
+    return (
+        normalized.includes('featured request')
+        || normalized.includes('featured post')
+        || normalized.includes('featured psot')
+        || (normalized.includes('featured') && normalized.includes('payment'))
+    );
+}
+
 // Fetch services (non-archived)
 export const fetchServices = createAsyncThunk<unknown[], void, { rejectValue: string }>(
     'service/fetchServices',
@@ -80,13 +95,67 @@ export const fetchServices = createAsyncThunk<unknown[], void, { rejectValue: st
                 });
             }
 
-            return rows.map((r) => {
+            const enriched = rows.map((r) => {
                 const pid = typeof r.provider_id === 'string' ? r.provider_id : '';
                 const provider = pid ? providerById.get(pid) : undefined;
                 return {
                     ...r,
                     providerName: provider?.name ?? '',
                     providerLocation: provider?.location ?? null,
+                };
+            });
+
+            const pendingFeatureIds = new Set(
+                enriched
+                    .filter((r) => String(r.feature_requested_status ?? '').toLowerCase() === 'pending')
+                    .map((r) => (typeof r.id === 'string' ? r.id.toLowerCase() : ''))
+                    .filter(Boolean)
+            );
+
+            if (pendingFeatureIds.size === 0) return enriched as unknown[];
+
+            // ponytail: scan recent featured wallet notes; tighten to service-id index if volume grows
+            const { data: walletRows, error: walletError } = await getSupabase()
+                .from('wallet_transaction')
+                .select('note, amount, createdDate, transactionId')
+                .or(
+                    'note.ilike.%featured request%,note.ilike.%featured post%,note.ilike.%featured psot%,note.ilike.%featured%payment%'
+                )
+                .order('createdDate', { ascending: false })
+                .limit(500);
+
+            if (walletError) {
+                return thunkAPI.rejectWithValue(walletError.message || 'Failed to fetch featured payments');
+            }
+
+            const paidByServiceId = new Map<string, { amount: string | null; transactionId: string | null }>();
+            for (const row of (walletRows ?? []) as Array<Record<string, unknown>>) {
+                const note = typeof row.note === 'string' ? row.note : '';
+                if (!isFeaturedRequestPaymentNote(note)) continue;
+                let serviceId = parseFeaturedServiceIdFromNote(note);
+                if (!serviceId) {
+                    for (const pendingId of pendingFeatureIds) {
+                        if (note.toLowerCase().includes(pendingId)) {
+                            serviceId = pendingId;
+                            break;
+                        }
+                    }
+                }
+                if (!serviceId || !pendingFeatureIds.has(serviceId) || paidByServiceId.has(serviceId)) continue;
+                paidByServiceId.set(serviceId, {
+                    amount: typeof row.amount === 'string' ? row.amount : row.amount != null ? String(row.amount) : null,
+                    transactionId: typeof row.transactionId === 'string' ? row.transactionId : null,
+                });
+            }
+
+            return enriched.map((r) => {
+                const id = typeof r.id === 'string' ? r.id.toLowerCase() : '';
+                const paid = id ? paidByServiceId.get(id) : undefined;
+                return {
+                    ...r,
+                    featureRequestPaid: Boolean(paid),
+                    featureRequestPaidAmount: paid?.amount ?? null,
+                    featureRequestTransactionId: paid?.transactionId ?? null,
                 };
             }) as unknown[];
         } catch (err) {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+    boostFeaturedRevenueAmount,
     buildDashboardRevenueTransactionLines,
     computeDashboardRevenueBreakdown,
     isActivationFeeWalletCredit,
@@ -32,6 +33,60 @@ describe('dashboard revenue metrics', () => {
                 note: 'Featured psot purchase (Chapa, net after fee)',
             })
         ).toBe(true);
+        expect(
+            isBoostFeaturedWalletCredit({
+                isCredit: false,
+                note: 'Featured request payment (Chapa) — service=6a9d7863-20fc-4164-9ad5-69f8cb6c8270',
+                amount: '500.00',
+            })
+        ).toBe(true);
+        expect(
+            isBoostFeaturedWalletCredit({
+                isCredit: true,
+                note: 'Featured request payment (Chapa) — service=c82933d9-dd51-4443-9294-0d7ccf278501 (Chapa, net after fee)',
+                amount: '487.50',
+            })
+        ).toBe(true);
+    });
+
+    it('counts featured request debits in boost/featured revenue', () => {
+        const breakdown = computeDashboardRevenueBreakdown({
+            walletRows: [
+                {
+                    isCredit: false,
+                    amount: '500.00',
+                    note: 'Featured request payment (Chapa) — service=6a9d7863-20fc-4164-9ad5-69f8cb6c8270',
+                },
+                {
+                    isCredit: true,
+                    amount: '487.50',
+                    note: 'Featured request payment (Chapa) — service=c82933d9-dd51-4443-9294-0d7ccf278501 (Chapa, net after fee)',
+                },
+            ],
+            bookings: [],
+            jobRequests: [],
+        });
+
+        // 500 gross → 487.50 after 2.5% Chapa fee; second row already net
+        expect(breakdown.boostFeatured).toBe(975);
+        expect(breakdown.total).toBe(975);
+    });
+
+    it('applies 2.5% chapa fee to gross featured payments only', () => {
+        expect(
+            boostFeaturedRevenueAmount({
+                isCredit: false,
+                amount: '500.00',
+                note: 'Featured request payment (Chapa) — service=abc',
+            })
+        ).toBe(487.5);
+        expect(
+            boostFeaturedRevenueAmount({
+                isCredit: true,
+                amount: '487.50',
+                note: 'Featured request payment (Chapa) — service=abc (Chapa, net after fee)',
+            })
+        ).toBe(487.5);
     });
 
     it('computes total from revenue buckets', () => {

@@ -15,6 +15,7 @@ import { AdminListPagination } from '@/components/admin/AdminListPagination';
 import { AdminDataTableEmpty, AdminTableShell } from '@/components/admin/data-table';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { formatBookingAmount } from '@/lib/booking-display';
+import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 
 interface JobRequestBid {
     price?: string | null;
@@ -56,6 +57,7 @@ function formatDate(value?: string | null): string {
 }
 
 const JobRequestsPage = () => {
+    const { canWriteCustomers } = useAdminPermissions();
     const [items, setItems] = useState<JobRequestRow[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
@@ -295,7 +297,9 @@ const JobRequestsPage = () => {
                                             <TableHead>Payment</TableHead>
                                             <TableHead>Status</TableHead>
                                             <TableHead>Created</TableHead>
-                                            <TableHead className="text-right">Actions</TableHead>
+                                            {canWriteCustomers ? (
+                                                <TableHead className="text-right">Actions</TableHead>
+                                            ) : null}
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -305,7 +309,7 @@ const JobRequestsPage = () => {
                                             const busy = updatingId === item.id || actionBusy;
                                             return (
                                                 <TableRow key={item.id} className="align-top">
-                                                    <TableCell className="max-w-[280px]">
+                                                    <TableCell className="max-w-70">
                                                         <p className="font-semibold text-gray-900">{item.title || 'Untitled'}</p>
                                                         <p className="mt-1 text-xs text-gray-600">{item.description || 'No description'}</p>
                                                     </TableCell>
@@ -326,54 +330,62 @@ const JobRequestsPage = () => {
                                                         </span>
                                                     </TableCell>
                                                     <TableCell>
-                                                        <select
-                                                            disabled={busy}
-                                                            value={
-                                                                displayStatus.toLowerCase() === 'accepted'
-                                                                    ? 'accepted'
-                                                                    : displayStatus.toLowerCase() === 'rejected'
-                                                                        ? 'rejected'
-                                                                        : 'pending'
-                                                            }
-                                                            onChange={(event) => {
-                                                                const next = event.target.value;
-                                                                if (next === 'accepted')
-                                                                    updateJobRequestStatus(item.id, 'accept');
-                                                                else if (next === 'rejected')
-                                                                    updateJobRequestStatus(item.id, 'reject');
-                                                                else
-                                                                    updateJobRequestStatus(item.id, 'pending');
-                                                            }}
-                                                            className="h-8 rounded-md border border-gray-300 bg-white px-2 text-xs font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:cursor-not-allowed disabled:opacity-60"
-                                                        >
-                                                            <option value="pending">Pending</option>
-                                                            <option value="accepted">Accepted</option>
-                                                            <option value="rejected">Rejected</option>
-                                                        </select>
+                                                        {canWriteCustomers ? (
+                                                            <select
+                                                                disabled={busy}
+                                                                value={
+                                                                    displayStatus.toLowerCase() === 'accepted'
+                                                                        ? 'accepted'
+                                                                        : displayStatus.toLowerCase() === 'rejected'
+                                                                            ? 'rejected'
+                                                                            : 'pending'
+                                                                }
+                                                                onChange={(event) => {
+                                                                    const next = event.target.value;
+                                                                    if (next === 'accepted')
+                                                                        updateJobRequestStatus(item.id, 'accept');
+                                                                    else if (next === 'rejected')
+                                                                        updateJobRequestStatus(item.id, 'reject');
+                                                                    else
+                                                                        updateJobRequestStatus(item.id, 'pending');
+                                                                }}
+                                                                className="h-8 rounded-md border border-gray-300 bg-white px-2 text-xs font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:cursor-not-allowed disabled:opacity-60"
+                                                            >
+                                                                <option value="pending">Pending</option>
+                                                                <option value="accepted">Accepted</option>
+                                                                <option value="rejected">Rejected</option>
+                                                            </select>
+                                                        ) : (
+                                                            <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold capitalize text-gray-700">
+                                                                {displayStatus}
+                                                            </span>
+                                                        )}
                                                     </TableCell>
                                                     <TableCell className="whitespace-nowrap">{formatDate(item.createdAt)}</TableCell>
-                                                    <TableCell className="text-right">
-                                                        <div className="inline-flex items-center gap-1">
-                                                            <button
-                                                                type="button"
-                                                                disabled={busy}
-                                                                onClick={() => openEdit(item)}
-                                                                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-50"
-                                                                aria-label="Edit job request"
-                                                            >
-                                                                <Pencil className="h-4 w-4" />
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                disabled={busy}
-                                                                onClick={() => setDeleteItem(item)}
-                                                                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-red-200 text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
-                                                                aria-label="Delete job request"
-                                                            >
-                                                                <Trash2 className="h-4 w-4" />
-                                                            </button>
-                                                        </div>
-                                                    </TableCell>
+                                                    {canWriteCustomers ? (
+                                                        <TableCell className="text-right">
+                                                            <div className="inline-flex items-center gap-1">
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={busy}
+                                                                    onClick={() => openEdit(item)}
+                                                                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-50"
+                                                                    aria-label="Edit job request"
+                                                                >
+                                                                    <Pencil className="h-4 w-4" />
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={busy}
+                                                                    onClick={() => setDeleteItem(item)}
+                                                                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-red-200 text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
+                                                                    aria-label="Delete job request"
+                                                                >
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                </button>
+                                                            </div>
+                                                        </TableCell>
+                                                    ) : null}
                                                 </TableRow>
                                             );
                                         })}
@@ -391,7 +403,7 @@ const JobRequestsPage = () => {
                             onPageSizeChange={setPageSize}
                         />
 
-                        {editingItem ? (
+                        {editingItem && canWriteCustomers ? (
                             <div
                                 className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
                                 onClick={() => !actionBusy && setEditingItem(null)}
@@ -450,7 +462,7 @@ const JobRequestsPage = () => {
                             </div>
                         ) : null}
 
-                        {deleteItem ? (
+                        {deleteItem && canWriteCustomers ? (
                             <div
                                 className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
                                 onClick={() => !actionBusy && setDeleteItem(null)}

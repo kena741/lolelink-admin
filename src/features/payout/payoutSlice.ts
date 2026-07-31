@@ -302,24 +302,24 @@ export const approvePayoutRequest = createAsyncThunk<
     'payout/approvePayoutRequest',
     async ({ id, adminNote }, { rejectWithValue }) => {
         try {
-            const updateData: { paymentStatus: string; adminNote?: string } = {
-                paymentStatus: 'approved',
+            const response = await fetch('/api/payout/review', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    withdrawalId: id,
+                    action: 'approve',
+                    adminNote,
+                }),
+            });
+            const payload = (await response.json()) as {
+                error?: string;
+                data?: WithdrawalHistoryRow;
             };
-            
-            if (adminNote) {
-                updateData.adminNote = adminNote;
+            if (!response.ok || !payload.data) {
+                return rejectWithValue(payload.error || 'Failed to approve payout request');
             }
 
-            const { data, error } = await getSupabase()
-                .from('withdrawal_history')
-                .update(updateData)
-                .eq('id', id)
-                .select()
-                .single();
-
-            if (error) throw error;
-
-            const withdrawalRow = data as WithdrawalHistoryRow;
+            const withdrawalRow = payload.data;
 
             await createPayoutNotification({
                 title: 'Withdrawal approved',
@@ -338,13 +338,13 @@ export const approvePayoutRequest = createAsyncThunk<
 
             const providerMap: Record<string, string> = {};
             const bankMap: Record<string, PayoutRequest['bankDetails']> = {};
-            if (data.providerId) {
+            if (withdrawalRow.providerId) {
                 const { data: provider, error: providerError } = await getSupabase()
                     .from('provider')
                     .select('id, firstName, lastName')
-                    .eq('id', data.providerId)
+                    .eq('id', withdrawalRow.providerId)
                     .single();
-                
+
                 if (!providerError && provider) {
                     const first = provider.firstName;
                     const last = provider.lastName;
@@ -355,7 +355,7 @@ export const approvePayoutRequest = createAsyncThunk<
                 const { data: bank, error: bankError } = await getSupabase()
                     .from('provider_payment_methods')
                     .select('*')
-                    .eq('providerID', data.providerId)
+                    .eq('providerID', withdrawalRow.providerId)
                     .eq('is_active', true)
                     .order('is_default', { ascending: false })
                     .order('updated_at', { ascending: false })
@@ -363,24 +363,7 @@ export const approvePayoutRequest = createAsyncThunk<
                 if (!bankError && bank) addBankToMap(bankMap, toBankDetailsFromPaymentMethod(bank as ProviderPaymentMethodRow));
             }
 
-            const providerName = providerMap[withdrawalRow.providerId] || 'Unknown provider';
-            const amountEtb = formatWithdrawalAmountEtb(withdrawalRow.amount);
-
-            logClientAdminActivity({
-                action: 'approve',
-                resource_type: 'withdrawal',
-                resource_id: id,
-                summary: `Approved withdrawal for ${providerName} (${amountEtb})`,
-                metadata: {
-                    withdrawal_id: id,
-                    provider_id: withdrawalRow.providerId,
-                    provider_name: providerName,
-                    amount: withdrawalRow.amount,
-                    amount_etb: amountEtb,
-                },
-            });
-
-            return normalizeRows([data as WithdrawalHistoryRow], providerMap, bankMap)[0];
+            return normalizeRows([withdrawalRow], providerMap, bankMap)[0];
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to approve payout request';
             return rejectWithValue(msg);
@@ -401,45 +384,50 @@ export const rejectPayoutRequest = createAsyncThunk<
                 return rejectWithValue('Rejection reason is required');
             }
 
-            const updateData = {
-                paymentStatus: 'rejected',
-                rejectionReason: trimmedReason,
+            const response = await fetch('/api/payout/review', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    withdrawalId: id,
+                    action: 'reject',
+                    rejectionReason: trimmedReason,
+                }),
+            });
+            const payload = (await response.json()) as {
+                error?: string;
+                data?: WithdrawalHistoryRow;
             };
+            if (!response.ok || !payload.data) {
+                return rejectWithValue(payload.error || 'Failed to reject payout request');
+            }
 
-            const { data, error } = await getSupabase()
-                .from('withdrawal_history')
-                .update(updateData)
-                .eq('id', id)
-                .select()
-                .single();
-
-            if (error) throw error;
+            const withdrawalRow = payload.data;
 
             await createPayoutNotification({
                 title: 'Withdrawal rejected',
                 description: `Withdrawal ${id} was rejected. Reason: ${trimmedReason}`,
                 type: 'payout_rejected',
-                provider_id: (data as WithdrawalHistoryRow).providerId,
+                provider_id: withdrawalRow.providerId,
                 action_url: '/admin/finance/payout-request',
                 dedupe_key: `payout_rejected:${id}`,
             });
 
             await notifyPayoutPush({
-                providerId: (data as WithdrawalHistoryRow).providerId,
+                providerId: withdrawalRow.providerId,
                 event: 'rejected',
-                amount: (data as WithdrawalHistoryRow).amount,
+                amount: withdrawalRow.amount,
                 rejectionReason: trimmedReason,
             });
 
             const providerMap: Record<string, string> = {};
             const bankMap: Record<string, PayoutRequest['bankDetails']> = {};
-            if (data.providerId) {
+            if (withdrawalRow.providerId) {
                 const { data: provider, error: providerError } = await getSupabase()
                     .from('provider')
                     .select('id, firstName, lastName')
-                    .eq('id', data.providerId)
+                    .eq('id', withdrawalRow.providerId)
                     .single();
-                
+
                 if (!providerError && provider) {
                     const first = provider.firstName;
                     const last = provider.lastName;
@@ -450,7 +438,7 @@ export const rejectPayoutRequest = createAsyncThunk<
                 const { data: bank, error: bankError } = await getSupabase()
                     .from('provider_payment_methods')
                     .select('*')
-                    .eq('providerID', data.providerId)
+                    .eq('providerID', withdrawalRow.providerId)
                     .eq('is_active', true)
                     .order('is_default', { ascending: false })
                     .order('updated_at', { ascending: false })
@@ -458,26 +446,7 @@ export const rejectPayoutRequest = createAsyncThunk<
                 if (!bankError && bank) addBankToMap(bankMap, toBankDetailsFromPaymentMethod(bank as ProviderPaymentMethodRow));
             }
 
-            const withdrawalRow = data as WithdrawalHistoryRow;
-            const providerName = providerMap[withdrawalRow.providerId] || 'Unknown provider';
-            const amountEtb = formatWithdrawalAmountEtb(withdrawalRow.amount);
-
-            logClientAdminActivity({
-                action: 'reject',
-                resource_type: 'withdrawal',
-                resource_id: id,
-                summary: `Rejected withdrawal for ${providerName} (${amountEtb})`,
-                metadata: {
-                    withdrawal_id: id,
-                    provider_id: withdrawalRow.providerId,
-                    provider_name: providerName,
-                    amount: withdrawalRow.amount,
-                    amount_etb: amountEtb,
-                    rejection_reason: trimmedReason,
-                },
-            });
-
-            return normalizeRows([data as WithdrawalHistoryRow], providerMap, bankMap)[0];
+            return normalizeRows([withdrawalRow], providerMap, bankMap)[0];
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to reject payout request';
             return rejectWithValue(msg);

@@ -48,6 +48,7 @@ import {
 import AuthGuard from "@/components/AuthGuard";
 import AdminPageHeader, { adminHeaderButtonClassName } from "@/components/AdminPageHeader";
 import { ActivationPaymentModal } from "@/components/ActivationPaymentModal";
+import { useAdminPermissions } from "@/hooks/use-admin-permissions";
 import { ServiceTierBadge } from "@/components/ServiceTierBadge";
 import { fetchSettings } from "@/features/settings/settingsSlice";
 import { cn } from "@/lib/utils";
@@ -80,7 +81,7 @@ function ProviderActivationStatus({
     onPay,
 }: {
     provider: Provider;
-    onPay: (event: React.MouseEvent<HTMLButtonElement>) => void;
+    onPay?: (event: React.MouseEvent<HTMLButtonElement>) => void;
 }) {
     const paid = providerActivationPaid(provider);
 
@@ -98,13 +99,15 @@ function ProviderActivationStatus({
             <span className="inline-flex h-5 items-center rounded-md bg-muted px-1.5 text-[10px] font-medium text-muted-foreground">
                 Fee pending
             </span>
-            <button
-                type="button"
-                onClick={onPay}
-                className="inline-flex h-5 shrink-0 items-center rounded-md bg-primary px-2 text-[10px] font-medium text-primary-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            >
-                Pay fee
-            </button>
+            {onPay ? (
+                <button
+                    type="button"
+                    onClick={onPay}
+                    className="inline-flex h-5 shrink-0 items-center rounded-md bg-primary px-2 text-[10px] font-medium text-primary-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                    Pay fee
+                </button>
+            ) : null}
         </>
     );
 }
@@ -158,6 +161,7 @@ function SegmentGroup<V extends string>({ label, value, options, onChange }: Seg
 
 const ProvidersPage = () => {
     const dispatch = useAppDispatch();
+    const { canWriteProviders } = useAdminPermissions();
     const { providers, loading, error, serviceCounts } = useAppSelector((state) => state.provider);
 
     type SortKey = "name" | "email" | "services" | "createdAt";
@@ -745,7 +749,7 @@ const ProvidersPage = () => {
                                                                 </Link>
                                                             </DropdownMenuItem>
                                                         ) : null}
-                                                        {!archived && p.id ? (
+                                                        {!archived && p.id && canWriteProviders ? (
                                                             <DropdownMenuItem
                                                                 disabled={rowBusy}
                                                                 onSelect={() => {
@@ -758,7 +762,7 @@ const ProvidersPage = () => {
                                                                 </span>
                                                             </DropdownMenuItem>
                                                         ) : null}
-                                                        {archived && p.id ? (
+                                                        {archived && p.id && canWriteProviders ? (
                                                             <DropdownMenuItem
                                                                 disabled={rowBusy}
                                                                 onSelect={() => {
@@ -771,7 +775,7 @@ const ProvidersPage = () => {
                                                                 </span>
                                                             </DropdownMenuItem>
                                                         ) : null}
-                                                        {p.id ? (
+                                                        {p.id && canWriteProviders ? (
                                                             <>
                                                                 <DropdownMenuSeparator />
                                                                 <DropdownMenuItem
@@ -822,14 +826,18 @@ const ProvidersPage = () => {
                                                             <div className="mt-2 flex flex-nowrap items-center gap-1.5 overflow-x-auto">
                                                                 <ProviderActivationStatus
                                                                     provider={p}
-                                                                    onPay={(e) => {
-                                                                        e.preventDefault();
-                                                                        e.stopPropagation();
-                                                                        const first = p.firstName ?? p.first_name;
-                                                                        const last = p.lastName ?? p.last_name;
-                                                                        const name = [first, last].filter(Boolean).join(" ") || p.name || "Provider";
-                                                                        setActivationTarget({ id: p.id, name });
-                                                                    }}
+                                                                    onPay={
+                                                                        canWriteProviders
+                                                                            ? (e) => {
+                                                                                  e.preventDefault();
+                                                                                  e.stopPropagation();
+                                                                                  const first = p.firstName ?? p.first_name;
+                                                                                  const last = p.lastName ?? p.last_name;
+                                                                                  const name = [first, last].filter(Boolean).join(" ") || p.name || "Provider";
+                                                                                  setActivationTarget({ id: p.id, name });
+                                                                              }
+                                                                            : undefined
+                                                                    }
                                                                 />
                                                                 <ServiceTierBadge tierMax={p.service_tier_max} />
                                                             </div>
@@ -978,11 +986,15 @@ const ProvidersPage = () => {
                                                                     <div className="mt-1.5 flex flex-nowrap items-center gap-1.5 overflow-x-auto">
                                                                         <ProviderActivationStatus
                                                                             provider={p}
-                                                                            onPay={(e) => {
-                                                                                e.preventDefault();
-                                                                                e.stopPropagation();
-                                                                                setActivationTarget({ id: p.id, name: label });
-                                                                            }}
+                                                                            onPay={
+                                                                                canWriteProviders
+                                                                                    ? (e) => {
+                                                                                          e.preventDefault();
+                                                                                          e.stopPropagation();
+                                                                                          setActivationTarget({ id: p.id, name: label });
+                                                                                      }
+                                                                                    : undefined
+                                                                            }
                                                                         />
                                                                         <ServiceTierBadge tierMax={p.service_tier_max} />
                                                                     </div>
@@ -997,7 +1009,11 @@ const ProvidersPage = () => {
                                                                     <div className="mt-1.5 flex flex-nowrap items-center gap-1.5 overflow-x-auto">
                                                                         <ProviderActivationStatus
                                                                             provider={p}
-                                                                            onPay={() => setActivationTarget({ id: p.id, name: label })}
+                                                                            onPay={
+                                                                                canWriteProviders
+                                                                                    ? () => setActivationTarget({ id: p.id, name: label })
+                                                                                    : undefined
+                                                                            }
                                                                         />
                                                                         <ServiceTierBadge tierMax={p.service_tier_max} />
                                                                     </div>
@@ -1076,7 +1092,7 @@ const ProvidersPage = () => {
                                                                                 </Link>
                                                                             </DropdownMenuItem>
                                                                         ) : null}
-                                                                        {!archived && p.id ? (
+                                                                        {!archived && p.id && canWriteProviders ? (
                                                                             <DropdownMenuItem
                                                                                 disabled={rowBusy}
                                                                                 onSelect={() => {
@@ -1089,7 +1105,7 @@ const ProvidersPage = () => {
                                                                                 </span>
                                                                             </DropdownMenuItem>
                                                                         ) : null}
-                                                                        {archived && p.id ? (
+                                                                        {archived && p.id && canWriteProviders ? (
                                                                             <DropdownMenuItem
                                                                                 disabled={rowBusy}
                                                                                 onSelect={() => {
@@ -1102,7 +1118,7 @@ const ProvidersPage = () => {
                                                                                 </span>
                                                                             </DropdownMenuItem>
                                                                         ) : null}
-                                                                        {p.id ? (
+                                                                        {p.id && canWriteProviders ? (
                                                                             <>
                                                                                 <DropdownMenuSeparator />
                                                                                 <DropdownMenuItem

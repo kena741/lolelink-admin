@@ -1,11 +1,9 @@
 import React from "react";
+import { Check, Eye, Trash2, X } from "lucide-react";
 import ServiceCarousel from "./ServiceCarousel";
 import type { ServiceModel } from "@/features/service/editServiceSlice";
+import { formatAdminDateTimeUtc } from "@/lib/admin-datetime";
 
-
-/**
- * Props for ServiceCard
- */
 export interface ServiceCardProps {
     service: ServiceModel;
     onView: (service: ServiceModel) => void;
@@ -14,6 +12,13 @@ export interface ServiceCardProps {
     onRejectFeature?: (serviceId: string) => void | Promise<void>;
     onRemoveFeatured?: (serviceId: string) => void | Promise<void>;
     onDelete?: (serviceId: string) => void | Promise<void>;
+}
+
+function formatMoney(value: string | number | null | undefined): string {
+    if (value == null || value === "") return "—";
+    const num = typeof value === "number" ? value : Number(String(value).replace(/,/g, ""));
+    if (!Number.isFinite(num)) return `ETB ${value}`;
+    return `ETB ${num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 const ServiceCard: React.FC<ServiceCardProps> = ({
@@ -30,10 +35,9 @@ const ServiceCard: React.FC<ServiceCardProps> = ({
         const v = videoRef.current;
         if (!v) return;
         try {
-            v.muted = false; // try with audio first
+            v.muted = false;
             await v.play();
         } catch {
-            // Autoplay with sound is likely blocked; fall back to muted
             try {
                 v.muted = true;
                 await v.play();
@@ -52,145 +56,188 @@ const ServiceCard: React.FC<ServiceCardProps> = ({
     };
 
     const featureRequestStatus = service.feature_requested_status ?? null;
-    const isFeatureRequestPending = String(featureRequestStatus ?? '').toLowerCase() === "pending";
+    const isFeatureRequestPending = String(featureRequestStatus ?? "").toLowerCase() === "pending";
     const isFeatured = Boolean(service.feature);
+    const requestDate = service.feature_requested_at || service.createdAt || null;
+
+    const actionButtonClass =
+        "inline-flex h-9 items-center justify-center gap-1.5 rounded-md border px-3 text-xs font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200 disabled:pointer-events-none disabled:opacity-50 sm:text-sm";
 
     return (
-        <div
-            className="rounded-lg border bg-gray-50 text-card-foreground shadow-sm overflow-hidden hover:shadow-md transition-shadow flex flex-col group h-full"
-        >
-            {/* Make the whole card clickable except the buttons */}
-            <div
-                className="flex-1 flex flex-col cursor-pointer"
-                tabIndex={0}
-            >
-                {/* Media: show video if available, else carousel */}
+        <div className="group flex h-full flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-shadow duration-150 hover:shadow-md">
+            <div className="flex flex-1 flex-col">
                 <div
-                    className="relative h-40 sm:h-48 md:h-56 overflow-hidden group"
+                    className="relative h-40 overflow-hidden sm:h-48 md:h-52"
                     role="region"
                     aria-roledescription="carousel"
-                    onMouseEnter={() => { if (service.video) playHoverPreview(); }}
+                    onMouseEnter={() => {
+                        if (service.video) void playHoverPreview();
+                    }}
                     onMouseLeave={stopPreview}
                 >
                     {service.video ? (
                         <video
                             ref={videoRef}
                             src={service.video}
-                            className="w-full h-full object-cover bg-black cursor-pointer"
-                            // We'll toggle muted dynamically
+                            className="h-full w-full cursor-pointer object-cover bg-black"
                             playsInline
                             preload="metadata"
-                            aria-label={service.serviceName ?? 'Service video'}
+                            aria-label={service.serviceName ?? "Service video"}
                             onClick={() => onView(service)}
                         />
                     ) : (
-                        <ServiceCarousel images={service.serviceImage ?? []} alt={service.serviceName ?? ''} />
+                        <ServiceCarousel images={service.serviceImage ?? []} alt={service.serviceName ?? ""} />
                     )}
                 </div>
-                {/* Card content */}
-                <div className="p-4 flex-1 flex flex-col "
+
+                <div
+                    className="flex flex-1 cursor-pointer flex-col p-4"
                     role="button"
+                    tabIndex={0}
                     onClick={() => onView(service)}
-                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { onView(service); } }}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") onView(service);
+                    }}
                     aria-label={`View details for ${service.serviceName}`}
                 >
-                    <div className="flex justify-between items-start mb-2">
-                        <div className="grow overflow-hidden">
-                            <div className="flex items-center gap-2">
-                                <h3 className="text-lg font-bold truncate text-black">{service.serviceName}</h3>
-                                <span
-                                    aria-label={`Approved: ${Boolean(service.approved)}`}
-                                    className={
-                                        service.approved
-                                            ? 'whitespace-nowrap rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800'
-                                            : 'whitespace-nowrap rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-text-secondary'
-                                    }
-                                >
-                                    {` ${service.approved ? 'Approved:' : 'Not approved'}`}
-                                </span>
-                                {isFeatured && (
-                                    <span
-                                        aria-label="Featured"
-                                        className="text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap bg-purple-100 text-purple-800"
-                                    >
-                                        Featured
-                                    </span>
-                                )}
-                                {!isFeatured && isFeatureRequestPending && (
-                                    <span
-                                        aria-label="Feature request pending"
-                                        className="text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap bg-amber-100 text-amber-700"
-                                    >
-                                        Feature requested
-                                    </span>
-                                )}
-                            </div>
-                            {service.providerName && (
-                                <p className="mt-1 text-xs font-medium text-gray-500 truncate">
-                                    Provider: {service.providerName}
-                                </p>
-                            )}
-                        </div>
-                        <div className="text-right shrink-0">
-                            <span className="font-bold whitespace-nowrap text-sky-600">
-                                ETB&nbsp;{service.price}
+                    <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                        <span
+                            className={
+                                service.approved
+                                    ? "rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800"
+                                    : "rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-600"
+                            }
+                        >
+                            {service.approved ? "Approved" : "Not approved"}
+                        </span>
+                        {isFeatured ? (
+                            <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-800">
+                                Featured
                             </span>
-                        </div>
+                        ) : null}
+                        {!isFeatured && isFeatureRequestPending ? (
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                                Feature requested
+                            </span>
+                        ) : null}
+                        {!isFeatured && isFeatureRequestPending ? (
+                            <span
+                                className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                                    service.featureRequestPaid
+                                        ? "bg-emerald-100 text-emerald-800"
+                                        : "bg-rose-100 text-rose-800"
+                                }`}
+                            >
+                                {service.featureRequestPaid ? "Paid" : "Unpaid"}
+                            </span>
+                        ) : null}
                     </div>
-                    <p className="text-sm text-gray-600 mb-3 line-clamp-3 break-words">{service.description}</p>
+
+                    <h3 className="truncate text-base font-bold text-gray-900">{service.serviceName}</h3>
+
+                    <div className="mt-1.5 space-y-0.5 text-xs text-gray-500">
+                        {service.providerName ? (
+                            <p className="truncate">
+                                <span className="font-medium text-gray-600">Provider</span>
+                                {" · "}
+                                {service.providerName}
+                            </p>
+                        ) : null}
+                        {requestDate ? (
+                            <p>
+                                <span className="font-medium text-gray-600">
+                                    {isFeatureRequestPending ? "Requested" : "Created"}
+                                </span>
+                                {" · "}
+                                {formatAdminDateTimeUtc(requestDate)}
+                            </p>
+                        ) : null}
+                    </div>
+
+                    <p className="mt-3 line-clamp-2 text-sm leading-snug text-gray-600">{service.description}</p>
+
+                    <div className="mt-4 grid grid-cols-2 gap-2 rounded-lg border border-gray-100 bg-gray-50 p-3">
+                        <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Service price</p>
+                            <p className="mt-0.5 text-sm font-semibold text-gray-900">{formatMoney(service.price)}</p>
+                        </div>
+                        {isFeatureRequestPending ? (
+                            <div>
+                                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Feature fee</p>
+                                <p
+                                    className={`mt-0.5 text-sm font-semibold ${
+                                        service.featureRequestPaid ? "text-emerald-700" : "text-rose-700"
+                                    }`}
+                                >
+                                    {service.featureRequestPaid
+                                        ? formatMoney(service.featureRequestPaidAmount)
+                                        : "Not paid"}
+                                </p>
+                            </div>
+                        ) : (
+                            <div>
+                                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Listing</p>
+                                <p className="mt-0.5 text-sm font-semibold text-gray-900">
+                                    {isFeatured ? "Featured" : "Standard"}
+                                </p>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
-            {/* Action buttons outside the interactive div */}
-            <div className="flex justify-between gap-2 mt-auto px-4 pb-4">
-                {isFeatureRequestPending && onApproveFeature && (
+
+            <div className="mt-auto flex flex-wrap gap-2 border-t border-gray-100 px-4 py-3">
+                {isFeatureRequestPending && onApproveFeature ? (
                     <button
                         type="button"
                         disabled={isActionLoading}
                         onClick={() => onApproveFeature(service.id)}
-                        className="whitespace-nowrap font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 h-9 rounded-md px-3 flex items-center justify-center gap-1 text-xs sm:text-sm"
+                        className={`${actionButtonClass} border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100`}
                     >
+                        <Check className="h-4 w-4" aria-hidden />
                         Approve
                     </button>
-                )}
-                {isFeatureRequestPending && onRejectFeature && (
+                ) : null}
+                {isFeatureRequestPending && onRejectFeature ? (
                     <button
                         type="button"
                         disabled={isActionLoading}
                         onClick={() => onRejectFeature(service.id)}
-                        className="whitespace-nowrap font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-red-300 bg-red-50 hover:bg-red-100 text-red-800 h-9 rounded-md px-3 flex items-center justify-center gap-1 text-xs sm:text-sm"
+                        className={`${actionButtonClass} border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100`}
                     >
+                        <X className="h-4 w-4" aria-hidden />
                         Reject
                     </button>
-                )}
-                {isFeatured && !isFeatureRequestPending && onRemoveFeatured && (
+                ) : null}
+                {isFeatured && !isFeatureRequestPending && onRemoveFeatured ? (
                     <button
                         type="button"
                         disabled={isActionLoading}
                         onClick={() => onRemoveFeatured(service.id)}
-                        className="whitespace-nowrap font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-800 h-9 rounded-md px-3 flex items-center justify-center gap-1 text-xs sm:text-sm"
+                        className={`${actionButtonClass} border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100`}
                     >
                         Remove featured
                     </button>
-                )}
-                {onDelete && (
+                ) : null}
+                {onDelete ? (
                     <button
                         type="button"
                         disabled={isActionLoading}
                         onClick={() => onDelete(service.id)}
-                        className="whitespace-nowrap font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-red-300 bg-red-50 hover:bg-red-100 text-red-800 h-9 rounded-md px-3 flex items-center justify-center gap-1 text-xs sm:text-sm"
+                        className={`${actionButtonClass} border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100`}
                     >
+                        <Trash2 className="h-4 w-4" aria-hidden />
                         Delete
                     </button>
-                )}
+                ) : null}
                 <button
                     type="button"
-                    className="whitespace-nowrap font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-black bg-white hover:bg-gray-100 text-black h-9 rounded-md px-3 flex-1 flex items-center justify-center gap-1 text-xs sm:text-sm"
+                    className={`${actionButtonClass} ml-auto border-gray-300 bg-white text-gray-900 hover:bg-gray-50`}
                     onClick={() => onView(service)}
                 >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-eye h-3 w-3 sm:h-4 sm:w-4"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                    <Eye className="h-4 w-4" aria-hidden />
                     View
                 </button>
-
             </div>
         </div>
     );

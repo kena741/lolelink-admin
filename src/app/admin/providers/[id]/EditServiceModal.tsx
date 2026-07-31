@@ -5,6 +5,7 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import type { ServiceModel } from "@/features/service/editServiceSlice";
 import { closeEditModal, setCoverIdx, setImages, updateService } from "@/features/service/editServiceSlice";
 import { fetchProviderServices } from "@/features/provider/providerSlice";
+import { fetchServices } from "@/features/service/approveServicesSlice";
 import { fetchCategories } from "@/features/category/categorySlice";
 import { fetchSubCategories } from "@/features/subcategory/subcategorySlice";
 import { uploadFilesToSupabase } from "@/lib/upload";
@@ -61,6 +62,7 @@ export default function EditServiceModal() {
         description: "",
         serviceLocationMode: "onsite",
         approved: false,
+        feature: false,
         categoryId: "",
         subCategoryId: "",
         address: "",
@@ -94,6 +96,7 @@ export default function EditServiceModal() {
             description: service.description || "",
             serviceLocationMode: service.serviceLocationMode || "onsite",
             approved: !!service.approved,
+            feature: !!service.feature,
             categoryId: service.categoryId || categoryModel?.id || "",
             subCategoryId: service.subCategoryId || subCategoryModel?.id || "",
             address: service.address || "",
@@ -122,6 +125,7 @@ export default function EditServiceModal() {
         if (pid) {
             void dispatch(fetchProviderServices(pid));
         }
+        void dispatch(fetchServices());
         dispatch(closeEditModal());
     }, [success, service, params?.id, dispatch]);
 
@@ -316,6 +320,8 @@ export default function EditServiceModal() {
             duration: normalizedDuration,
             description: form.description,
             approved: !!form.approved,
+            feature: !!form.feature,
+            feature_requested_status: form.feature ? 'accepted' : 'none',
             serviceLocationMode: form.serviceLocationMode,
             categoryId: form.categoryId,
             categoryModel: {
@@ -454,12 +460,16 @@ export default function EditServiceModal() {
                     </div>
                     <div>
                         <label className="text-sm font-medium" htmlFor="svc-desc">Description</label>
-                        <textarea id="svc-desc" name="description" value={form.description} onChange={onChange} className="mt-1 w-full min-h-[90px] rounded-md border px-3 py-2 text-sm" />
+                        <textarea id="svc-desc" name="description" value={form.description} onChange={onChange} className="mt-1 w-full min-h-22.5 rounded-md border px-3 py-2 text-sm" />
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-4">
                         <label className="flex items-center gap-2 text-sm text-gray-700">
                             <input type="checkbox" name="approved" checked={!!form.approved} onChange={(e) => setForm(f => ({ ...f, approved: (e.target as HTMLInputElement).checked }))} className="h-4 w-4" />
                             Approve service
+                        </label>
+                        <label className="flex items-center gap-2 text-sm text-gray-700">
+                            <input type="checkbox" name="feature" checked={!!form.feature} onChange={(e) => setForm(f => ({ ...f, feature: (e.target as HTMLInputElement).checked }))} className="h-4 w-4" />
+                            Featured
                         </label>
                     </div>
                     <div>

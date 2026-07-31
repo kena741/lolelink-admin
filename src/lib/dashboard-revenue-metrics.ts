@@ -4,6 +4,7 @@ import {
     type WalletTransactionMetricRow,
 } from '@/lib/wallet-transaction-metrics';
 import { BOOKING_PAYMENT_STATUS, resolveBookingPaymentStatus } from '@/lib/booking-status';
+import { CHAPA_DOMESTIC_FEE_RATE } from '@/lib/chapa-config';
 
 export type DashboardRevenueCategory =
     | 'total'
@@ -88,16 +89,39 @@ function isServiceListingUpgrade(note: string): boolean {
     return note.includes('service listing plan upgrade') || note.includes('listing plan upgrade');
 }
 
+/** Mobile often writes featured Chapa fees as provider debits, not platform credits. */
+function isFeaturedRequestPaymentNote(note: string): boolean {
+    return (
+        note.includes('featured request payment')
+        || note.includes('featured request')
+        || (note.includes('featured') && note.includes('payment') && note.includes('service='))
+    );
+}
+
 export function isBoostFeaturedWalletCredit(row: WalletTransactionMetricRow): boolean {
-    if (row.isCredit !== true) return false;
     const note = normalizeNote(row);
     if (isServiceListingUpgrade(note)) return false;
+    if (isFeaturedRequestPaymentNote(note)) return true;
+    if (row.isCredit !== true) return false;
     return (
         note.includes('featured post')
         || note.includes('featured psot')
         || note.includes('featured')
         || note.includes('boost')
     );
+}
+
+/** Platform revenue after Chapa fee. Gross featured fees (e.g. 500) → net (487.50). */
+export function boostFeaturedRevenueAmount(row: WalletTransactionMetricRow): number {
+    if (!isBoostFeaturedWalletCredit(row)) return 0;
+    const magnitude = walletTransactionMagnitude(row.amount);
+    if (magnitude <= 0) return 0;
+    const note = normalizeNote(row);
+    if (note.includes('net after fee')) return magnitude;
+    if (isFeaturedRequestPaymentNote(note)) {
+        return Math.round(magnitude * (1 - CHAPA_DOMESTIC_FEE_RATE) * 100) / 100;
+    }
+    return magnitude;
 }
 
 export function isActivationFeeWalletCredit(row: WalletTransactionMetricRow): boolean {
@@ -127,6 +151,10 @@ function sumWalletCredits(
         if (!matcher(row)) return sum;
         return sum + walletTransactionMagnitude(row.amount);
     }, 0);
+}
+
+function sumBoostFeaturedRevenue(rows: WalletTransactionMetricRow[]): number {
+    return rows.reduce((sum, row) => sum + boostFeaturedRevenueAmount(row), 0);
 }
 
 function parseAmount(value: string | number | null | undefined): number {
@@ -205,11 +233,15 @@ function walletRowToLine(
 ): DashboardRevenueTransactionLine {
     const note = (row.note ?? '').trim();
     const reference = (row.transactionId ?? '').trim();
+    const amount =
+        bucket === 'boost_featured'
+            ? boostFeaturedRevenueAmount(row)
+            : walletTransactionMagnitude(row.amount);
     return {
         id: resolveWalletRowId(row, index),
         bucket,
         occurredAt: row.createdDate ?? null,
-        amount: walletTransactionMagnitude(row.amount),
+        amount,
         title: note || DASHBOARD_REVENUE_BUCKET_LABELS[bucket],
         subtitle: reference ? `Ref ${reference}` : 'Wallet credit',
         reference: reference || resolveWalletRowId(row, index),
@@ -311,7 +343,7 @@ export function computeDashboardRevenueBreakdown(input: {
     jobRequests: DashboardJobRequestRow[];
 }): DashboardRevenueBreakdown {
     const activationFee = sumWalletCredits(input.walletRows, isActivationFeeWalletCredit);
-    const boostFeatured = sumWalletCredits(input.walletRows, isBoostFeaturedWalletCredit);
+    const boostFeatured = sumBoostFeaturedRevenue(input.walletRows);
     const ads = sumWalletCredits(input.walletRows, isAdsWalletCredit);
     const commission = sumBookingCommissionRevenue(input.bookings);
     const customerJobPost = sumCustomerJobPostRevenue(input.jobRequests);

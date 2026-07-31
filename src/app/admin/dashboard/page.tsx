@@ -1346,7 +1346,7 @@ function DashboardContent() {
 								icon={Sparkles}
 								iconBg="bg-primary/10"
 								compact
-								note="Listing upgrades"
+								note="Paid featured requests"
 								onClick={() => setRevenueSheetCategory("boost_featured")}
 							/>
 							<StatCard

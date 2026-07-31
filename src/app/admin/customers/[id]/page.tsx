@@ -921,7 +921,7 @@ export default function CustomerDetailPage() {
                 </div>
             ) : null}
 
-            {editingJobRequest ? (
+            {editingJobRequest && canWriteCustomers ? (
                 <div
                     className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
                     onClick={() => !actionBusy && setEditingJobRequest(null)}
@@ -977,7 +977,7 @@ export default function CustomerDetailPage() {
                 </div>
             ) : null}
 
-            {deletingJobRequest ? (
+            {deletingJobRequest && canWriteCustomers ? (
                 <div
                     className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
                     onClick={() => !actionBusy && setDeletingJobRequest(null)}

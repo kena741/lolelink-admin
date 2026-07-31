@@ -147,8 +147,12 @@ export type ServiceModel = {
     serviceLocationMode?: string;
     video?: string | null;
     approved?: boolean;
+    createdAt?: string;
     feature_requested_at?: string;
     feature_requested_status?: string;
+    featureRequestPaid?: boolean;
+    featureRequestPaidAmount?: string | null;
+    featureRequestTransactionId?: string | null;
 };
 
 interface EditServiceState {
@@ -249,6 +253,7 @@ export const updateService = createAsyncThunk<ServiceModel, UpdateServiceArgs, {
                 'status',
                 'prePayment',
                 'feature',
+                'feature_requested_status',
                 'approved',
                 'serviceLocationMode',
                 'location',

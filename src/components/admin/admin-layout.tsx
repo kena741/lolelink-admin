@@ -134,11 +134,58 @@ export function AdminSelect({ value, onChange, children, className }: AdminSelec
             value={value}
             onChange={(event) => onChange(event.target.value)}
             className={cn(
-                'h-9 rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200',
+                'h-9 rounded-lg border border-gray-200/80 bg-white px-3 text-sm text-gray-800 shadow-sm transition-colors hover:border-gray-300 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200',
                 className
             )}
         >
             {children}
         </select>
+    );
+}
+
+interface AdminSegmentedControlProps {
+    value: string;
+    options: Array<{ value: string; label: string }>;
+    onChange: (value: string) => void;
+    'aria-label'?: string;
+    className?: string;
+}
+
+export function AdminSegmentedControl({
+    value,
+    options,
+    onChange,
+    'aria-label': ariaLabel,
+    className,
+}: AdminSegmentedControlProps) {
+    return (
+        <div
+            role="group"
+            aria-label={ariaLabel}
+            className={cn(
+                'inline-flex h-9 max-w-full items-center overflow-x-auto rounded-lg bg-gray-100 p-0.5',
+                className
+            )}
+        >
+            {options.map((option) => {
+                const isActive = option.value === value;
+                return (
+                    <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => onChange(option.value)}
+                        aria-pressed={isActive}
+                        className={cn(
+                            'h-8 shrink-0 rounded-md px-3 text-sm font-medium transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200',
+                            isActive
+                                ? 'bg-white text-gray-900 shadow-sm'
+                                : 'text-gray-500 hover:text-gray-800'
+                        )}
+                    >
+                        {option.label}
+                    </button>
+                );
+            })}
+        </div>
     );
 }

@@ -6,16 +6,22 @@ import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminP
 import {
     AdminErrorAlert,
     AdminLoadingRow,
+    AdminSegmentedControl,
     AdminShell,
     AdminStatCard,
 } from '@/components/admin/admin-layout';
+import { AdminFilterSelect } from '@/components/admin/AdminFilterSelect';
 import { AdminListPagination } from '@/components/admin/AdminListPagination';
 import { AdminStatusBadge, AdminTableShell } from '@/components/admin/data-table';
 import { getPaymentRecordStatusTone } from '@/lib/admin-status-badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { fetchPayments, updatePayment } from '@/features/payments/paymentsSlice';
+import { fetchPayments } from '@/features/payments/paymentsSlice';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { formatStatusLabel } from '@/lib/utils';
+import {
+    isDateInDashboardRange,
+    type DashboardRange,
+} from '@/lib/dashboard-range';
 
 const STATUS_OPTIONS = [
     'pending_payment',
@@ -25,38 +31,63 @@ const STATUS_OPTIONS = [
     'payment_cancelled',
 ] as const;
 
-type PaymentStatusOption = (typeof STATUS_OPTIONS)[number];
+type PaymentStatusFilter = 'all' | (typeof STATUS_OPTIONS)[number];
+
+const STATUS_FILTER_OPTIONS: Array<{ value: PaymentStatusFilter; label: string }> = [
+    { value: 'all', label: 'All statuses' },
+    ...STATUS_OPTIONS.map((status) => ({
+        value: status as PaymentStatusFilter,
+        label: formatStatusLabel(status),
+    })),
+];
+
+const DATE_FILTER_OPTIONS: Array<{ value: DashboardRange; label: string }> = [
+    { value: 'all', label: 'All' },
+    { value: 'today', label: 'Today' },
+    { value: '7d', label: 'Week' },
+    { value: '30d', label: 'Month' },
+];
 
 const PaymentPage = () => {
     const dispatch = useAppDispatch();
     const { payments, loading, error } = useAppSelector((state) => state.payments);
-    const [processingId, setProcessingId] = useState<string | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(20);
+    const [statusFilter, setStatusFilter] = useState<PaymentStatusFilter>('all');
+    const [dateFilter, setDateFilter] = useState<DashboardRange>('all');
 
     useEffect(() => {
         dispatch(fetchPayments());
     }, [dispatch]);
 
+    const filteredPayments = useMemo(() => {
+        return payments.filter((payment) => {
+            const status = payment.paymentStatus || 'pending_payment';
+            if (statusFilter !== 'all' && status !== statusFilter) return false;
+            const dateRef = payment.createdAt || payment.bookingDate || payment.paidAt;
+            return isDateInDashboardRange(dateRef, dateFilter);
+        });
+    }, [payments, statusFilter, dateFilter]);
+
     const stats = useMemo(() => {
-        const pending = payments.filter((payment) => payment.paymentStatus === 'pending_payment').length;
-        const successful = payments.filter((payment) => payment.paymentStatus === 'payment_completed').length;
-        const failed = payments.filter((payment) => payment.paymentStatus === 'payment_rejected_by_admin').length;
-        const totalAmount = payments.reduce((sum, payment) => sum + (Number(payment.totalAmount) || 0), 0);
+        const pending = filteredPayments.filter((payment) => payment.paymentStatus === 'pending_payment').length;
+        const successful = filteredPayments.filter((payment) => payment.paymentStatus === 'payment_completed').length;
+        const failed = filteredPayments.filter((payment) => payment.paymentStatus === 'payment_rejected_by_admin').length;
+        const totalAmount = filteredPayments.reduce((sum, payment) => sum + (Number(payment.totalAmount) || 0), 0);
 
         return { pending, successful, failed, totalAmount };
-    }, [payments]);
+    }, [filteredPayments]);
 
-    const totalPages = payments.length > 0 ? Math.ceil(payments.length / pageSize) : 1;
+    const totalPages = filteredPayments.length > 0 ? Math.ceil(filteredPayments.length / pageSize) : 1;
     const safePage = Math.min(currentPage, totalPages);
     const startIdx = (safePage - 1) * pageSize;
-    const paginated = payments.slice(startIdx, startIdx + pageSize);
+    const paginated = filteredPayments.slice(startIdx, startIdx + pageSize);
     useEffect(() => {
         if (currentPage > totalPages) setCurrentPage(totalPages);
     }, [currentPage, totalPages]);
     useEffect(() => {
         setCurrentPage(1);
-    }, [pageSize]);
+    }, [pageSize, statusFilter, dateFilter]);
 
     function formatDate(value: string) {
         return new Date(value).toLocaleDateString('en-GB', {
@@ -72,24 +103,6 @@ const PaymentPage = () => {
             maximumFractionDigits: 2,
         })}`;
     }
-
-    const handleStatusChange = async (id: string, nextStatus: PaymentStatusOption, paymentId: string) => {
-        setProcessingId(id);
-        try {
-            await dispatch(
-                updatePayment({
-                    id,
-                    paymentStatus: nextStatus,
-                    paidAt: nextStatus === 'payment_completed' ? new Date().toISOString() : '',
-                    paymentId: paymentId || crypto.randomUUID(),
-                })
-            ).unwrap();
-        } catch (updateError) {
-            console.error('Failed to update payment status:', updateError);
-        } finally {
-            setProcessingId(null);
-        }
-    };
 
     return (
         <AuthGuard>
@@ -111,6 +124,41 @@ const PaymentPage = () => {
                                 </button>
                             }
                         />
+                        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <AdminFilterSelect
+                                    aria-label="Status"
+                                    value={statusFilter}
+                                    options={STATUS_FILTER_OPTIONS}
+                                    onChange={setStatusFilter}
+                                />
+                                <AdminSegmentedControl
+                                    aria-label="Date range"
+                                    value={dateFilter}
+                                    options={DATE_FILTER_OPTIONS}
+                                    onChange={(value) => setDateFilter(value as DashboardRange)}
+                                />
+                            </div>
+                            <div className="flex items-center gap-3 text-sm text-gray-500">
+                                <p>
+                                    <span className="tabular-nums text-gray-900">{filteredPayments.length}</span>
+                                    <span className="mx-1 text-gray-300">/</span>
+                                    <span className="tabular-nums">{payments.length}</span>
+                                </p>
+                                {(statusFilter !== 'all' || dateFilter !== 'all') ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setStatusFilter('all');
+                                            setDateFilter('all');
+                                        }}
+                                        className="font-medium text-gray-600 transition-colors hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200"
+                                    >
+                                        Clear
+                                    </button>
+                                ) : null}
+                            </div>
+                        </div>
                         <section className="mb-6 grid min-w-0 grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
                             <AdminStatCard title="Pending" value={loading ? '…' : String(stats.pending)} />
                             <AdminStatCard title="Successful" value={loading ? '…' : String(stats.successful)} />
@@ -137,25 +185,27 @@ const PaymentPage = () => {
                                                 <TableHead>Amount</TableHead>
                                                 <TableHead>Status</TableHead>
                                                 <TableHead>Created</TableHead>
-                                                <TableHead className="text-right">Action</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            {payments.length === 0 ? (
+                                            {filteredPayments.length === 0 ? (
                                                 <TableRow>
-                                                    <TableCell colSpan={8} className="px-4 py-12 text-center text-gray-500">
+                                                    <TableCell colSpan={7} className="px-4 py-12 text-center text-gray-500">
                                                         <div className="flex flex-col items-center gap-3">
                                                             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
                                                                 <CreditCard className="h-8 w-8 text-gray-400" />
                                                             </div>
                                                             <p className="text-lg font-semibold text-gray-900">No payments found</p>
-                                                            <p className="text-sm text-gray-600">Payments will show here once created</p>
+                                                            <p className="text-sm text-gray-600">
+                                                                {payments.length === 0
+                                                                    ? 'Payments will show here once created'
+                                                                    : 'Try a different status or date filter'}
+                                                            </p>
                                                         </div>
                                                     </TableCell>
                                                 </TableRow>
                                             ) : (
                                                 paginated.map((payment) => {
-                                                    const isProcessing = processingId === payment.id;
                                                     const currentStatus = payment.paymentStatus || 'pending_payment';
 
                                                     return (
@@ -182,20 +232,6 @@ const PaymentPage = () => {
                                                             <TableCell className="text-gray-600">
                                                                 {payment.bookingDate ? formatDate(payment.bookingDate) : '—'}
                                                             </TableCell>
-                                                            <TableCell className="text-right">
-                                                                <select
-                                                                    value={currentStatus}
-                                                                    onChange={(event) => handleStatusChange(payment.id, event.target.value as PaymentStatusOption, payment.paymentId)}
-                                                                    disabled={isProcessing}
-                                                                    className="h-10 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:cursor-not-allowed disabled:opacity-60"
-                                                                >
-                                                                    {STATUS_OPTIONS.map((status) => (
-                                                                        <option key={status} value={status}>
-                                                                            {formatStatusLabel(status)}
-                                                                        </option>
-                                                                    ))}
-                                                                </select>
-                                                            </TableCell>
                                                         </TableRow>
                                                     );
                                                 })
@@ -209,7 +245,7 @@ const PaymentPage = () => {
                         <AdminListPagination
                             page={safePage}
                             pageSize={pageSize}
-                            totalItems={payments.length}
+                            totalItems={filteredPayments.length}
                             totalPages={totalPages}
                             onPageChange={setCurrentPage}
                             onPageSizeChange={setPageSize}

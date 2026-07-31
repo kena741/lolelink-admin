@@ -47,6 +47,7 @@ import {
     type AdminNotifyDraft,
 } from '@/lib/admin-notify';
 import { ProviderWalletHistory } from './ProviderWalletHistory';
+import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 
 interface ProviderNotifyStatus {
     fcmRegistered: boolean;
@@ -59,6 +60,7 @@ interface ProviderNotifyStatus {
 export default function ProviderDetailPage() {
     const params = useParams();
     const id = (params?.id as string) || '';
+    const { canWriteProviders, canWriteServices } = useAdminPermissions();
 
     const dispatch = useAppDispatch();
     const { selected: provider, selectedLoading, error, services, servicesLoading } = useAppSelector((s) => s.provider);
@@ -315,6 +317,20 @@ export default function ProviderDetailPage() {
 
     const onCreateService = async () => {
         if (!id) return;
+        const serviceName = (serviceForm.name ?? '').toString().trim();
+        const description = (serviceForm.description ?? '').toString().trim();
+        if (!serviceName) {
+            alert('Service name is required');
+            return;
+        }
+        if (!description) {
+            alert('Service description is required');
+            return;
+        }
+        if (addImages.length === 0) {
+            alert('At least one service image is required');
+            return;
+        }
         if (!serviceForm.categoryId || !serviceForm.subCategoryId) {
             alert('Please select a category and subcategory');
             return;
@@ -339,8 +355,8 @@ export default function ProviderDetailPage() {
         }
 
         const service: import('@/features/service/addServiceSlice').AddServiceModel = {
-            serviceName: (serviceForm.name ?? '').toString().trim(),
-            description: (serviceForm.description ?? '').toString().trim(),
+            serviceName,
+            description,
             address: (serviceForm.address ?? '').toString().trim(),
             categoryId: serviceForm.categoryId,
             categoryModel: {
@@ -455,7 +471,7 @@ export default function ProviderDetailPage() {
                                 backHref="/admin/providers"
                                 actions={
                                     <>
-                                        {!provider.activation_paid && (
+                                        {canWriteProviders && !provider.activation_paid && (
                                             <button
                                                 type="button"
                                                 onClick={() => setActivationModalOpen(true)}
@@ -465,13 +481,15 @@ export default function ProviderDetailPage() {
                                                 Pay Activation Fee
                                             </button>
                                         )}
-                                        <button
-                                            type="button"
-                                            onClick={() => setOpen(true)}
-                                            className={adminHeaderButtonClassName()}
-                                        >
-                                            Edit
-                                        </button>
+                                        {canWriteProviders ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => setOpen(true)}
+                                                className={adminHeaderButtonClassName()}
+                                            >
+                                                Edit
+                                            </button>
+                                        ) : null}
                                     </>
                                 }
                             />
@@ -622,21 +640,25 @@ export default function ProviderDetailPage() {
                                                 <ServiceTierBadge tierMax={provider.service_tier_max} />
                                             </div>
                                             <div className="flex gap-2">
-                                                <Button onClick={openAddService}>Add Service</Button>
-                                                <Button
-                                                    onClick={async () => {
-                                                        try {
-                                                            const updated = await dispatch(approveServicesByProvider(id)).unwrap();
-                                                            if (updated > 0) {
-                                                                await dispatch(fetchProviderServices(id));
-                                                            }
-                                                        } catch (e) {
-                                                            console.error('Approve services for provider failed', e);
-                                                        }
-                                                    }}
-                                                >
-                                                    Approve All Services
-                                                </Button>
+                                                {canWriteServices ? (
+                                                    <>
+                                                        <Button onClick={openAddService}>Add Service</Button>
+                                                        <Button
+                                                            onClick={async () => {
+                                                                try {
+                                                                    const updated = await dispatch(approveServicesByProvider(id)).unwrap();
+                                                                    if (updated > 0) {
+                                                                        await dispatch(fetchProviderServices(id));
+                                                                    }
+                                                                } catch (e) {
+                                                                    console.error('Approve services for provider failed', e);
+                                                                }
+                                                            }}
+                                                        >
+                                                            Approve All Services
+                                                        </Button>
+                                                    </>
+                                                ) : null}
                                             </div>
                                         </div>
                                         {services.length === 0 ? (
@@ -701,26 +723,30 @@ export default function ProviderDetailPage() {
                                                                         </div>
                                                                     </div>
                                                                     <div className="flex shrink-0 gap-1">
-                                                                        <Button
-                                                                            size="icon"
-                                                                            variant="ghost"
-                                                                            className="h-9 w-9 text-muted-foreground hover:text-foreground"
-                                                                            aria-label="Edit service"
-                                                                            title="Edit service"
-                                                                            onClick={() => openEditService(s.id)}
-                                                                        >
-                                                                            <Pencil className="h-4 w-4" />
-                                                                        </Button>
-                                                                        <Button
-                                                                            size="icon"
-                                                                            variant="ghost"
-                                                                            className="h-9 w-9 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                                                            aria-label="Delete service"
-                                                                            title="Delete service"
-                                                                            onClick={() => setDeleteId(s.id)}
-                                                                        >
-                                                                            <Trash2 className="h-4 w-4" />
-                                                                        </Button>
+                                                                        {canWriteServices ? (
+                                                                            <>
+                                                                                <Button
+                                                                                    size="icon"
+                                                                                    variant="ghost"
+                                                                                    className="h-9 w-9 text-muted-foreground hover:text-foreground"
+                                                                                    aria-label="Edit service"
+                                                                                    title="Edit service"
+                                                                                    onClick={() => openEditService(s.id)}
+                                                                                >
+                                                                                    <Pencil className="h-4 w-4" />
+                                                                                </Button>
+                                                                                <Button
+                                                                                    size="icon"
+                                                                                    variant="ghost"
+                                                                                    className="h-9 w-9 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                                                                    aria-label="Delete service"
+                                                                                    title="Delete service"
+                                                                                    onClick={() => setDeleteId(s.id)}
+                                                                                >
+                                                                                    <Trash2 className="h-4 w-4" />
+                                                                                </Button>
+                                                                            </>
+                                                                        ) : null}
                                                                     </div>
                                                                 </div>
                                                                 {s.description ? (
@@ -1103,16 +1129,16 @@ export default function ProviderDetailPage() {
                                 <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
                                 <div className="grid gap-4">
                                     <div className="grid gap-1.5">
-                                        <Label htmlFor="svc-name">Service Name</Label>
-                                        <Input id="svc-name" name="name" value={serviceForm.name} onChange={onServiceChange} placeholder="e.g. Home Cleaning" />
+                                        <Label htmlFor="svc-name">Service Name <span className="text-red-600">*</span></Label>
+                                        <Input id="svc-name" name="name" value={serviceForm.name} onChange={onServiceChange} placeholder="e.g. Home Cleaning" required />
                                     </div>
                                     <div className="grid gap-1.5">
                                         <Label htmlFor="svc-address">Address (optional)</Label>
                                         <Input id="svc-address" name="address" value={serviceForm.address} onChange={onServiceChange} placeholder="Street, City" />
                                     </div>
                                     <div className="grid gap-1.5">
-                                        <Label htmlFor="svc-image">Images</Label>
-                                        <input id="svc-image" aria-label="Upload service images" type="file" accept="image/*" multiple onChange={(e) => onAddImageFiles(e.target.files)} className="block w-full text-sm text-gray-700 file:mr-4 file:rounded-md file:border file:border-gray-200 file:bg-white file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-gray-700 hover:file:bg-gray-50" />
+                                        <Label htmlFor="svc-image">Images <span className="text-red-600">*</span></Label>
+                                        <input id="svc-image" aria-label="Upload service images" type="file" accept="image/*" multiple required onChange={(e) => onAddImageFiles(e.target.files)} className="block w-full text-sm text-gray-700 file:mr-4 file:rounded-md file:border file:border-gray-200 file:bg-white file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-gray-700 hover:file:bg-gray-50" />
                                         {addImages.length > 0 && (
                                             <div className="mt-2 text-xs text-gray-600 break-all">{addImages.length} image(s) selected</div>
                                         )}
@@ -1192,8 +1218,8 @@ export default function ProviderDetailPage() {
                                         )}
                                     </div>
                                     <div className="grid gap-1.5">
-                                        <Label htmlFor="svc-desc">Description</Label>
-                                        <textarea id="svc-desc" name="description" value={serviceForm.description} onChange={onServiceChange} className="min-h-22.5 rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="Short description" />
+                                        <Label htmlFor="svc-desc">Description <span className="text-red-600">*</span></Label>
+                                        <textarea id="svc-desc" name="description" value={serviceForm.description} onChange={onServiceChange} required className="min-h-22.5 rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="Short description" />
                                     </div>
                                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                         <div className="grid gap-1.5">

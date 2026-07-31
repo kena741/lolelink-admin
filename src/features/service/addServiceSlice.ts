@@ -54,6 +54,18 @@ export const addService = createAsyncThunk(
       if (!discountResult.ok) {
         return thunkAPI.rejectWithValue(discountResult.error);
       }
+      if (!(args.service.serviceName ?? '').trim()) {
+        return thunkAPI.rejectWithValue('Service name is required');
+      }
+      if (!(args.service.description ?? '').trim()) {
+        return thunkAPI.rejectWithValue('Service description is required');
+      }
+      const hasImages =
+        (args.imageFiles?.length ?? 0) > 0
+        || (args.service.serviceImage?.length ?? 0) > 0;
+      if (!hasImages) {
+        return thunkAPI.rejectWithValue('At least one service image is required');
+      }
       if (!(args.service.address ?? '').trim()) {
         return thunkAPI.rejectWithValue('Service address is required');
       }
