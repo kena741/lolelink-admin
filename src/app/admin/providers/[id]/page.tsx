@@ -60,7 +60,8 @@ interface ProviderNotifyStatus {
 export default function ProviderDetailPage() {
     const params = useParams();
     const id = (params?.id as string) || '';
-    const { canWriteProviders, canWriteServices, canWriteNotifications } = useAdminPermissions();
+    const { canWriteProviders, canWriteServices, canWriteNotifications, can } = useAdminPermissions();
+    const canFinanceRead = can('finance:read');
 
     const dispatch = useAppDispatch();
     const { selected: provider, selectedLoading, error, services, servicesLoading } = useAppSelector((s) => s.provider);
@@ -514,6 +515,7 @@ export default function ProviderDetailPage() {
                             </div>
 
                                     {/* Earnings Summary */}
+                                    {canFinanceRead ? (
                                     <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
                                         <div className="bg-white rounded-lg shadow p-6">
                                             <div className="flex items-center gap-3">
@@ -562,6 +564,7 @@ export default function ProviderDetailPage() {
                                             </div>
                                         </div>
                                     </div>
+                                    ) : null}
 
                                     {/* Tabs */}
                                     <div className="mb-6 flex items-center gap-2 bg-white rounded-lg p-1 shadow border border-gray-200">
@@ -587,6 +590,7 @@ export default function ProviderDetailPage() {
                                             <FileText className="h-4 w-4" />
                                             Documents
                                         </button>
+                                        {canFinanceRead ? (
                                         <button
                                             onClick={() => setActiveTab('withdrawals')}
                                             className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
@@ -598,6 +602,8 @@ export default function ProviderDetailPage() {
                                             <History className="h-4 w-4" />
                                             Withdrawals
                                         </button>
+                                        ) : null}
+                                        {canFinanceRead ? (
                                         <button
                                             onClick={() => setActiveTab('wallet')}
                                             className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
@@ -609,6 +615,7 @@ export default function ProviderDetailPage() {
                                             <Wallet className="h-4 w-4" />
                                             Wallet
                                         </button>
+                                        ) : null}
                                         <button
                                             onClick={() => setActiveTab('handyman')}
                                             className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
@@ -850,7 +857,7 @@ export default function ProviderDetailPage() {
                                     )}
 
                                     {/* Withdrawals Tab */}
-                                    {activeTab === 'withdrawals' && (
+                                    {activeTab === 'withdrawals' && canFinanceRead && (
                                     <section>
                                         <h2 className="text-2xl font-semibold mb-4">Withdrawal History</h2>
                                         {providerWithdrawals.length === 0 ? (
@@ -900,7 +907,7 @@ export default function ProviderDetailPage() {
                                     </section>
                                     )}
 
-                                    {activeTab === 'wallet' && (
+                                    {activeTab === 'wallet' && canFinanceRead && (
                                         <ProviderWalletHistory
                                             providerId={id}
                                             fallbackWalletAmount={Number.isFinite(walletBalance) ? walletBalance : 0}

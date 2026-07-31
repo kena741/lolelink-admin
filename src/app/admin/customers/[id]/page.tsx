@@ -138,7 +138,8 @@ export default function CustomerDetailPage() {
     const params = useParams();
     const router = useRouter();
     const dispatch = useAppDispatch();
-    const { canWriteCustomers } = useAdminPermissions();
+    const { canWriteCustomers, canWriteNotifications, can } = useAdminPermissions();
+    const canFinanceRead = can('finance:read');
     const customerId = (params?.id as string) || '';
 
     const [customer, setCustomer] = useState<CustomerDetail | null>(null);
@@ -532,6 +533,7 @@ export default function CustomerDetailPage() {
                             ) : null}
 
                             <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                                {canFinanceRead ? (
                                 <div className="rounded-lg bg-white p-6 shadow">
                                     <div className="flex items-center gap-3">
                                         <div className="rounded-lg bg-sky-100 p-3">
@@ -545,6 +547,7 @@ export default function CustomerDetailPage() {
                                         </div>
                                     </div>
                                 </div>
+                                ) : null}
                                 <div className="rounded-lg bg-white p-6 shadow">
                                     <div className="flex items-center gap-3">
                                         <div className="rounded-lg bg-indigo-100 p-3">
@@ -556,6 +559,7 @@ export default function CustomerDetailPage() {
                                         </div>
                                     </div>
                                 </div>
+                                {canFinanceRead ? (
                                 <div className="rounded-lg bg-white p-6 shadow">
                                     <div className="flex items-center gap-3">
                                         <div className="rounded-lg bg-emerald-100 p-3">
@@ -569,6 +573,7 @@ export default function CustomerDetailPage() {
                                         </div>
                                     </div>
                                 </div>
+                                ) : null}
                                 <div className="rounded-lg bg-white p-6 shadow">
                                     <div className="flex items-center gap-3">
                                         <div className="rounded-lg bg-amber-100 p-3">
@@ -585,10 +590,10 @@ export default function CustomerDetailPage() {
                             <div className="mb-6 flex items-center gap-2 rounded-lg border border-gray-200 bg-white p-1 shadow">
                                 {([
                                     ['bookings', 'Bookings', Briefcase],
-                                    ['wallet', 'Wallet', Wallet],
+                                    ...(canFinanceRead ? [['wallet', 'Wallet', Wallet] as const] : []),
                                     ['job_requests', 'Job requests', ClipboardList],
                                     ['profile', 'Profile', UserRound],
-                                    ['notifications', 'Notifications', Megaphone],
+                                    ...(canWriteNotifications ? [['notifications', 'Notifications', Megaphone] as const] : []),
                                 ] as const).map(([tab, label, Icon]) => (
                                     <button
                                         key={tab}
@@ -669,7 +674,7 @@ export default function CustomerDetailPage() {
                                 </section>
                             ) : null}
 
-                            {activeTab === 'wallet' ? (
+                            {activeTab === 'wallet' && canFinanceRead ? (
                                 <CustomerWalletHistory
                                     customerId={customerId}
                                     fallbackWalletAmount={Number.isFinite(walletBalance) ? walletBalance : 0}
@@ -824,7 +829,7 @@ export default function CustomerDetailPage() {
                                 </section>
                             ) : null}
 
-                            {activeTab === 'notifications' ? (
+                            {activeTab === 'notifications' && canWriteNotifications ? (
                                 <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
                                     <h2 className="mb-4 text-xl font-semibold text-gray-900">Send notification</h2>
                                     {notifyStatusLoading ? (

@@ -28,7 +28,8 @@ import {
     Sun,
     Shield,
     UserCog,
-    Activity
+    Activity,
+    Smartphone,
 } from 'lucide-react';
 import { getSupabase } from '@/lib/supabaseClient';
 import { SupabaseEnvSwitcher, SupabaseStagingBanner } from '@/components/SupabaseEnvSwitcher';
@@ -93,20 +94,35 @@ const Sidebar = () => {
     const pathname = usePathname();
     const { can } = useAdminPermissions();
     const [theme, setTheme] = useState<'light' | 'dark'>('light');
-    
-    // Category sub-section (still collapsible)
+
     const isCategoryActive = pathname?.startsWith('/admin/categories') || pathname?.startsWith('/admin/subcategories');
     const [isCategoryOpen, setIsCategoryOpen] = useState(isCategoryActive);
-    
-    // Finance sub-section (still collapsible)
+
     const isFinanceActive = pathname?.startsWith('/admin/finance');
     const [isFinanceOpen, setIsFinanceOpen] = useState(isFinanceActive);
 
+    const canReadAdmins = can('admins:read');
+    const canReadRoles = can('roles:read');
+    const canReadLogs = can('logs:read');
+    const canReadSettings = can('settings:read');
+    const showMobileAppConfig = canAccessAdminRoute('/admin/mobile-app-config', can);
+    const showFinance = canAccessAdminRoute('/admin/finance', can);
+    const showContactMessages = canAccessAdminRoute('/admin/contact-messages', can);
+
+    const visibleWorksItems = worksSubItems.filter((item) => canAccessAdminRoute(item.href, can));
+    const visibleCustomerItems = customersSubItems.filter((item) =>
+        canAccessAdminRoute(item.href, can)
+    );
     const visibleProviderItems = providerManagementSubItems.filter((item) =>
         canAccessAdminRoute(item.href, can)
     );
-    const canReadAdmins = can('admins:read');
-    const canReadRoles = can('roles:read');
+    const visibleServiceItems = serviceManagementSubItems.filter((item) => {
+        if (item.isCategory) return canAccessAdminRoute('/admin/categories', can);
+        return canAccessAdminRoute(item.href, can);
+    });
+    const visibleFinanceItems = financeSubItems.filter((item) =>
+        canAccessAdminRoute(item.href, can)
+    );
 
     React.useEffect(() => {
         if (isCategoryActive) {
@@ -173,12 +189,13 @@ const Sidebar = () => {
                         </li>
 
                         {/* Works Section */}
+                        {visibleWorksItems.length > 0 ? (
                         <li className="pt-5">
                             <div className="px-3 py-1 mb-1">
                                 <p className="text-[11px] font-semibold uppercase tracking-wider text-text-hint">Works</p>
                             </div>
                             <ul className="space-y-1">
-                                {worksSubItems.map(({ href, label, icon: Icon }) => {
+                                {visibleWorksItems.map(({ href, label, icon: Icon }) => {
                                     const active = pathname === href;
                                     return (
                                         <li key={href}>
@@ -198,14 +215,16 @@ const Sidebar = () => {
                                 })}
                             </ul>
                         </li>
+                        ) : null}
 
                         {/* Customers Section */}
+                        {visibleCustomerItems.length > 0 ? (
                         <li className="pt-5">
                             <div className="px-3 py-1 mb-1">
                                 <p className="text-[11px] font-semibold uppercase tracking-wider text-text-hint">Customers</p>
                             </div>
                             <ul className="space-y-1">
-                                {customersSubItems.map(({ href, label, icon: Icon }) => {
+                                {visibleCustomerItems.map(({ href, label, icon: Icon }) => {
                                     const active = href === '/admin/customers'
                                         ? pathname === '/admin/customers'
                                         : pathname === href;
@@ -227,6 +246,7 @@ const Sidebar = () => {
                                 })}
                             </ul>
                         </li>
+                        ) : null}
 
                         {/* Provider Management Section */}
                         {visibleProviderItems.length > 0 ? (
@@ -258,14 +278,14 @@ const Sidebar = () => {
                         ) : null}
 
                         {/* Service Management Section */}
+                        {visibleServiceItems.length > 0 ? (
                         <li className="pt-5">
                             <div className="px-3 py-1 mb-1">
                                 <p className="text-[11px] font-semibold uppercase tracking-wider text-text-hint">Service Management</p>
                             </div>
                             <ul className="space-y-1">
-                                {serviceManagementSubItems.map(({ href, label, icon: Icon, isCategory }) => {
+                                {visibleServiceItems.map(({ href, label, icon: Icon, isCategory }) => {
                                     if (isCategory) {
-                                        // Categories sub-section (still collapsible)
                                         return (
                                             <li key="categories">
                                                 <button
@@ -333,14 +353,16 @@ const Sidebar = () => {
                                 })}
                             </ul>
                         </li>
+                        ) : null}
 
                         {/* System Management Section */}
+                        {(showFinance || canReadSettings || showMobileAppConfig || canReadAdmins || canReadLogs || canReadRoles || showContactMessages) ? (
                         <li className="pt-5">
                             <div className="px-3 py-1 mb-1">
                                 <p className="text-[11px] font-semibold uppercase tracking-wider text-text-hint">System Management</p>
                             </div>
                             <ul className="space-y-1">
-                                {/* Finance Sub-section (still collapsible) */}
+                                {showFinance ? (
                                 <li>
                                     <button
                                         onClick={() => setIsFinanceOpen(!isFinanceOpen)}
@@ -362,7 +384,7 @@ const Sidebar = () => {
                                     </button>
                                     {isFinanceOpen && (
                                         <ul className="ml-4 mt-0.5 space-y-0.5 border-l border-sidebar-border pl-3">
-                                            {financeSubItems.map(({ href, label, icon: Icon }) => {
+                                            {visibleFinanceItems.map(({ href, label, icon: Icon }) => {
                                                 const active = pathname === href;
                                                 return (
                                                     <li key={href}>
@@ -383,8 +405,9 @@ const Sidebar = () => {
                                         </ul>
                                     )}
                                 </li>
+                                ) : null}
 
-                                {/* Global Settings */}
+                                {canReadSettings ? (
                                 <li>
                                     <Link
                                         href="/admin/settings"
@@ -398,6 +421,22 @@ const Sidebar = () => {
                                         <span>Global Settings</span>
                                     </Link>
                                 </li>
+                                ) : null}
+                                {showMobileAppConfig ? (
+                                <li>
+                                    <Link
+                                        href="/admin/mobile-app-config"
+                                        className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${
+                                            pathname?.startsWith('/admin/mobile-app-config')
+                                                ? 'bg-primary/10 text-primary font-medium'
+                                                            : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
+                                        }`}
+                                    >
+                                        <Smartphone className={`h-4 w-4 ${pathname?.startsWith('/admin/mobile-app-config') ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
+                                        <span>Mobile App Config</span>
+                                    </Link>
+                                </li>
+                                ) : null}
                                 {canReadAdmins ? (
                                     <li>
                                         <Link
@@ -413,6 +452,7 @@ const Sidebar = () => {
                                         </Link>
                                     </li>
                                 ) : null}
+                                {canReadLogs ? (
                                 <li>
                                     <Link
                                         href="/admin/activity-logs"
@@ -426,6 +466,7 @@ const Sidebar = () => {
                                         <span>Activity Logs</span>
                                     </Link>
                                 </li>
+                                ) : null}
                                 {canReadRoles ? (
                                     <li>
                                         <Link
@@ -441,6 +482,7 @@ const Sidebar = () => {
                                         </Link>
                                     </li>
                                 ) : null}
+                                {showContactMessages ? (
                                 <li>
                                     <Link
                                         href="/admin/contact-messages"
@@ -454,8 +496,10 @@ const Sidebar = () => {
                                         <span>Contact Messages</span>
                                     </Link>
                                 </li>
+                                ) : null}
                             </ul>
                         </li>
+                        ) : null}
                     </ul>
                 </nav>
             </div>

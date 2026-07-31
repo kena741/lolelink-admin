@@ -136,7 +136,7 @@ export function canAccessAdminRoute(pathname: string, can: (permission: string) 
     }
     if (pathname.startsWith('/admin/bookings')) return can('bookings:read');
     if (pathname.startsWith('/admin/handyman')) return can('providers:read');
-    if (pathname.startsWith('/admin/customers/job-requests')) return can('contact:read');
+    if (pathname.startsWith('/admin/customers/job-requests')) return can('customers:read');
     if (pathname.startsWith('/admin/customers')) return can('customers:read');
     if (pathname.startsWith('/admin/finance')) return can('finance:read');
     if (pathname.startsWith('/admin/notifications')) return can('notifications:read');

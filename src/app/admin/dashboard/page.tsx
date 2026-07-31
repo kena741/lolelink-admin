@@ -70,6 +70,7 @@ import {
     type DashboardWalletRow,
 } from "@/lib/dashboard-revenue-metrics";
 import { DashboardRevenueTransactionsSheet } from "@/components/admin/DashboardRevenueTransactionsSheet";
+import { useAdminPermissions } from "@/hooks/use-admin-permissions";
 
 interface ChartBucket {
 	label: string;
@@ -483,6 +484,8 @@ function DashboardContent() {
 	const dispatch: AppDispatch = useDispatch();
 	const router = useRouter();
 	const searchParams = useSearchParams();
+	const { can } = useAdminPermissions();
+	const canFinanceRead = can("finance:read");
 	const { providers, loading: providersLoading } = useSelector(
 		(state: { provider: ProviderState }) => state.provider,
 	);
@@ -1276,7 +1279,7 @@ function DashboardContent() {
 									</button>
 								))}
 							</div>
-							{isDebugHost && (
+							{isDebugHost && canFinanceRead && (
 								<div
 									className="flex items-center gap-1 rounded-full border border-border bg-card p-1"
 									role="group"
@@ -1308,6 +1311,7 @@ function DashboardContent() {
 							)}
 						</div>
 
+						{canFinanceRead ? (
 						<section className="mb-4 grid min-w-0 grid-cols-2 items-stretch gap-3 sm:grid-cols-3 lg:grid-cols-6">
 							<StatCard
 								title="Total"
@@ -1370,7 +1374,9 @@ function DashboardContent() {
 								onClick={() => setRevenueSheetCategory("ads")}
 							/>
 						</section>
+						) : null}
 
+						{canFinanceRead ? (
 						<DashboardRevenueTransactionsSheet
 							open={revenueSheetCategory !== null}
 							category={revenueSheetCategory}
@@ -1380,6 +1386,7 @@ function DashboardContent() {
 							jobRequests={revenueSourceData.jobRequests}
 							rangeLabel={getDashboardRangeLabel(dashboardRange)}
 						/>
+						) : null}
 
 						<section className="mb-8 grid min-w-0 grid-cols-1 items-stretch gap-3 sm:grid-cols-3">
 							<StatCard
@@ -1413,7 +1420,7 @@ function DashboardContent() {
 							/>
 						</section>
 
-						{showFinanceDebug && walletBreakdown && (
+						{showFinanceDebug && canFinanceRead && walletBreakdown && (
 							<WalletMetricBreakdownDebug
 								breakdown={walletBreakdown}
 								totals={{
@@ -1472,6 +1479,7 @@ function DashboardContent() {
 							/>
 						</section>
 
+						{canFinanceRead ? (
 						<section className="mb-8 rounded-2xl border border-border bg-card p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
 							<div className="mb-5 flex items-center justify-between">
 								<div>
@@ -1571,8 +1579,10 @@ function DashboardContent() {
 								</Link>
 							</div>
 						</section>
+						) : null}
 
 						{/* Analytics Charts Section */}
+						{canFinanceRead ? (
 						<section className="mb-8">
 							<div className="rounded-2xl border border-border bg-card p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
 								<div className="flex items-center justify-between mb-6">
@@ -1605,6 +1615,7 @@ function DashboardContent() {
 								/>
 							</div>
 						</section>
+						) : null}
 						<section className="mb-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
 							<div className="lg:col-span-2 rounded-2xl border border-border bg-card p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
 								<div className="flex items-center gap-3 mb-6">
