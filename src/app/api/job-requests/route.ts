@@ -128,6 +128,14 @@ export async function GET(request: Request) {
 interface UpdateJobRequestBody {
     id?: string;
     action?: 'accept' | 'reject' | 'pending';
+    title?: string;
+    description?: string;
+    price?: string;
+}
+
+interface DeleteJobRequestBody {
+    id?: string;
+    customerId?: string;
 }
 
 export async function PATCH(request: Request) {
@@ -135,24 +143,39 @@ export async function PATCH(request: Request) {
     try {
         const body = (await request.json()) as UpdateJobRequestBody;
         const id = (body.id || '').trim();
-        const action = body.action;
-        if (!id || !action)
-            return NextResponse.json({ error: 'id and action are required' }, { status: 400 });
-        const updatePayload = action === 'accept'
-            ? { accepted: true, status: 'accepted' }
-            : action === 'reject'
-                ? { accepted: false, status: 'rejected' }
-                : { accepted: false, status: 'pending' };
+        if (!id)
+            return NextResponse.json({ error: 'id is required' }, { status: 400 });
+
+        const hasAction = Boolean(body.action);
+        const hasFields =
+            body.title !== undefined || body.description !== undefined || body.price !== undefined;
+        if (!hasAction && !hasFields)
+            return NextResponse.json({ error: 'action or editable fields are required' }, { status: 400 });
 
         const { data: existing, error: existingError } = await supabaseAdmin
             .from('job_request')
-            .select('id, status, accepted')
+            .select('id, status, accepted, title, description, price')
             .eq('id', id)
             .maybeSingle();
         if (existingError)
             return NextResponse.json({ error: existingError.message || 'Failed to fetch job request' }, { status: 500 });
         if (!existing)
             return NextResponse.json({ error: 'Job request not found' }, { status: 404 });
+
+        const updatePayload: Record<string, unknown> = {};
+        if (body.action === 'accept') {
+            updatePayload.accepted = true;
+            updatePayload.status = 'accepted';
+        } else if (body.action === 'reject') {
+            updatePayload.accepted = false;
+            updatePayload.status = 'rejected';
+        } else if (body.action === 'pending') {
+            updatePayload.accepted = false;
+            updatePayload.status = 'pending';
+        }
+        if (body.title !== undefined) updatePayload.title = body.title.trim();
+        if (body.description !== undefined) updatePayload.description = body.description.trim();
+        if (body.price !== undefined) updatePayload.price = body.price.trim();
 
         const { error } = await supabaseAdmin
             .from('job_request')
@@ -161,22 +184,110 @@ export async function PATCH(request: Request) {
         if (error)
             return NextResponse.json({ error: error.message || 'Failed to update job request' }, { status: 500 });
 
-        const logAction = action === 'accept' ? 'approve' : action === 'reject' ? 'reject' : 'update';
+        const trackedFields = ['status', 'accepted', 'title', 'description', 'price'];
         const metadata = buildChangeMetadata(
             existing as Record<string, unknown>,
             { ...existing, ...updatePayload } as Record<string, unknown>,
-            ['status', 'accepted']
+            trackedFields
         );
         const changes = Array.isArray(metadata.changes) ? metadata.changes : [];
+        const logAction =
+            body.action === 'accept' ? 'approve' : body.action === 'reject' ? 'reject' : 'update';
+        const summaryPrefix =
+            body.action === 'accept'
+                ? 'Accepted'
+                : body.action === 'reject'
+                    ? 'Rejected'
+                    : body.action === 'pending'
+                        ? 'Reset'
+                        : 'Updated';
         await logAdminActivity({
             request,
             action: logAction,
             resource_type: 'job_request',
             resource_id: id,
-            summary: buildUpdateSummary(`${action === 'accept' ? 'Accepted' : action === 'reject' ? 'Rejected' : 'Reset'} job request ${id}`, changes),
+            summary: buildUpdateSummary(`${summaryPrefix} job request ${id}`, changes),
             metadata,
         });
         return NextResponse.json({ ok: true });
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unexpected error';
+        return NextResponse.json({ error: message }, { status: 500 });
+    }
+}
+
+export async function DELETE(request: Request) {
+    const supabaseAdmin = getSupabaseAdminFromRequest(request);
+    try {
+        const body = (await request.json()) as DeleteJobRequestBody;
+        const id = (body.id || '').trim();
+        const customerId = (body.customerId || '').trim();
+
+        if (id) {
+            const { data: existing, error: existingError } = await supabaseAdmin
+                .from('job_request')
+                .select('id, title')
+                .eq('id', id)
+                .maybeSingle();
+            if (existingError)
+                return NextResponse.json({ error: existingError.message || 'Failed to fetch job request' }, { status: 500 });
+            if (!existing)
+                return NextResponse.json({ error: 'Job request not found' }, { status: 404 });
+
+            const { error } = await supabaseAdmin.from('job_request').delete().eq('id', id);
+            if (error)
+                return NextResponse.json({ error: error.message || 'Failed to delete job request' }, { status: 500 });
+
+            await logAdminActivity({
+                request,
+                action: 'delete',
+                resource_type: 'job_request',
+                resource_id: id,
+                summary: `Deleted job request ${id}`,
+                metadata: { title: (existing as { title?: string | null }).title ?? null },
+            });
+            return NextResponse.json({ ok: true, deleted: 1 });
+        }
+
+        if (!customerId)
+            return NextResponse.json({ error: 'id or customerId is required' }, { status: 400 });
+
+        const { data: customer, error: customerError } = await supabaseAdmin
+            .from('customer')
+            .select('id, user_id')
+            .eq('id', customerId)
+            .maybeSingle();
+        if (customerError)
+            return NextResponse.json({ error: customerError.message || 'Failed to fetch customer' }, { status: 500 });
+        if (!customer)
+            return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
+
+        const refIds = [customerId];
+        const authUserId = (customer as { user_id?: string | null }).user_id;
+        if (typeof authUserId === 'string' && authUserId.trim()) refIds.push(authUserId.trim());
+        const uniqueRefIds = [...new Set(refIds)];
+
+        let deleted = 0;
+        for (const refId of uniqueRefIds) {
+            const { data: removed, error } = await supabaseAdmin
+                .from('job_request')
+                .delete()
+                .eq('customerId', refId)
+                .select('id');
+            if (error)
+                return NextResponse.json({ error: error.message || 'Failed to delete job requests' }, { status: 500 });
+            deleted += (removed ?? []).length;
+        }
+
+        await logAdminActivity({
+            request,
+            action: 'delete',
+            resource_type: 'job_request',
+            resource_id: customerId,
+            summary: `Deleted ${deleted} job request(s) for customer ${customerId}`,
+            metadata: { customer_id: customerId, deleted },
+        });
+        return NextResponse.json({ ok: true, deleted });
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unexpected error';
         return NextResponse.json({ error: message }, { status: 500 });

@@ -55,6 +55,19 @@ export async function clearCustomerDeleteBlockers(
         .eq('customer_id', id);
     if (walletError) return { ok: false, error: walletError.message };
 
+    const { data: customerRow } = await admin
+        .from('customer')
+        .select('user_id')
+        .eq('id', id)
+        .maybeSingle();
+    const jobRequestRefs = [id];
+    const authUserId = (customerRow as { user_id?: string | null } | null)?.user_id;
+    if (typeof authUserId === 'string' && authUserId.trim()) jobRequestRefs.push(authUserId.trim());
+    for (const refId of [...new Set(jobRequestRefs)]) {
+        const { error: jobRequestError } = await admin.from('job_request').delete().eq('customerId', refId);
+        if (jobRequestError) return { ok: false, error: jobRequestError.message };
+    }
+
     const softDeletes: Array<{ table: string; column: string }> = [
         { table: 'notification', column: 'customer_id' },
         { table: 'provider_customer', column: 'customer_id' },

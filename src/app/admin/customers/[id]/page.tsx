@@ -13,6 +13,7 @@ import {
     Coins,
     ExternalLink,
     Loader2,
+    Pencil,
     Trash2,
     UserRound,
     Wallet,
@@ -153,6 +154,9 @@ export default function CustomerDetailPage() {
     const [confirmConvert, setConfirmConvert] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [convertedProviderId, setConvertedProviderId] = useState<string | null>(null);
+    const [editingJobRequest, setEditingJobRequest] = useState<CustomerJobRequestRow | null>(null);
+    const [editJobForm, setEditJobForm] = useState({ title: '', description: '', price: '' });
+    const [deletingJobRequest, setDeletingJobRequest] = useState<CustomerJobRequestRow | null>(null);
     const [notifyDraft, setNotifyDraft] = useState<AdminNotifyDraft>(
         createAdminNotifyDraft(
             {
@@ -303,6 +307,24 @@ export default function CustomerDetailPage() {
         setConfirmConvert(false);
         setActionBusy(true);
         setActionError(null);
+
+        const jobRequestCount = stats?.jobRequestCount ?? jobRequests.length;
+        if (jobRequestCount > 0) {
+            const deleteResponse = await fetch('/api/job-requests', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ customerId }),
+            });
+            const deletePayload = (await deleteResponse.json()) as { error?: string };
+            if (!deleteResponse.ok) {
+                setActionBusy(false);
+                setActionError(deletePayload.error || 'Failed to delete job requests');
+                return;
+            }
+            setJobRequests([]);
+            setStats((prev) => (prev ? { ...prev, jobRequestCount: 0 } : prev));
+        }
+
         const result = await dispatch(convertToProvider(customerId));
         setActionBusy(false);
         if (convertToProvider.fulfilled.match(result)) {
@@ -310,6 +332,69 @@ export default function CustomerDetailPage() {
             return;
         }
         setActionError((result.payload as string) || 'Conversion failed');
+    }
+
+    async function saveJobRequestEdit() {
+        if (!editingJobRequest) return;
+        setActionBusy(true);
+        setActionError(null);
+        try {
+            const response = await fetch('/api/job-requests', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: editingJobRequest.id,
+                    title: editJobForm.title,
+                    description: editJobForm.description,
+                    price: editJobForm.price,
+                }),
+            });
+            const payload = (await response.json()) as { error?: string };
+            if (!response.ok) throw new Error(payload.error || 'Failed to update job request');
+            setJobRequests((prev) =>
+                prev.map((row) =>
+                    row.id === editingJobRequest.id
+                        ? {
+                              ...row,
+                              title: editJobForm.title,
+                              description: editJobForm.description,
+                              price: editJobForm.price,
+                          }
+                        : row
+                )
+            );
+            setEditingJobRequest(null);
+        } catch (error: unknown) {
+            setActionError(error instanceof Error ? error.message : 'Failed to update job request');
+        } finally {
+            setActionBusy(false);
+        }
+    }
+
+    async function confirmDeleteJobRequest() {
+        if (!deletingJobRequest) return;
+        setActionBusy(true);
+        setActionError(null);
+        try {
+            const response = await fetch('/api/job-requests', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: deletingJobRequest.id }),
+            });
+            const payload = (await response.json()) as { error?: string };
+            if (!response.ok) throw new Error(payload.error || 'Failed to delete job request');
+            setJobRequests((prev) => prev.filter((row) => row.id !== deletingJobRequest.id));
+            setStats((prev) =>
+                prev
+                    ? { ...prev, jobRequestCount: Math.max(0, prev.jobRequestCount - 1) }
+                    : prev
+            );
+            setDeletingJobRequest(null);
+        } catch (error: unknown) {
+            setActionError(error instanceof Error ? error.message : 'Failed to delete job request');
+        } finally {
+            setActionBusy(false);
+        }
     }
 
     async function handleDelete() {
@@ -611,6 +696,9 @@ export default function CustomerDetailPage() {
                                                         <th className="px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-500">Status</th>
                                                         <th className="px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-500">Bids</th>
                                                         <th className="px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-500">Price</th>
+                                                        {canWriteCustomers ? (
+                                                            <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-gray-500">Actions</th>
+                                                        ) : null}
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-gray-100">
@@ -632,6 +720,37 @@ export default function CustomerDetailPage() {
                                                             <td className="px-4 py-3 text-sm font-semibold text-gray-900">
                                                                 {request.price ? formatBookingAmount(request.price) : '—'}
                                                             </td>
+                                                            {canWriteCustomers ? (
+                                                                <td className="px-4 py-3 text-right">
+                                                                    <div className="inline-flex items-center gap-1">
+                                                                        <button
+                                                                            type="button"
+                                                                            disabled={actionBusy}
+                                                                            onClick={() => {
+                                                                                setEditingJobRequest(request);
+                                                                                setEditJobForm({
+                                                                                    title: request.title || '',
+                                                                                    description: request.description || '',
+                                                                                    price: request.price || '',
+                                                                                });
+                                                                            }}
+                                                                            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                                                                            aria-label="Edit job request"
+                                                                        >
+                                                                            <Pencil className="h-4 w-4" />
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            disabled={actionBusy}
+                                                                            onClick={() => setDeletingJobRequest(request)}
+                                                                            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50"
+                                                                            aria-label="Delete job request"
+                                                                        >
+                                                                            <Trash2 className="h-4 w-4" />
+                                                                        </button>
+                                                                    </div>
+                                                                </td>
+                                                            ) : null}
                                                         </tr>
                                                     ))}
                                                 </tbody>
@@ -765,9 +884,19 @@ export default function CustomerDetailPage() {
                 >
                     <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
                         <h3 className="mb-2 text-lg font-bold text-gray-900">Convert to provider</h3>
-                        <p className="mb-6 text-sm text-gray-600">
-                            Create a provider account for {displayName}. The customer row will be removed from the customer list.
-                        </p>
+                        {(stats?.jobRequestCount ?? 0) > 0 ? (
+                            <p className="mb-6 text-sm text-gray-600">
+                                {displayName} has{' '}
+                                <span className="font-semibold text-gray-900">{stats?.jobRequestCount}</span> job
+                                request{(stats?.jobRequestCount ?? 0) === 1 ? '' : 's'}. Delete{' '}
+                                {(stats?.jobRequestCount ?? 0) === 1 ? 'it' : 'them'} before converting. The customer
+                                row will then be removed from the customer list.
+                            </p>
+                        ) : (
+                            <p className="mb-6 text-sm text-gray-600">
+                                Create a provider account for {displayName}. The customer row will be removed from the customer list.
+                            </p>
+                        )}
                         <div className="flex justify-end gap-3">
                             <button
                                 type="button"
@@ -781,9 +910,99 @@ export default function CustomerDetailPage() {
                                 type="button"
                                 onClick={() => void handleConvert()}
                                 disabled={actionBusy}
-                                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white"
+                                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
                             >
-                                Convert
+                                {(stats?.jobRequestCount ?? 0) > 0
+                                    ? 'Delete job requests & convert'
+                                    : 'Convert'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
+
+            {editingJobRequest ? (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+                    onClick={() => !actionBusy && setEditingJobRequest(null)}
+                >
+                    <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                        <h3 className="mb-4 text-lg font-bold text-gray-900">Edit job request</h3>
+                        <div className="space-y-3">
+                            <label className="block text-sm font-medium text-gray-700">
+                                Title
+                                <input
+                                    value={editJobForm.title}
+                                    onChange={(event) => setEditJobForm((prev) => ({ ...prev, title: event.target.value }))}
+                                    className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm"
+                                />
+                            </label>
+                            <label className="block text-sm font-medium text-gray-700">
+                                Description
+                                <textarea
+                                    value={editJobForm.description}
+                                    onChange={(event) => setEditJobForm((prev) => ({ ...prev, description: event.target.value }))}
+                                    rows={4}
+                                    className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                                />
+                            </label>
+                            <label className="block text-sm font-medium text-gray-700">
+                                Price
+                                <input
+                                    value={editJobForm.price}
+                                    onChange={(event) => setEditJobForm((prev) => ({ ...prev, price: event.target.value }))}
+                                    className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm"
+                                />
+                            </label>
+                        </div>
+                        <div className="mt-6 flex justify-end gap-3">
+                            <button
+                                type="button"
+                                disabled={actionBusy}
+                                onClick={() => setEditingJobRequest(null)}
+                                className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                disabled={actionBusy}
+                                onClick={() => void saveJobRequestEdit()}
+                                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                            >
+                                Save
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
+
+            {deletingJobRequest ? (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+                    onClick={() => !actionBusy && setDeletingJobRequest(null)}
+                >
+                    <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                        <h3 className="mb-2 text-lg font-bold text-gray-900">Delete job request</h3>
+                        <p className="mb-6 text-sm text-gray-600">
+                            Permanently delete “{deletingJobRequest.title || 'Untitled'}”? This cannot be undone.
+                        </p>
+                        <div className="flex justify-end gap-3">
+                            <button
+                                type="button"
+                                disabled={actionBusy}
+                                onClick={() => setDeletingJobRequest(null)}
+                                className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                disabled={actionBusy}
+                                onClick={() => void confirmDeleteJobRequest()}
+                                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                            >
+                                Delete
                             </button>
                         </div>
                     </div>

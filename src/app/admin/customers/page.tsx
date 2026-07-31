@@ -46,6 +46,8 @@ export default function CustomersPage() {
     const [showArchived, setShowArchived] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const [confirmCustomerId, setConfirmCustomerId] = useState<string | null>(null);
+    const [confirmJobRequestCount, setConfirmJobRequestCount] = useState(0);
+    const [confirmJobRequestLoading, setConfirmJobRequestLoading] = useState(false);
     const [convertedProviderId, setConvertedProviderId] = useState<string | null>(null);
     const [actionBusyId, setActionBusyId] = useState<string | null>(null);
     const [actionError, setActionError] = useState<string | null>(null);
@@ -59,13 +61,52 @@ export default function CustomersPage() {
         setCurrentPage(1);
     }, [query, showArchived]);
 
+    const openConvertConfirm = useCallback(async (customerId: string) => {
+        setConfirmCustomerId(customerId);
+        setConfirmJobRequestCount(0);
+        setConfirmJobRequestLoading(true);
+        setActionError(null);
+        try {
+            const response = await fetch(`/api/admin/customers/${customerId}/job-requests`);
+            const payload = (await response.json()) as { data?: unknown[]; error?: string };
+            if (!response.ok) throw new Error(payload.error || 'Failed to load job requests');
+            setConfirmJobRequestCount(Array.isArray(payload.data) ? payload.data.length : 0);
+        } catch (error: unknown) {
+            setActionError(error instanceof Error ? error.message : 'Failed to load job requests');
+            setConfirmCustomerId(null);
+        } finally {
+            setConfirmJobRequestLoading(false);
+        }
+    }, []);
+
     const handleConvert = useCallback(async (customerId: string) => {
+        const jobRequestCount = confirmJobRequestCount;
         setConfirmCustomerId(null);
+        setActionError(null);
+        setActionBusyId(customerId);
+
+        if (jobRequestCount > 0) {
+            const deleteResponse = await fetch('/api/job-requests', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ customerId }),
+            });
+            const deletePayload = (await deleteResponse.json()) as { error?: string };
+            if (!deleteResponse.ok) {
+                setActionBusyId(null);
+                setActionError(deletePayload.error || 'Failed to delete job requests');
+                return;
+            }
+        }
+
         const result = await dispatch(convertToProvider(customerId));
+        setActionBusyId(null);
         if (convertToProvider.fulfilled.match(result)) {
             setConvertedProviderId(result.payload.providerId);
+            return;
         }
-    }, [dispatch]);
+        setActionError((result.payload as string) || 'Conversion failed');
+    }, [confirmJobRequestCount, dispatch]);
 
     const dismissConvertResult = useCallback(() => {
         setConvertedProviderId(null);
@@ -393,7 +434,7 @@ export default function CustomersPage() {
                                                                     disabled={convertingId === c.id || rowBusy}
                                                                     onSelect={() => {
                                                                         if (!c.id) return;
-                                                                        setConfirmCustomerId(c.id);
+                                                                        void openConvertConfirm(c.id);
                                                                     }}
                                                                 >
                                                                     <span className="flex items-center gap-2">
@@ -545,37 +586,58 @@ export default function CustomersPage() {
                     {confirmCustomerId && (
                         <div
                             className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-                            onClick={() => setConfirmCustomerId(null)}
+                            onClick={() => !confirmJobRequestLoading && setConfirmCustomerId(null)}
                         >
                             <div
                                 className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"
                                 onClick={(e) => e.stopPropagation()}
                             >
                                 <h3 className="text-lg font-bold text-gray-900 mb-2">Convert to Provider</h3>
-                                <p className="text-sm text-gray-600 mb-1">
-                                    This will create a provider account for{' '}
-                                    <span className="font-semibold text-gray-900">
-                                        {(() => {
-                                            const cust = customers.find((c) => c.id === confirmCustomerId);
-                                            return cust ? `${cust.first_name ?? ''} ${cust.last_name ?? ''}`.trim() || 'this customer' : 'this customer';
-                                        })()}
-                                    </span>.
-                                </p>
-                                <p className="text-sm text-gray-500 mb-6">
-                                    A provider profile will be created with the same account id. The customer row will be removed from the customer table. They can sign in as a provider with their existing credentials. This cannot be undone.
-                                </p>
+                                {confirmJobRequestLoading ? (
+                                    <p className="mb-6 flex items-center gap-2 text-sm text-gray-600">
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                        Checking job requests…
+                                    </p>
+                                ) : confirmJobRequestCount > 0 ? (
+                                    <p className="text-sm text-gray-600 mb-6">
+                                        This customer has{' '}
+                                        <span className="font-semibold text-gray-900">{confirmJobRequestCount}</span> job
+                                        request{confirmJobRequestCount === 1 ? '' : 's'}. Delete{' '}
+                                        {confirmJobRequestCount === 1 ? 'it' : 'them'} before converting. A provider
+                                        profile will then be created and the customer row removed.
+                                    </p>
+                                ) : (
+                                    <>
+                                        <p className="text-sm text-gray-600 mb-1">
+                                            This will create a provider account for{' '}
+                                            <span className="font-semibold text-gray-900">
+                                                {(() => {
+                                                    const cust = customers.find((c) => c.id === confirmCustomerId);
+                                                    return cust ? `${cust.first_name ?? ''} ${cust.last_name ?? ''}`.trim() || 'this customer' : 'this customer';
+                                                })()}
+                                            </span>.
+                                        </p>
+                                        <p className="text-sm text-gray-500 mb-6">
+                                            A provider profile will be created with the same account id. The customer row will be removed from the customer table. They can sign in as a provider with their existing credentials. This cannot be undone.
+                                        </p>
+                                    </>
+                                )}
                                 <div className="flex items-center gap-3 justify-end">
                                     <button
                                         onClick={() => setConfirmCustomerId(null)}
-                                        className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                                        disabled={confirmJobRequestLoading || Boolean(actionBusyId)}
+                                        className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
                                     >
                                         Cancel
                                     </button>
                                     <button
                                         onClick={() => handleConvert(confirmCustomerId)}
-                                        className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition-colors"
+                                        disabled={confirmJobRequestLoading || Boolean(actionBusyId)}
+                                        className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition-colors disabled:opacity-50"
                                     >
-                                        Convert
+                                        {confirmJobRequestCount > 0
+                                            ? 'Delete job requests & convert'
+                                            : 'Convert'}
                                     </button>
                                 </div>
                             </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { Pencil, RefreshCw, Trash2 } from 'lucide-react';
 import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import {
@@ -42,6 +42,12 @@ interface JobRequestRow {
     serviceModelList?: JobRequestServiceModel[] | null;
 }
 
+interface EditFormState {
+    title: string;
+    description: string;
+    price: string;
+}
+
 function formatDate(value?: string | null): string {
     if (!value) return '—';
     const parsed = new Date(value);
@@ -58,6 +64,10 @@ const JobRequestsPage = () => {
     const [updatingId, setUpdatingId] = useState<string | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(20);
+    const [editingItem, setEditingItem] = useState<JobRequestRow | null>(null);
+    const [editForm, setEditForm] = useState<EditFormState>({ title: '', description: '', price: '' });
+    const [deleteItem, setDeleteItem] = useState<JobRequestRow | null>(null);
+    const [actionBusy, setActionBusy] = useState(false);
 
     async function fetchJobRequests() {
         setLoading(true);
@@ -108,6 +118,73 @@ const JobRequestsPage = () => {
             setError(message);
         } finally {
             setUpdatingId(null);
+        }
+    }
+
+    function openEdit(item: JobRequestRow) {
+        setEditingItem(item);
+        setEditForm({
+            title: item.title || '',
+            description: item.description || '',
+            price: item.price || '',
+        });
+    }
+
+    async function saveEdit() {
+        if (!editingItem) return;
+        setActionBusy(true);
+        setError(null);
+        try {
+            const response = await fetch('/api/job-requests', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: editingItem.id,
+                    title: editForm.title,
+                    description: editForm.description,
+                    price: editForm.price,
+                }),
+            });
+            const payload = (await response.json()) as { error?: string };
+            if (!response.ok) throw new Error(payload.error || 'Failed to update job request');
+            setItems((prev) =>
+                prev.map((item) =>
+                    item.id === editingItem.id
+                        ? {
+                              ...item,
+                              title: editForm.title,
+                              description: editForm.description,
+                              price: editForm.price,
+                          }
+                        : item
+                )
+            );
+            setEditingItem(null);
+        } catch (error: unknown) {
+            setError(error instanceof Error ? error.message : 'Failed to update job request');
+        } finally {
+            setActionBusy(false);
+        }
+    }
+
+    async function confirmDelete() {
+        if (!deleteItem) return;
+        setActionBusy(true);
+        setError(null);
+        try {
+            const response = await fetch('/api/job-requests', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: deleteItem.id }),
+            });
+            const payload = (await response.json()) as { error?: string };
+            if (!response.ok) throw new Error(payload.error || 'Failed to delete job request');
+            setItems((prev) => prev.filter((item) => item.id !== deleteItem.id));
+            setDeleteItem(null);
+        } catch (error: unknown) {
+            setError(error instanceof Error ? error.message : 'Failed to delete job request');
+        } finally {
+            setActionBusy(false);
         }
     }
 
@@ -218,12 +295,14 @@ const JobRequestsPage = () => {
                                             <TableHead>Payment</TableHead>
                                             <TableHead>Status</TableHead>
                                             <TableHead>Created</TableHead>
+                                            <TableHead className="text-right">Actions</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
                                         {paginated.map((item) => {
                                             const bidsCount = Array.isArray(item.bidList) ? item.bidList.length : 0;
                                             const displayStatus = item.accepted ? 'accepted' : (item.status || 'pending');
+                                            const busy = updatingId === item.id || actionBusy;
                                             return (
                                                 <TableRow key={item.id} className="align-top">
                                                     <TableCell className="max-w-[280px]">
@@ -248,7 +327,7 @@ const JobRequestsPage = () => {
                                                     </TableCell>
                                                     <TableCell>
                                                         <select
-                                                            disabled={updatingId === item.id}
+                                                            disabled={busy}
                                                             value={
                                                                 displayStatus.toLowerCase() === 'accepted'
                                                                     ? 'accepted'
@@ -273,6 +352,28 @@ const JobRequestsPage = () => {
                                                         </select>
                                                     </TableCell>
                                                     <TableCell className="whitespace-nowrap">{formatDate(item.createdAt)}</TableCell>
+                                                    <TableCell className="text-right">
+                                                        <div className="inline-flex items-center gap-1">
+                                                            <button
+                                                                type="button"
+                                                                disabled={busy}
+                                                                onClick={() => openEdit(item)}
+                                                                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-50"
+                                                                aria-label="Edit job request"
+                                                            >
+                                                                <Pencil className="h-4 w-4" />
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                disabled={busy}
+                                                                onClick={() => setDeleteItem(item)}
+                                                                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-red-200 text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
+                                                                aria-label="Delete job request"
+                                                            >
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </button>
+                                                        </div>
+                                                    </TableCell>
                                                 </TableRow>
                                             );
                                         })}
@@ -289,6 +390,100 @@ const JobRequestsPage = () => {
                             onPageChange={setCurrentPage}
                             onPageSizeChange={setPageSize}
                         />
+
+                        {editingItem ? (
+                            <div
+                                className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+                                onClick={() => !actionBusy && setEditingItem(null)}
+                            >
+                                <div
+                                    className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+                                    onClick={(event) => event.stopPropagation()}
+                                >
+                                    <h3 className="mb-4 text-lg font-bold text-gray-900">Edit job request</h3>
+                                    <div className="space-y-3">
+                                        <label className="block text-sm font-medium text-gray-700">
+                                            Title
+                                            <input
+                                                value={editForm.title}
+                                                onChange={(event) => setEditForm((prev) => ({ ...prev, title: event.target.value }))}
+                                                className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                                            />
+                                        </label>
+                                        <label className="block text-sm font-medium text-gray-700">
+                                            Description
+                                            <textarea
+                                                value={editForm.description}
+                                                onChange={(event) => setEditForm((prev) => ({ ...prev, description: event.target.value }))}
+                                                rows={4}
+                                                className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                                            />
+                                        </label>
+                                        <label className="block text-sm font-medium text-gray-700">
+                                            Price
+                                            <input
+                                                value={editForm.price}
+                                                onChange={(event) => setEditForm((prev) => ({ ...prev, price: event.target.value }))}
+                                                className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                                            />
+                                        </label>
+                                    </div>
+                                    <div className="mt-6 flex justify-end gap-3">
+                                        <button
+                                            type="button"
+                                            disabled={actionBusy}
+                                            onClick={() => setEditingItem(null)}
+                                            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            type="button"
+                                            disabled={actionBusy}
+                                            onClick={() => void saveEdit()}
+                                            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                                        >
+                                            Save
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : null}
+
+                        {deleteItem ? (
+                            <div
+                                className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+                                onClick={() => !actionBusy && setDeleteItem(null)}
+                            >
+                                <div
+                                    className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+                                    onClick={(event) => event.stopPropagation()}
+                                >
+                                    <h3 className="mb-2 text-lg font-bold text-gray-900">Delete job request</h3>
+                                    <p className="mb-6 text-sm text-gray-600">
+                                        Permanently delete “{deleteItem.title || 'Untitled'}”? This cannot be undone.
+                                    </p>
+                                    <div className="flex justify-end gap-3">
+                                        <button
+                                            type="button"
+                                            disabled={actionBusy}
+                                            onClick={() => setDeleteItem(null)}
+                                            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            type="button"
+                                            disabled={actionBusy}
+                                            onClick={() => void confirmDelete()}
+                                            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                                        >
+                                            Delete
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : null}
             </AdminShell>
         </AuthGuard>
     );
