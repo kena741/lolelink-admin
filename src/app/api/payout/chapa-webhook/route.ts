@@ -8,6 +8,7 @@ import {
     buildPayoutActivitySummary,
     loadWithdrawalActivityContext,
 } from '@/lib/payout-activity-log';
+import { verifyChapaWebhookSignature } from '@/lib/chapa-config';
 
 export const runtime = 'nodejs';
 
@@ -79,7 +80,11 @@ async function insertNotificationIfMissing(
 export async function POST(request: Request) {
     const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
-        const payload = (await request.json()) as ChapaWebhookPayload;
+        const rawBody = await request.text();
+        if (!verifyChapaWebhookSignature(rawBody, request.headers)) {
+            return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
+        }
+        const payload = (rawBody ? JSON.parse(rawBody) : {}) as ChapaWebhookPayload;
         const reference = resolveReference(payload);
         if (!reference)
             return NextResponse.json({ error: 'Missing reference/tx_ref in webhook payload' }, { status: 400 });

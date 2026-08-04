@@ -2,8 +2,6 @@ import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { getSupabase } from '@/lib/supabaseClient';
 import { logClientAdminActivity } from '@/lib/record-admin-activity';
 import { formatWithdrawalAmountEtb } from '@/lib/payout-activity-log';
-import { resolveProviderAuthUserId } from '@/lib/wallet-transaction-user';
-import { walletTransactionProfileColumns } from '@/lib/wallet-transaction-profile';
 
 export interface PayoutRequest {
     id: string;
@@ -42,16 +40,6 @@ const initialState: PayoutRequestState = {
     bookingPayoutStatus: {},
     bookingPayoutLoading: false,
 };
-
-interface BookingPaymentRow {
-    id: string;
-    provider_id: string;
-    totalAmount?: number;
-    price?: number;
-    paymentCompleted?: boolean;
-    payment_status?: string;
-    status?: string;
-}
 
 interface WalletTransactionRow {
     id: string;
@@ -649,84 +637,20 @@ export const processBookingPayout = createAsyncThunk<
     'payout/processBookingPayout',
     async ({ bookingId }, { rejectWithValue }) => {
         try {
-            const { data: bookingData, error: bookingError } = await getSupabase()
-                .from('booked_service')
-                .select('id, provider_id, totalAmount, price, paymentCompleted, payment_status, status')
-                .eq('id', bookingId)
-                .single();
-
-            if (bookingError) throw bookingError;
-            const booking = bookingData as BookingPaymentRow;
-
-            const normalizedBookingStatus = (booking.status ?? '').toString().trim().toLowerCase();
-            const isCompleted =
-                normalizedBookingStatus === 'completed' ||
-                normalizedBookingStatus === 'service_completion_approved_by_customer';
-            if (!isCompleted) return rejectWithValue('Booking is not completed yet');
-
-            const isCustomerPaymentDone =
-                booking.paymentCompleted === true ||
-                (booking.payment_status ?? '').toString().trim().toLowerCase() === 'payment_completed' ||
-                [
-                    'paid_for_service_booked',
-                    'service_started',
-                    'service_completion_approval',
-                    'service_completion_approved_by_customer',
-                    'completed',
-                ].includes(normalizedBookingStatus);
-            if (!isCustomerPaymentDone) return rejectWithValue('Customer payment is not completed yet');
-
-            if (!booking.provider_id) return rejectWithValue('Provider is missing for this booking');
-
-            const authUser = await resolveProviderAuthUserId(getSupabase(), booking.provider_id);
-            if (!authUser.ok) return rejectWithValue(authUser.error);
-
-            const transactionId = `provider-payout:${bookingId}`;
-            const { data: existing, error: existingError } = await getSupabase()
-                .from('wallet_transaction')
-                .select('id')
-                .eq('transactionId', transactionId)
-                .eq('type', 'provider_payout')
-                .maybeSingle();
-
-            if (existingError) throw existingError;
-            if ((existing as WalletTransactionRow | null)?.id) {
-                logClientAdminActivity({
-                    action: 'transfer',
-                    resource_type: 'booking',
-                    resource_id: bookingId,
-                    summary: `Booking payout already processed for ${bookingId}`,
-                });
-                return { bookingId, processed: true };
+            const response = await fetch('/api/payout/process-booking', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ bookingId }),
+            });
+            const payload = (await response.json()) as {
+                error?: string;
+                bookingId?: string;
+                processed?: boolean;
+            };
+            if (!response.ok) {
+                return rejectWithValue(payload.error || 'Failed to process booking payout');
             }
-
-            const payoutAmount = Number(booking.totalAmount ?? booking.price ?? 0);
-            if (payoutAmount <= 0) return rejectWithValue('Invalid payout amount');
-
-            const { error: insertError } = await getSupabase().from('wallet_transaction').insert({
-                amount: payoutAmount.toFixed(2),
-                createdDate: new Date().toISOString(),
-                isCredit: true,
-                note: `Payout for booking ${bookingId}`,
-                paymentType: 'wallet_topup',
-                transactionId,
-                type: 'provider_payout',
-                ...walletTransactionProfileColumns({
-                    type: 'provider_payout',
-                    authUserId: authUser.authUserId,
-                    providerId: booking.provider_id,
-                }),
-            });
-
-            if (insertError) throw insertError;
-            logClientAdminActivity({
-                action: 'transfer',
-                resource_type: 'booking',
-                resource_id: bookingId,
-                summary: `Processed provider payout for booking ${bookingId}`,
-                metadata: { amount: payoutAmount, provider_id: booking.provider_id },
-            });
-            return { bookingId, processed: true };
+            return { bookingId, processed: Boolean(payload.processed) };
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Failed to process booking payout';
             return rejectWithValue(msg);

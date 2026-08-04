@@ -17,11 +17,13 @@ import Link from 'next/link';
 import { fetchCategories } from '@/features/category/categorySlice';
 import { fetchSubCategories, createSubCategory, updateSubCategory, deleteSubCategory, fetchSubCategoryDocumentIds, fetchAllSubCategoryDocumentIds } from '@/features/subcategory/subcategorySlice';
 import { fetchDocuments } from '@/features/document/documentSlice';
+import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 
 const CategoryDetailPage = () => {
     const params = useParams();
     const router = useRouter();
     const dispatch = useAppDispatch();
+    const { canWriteCatalog } = useAdminPermissions();
     const { categories } = useAppSelector((state) => state.category);
     const { subCategories, loading, error, documentIdsBySubCategoryId } = useAppSelector((state) => state.subcategory);
     const { documents } = useAppSelector((state) => state.document);
@@ -58,6 +60,7 @@ const CategoryDetailPage = () => {
     }, [categories, category, router]);
 
     const handleOpenModal = (subCategory?: typeof categorySubCategories[0], multiple: boolean = false) => {
+        if (!canWriteCatalog) return;
         if (subCategory) {
             setEditingSubCategory(subCategory);
             setFormData({ subCategoryName: subCategory.subCategoryName });
@@ -109,6 +112,7 @@ const CategoryDetailPage = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!canWriteCatalog) return;
         
         if (isAddingMultiple) {
             // Add multiple subcategories
@@ -160,6 +164,7 @@ const CategoryDetailPage = () => {
     };
 
     const handleDelete = async (id: string) => {
+        if (!canWriteCatalog) return;
         if (!confirm('Are you sure you want to delete this subcategory?')) return;
         
         setDeletingId(id);
@@ -219,6 +224,8 @@ const CategoryDetailPage = () => {
                                         <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                                         Refresh
                                     </button>
+                                    {canWriteCatalog && (
+                                    <>
                                     <button
                                         type="button"
                                         onClick={() => handleOpenModal(undefined, false)}
@@ -235,6 +242,8 @@ const CategoryDetailPage = () => {
                                         <Plus className="h-4 w-4" />
                                         Add Multiple
                                     </button>
+                                    </>
+                                    )}
                                 </>
                             }
                         />
@@ -256,13 +265,15 @@ const CategoryDetailPage = () => {
                                         <FolderKanban className="h-16 w-16 text-gray-400 mx-auto mb-4" />
                                         <p className="text-lg font-semibold text-gray-900 mb-2">No subcategories found</p>
                                         <p className="text-sm text-gray-600 mb-4">Get started by creating your first subcategory for this category</p>
+                                        {canWriteCatalog && (
                                         <button
                                             onClick={() => handleOpenModal()}
-                                            className="inline-flex items-center gap-2 rounded-lg inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-accent"
+                                            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-accent"
                                         >
                                             <Plus className="h-4 w-4" />
                                             Add Subcategory
                                         </button>
+                                        )}
                                     </div>
                                 ) : (
                                     <table className="w-full">
@@ -286,6 +297,7 @@ const CategoryDetailPage = () => {
                                                         {documentIdsBySubCategoryId[subCategory.id]?.length ?? 0} required
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                        {canWriteCatalog ? (
                                                         <div className="flex items-center justify-end gap-2">
                                                             <button
                                                                 onClick={() => handleOpenModal(subCategory)}
@@ -307,6 +319,9 @@ const CategoryDetailPage = () => {
                                                                 )}
                                                             </button>
                                                         </div>
+                                                        ) : (
+                                                            <span className="text-xs text-gray-400">View only</span>
+                                                        )}
                                                     </td>
                                                 </tr>
                                             ))}

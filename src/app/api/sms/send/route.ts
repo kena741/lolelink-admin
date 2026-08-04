@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { logAdminActivity } from '@/lib/admin-activity-log';
+import { requireAdminPermission } from '@/lib/admin-auth';
 
 export const runtime = 'nodejs';
 
@@ -12,6 +13,11 @@ interface SmsRequestBody {
 }
 
 export async function POST(request: Request) {
+    const auth = await requireAdminPermission(request, 'providers:verify');
+    if (!auth.ok) {
+        return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
     try {
         const body = (await request.json()) as SmsRequestBody;
         const recipient = (body.recipient ?? '').trim();

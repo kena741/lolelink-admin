@@ -5,6 +5,7 @@ import {
 } from '@/lib/dashboard-range';
 import { isMissingPaymentMethodPayout } from '@/lib/payout-missing-payment-method';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
+import { requireAdminPermission } from '@/lib/admin-auth';
 
 export const runtime = 'nodejs';
 
@@ -66,6 +67,11 @@ function pickPreferred(methods: ProviderPaymentMethodRow[]): ProviderPaymentMeth
 }
 
 export async function GET(request: Request) {
+    const auth = await requireAdminPermission(request, 'finance:read');
+    if (!auth.ok) {
+        return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
     const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const url = new URL(request.url);

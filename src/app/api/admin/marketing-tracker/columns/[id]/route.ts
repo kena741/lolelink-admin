@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAdminSession } from '@/lib/admin-auth';
+import { requireAdminPermission } from '@/lib/admin-auth';
 import { logAdminActivity } from '@/lib/admin-activity-log';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 import {
@@ -20,7 +20,7 @@ export async function PATCH(
     request: Request,
     context: { params: Promise<{ id: string }> }
 ) {
-    const auth = await requireAdminSession(request);
+    const auth = await requireAdminPermission(request, 'catalog:write');
     if (!auth.ok) {
         return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
@@ -65,7 +65,7 @@ export async function DELETE(
     request: Request,
     context: { params: Promise<{ id: string }> }
 ) {
-    const auth = await requireAdminSession(request);
+    const auth = await requireAdminPermission(request, 'catalog:write');
     if (!auth.ok) {
         return NextResponse.json({ error: auth.error }, { status: auth.status });
     }

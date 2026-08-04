@@ -8,6 +8,7 @@ import { AdminShell } from '@/components/admin/admin-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { BroadcastChannel } from '@/lib/broadcast-notify';
+import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 
 type ChannelCounts = {
     attempted: number;
@@ -226,6 +227,8 @@ function BroadcastForm({
 }
 
 export default function PushNotificationsPage() {
+    const { canWriteNotifications } = useAdminPermissions();
+
     return (
         <AuthGuard>
             <AdminShell>
@@ -238,6 +241,12 @@ export default function PushNotificationsPage() {
                     ]}
                 />
 
+                {!canWriteNotifications ? (
+                    <div className="rounded-lg border border-border bg-card px-4 py-6 text-sm text-muted-foreground">
+                        You do not have permission to manage notifications.
+                    </div>
+                ) : (
+                    <>
                 <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
                     <Megaphone className="h-4 w-4" />
                     Active accounts only · Push uses FCM · SMS uses profile phone numbers
@@ -255,6 +264,8 @@ export default function PushNotificationsPage() {
                         endpoint="/api/admin/push/customers"
                     />
                 </div>
+                    </>
+                )}
             </AdminShell>
         </AuthGuard>
     );

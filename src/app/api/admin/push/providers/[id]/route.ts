@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAdminSession } from '@/lib/admin-auth';
+import { requireAdminPermission } from '@/lib/admin-auth';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 import {
     fetchProviderPushProfile,
@@ -14,7 +14,7 @@ export async function GET(
     request: Request,
     context: { params: Promise<{ id: string }> }
 ) {
-    const auth = await requireAdminSession(request);
+    const auth = await requireAdminPermission(request, 'notifications:write');
     if (!auth.ok) {
         return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
@@ -55,7 +55,7 @@ export async function POST(
     request: Request,
     context: { params: Promise<{ id: string }> }
 ) {
-    const auth = await requireAdminSession(request);
+    const auth = await requireAdminPermission(request, 'notifications:write');
     if (!auth.ok) {
         return NextResponse.json({ error: auth.error }, { status: auth.status });
     }

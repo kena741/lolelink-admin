@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
+import { requireAdminPermission } from '@/lib/admin-auth';
 
 export const runtime = 'nodejs';
 
@@ -65,7 +66,12 @@ function pickPreferred(methods: ProviderPaymentMethodRow[]): ProviderPaymentMeth
 }
 
 export async function POST(request: Request) {
-        const supabaseAdmin = getSupabaseAdminFromRequest(request);
+    const auth = await requireAdminPermission(request, 'finance:read');
+    if (!auth.ok) {
+        return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
+    const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const body = (await request.json()) as RequestBody;
         const providerIds = (body.providerIds || []).map(normalizeText).filter(Boolean);

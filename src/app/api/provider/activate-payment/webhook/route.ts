@@ -5,6 +5,7 @@ import {
     parseServicePostingTiers,
     resolveServicePostingTierByPrice,
 } from '@/lib/service-posting-tiers';
+import { verifyChapaWebhookSignature } from '@/lib/chapa-config';
 
 export const runtime = 'nodejs';
 
@@ -40,7 +41,11 @@ function parseObjectValue(value: unknown): Record<string, unknown> {
 export async function POST(request: Request) {
         const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
-        const body = (await request.json()) as ChapaWebhookPayload;
+        const rawBody = await request.text();
+        if (!verifyChapaWebhookSignature(rawBody, request.headers)) {
+            return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
+        }
+        const body = (rawBody ? JSON.parse(rawBody) : {}) as ChapaWebhookPayload;
         const txRef = body.tx_ref || '';
 
         if (!txRef.startsWith('act-')) {

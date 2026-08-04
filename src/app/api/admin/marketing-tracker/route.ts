@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAdminSession } from '@/lib/admin-auth';
+import { requireAdminPermission } from '@/lib/admin-auth';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 import type {
     MarketingTrackerColumn,
@@ -10,7 +10,7 @@ import type {
 export const runtime = 'nodejs';
 
 export async function GET(request: Request) {
-    const auth = await requireAdminSession(request);
+    const auth = await requireAdminPermission(request, 'catalog:read');
     if (!auth.ok) {
         return NextResponse.json({ error: auth.error }, { status: auth.status });
     }

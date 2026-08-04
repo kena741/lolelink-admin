@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from 'crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export interface ChapaConfig {
@@ -37,6 +38,30 @@ export function normalizeBoolean(value: unknown): boolean {
 export function isChapaSuccessStatus(status: string | undefined): boolean {
     const normalized = (status || '').toLowerCase().trim();
     return ['success', 'successful', 'completed', 'paid'].includes(normalized);
+}
+
+function safeEqualHex(received: string | null, expected: string): boolean {
+    if (!received || received.length !== expected.length) return false;
+    return timingSafeEqual(Buffer.from(received), Buffer.from(expected));
+}
+
+/** Verify Chapa Payment Webhook using CHAPA_WEBHOOK_SECRET (dashboard secret hash). */
+export function verifyChapaWebhookSignature(rawBody: string, headers: Headers): boolean {
+    const secret = (process.env.CHAPA_WEBHOOK_SECRET || '').trim();
+    if (!secret) return false;
+
+    const xSig = headers.get('x-chapa-signature');
+    const chapaSig = headers.get('chapa-signature');
+    if (!xSig && !chapaSig) return false;
+
+    const payloadMac = createHmac('sha256', secret).update(rawBody).digest('hex');
+    const secretMac = createHmac('sha256', secret).update(secret).digest('hex');
+
+    return (
+        safeEqualHex(xSig, payloadMac) ||
+        safeEqualHex(chapaSig, secretMac) ||
+        safeEqualHex(chapaSig, payloadMac)
+    );
 }
 
 export const CHAPA_DOMESTIC_FEE_RATE = 0.025;

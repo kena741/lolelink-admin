@@ -34,11 +34,13 @@ import { getSupabase } from '@/lib/supabaseClient';
 import { sendSms, buildRecipient } from '@/lib/sms';
 import { cn } from '@/lib/utils';
 import { getDisplayImageUrl } from '@/lib/media-url';
+import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 
 type StatusFilter = 'all' | 'pending' | 'approved' | 'rejected';
 
 const VerifyDocumentsPage = () => {
     const dispatch = useAppDispatch();
+    const { canVerifyProviders } = useAdminPermissions();
     const { documents, loading, error } = useAppSelector((state) => state.verifyDocuments);
     const [processingId, setProcessingId] = useState<string | null>(null);
     const [processingProviderId, setProcessingProviderId] = useState<string | null>(null);
@@ -114,6 +116,7 @@ const VerifyDocumentsPage = () => {
     }
 
     const handleVerify = async (id: string, docHint?: (typeof documents)[0]) => {
+        if (!canVerifyProviders) return;
         setProcessingId(id);
         try {
             const result = await dispatch(verifyDocument(id)).unwrap();
@@ -136,6 +139,7 @@ const VerifyDocumentsPage = () => {
         id: string,
         docHint?: (typeof documents)[0]
     ): Promise<boolean> => {
+        if (!canVerifyProviders) return false;
         const trimmedReason = rejectionReason.trim();
         if (!trimmedReason) return false;
 
@@ -165,6 +169,7 @@ const VerifyDocumentsPage = () => {
     };
 
     const handleApproveAll = async (providerId: string, providerName?: string) => {
+        if (!canVerifyProviders) return;
         setProcessingProviderId(providerId);
         try {
             await dispatch(approveAllDocuments(providerId)).unwrap();
@@ -178,6 +183,7 @@ const VerifyDocumentsPage = () => {
     };
 
     const handleReapproveAll = async (providerId: string, providerName?: string) => {
+        if (!canVerifyProviders) return;
         setProcessingProviderId(providerId);
         try {
             await dispatch(reapproveAllRejectedDocuments(providerId)).unwrap();
@@ -482,7 +488,7 @@ const VerifyDocumentsPage = () => {
                                                             </div>
                                                         </div>
                                                         <div className="flex flex-wrap items-center gap-2">
-                                                            {pendingDocs.length > 0 && (
+                                                            {canVerifyProviders && pendingDocs.length > 0 && (
                                                                 <button
                                                                     onClick={() => handleApproveAll(group.providerId, group.providerName)}
                                                                     disabled={isProcessingAll}
@@ -491,7 +497,7 @@ const VerifyDocumentsPage = () => {
                                                                     {isProcessingAll ? 'Processing...' : `Approve All (${pendingDocs.length})`}
                                                                 </button>
                                                             )}
-                                                            {rejectedDocs.length > 0 && (
+                                                            {canVerifyProviders && rejectedDocs.length > 0 && (
                                                                 <button
                                                                     onClick={() => handleReapproveAll(group.providerId, group.providerName)}
                                                                     disabled={isProcessingAll}
@@ -794,7 +800,7 @@ const VerifyDocumentsPage = () => {
                                     )}
 
                                     {/* Actions */}
-                                    {selectedDocument.isVerify === null && (
+                                    {canVerifyProviders && selectedDocument.isVerify === null && (
                                         <div className="flex items-center gap-3 pt-4 border-t border-gray-200">
                                             <button
                                                 onClick={() => {
@@ -823,7 +829,7 @@ const VerifyDocumentsPage = () => {
                                         </div>
                                     )}
 
-                                    {selectedDocument.isVerify === false && (
+                                    {canVerifyProviders && selectedDocument.isVerify === false && (
                                         <div className="flex items-center gap-3 pt-4 border-t border-gray-200">
                                             <button
                                                 onClick={() => {

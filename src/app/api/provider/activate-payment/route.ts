@@ -15,6 +15,8 @@ import {
     parseServicePostingTiers,
     type ServicePostingTier,
 } from '@/lib/service-posting-tiers';
+import { requireAdminSession } from '@/lib/admin-auth';
+import { hasPermission } from '@/lib/admin-permissions';
 
 export const runtime = 'nodejs';
 
@@ -461,12 +463,24 @@ async function handleManualMark(
 }
 
 export async function POST(request: Request) {
+    const auth = await requireAdminSession(request);
+    if (!auth.ok) {
+        return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
     const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const body = (await request.json()) as ActivatePaymentBody;
 
         if (!body.providerId) {
             return NextResponse.json({ error: 'providerId is required' }, { status: 400 });
+        }
+
+        const perms = auth.context.permissions;
+        const canProvidersWrite = hasPermission(perms, 'providers:write');
+        const canFinanceWrite = hasPermission(perms, 'finance:write');
+        if (body.mode === 'manual' ? !(canProvidersWrite || canFinanceWrite) : !canProvidersWrite) {
+            return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
         }
 
         const result = await loadProviderAndFee(supabaseAdmin, body.providerId);

@@ -35,6 +35,7 @@ import {
     stripColumnKeyFromValues,
 } from '@/lib/marketing-tracker';
 import { cn } from '@/lib/utils';
+import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 
 const gridIconButtonClassName =
     'inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
@@ -74,14 +75,15 @@ interface TrackerCellEditorProps {
     filled?: boolean;
 }
 
-function TrackerCellEditor({ column, value, onChange, filled = false }: TrackerCellEditorProps) {
+function TrackerCellEditor({ column, value, onChange, filled = false, readOnly = false }: TrackerCellEditorProps & { readOnly?: boolean }) {
     if (column.column_type === 'boolean') {
         const checked = value === true;
         return (
-            <label className="flex h-9 cursor-pointer items-center gap-2 px-2">
+            <label className={cn('flex h-9 items-center gap-2 px-2', readOnly ? 'cursor-default' : 'cursor-pointer')}>
                 <input
                     type="checkbox"
                     checked={checked}
+                    disabled={readOnly}
                     onChange={(event) => onChange(event.target.checked)}
                     className="h-4 w-4 rounded border border-input accent-primary focus:ring-2 focus:ring-ring/40"
                 />
@@ -96,6 +98,8 @@ function TrackerCellEditor({ column, value, onChange, filled = false }: TrackerC
             <Input
                 type="date"
                 value={dateValue}
+                readOnly={readOnly}
+                disabled={readOnly}
                 onChange={(event) => onChange(event.target.value || null)}
                 className="h-9 border-0 bg-transparent px-2 shadow-none focus-visible:ring-1"
             />
@@ -111,9 +115,10 @@ function TrackerCellEditor({ column, value, onChange, filled = false }: TrackerC
         return (
             <textarea
                 value={textValue}
+                readOnly={readOnly}
                 onChange={(event) => onChange(event.target.value)}
                 rows={2}
-                className={`min-h-[36px] min-w-0 w-full resize-y overflow-hidden rounded-none px-2 py-1.5 text-sm ${textCellClassName}`}
+                className={`min-h-9 min-w-0 w-full resize-y overflow-hidden rounded-none px-2 py-1.5 text-sm ${textCellClassName}`}
             />
         );
     }
@@ -121,6 +126,7 @@ function TrackerCellEditor({ column, value, onChange, filled = false }: TrackerC
     return (
         <Input
             value={textValue}
+            readOnly={readOnly}
             onChange={(event) => onChange(event.target.value)}
             className={textCellClassName}
         />
@@ -132,11 +138,12 @@ interface ColumnHeaderProps {
     widthPx: number;
     isSticky: boolean;
     onResize: (columnId: string, widthPx: number, persist?: boolean) => void;
-    onDelete: (columnId: string) => void;
+    onDelete?: (columnId: string) => void;
 }
 
 function ColumnHeader({ column, widthPx, isSticky, onResize, onDelete }: ColumnHeaderProps) {
     function handleResizeStart(event: React.MouseEvent<HTMLButtonElement>) {
+        if (!onDelete) return;
         event.preventDefault();
         event.stopPropagation();
 
@@ -175,6 +182,7 @@ function ColumnHeader({ column, widthPx, isSticky, onResize, onDelete }: ColumnH
         >
             <div className="flex min-w-0 items-center gap-1 pr-2">
                 <span className="min-w-0 flex-1 truncate">{column.label}</span>
+                {onDelete ? (
                 <button
                     type="button"
                     aria-label={`Delete ${column.label} column`}
@@ -189,6 +197,7 @@ function ColumnHeader({ column, widthPx, isSticky, onResize, onDelete }: ColumnH
                 >
                     <Trash2 className="h-3.5 w-3.5" />
                 </button>
+                ) : null}
             </div>
             <button
                 type="button"
@@ -360,6 +369,7 @@ function SheetMetricsSection({
 }
 
 export default function MarketingTrackerPage() {
+    const { canWriteCatalog } = useAdminPermissions();
     const [sheets, setSheets] = useState<MarketingTrackerSheet[]>([]);
     const [activeSheetId, setActiveSheetId] = useState<string | null>(null);
     const [columns, setColumns] = useState<MarketingTrackerColumn[]>([]);
@@ -493,6 +503,7 @@ export default function MarketingTrackerPage() {
     }, [columns]);
 
     const saveColumnWidth = useCallback(async (columnId: string, widthPx: number) => {
+        if (!canWriteCatalog) return;
         if (isLocalId(columnId)) return;
         const response = await fetch(`/api/admin/marketing-tracker/columns/${columnId}`, {
             method: 'PATCH',
@@ -506,10 +517,11 @@ export default function MarketingTrackerPage() {
                 current.map((column) => (column.id === columnId ? payload.column! : column))
             );
         }
-    }, []);
+    }, [canWriteCatalog]);
 
     const handleColumnResize = useCallback(
         (columnId: string, widthPx: number, persist = false) => {
+            if (!canWriteCatalog) return;
             setColumns((current) =>
                 current.map((column) =>
                     column.id === columnId ? { ...column, width_px: widthPx } : column
@@ -533,11 +545,12 @@ export default function MarketingTrackerPage() {
                 }, 300)
             );
         },
-        [saveColumnWidth]
+        [canWriteCatalog, saveColumnWidth]
     );
 
     const patchCell = useCallback(
         async (rowId: string, columnKey: string, value: MarketingTrackerCellValue) => {
+            if (!canWriteCatalog) return;
             const resolvedRowId = await resolveRowId(rowId);
             const response = await fetch(`/api/admin/marketing-tracker/rows/${resolvedRowId}`, {
                 method: 'PATCH',
@@ -558,7 +571,7 @@ export default function MarketingTrackerPage() {
                 );
             }
         },
-        [resolveRowId]
+        [canWriteCatalog, resolveRowId]
     );
 
     const insertRowAfter = useCallback(
@@ -567,6 +580,7 @@ export default function MarketingTrackerPage() {
             initialValues?: Record<string, MarketingTrackerCellValue>,
             focusColumnKey?: string
         ): string => {
+            if (!canWriteCatalog) return '';
             if (!activeSheetId) return '';
             setError(null);
 
@@ -673,11 +687,12 @@ export default function MarketingTrackerPage() {
 
             return tempId;
         },
-        [activeSheetId, columns, rows, resolveRowId, resolveSheetId]
+        [canWriteCatalog, activeSheetId, columns, rows, resolveRowId, resolveSheetId]
     );
 
     const applyRowCellSave = useCallback(
         (rowId: string, columnKey: string, value: MarketingTrackerCellValue) => {
+            if (!canWriteCatalog) return;
             setRows((current) =>
                 current.map((row) =>
                     row.id === rowId
@@ -701,7 +716,7 @@ export default function MarketingTrackerPage() {
                 }, 400)
             );
         },
-        [patchCell]
+        [canWriteCatalog, patchCell]
     );
 
     const scheduleSave = useCallback(
@@ -731,6 +746,7 @@ export default function MarketingTrackerPage() {
     );
 
     async function handleDeleteRow(rowId: string) {
+        if (!canWriteCatalog) return;
         if (isPhantomRowId(rowId)) return;
         setError(null);
 
@@ -762,6 +778,7 @@ export default function MarketingTrackerPage() {
     }
 
     async function handleDeleteColumn(columnId: string) {
+        if (!canWriteCatalog) return;
         const column = columns.find((candidate) => candidate.id === columnId);
         if (!column) return;
         setError(null);
@@ -817,6 +834,7 @@ export default function MarketingTrackerPage() {
     }
 
     async function commitSheetRename(sheetId: string) {
+        if (!canWriteCatalog) return;
         const trimmed = editingSheetName.trim();
         const sheet = sheets.find((candidate) => candidate.id === sheetId);
         if (!sheet) {
@@ -864,6 +882,7 @@ export default function MarketingTrackerPage() {
     }
 
     async function handleDeleteSheet(sheetId: string) {
+        if (!canWriteCatalog) return;
         if (sheets.length <= 1) {
             setError('Cannot delete the last sheet');
             return;
@@ -953,6 +972,7 @@ export default function MarketingTrackerPage() {
     }
 
     function handleAddColumn() {
+        if (!canWriteCatalog) return;
         if (!activeSheetId) return;
         const label = newColumnLabel.trim();
         if (!label) {
@@ -1011,6 +1031,7 @@ export default function MarketingTrackerPage() {
     }
 
     function handleAddSheet() {
+        if (!canWriteCatalog) return;
         const name = newSheetName.trim() || `Sheet ${sheets.length + 1}`;
         setError(null);
 
@@ -1117,7 +1138,7 @@ export default function MarketingTrackerPage() {
 
                 {error ? <AdminErrorAlert message={error} /> : null}
 
-                <div className="relative flex max-h-[calc(100vh-18rem)] min-h-[360px] flex-col overflow-hidden rounded-lg border border-border bg-card">
+                <div className="relative flex max-h-[calc(100vh-18rem)] min-h-90 flex-col overflow-hidden rounded-lg border border-border bg-card">
                     {initialLoading ? (
                         <div className="flex flex-1 items-center justify-center p-8">
                             <AdminLoadingRow label="Loading marketing tracker..." />
@@ -1155,10 +1176,15 @@ export default function MarketingTrackerPage() {
                                                 widthPx={columnWidths.get(column.id) ?? resolveColumnWidthPx(column)}
                                                 isSticky={column.key === stickyColumnKey}
                                                 onResize={handleColumnResize}
-                                                onDelete={(columnId) => requestDeleteColumn(columnId)}
+                                                onDelete={
+                                                    canWriteCatalog
+                                                        ? (columnId) => requestDeleteColumn(columnId)
+                                                        : undefined
+                                                }
                                             />
                                         ))}
                                         <th className="border-b border-border/60 bg-muted px-1 py-2">
+                                            {canWriteCatalog ? (
                                             <button
                                                 type="button"
                                                 aria-label="Add column"
@@ -1167,6 +1193,7 @@ export default function MarketingTrackerPage() {
                                             >
                                                 <Plus className="h-4 w-4" />
                                             </button>
+                                            ) : null}
                                         </th>
                                         <th className="border-b border-border/60 bg-muted" aria-hidden />
                                     </tr>
@@ -1201,7 +1228,7 @@ export default function MarketingTrackerPage() {
                                                     >
                                                         <div className="flex flex-col items-center gap-0.5">
                                                             <span className="leading-none">{rowNumber}</span>
-                                                            {!isPhantom ? (
+                                                            {!isPhantom && canWriteCatalog ? (
                                                                 <button
                                                                     type="button"
                                                                     aria-label="Insert row below"
@@ -1255,13 +1282,14 @@ export default function MarketingTrackerPage() {
                                                                             scheduleSave(row.id, column.key, value)
                                                                         }
                                                                         filled={isBusinessNameColumn}
+                                                                        readOnly={!canWriteCatalog}
                                                                     />
                                                                 </div>
                                                             </td>
                                                         );
                                                     })}
                                                     <td className="border-b border-border/60 px-1 py-1 text-center">
-                                                        {!isPhantom ? (
+                                                        {!isPhantom && canWriteCatalog ? (
                                                             <button
                                                                 type="button"
                                                                 onClick={() => requestDeleteRow(row.id)}
@@ -1385,7 +1413,7 @@ export default function MarketingTrackerPage() {
                                 <div
                                     key={sheet.id}
                                     className={cn(
-                                        'group relative flex max-w-[220px] shrink-0 items-center rounded-t-md border pr-8',
+                                        'group relative flex max-w-55 shrink-0 items-center rounded-t-md border pr-8',
                                         isActive
                                             ? '-mb-px border-border border-b-card bg-card text-primary'
                                             : 'border-transparent text-muted-foreground hover:bg-muted'
@@ -1424,7 +1452,7 @@ export default function MarketingTrackerPage() {
                                             {sheet.name}
                                         </button>
                                     )}
-                                    {sheets.length > 1 ? (
+                                    {canWriteCatalog && sheets.length > 1 ? (
                                         <button
                                             type="button"
                                             aria-label={`Delete ${sheet.name}`}
@@ -1443,6 +1471,7 @@ export default function MarketingTrackerPage() {
                                 </div>
                             );
                         })}
+                        {canWriteCatalog ? (
                         <button
                             type="button"
                             onClick={() => setAddSheetOpen(true)}
@@ -1451,6 +1480,7 @@ export default function MarketingTrackerPage() {
                         >
                             <Plus className="h-3.5 w-3.5" />
                         </button>
+                        ) : null}
                     </div>
                 </div>
             </AdminShell>

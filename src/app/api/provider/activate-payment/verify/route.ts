@@ -8,6 +8,7 @@ import {
     parseServicePostingTiers,
     resolveServicePostingTierByPrice,
 } from '@/lib/service-posting-tiers';
+import { requireAdminPermission } from '@/lib/admin-auth';
 
 const MIN_ACTIVATION_SETTLEMENT_ETB = 50;
 
@@ -44,6 +45,11 @@ function resolveChapaConfig(settingsData: unknown): ChapaConfig {
 }
 
 export async function POST(request: Request) {
+    const auth = await requireAdminPermission(request, 'providers:write');
+    if (!auth.ok) {
+        return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
         const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const body = (await request.json()) as VerifyBody;

@@ -7,12 +7,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { fetchProviderById, initiateActivationPayment } from '@/features/provider/providerSlice';
-import { getSupabase } from '@/lib/supabaseClient';
 import {
     DEFAULT_SERVICE_POSTING_TIERS,
     formatServicePostingTierLabel,
     parseServicePostingTiers,
 } from '@/lib/service-posting-tiers';
+import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 
 interface ActivationPaymentModalProps {
     open: boolean;
@@ -31,6 +31,8 @@ interface DebugLog {
 
 export function ActivationPaymentModal({ open, onClose, providerId, providerName }: ActivationPaymentModalProps) {
     const dispatch = useAppDispatch();
+    const { canWriteFinance, canWriteProviders } = useAdminPermissions();
+    const canMarkPaidManually = canWriteFinance || canWriteProviders;
     const tiersFromSettings = useAppSelector((s) => s.settings.settings?.constants?.service_posting_tiers);
     const tiers = useMemo(
         () => (tiersFromSettings?.length ? parseServicePostingTiers(tiersFromSettings) : DEFAULT_SERVICE_POSTING_TIERS),
@@ -50,39 +52,11 @@ export function ActivationPaymentModal({ open, onClose, providerId, providerName
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const [debugLogs, setDebugLogs] = useState<DebugLog[]>([]);
     const [showDebug, setShowDebug] = useState(true);
-    const [isFinanceAdmin, setIsFinanceAdmin] = useState(false);
 
     useEffect(() => {
         if (!open) return;
         setSelectedPrice(defaultPrice);
     }, [open, defaultPrice]);
-
-    useEffect(() => {
-        let isMounted = true;
-
-        async function loadAdminRole() {
-            if (!open) return;
-            const { data: sessionData } = await getSupabase().auth.getSession();
-            const userId = sessionData.session?.user?.id;
-            if (!userId) {
-                if (isMounted) setIsFinanceAdmin(false);
-                return;
-            }
-
-            const { data } = await getSupabase()
-                .from('admin')
-                .select('role')
-                .eq('user_id', userId)
-                .maybeSingle();
-            if (!isMounted) return;
-            setIsFinanceAdmin(data?.role === 'finance_admin');
-        }
-
-        void loadAdminRole();
-        return () => {
-            isMounted = false;
-        };
-    }, [open]);
 
     const addDebugLog = (action: string, response: unknown) => {
         setDebugLogs((prev) => [
@@ -311,7 +285,7 @@ export function ActivationPaymentModal({ open, onClose, providerId, providerName
                     <Button onClick={handlePayViaChapa} disabled={loading} className="w-full">
                         {loading ? 'Initializing...' : `Pay ETB ${selectedPrice} via Chapa`}
                     </Button>
-                    {isFinanceAdmin && (
+                    {canMarkPaidManually && (
                         <Button
                             variant="outline"
                             onClick={() => { setError(null); setView('manual'); }}

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { isChapaSuccessStatus } from '@/lib/chapa-config';
+import { isChapaSuccessStatus, verifyChapaWebhookSignature } from '@/lib/chapa-config';
 import { markBookingPaymentCompleted, resolveBookingIdByTxRef } from '@/lib/booking-payment';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 import { logAdminActivity } from '@/lib/admin-activity-log';
@@ -17,7 +17,11 @@ export async function POST(request: Request) {
     const supabaseAdmin = getSupabaseAdminFromRequest(request);
 
     try {
-        const body = (await request.json()) as ChapaWebhookPayload;
+        const rawBody = await request.text();
+        if (!verifyChapaWebhookSignature(rawBody, request.headers)) {
+            return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
+        }
+        const body = (rawBody ? JSON.parse(rawBody) : {}) as ChapaWebhookPayload;
         const txRef = (body.tx_ref ?? '').trim();
 
         if (!txRef.startsWith('bkg-')) {

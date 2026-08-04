@@ -61,6 +61,9 @@ function customerDisplayPhone(customer: CustomerLookupRow | undefined): string {
 }
 
 export async function GET(request: Request) {
+    const auth = await requireAdminPermission(request, 'customers:read');
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
     const supabaseAdmin = getSupabaseAdminFromRequest(request);
     try {
         const { data, error } = await supabaseAdmin

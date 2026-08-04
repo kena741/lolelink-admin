@@ -23,3 +23,11 @@ _Avoid_: Documents catalog, document types
 **Provider/customer lifecycle**:
 Operational moves on marketplace actors: create/edit, archive/restore, delete, convert customer→provider, and activation payment. Owned by Operations Admin via customers/providers write access.
 _Avoid_: Finance payout approval, role/admin management
+
+**Admin API**:
+A server endpoint used by the admin console to read or change privileged marketplace data. Access is gated by an admin's permissions for that domain.
+_Avoid_: Public API, mobile app API, Payment Webhook
+
+**Payment Webhook**:
+An external payment-provider callback that reports a payment or transfer event. Proven by the provider's signature or shared secret, not by an admin session.
+_Avoid_: Admin API, admin helper route
