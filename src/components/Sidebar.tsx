@@ -30,6 +30,7 @@ import {
     UserCog,
     Activity,
     Smartphone,
+    Table2,
 } from 'lucide-react';
 import { getSupabase } from '@/lib/supabaseClient';
 import { SupabaseEnvSwitcher, SupabaseStagingBanner } from '@/components/SupabaseEnvSwitcher';
@@ -62,6 +63,7 @@ const serviceManagementSubItems = [
     { href: '/admin/documents', label: 'Documents', icon: FileText },
     { href: '/admin/banners', label: 'Banners', icon: FileImage },
     { href: '/admin/coupon', label: 'Coupon', icon: Ticket },
+    { href: '/admin/marketing-tracker', label: 'Marketing Tracker', icon: Table2 },
 ];
 
 const categorySubItems = [
@@ -331,10 +333,11 @@ const Sidebar = () => {
                                             </li>
                                         );
                                     }
-                                    const active = pathname === href || 
+                                    const active = pathname === href ||
                                         (href === '/admin/services/approve' && pathname?.startsWith('/admin/services')) ||
                                         (href === '/admin/documents' && pathname?.startsWith('/admin/documents')) ||
-                                        (href === '/admin/banners' && pathname?.startsWith('/admin/banners'));
+                                        (href === '/admin/banners' && pathname?.startsWith('/admin/banners')) ||
+                                        (href === '/admin/marketing-tracker' && pathname?.startsWith('/admin/marketing-tracker'));
                                     return (
                                         <li key={href}>
                                             <Link
