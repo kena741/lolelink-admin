@@ -31,43 +31,30 @@ function normalizeSlug(value: string): string {
 }
 
 async function ensureDefaultRoles(supabaseAdmin: ReturnType<typeof getSupabaseAdminFromRequest>) {
-    const { count, error: countError } = await supabaseAdmin
+    const { data: existing, error: listError } = await supabaseAdmin
         .from('admin_role')
-        .select('id', { count: 'exact', head: true });
+        .select('slug');
 
-    if (countError) throw countError;
+    if (listError) throw listError;
 
-    if ((count ?? 0) === 0) {
-        const { error: seedError } = await supabaseAdmin.from('admin_role').insert(
-            DEFAULT_ADMIN_ROLES.map((role) => ({
-                slug: role.slug,
-                name: role.name,
-                description: role.description,
-                permissions: [...role.permissions],
-                is_system: role.is_system,
-            }))
-        );
+    const existingSlugs = new Set(
+        ((existing ?? []) as Array<{ slug: string }>).map((row) => row.slug)
+    );
 
-        if (seedError) throw seedError;
-        return;
-    }
+    const rowsToInsert = DEFAULT_ADMIN_ROLES.filter((role) => !existingSlugs.has(role.slug)).map(
+        (role) => ({
+            slug: role.slug,
+            name: role.name,
+            description: role.description,
+            permissions: [...role.permissions],
+            is_system: role.is_system,
+        })
+    );
 
-    for (const role of DEFAULT_ADMIN_ROLES) {
-        if (!role.is_system) continue;
+    if (rowsToInsert.length === 0) return;
 
-        const { error: syncError } = await supabaseAdmin
-            .from('admin_role')
-            .update({
-                name: role.name,
-                description: role.description,
-                permissions: [...role.permissions],
-                updated_at: new Date().toISOString(),
-            })
-            .eq('slug', role.slug)
-            .eq('is_system', true);
-
-        if (syncError) throw syncError;
-    }
+    const { error: seedError } = await supabaseAdmin.from('admin_role').insert(rowsToInsert);
+    if (seedError) throw seedError;
 }
 
 export async function GET(request: Request) {
