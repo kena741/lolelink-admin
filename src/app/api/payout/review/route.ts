@@ -17,6 +17,10 @@ interface ReviewWithdrawalBody {
     rejectionReason?: string;
 }
 
+function normalizePaymentStatus(value: unknown): string {
+    return (value ?? '').toString().trim().toLowerCase();
+}
+
 export async function POST(request: Request) {
     const auth = await requireAdminPermission(request, 'finance:write');
     if (!auth.ok) {
@@ -35,6 +39,34 @@ export async function POST(request: Request) {
         }
         if (action !== 'approve' && action !== 'reject') {
             return NextResponse.json({ error: 'action must be approve or reject' }, { status: 400 });
+        }
+
+        const { data: existing, error: existingError } = await supabaseAdmin
+            .from('withdrawal_history')
+            .select('id, providerId, amount, paymentStatus')
+            .eq('id', withdrawalId)
+            .maybeSingle();
+
+        if (existingError) {
+            return NextResponse.json(
+                { error: existingError.message || 'Failed to load withdrawal request' },
+                { status: 500 }
+            );
+        }
+        if (!existing) {
+            return NextResponse.json({ error: 'Withdrawal request not found' }, { status: 404 });
+        }
+
+        const currentStatus = normalizePaymentStatus(
+            (existing as { paymentStatus?: string | null }).paymentStatus
+        );
+        if (currentStatus !== 'pending') {
+            return NextResponse.json(
+                {
+                    error: `Only pending withdrawals can be ${action}d. Current status is "${(existing as { paymentStatus?: string | null }).paymentStatus || 'unknown'}".`,
+                },
+                { status: 409 }
+            );
         }
 
         const updateData: {
@@ -57,18 +89,27 @@ export async function POST(request: Request) {
             updateData.rejectionReason = rejectionReason;
         }
 
+        // Status already verified as pending above. Update by id only so casing /
+        // empty DB statuses do not produce PostgREST ".single()" 0-row errors.
         const { data, error } = await supabaseAdmin
             .from('withdrawal_history')
             .update(updateData)
             .eq('id', withdrawalId)
-            .eq('paymentStatus', 'pending')
             .select()
-            .single();
+            .maybeSingle();
 
-        if (error || !data) {
+        if (error) {
             return NextResponse.json(
-                { error: error?.message || 'Failed to update withdrawal request' },
-                { status: error ? 500 : 404 }
+                { error: error.message || 'Failed to update withdrawal request' },
+                { status: 500 }
+            );
+        }
+        if (!data) {
+            return NextResponse.json(
+                {
+                    error: `Withdrawal could not be ${action}d (it may no longer exist). Refresh and try again.`,
+                },
+                { status: 409 }
             );
         }
 
