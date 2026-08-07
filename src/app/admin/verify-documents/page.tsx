@@ -68,11 +68,9 @@ const VerifyDocumentsPage = () => {
         return `ሰላም ${name}! ከዘመን ሰለተመዘገቡ ፕሮቫይደር እናመሰግናለን። ሁሉም ሰነዶችዎ ተገምግመው ጸድቀዋል። አሁን በዘመን ፕሮቫይደር መተግበሪያ ላይ አገልግሎት መስጠት ይችላሉ። መልካም ስራ!`;
     }
 
-    function getRejectMessage(providerName?: string, reason?: string) {
+    function getRejectMessage(providerName?: string) {
         const name = providerName || '';
-        const base = `ሰላም ${name}! ለዘመን አገልግሎት ሰጪነት ያቀረቡት ጥያቄ ውድቅ ተደርጓል እባክዎ ትክክለኛ ሰነድ ያስገቡ ወይም በዚህ ስልክ 0951175959 ደውለው ይጠይቁ:: ለትብብርዎ እናመሰግናለን!!`;
-        const trimmed = reason?.trim();
-        return trimmed ? `${base} Reason: ${trimmed}` : base;
+        return `ሰላም ${name}! ለዘመን አገልግሎት ሰጪነት ያቀረቡት ጥያቄ ውድቅ ተደርጓል እባክዎ ትክክለኛ ሰነድ ያስገቡ ወይም በዚህ ስልክ 0951175959 ደውለው ይጠይቁ:: ለትብብርዎ እናመሰግናለን!!`;
     }
 
     async function fetchProviderPhone(providerId: string): Promise<string> {
@@ -109,7 +107,7 @@ const VerifyDocumentsPage = () => {
 
     async function openDocumentDetail(doc: typeof documents[0]) {
         setSelectedDocument(doc);
-        setRejectionReason('');
+        setRejectionReason(getRejectMessage(doc.providerName));
         setProviderPhone(null);
         const phone = await fetchProviderPhone(doc.providerId);
         setProviderPhone(phone);
@@ -156,7 +154,7 @@ const VerifyDocumentsPage = () => {
             dispatch(fetchVerifyDocuments());
             await notifyProviderViaSms(
                 result.providerId,
-                getRejectMessage(docHint?.providerName ?? result.providerName, trimmedReason)
+                trimmedReason
             );
             setRejectionReason('');
             return true;
@@ -738,8 +736,8 @@ const VerifyDocumentsPage = () => {
                                         </div>
                                     )}
 
-                                    {/* SMS Preview */}
-                                    {selectedDocument.isVerify === null && (
+                                    {/* SMS / actions copy */}
+                                    {(selectedDocument.isVerify === null || selectedDocument.isVerify === true) && (
                                         <div className="space-y-3">
                                             <div className="flex items-center gap-2 text-sm">
                                                 <Phone className="h-4 w-4 text-gray-400" />
@@ -750,33 +748,36 @@ const VerifyDocumentsPage = () => {
                                                         : providerPhone || 'ስልክ ቁጥር አልተገኘም'}
                                                 </span>
                                             </div>
-                                            <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 space-y-2">
-                                                <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700">
-                                                    <MessageSquare className="h-4 w-4" />
-                                                    ሲጸድቅ የሚላከው SMS
+                                            {selectedDocument.isVerify === null && (
+                                                <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 space-y-2">
+                                                    <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700">
+                                                        <MessageSquare className="h-4 w-4" />
+                                                        ሲጸድቅ የሚላከው SMS
+                                                    </div>
+                                                    <div className="rounded-md bg-white border border-emerald-100 px-3 py-2 text-sm text-gray-800">
+                                                        {getApproveMessage(selectedDocument.providerName, selectedDocument.documentName)}
+                                                    </div>
                                                 </div>
-                                                <div className="rounded-md bg-white border border-emerald-100 px-3 py-2 text-sm text-gray-800">
-                                                    {getApproveMessage(selectedDocument.providerName, selectedDocument.documentName)}
-                                                </div>
-                                            </div>
+                                            )}
+                                            {selectedDocument.isVerify === true && (
+                                                <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                                                    This document is approved. You can still revoke it and reject — the provider will get the rejection SMS/push below.
+                                                </p>
+                                            )}
                                             <div className="rounded-lg border border-red-200 bg-red-50/50 p-4 space-y-2">
                                                 <div className="flex items-center gap-2 text-sm font-semibold text-red-700">
                                                     <MessageSquare className="h-4 w-4" />
-                                                    Rejection reason
+                                                    Rejection message (SMS)
                                                 </div>
                                                 <textarea
                                                     value={rejectionReason}
                                                     onChange={(e) => setRejectionReason(e.target.value)}
-                                                    rows={3}
-                                                    placeholder="Explain why this document is being rejected."
+                                                    rows={5}
+                                                    placeholder="Edit the full rejection SMS sent to the provider."
                                                     className="w-full rounded-md border border-red-100 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-red-200"
                                                 />
-                                                <div className="rounded-md bg-white border border-red-100 px-3 py-2 text-sm text-gray-800">
-                                                    <p className="mb-1 text-xs font-medium text-red-600">SMS preview</p>
-                                                    {getRejectMessage(selectedDocument.providerName, rejectionReason)}
-                                                </div>
                                                 <p className="text-xs text-red-600/80">
-                                                    Provider will also get a push: Document rejected · Reason: …
+                                                    Provider gets this text as SMS, and a push titled &quot;Document rejected&quot; with the same body.
                                                 </p>
                                             </div>
                                         </div>
@@ -825,6 +826,27 @@ const VerifyDocumentsPage = () => {
                                                 className="flex-1 px-4 py-2.5 rounded-lg bg-linear-to-r from-red-500 to-rose-600 text-white font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                                             >
                                                 Reject Document
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {canVerifyProviders && selectedDocument.isVerify === true && (
+                                        <div className="flex items-center gap-3 pt-4 border-t border-gray-200">
+                                            <button
+                                                onClick={() => {
+                                                    void handleReject(selectedDocument.id, selectedDocument).then((ok) => {
+                                                        if (ok) setSelectedDocument(null);
+                                                    });
+                                                }}
+                                                disabled={
+                                                    processingId === selectedDocument.id ||
+                                                    !rejectionReason.trim()
+                                                }
+                                                className="flex-1 px-4 py-2.5 rounded-lg bg-linear-to-r from-red-500 to-rose-600 text-white font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                                            >
+                                                {processingId === selectedDocument.id
+                                                    ? 'Processing...'
+                                                    : 'Revoke approval & reject'}
                                             </button>
                                         </div>
                                     )}

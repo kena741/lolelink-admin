@@ -120,6 +120,7 @@ export const CLIENT_ACTIVITY_LOG_SLICES: ClientSliceCoverageEntry[] = [
         thunkNames: [
             'markNotificationRead',
             'markAllNotificationsRead',
+            'markNotificationsReadBulk',
             'deleteNotification',
             'deleteNotificationsBulk',
         ],

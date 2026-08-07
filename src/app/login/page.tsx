@@ -18,10 +18,16 @@ function LoginContent() {
         if (err && !error) {
             const map: Record<string, string> = {
                 unauthorized: "You are not authorized to access that page.",
+                forbidden:
+                    "Your account signed in, but it is not an active admin. Ask a super admin to set is_active and a valid role on the admin record.",
                 auth: "Authentication is required. Please sign in.",
                 timeout: "Session check timed out. Please sign in again.",
             };
             setError(map[err] ?? "Please sign in to continue.");
+        }
+        // Clear leftover session so forbidden/auth loops don't keep bouncing.
+        if (err === "forbidden" || err === "auth") {
+            void getSupabase().auth.signOut();
         }
     }, [params, error]);
 

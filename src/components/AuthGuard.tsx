@@ -32,12 +32,22 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                     }
                     return;
                 }
-                const { data: adminRow } = await getSupabase()
+                const { data: adminRow, error: adminError } = await getSupabase()
                     .from("admin")
                     .select("id, role, is_active")
                     .eq("user_id", user.id)
                     .maybeSingle();
+                if (adminError) {
+                    if (mounted && !didNavigate.current) {
+                        didNavigate.current = true;
+                        router.replace(
+                            "/login?error=auth&next=" + encodeURIComponent(pathname || "/admin/dashboard")
+                        );
+                    }
+                    return;
+                }
                 if (!adminRow || !adminRow.is_active) {
+                    await getSupabase().auth.signOut();
                     if (mounted && !didNavigate.current) {
                         didNavigate.current = true;
                         router.replace("/login?error=forbidden");

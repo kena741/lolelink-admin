@@ -384,6 +384,8 @@ export const rejectDocument = createAsyncThunk<
                 event: 'document_rejected',
                 providerName: providerName ?? normalized.providerName ?? '',
                 documentName: documentName ?? normalized.documentName ?? 'document',
+                title: 'Document rejected',
+                body: trimmedReason,
                 rejectionReason: trimmedReason,
             });
 

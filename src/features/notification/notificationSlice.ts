@@ -32,6 +32,13 @@ const initialState: NotificationState = {
 
 function deriveActionUrl(item: NotificationItem): string {
     if (item.action_url) return item.action_url;
+    const type = (item.type ?? '').toLowerCase();
+    if (type.includes('payout') || type.includes('transfer') || type.includes('withdraw')) {
+        return '/admin/finance/payout-request';
+    }
+    if (type.includes('document') || type.includes('fayda') || type.includes('verify')) {
+        return '/admin/verify-documents';
+    }
     if (item.booking_id) return `/admin/bookings`;
     if (item.provider_id) return `/admin/providers/${item.provider_id}`;
     if (item.customer_id) return `/admin/customers`;
@@ -112,6 +119,32 @@ export const markAllNotificationsRead = createAsyncThunk<
         return { read_at: readAt };
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Failed to mark all notifications as read';
+        return rejectWithValue(message);
+    }
+});
+
+export const markNotificationsReadBulk = createAsyncThunk<
+    { ids: string[]; read_at: string },
+    { ids: string[] },
+    { rejectValue: string }
+>('notification/markNotificationsReadBulk', async ({ ids }, { rejectWithValue }) => {
+    try {
+        if (ids.length === 0) return { ids: [], read_at: new Date().toISOString() };
+        const readAt = new Date().toISOString();
+        const { error } = await getSupabase()
+            .from('notification')
+            .update({ is_read: true, read_at: readAt })
+            .in('id', ids);
+        if (error) throw error;
+        logClientAdminActivity({
+            action: 'update',
+            resource_type: 'notification',
+            summary: `Marked ${ids.length} notification(s) as read`,
+            metadata: { ids },
+        });
+        return { ids, read_at: readAt };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Failed to mark notifications as read';
         return rejectWithValue(message);
     }
 });
@@ -214,6 +247,26 @@ const notificationSlice = createSlice({
             })
             .addCase(markAllNotificationsRead.rejected, (state, action) => {
                 state.error = (action.payload as string) || 'Failed to mark all notifications as read';
+            })
+            .addCase(markNotificationsReadBulk.pending, (state, action) => {
+                const now = new Date().toISOString();
+                const idSet = new Set(action.meta.arg.ids);
+                state.items.forEach((item) => {
+                    if (!idSet.has(item.id)) return;
+                    item.is_read = true;
+                    item.read_at = now;
+                });
+            })
+            .addCase(markNotificationsReadBulk.fulfilled, (state, action) => {
+                const idSet = new Set(action.payload.ids);
+                state.items.forEach((item) => {
+                    if (!idSet.has(item.id)) return;
+                    item.is_read = true;
+                    item.read_at = action.payload.read_at;
+                });
+            })
+            .addCase(markNotificationsReadBulk.rejected, (state, action) => {
+                state.error = (action.payload as string) || 'Failed to mark notifications as read';
             })
             .addCase(deleteNotification.fulfilled, (state, action) => {
                 state.items = state.items.filter((notification) => notification.id !== action.payload.id);
