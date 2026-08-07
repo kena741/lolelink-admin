@@ -200,6 +200,12 @@ function customerPhone(customer: Customer): string {
     return customer.phoneNumber || customer.mobile_number || customer.phone || '';
 }
 
+function customerWalletLabel(customer: Customer): string {
+    const amount = Number(customer.wallet_amount ?? 0);
+    const value = Number.isFinite(amount) ? amount : 0;
+    return `Wallet ${formatBookingAmount(value)}`;
+}
+
 /** Normalize ET phone to 09xxxxxxxx / 07xxxxxxxx for Chapa. */
 function normalizeChapaPhone(raw: string): string | null {
     const digits = raw.replace(/\D/g, '');
@@ -503,11 +509,8 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
 
     const customerWalletBalance = selectedCustomer?.wallet_amount ?? 0;
     const walletCanCover =
-        !isAdminBooker &&
-        priceSummary !== null &&
-        customerWalletBalance >= priceSummary.totalAmount;
-    const walletInsufficient =
-        paymentPath === 'wallet' && (isAdminBooker || (priceSummary !== null && !walletCanCover));
+        priceSummary !== null && customerWalletBalance >= priceSummary.totalAmount;
+    const walletInsufficient = paymentPath === 'wallet' && priceSummary !== null && !walletCanCover;
     const chapaPhoneNormalized = normalizeChapaPhone(chapaPhone);
     const chapaPhoneInvalid = paymentPath === 'pay_now' && !chapaPhoneNormalized;
 
@@ -581,8 +584,17 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
             .map((customer) => ({
                 value: customer.id,
                 label: customerName(customer),
-                description: [customer.email, customerPhone(customer)].filter(Boolean).join(' · '),
-                searchText: [customer.id, customer.email, customerName(customer)].filter(Boolean).join(' '),
+                description: [customerWalletLabel(customer), customer.email, customerPhone(customer)]
+                    .filter(Boolean)
+                    .join(' · '),
+                searchText: [
+                    customer.id,
+                    customer.email,
+                    customerName(customer),
+                    customerWalletLabel(customer),
+                ]
+                    .filter(Boolean)
+                    .join(' '),
             }));
 
         const pinned: SearchSelectOption[] = booker
@@ -590,8 +602,12 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                   {
                       value: booker.id,
                       label: ADMIN_BOOKER.displayName,
-                      description: `${ADMIN_BOOKER.badge} · ${ADMIN_BOOKER.email} · ${ADMIN_BOOKER.phoneDigits}`,
-                      searchText: `admin booker zemen ${booker.id} ${ADMIN_BOOKER.email}`,
+                      description: [
+                          ADMIN_BOOKER.badge,
+                          customerWalletLabel(booker),
+                          ADMIN_BOOKER.phoneDigits,
+                      ].join(' · '),
+                      searchText: `admin booker zemen ${booker.id} ${ADMIN_BOOKER.email} wallet`,
                   },
               ]
             : [];
@@ -877,13 +893,18 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
             return;
         }
 
-        if (path === 'wallet' && (walletInsufficient || isAdminBooker)) {
+        if (path === 'wallet' && walletInsufficient) {
             setError(
                 isAdminBooker
-                    ? 'Zemen Admin (admin booked) has wallet pay disabled — use mark paid, pay later, or Chapa'
+                    ? 'Zemen Admin wallet balance is insufficient — top up the float (ETB 20,000 floor) and try again'
                     : 'Customer wallet balance is insufficient for this booking'
             );
             return;
+        }
+
+        // Admin booker seat always debits the internal wallet float (API coerces mark_paid/chapa → wallet).
+        if (isAdminBooker && path === 'mark_paid') {
+            path = 'wallet';
         }
 
         if (path === 'pay_now') {
@@ -942,7 +963,9 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
             }
 
             if (path === 'mark_paid') {
-                setSuccessMessage('Booking created and marked as paid.');
+                setSuccessMessage(
+                    'Booking created and marked paid. Provider is credited when you set the job status to Completed.'
+                );
                 setStep('success');
                 return;
             }
@@ -1162,8 +1185,8 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                     {isAdminBooker ? (
                         <div className="rounded-md border border-indigo-200 bg-indigo-50/80 px-3 py-2 text-[13px] text-indigo-900">
                             Booking under <span className="font-semibold">{ADMIN_BOOKER.displayName}</span>{' '}
-                            ({ADMIN_BOOKER.badge}) — use for walk-in / internal jobs. Put real party details in
-                            admin notes if needed. Wallet pay is disabled for this seat.
+                            ({ADMIN_BOOKER.badge}) — paid from this account&apos;s wallet float (no Chapa).
+                            Balance: {formatBookingAmount(customerWalletBalance)}.
                         </div>
                     ) : null}
 
@@ -1306,7 +1329,9 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                         <div className="rounded-md border border-border bg-muted/20 p-3 text-sm text-muted-foreground">
                             Booking for {isAdminBooker ? ADMIN_BOOKER.displayName : customerLabel(selectedCustomer)}
                             {isAdminBooker ? (
-                                <div className="mt-1 text-[12px]">Admin booked seat · wallet pay disabled</div>
+                                <div className="mt-1 text-[12px]">
+                                    Admin float wallet · {formatBookingAmount(customerWalletBalance)}
+                                </div>
                             ) : (
                                 typeof selectedCustomer.wallet_amount === 'number' && (
                                     <div className="mt-1">
@@ -1332,23 +1357,15 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                             <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
                                 <span className="text-muted-foreground">Wallet balance</span>
                                 <span className="tabular-nums text-card-foreground">
-                                    {isAdminBooker ? (
-                                        <span className="ml-0 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-700">
-                                            N/A · Zemen Admin
+                                    {formatBookingAmount(customerWalletBalance)}
+                                    {walletCanCover ? (
+                                        <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-[11px] font-medium text-emerald-800">
+                                            {isAdminBooker ? 'Float ready' : 'Enough to pay'}
                                         </span>
                                     ) : (
-                                        <>
-                                            {formatBookingAmount(customerWalletBalance)}
-                                            {walletCanCover ? (
-                                                <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-[11px] font-medium text-emerald-800">
-                                                    Enough to pay
-                                                </span>
-                                            ) : (
-                                                <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800">
-                                                    Use Chapa or pay later
-                                                </span>
-                                            )}
-                                        </>
+                                        <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800">
+                                            {isAdminBooker ? 'Float too low' : 'Use Chapa or pay later'}
+                                        </span>
                                     )}
                                 </span>
                             </div>
@@ -1378,11 +1395,15 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                                 )}
                             </div>
                             <p className="text-sm text-muted-foreground">
-                                Debit this customer’s wallet now and mark the booking paid.
+                                {isAdminBooker
+                                    ? 'Debit Zemen Admin float wallet and mark the booking paid (recommended for admin bookings).'
+                                    : 'Debit this customer’s wallet now and mark the booking paid.'}
                             </p>
                             {!walletCanCover && (
                                 <p className="mt-2 text-sm text-amber-700">
-                                    Wallet balance is too low for this booking. Choose Chapa instead.
+                                    {isAdminBooker
+                                        ? 'Admin float balance is too low. The API tops up to ETB 20,000 — refresh customer list and retry.'
+                                        : 'Wallet balance is too low for this booking. Choose Chapa instead.'}
                                 </p>
                             )}
                         </button>
@@ -1390,7 +1411,8 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                         <button
                             type="button"
                             onClick={() => setPaymentPath('pay_now')}
-                            className={`rounded-xl border p-4 text-left transition-colors ${
+                            disabled={isAdminBooker}
+                            className={`rounded-xl border p-4 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
                                 paymentPath === 'pay_now'
                                     ? 'border-indigo-500 bg-indigo-50'
                                     : 'border-border hover:bg-muted/40'
@@ -1401,7 +1423,9 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                                 Pay via Chapa
                             </div>
                             <p className="text-sm text-muted-foreground">
-                                Always available. Customer pays from their phone using the number below.
+                                {isAdminBooker
+                                    ? 'Disabled for Zemen Admin — use wallet float.'
+                                    : 'Always available. Customer pays from their phone using the number below.'}
                             </p>
                         </button>
 
@@ -1437,7 +1461,7 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                                 Mark as paid
                             </div>
                             <p className="text-sm text-muted-foreground">
-                                Record as paid by admin without Chapa or wallet.
+                                Record as paid by admin. Provider wallet credit waits until job is Completed.
                             </p>
                         </button>
                     </div>
@@ -1622,7 +1646,9 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                                 }
                                 setError(null);
                                 setChapaPhone(selectedCustomer ? customerPhone(selectedCustomer) : '');
-                                setPaymentPath(walletCanCover ? 'wallet' : 'pay_now');
+                                setPaymentPath(
+                                    isAdminBooker || walletCanCover ? 'wallet' : 'pay_now'
+                                );
                                 setStep('payment_path');
                             }}
                             disabled={loading}

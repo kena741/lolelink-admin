@@ -304,9 +304,8 @@ export async function buildBookingPayload(
         row.coupon = couponRow;
     }
 
-    if (paymentCompleted) {
-        row.payment_id = crypto.randomUUID();
-    }
+    // FK booked_service_payment_id_fkey: never invent payment_id before payments row exists.
+    delete row.payment_id;
 
     return {
         row,

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAdminPermission } from '@/lib/admin-auth';
 import { logAdminActivity } from '@/lib/admin-activity-log';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
+import { isBookingActuallyPaid, isPaymentRecordSettled } from '@/lib/booking-status';
 import { resolveProviderAuthUserId } from '@/lib/wallet-transaction-user';
 import { walletTransactionProfileColumns } from '@/lib/wallet-transaction-profile';
 
@@ -55,18 +56,23 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Booking is not completed yet' }, { status: 400 });
         }
 
-        const isCustomerPaymentDone =
-            booking.paymentCompleted === true ||
-            (booking.payment_status ?? '').toString().trim().toLowerCase() === 'payment_completed' ||
-            [
-                'paid_for_service_booked',
-                'service_started',
-                'service_completion_approval',
-                'service_completion_approved_by_customer',
-                'completed',
-            ].includes(normalizedBookingStatus);
-        if (!isCustomerPaymentDone) {
-            return NextResponse.json({ error: 'Customer payment is not completed yet' }, { status: 400 });
+        // Actual customer/admin payment only — never treat job status as paid.
+        let paid = isBookingActuallyPaid(booking.payment_status, booking.paymentCompleted);
+        if (!paid) {
+            const { data: payRow } = await supabaseAdmin
+                .from('payments')
+                .select('status')
+                .eq('booking_id', bookingId)
+                .maybeSingle();
+            paid = isPaymentRecordSettled((payRow as { status?: string } | null)?.status);
+        }
+        if (!paid) {
+            return NextResponse.json(
+                {
+                    error: 'Customer/admin payment is not completed yet — provider payout requires payment',
+                },
+                { status: 400 }
+            );
         }
 
         if (!booking.provider_id) {

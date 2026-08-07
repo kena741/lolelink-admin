@@ -35,10 +35,13 @@ import {
     sanitizePersonDisplayName,
 } from '@/lib/booking-display';
 import {
+    computeAdminCommissionFee,
     parseAdminCommissionConfig,
     resolveBookingAdminCommissionAmount,
     type AdminCommissionConfig,
 } from '@/lib/booking-admin-commission';
+import { computeProviderPayoutAmount } from '@/lib/booking-completion-payout';
+
 import { formatDisplayPhone } from '@/lib/phone-display';
 import { getSupabase } from '@/lib/supabaseClient';
 import {
@@ -269,12 +272,17 @@ export function BookingDetailModal({
     verifyingPayment?: boolean;
     onRecollectPayment?: (id: string, mode: 'wallet' | 'mark_paid') => Promise<void>;
     recollectingPayment?: boolean;
-    onUpdateStatus?: (id: string, status: BookedServiceStatus) => Promise<void>;
+    onUpdateStatus?: (
+        id: string,
+        status: BookedServiceStatus,
+        options?: { applyCommission?: boolean }
+    ) => Promise<void>;
     updatingStatus?: boolean;
 }) {
     const [walletRows, setWalletRows] = useState<WalletLedgerRow[]>([]);
     const [walletLoading, setWalletLoading] = useState(false);
     const [commissionConfig, setCommissionConfig] = useState<AdminCommissionConfig | null>(null);
+    const [deductCommissionOnComplete, setDeductCommissionOnComplete] = useState(false);
     const issuesSectionRef = useRef<HTMLElement>(null);
 
     const canVerifyChapa =
@@ -282,6 +290,12 @@ export function BookingDetailModal({
         Boolean(booking?.id) &&
         booking?.paymentCompleted !== true &&
         (booking?.payment_status ?? '') === 'pending_payment';
+
+    const paymentStatusLower = (booking?.payment_status ?? '').toLowerCase();
+    const isBookingUnpaid =
+        Boolean(booking?.id) &&
+        booking?.paymentCompleted !== true &&
+        paymentStatusLower !== 'payment_completed';
 
     const needsRecollect =
         Boolean(onRecollectPayment) &&
@@ -293,7 +307,35 @@ export function BookingDetailModal({
             )) &&
         !customerBookingFundsHeld(booking?.id ?? '', walletRows);
 
+    const canAdminMarkPaid = Boolean(onRecollectPayment) && isBookingUnpaid;
+
     const canEditStatus = Boolean(onUpdateStatus) && Boolean(booking?.id);
+
+    const completePayoutPreview = (() => {
+        if (!booking) return null;
+        const gross =
+            parseBookingAmount(booking.totalAmount) ?? parseBookingAmount(booking.price) ?? 0;
+        if (!(gross > 0)) return null;
+        const config = commissionConfig ?? { value: 0, isFix: false, active: false };
+        const fee = deductCommissionOnComplete
+            ? computeAdminCommissionFee(gross, config)
+            : 0;
+        const payout = computeProviderPayoutAmount(
+            gross,
+            config,
+            deductCommissionOnComplete
+        );
+        return { gross, fee, payout };
+    })();
+
+    const changeJobStatus = (status: BookedServiceStatus) => {
+        if (!booking || !onUpdateStatus) return;
+        void onUpdateStatus(
+            booking.id,
+            status,
+            status === 'completed' ? { applyCommission: deductCommissionOnComplete } : undefined
+        );
+    };
 
     useEffect(() => {
         if (!open) return;
@@ -414,13 +456,37 @@ export function BookingDetailModal({
               {
                   label: 'Job',
                   value: canEditStatus && onUpdateStatus ? (
-                      <JobStatusDropdown
-                          status={booking.status}
-                          updating={updatingStatus}
-                          onChange={(status) => {
-                              void onUpdateStatus(booking.id, status);
-                          }}
-                      />
+                      <div className="flex flex-col items-start gap-2">
+                          <JobStatusDropdown
+                              status={booking.status}
+                              updating={updatingStatus}
+                              onChange={changeJobStatus}
+                          />
+                          {booking.status !== 'completed' ? (
+                              <label className="flex max-w-xs items-start gap-2 text-[11px] leading-snug text-gray-600">
+                                  <input
+                                      type="checkbox"
+                                      checked={deductCommissionOnComplete}
+                                      onChange={(e) =>
+                                          setDeductCommissionOnComplete(e.target.checked)
+                                      }
+                                      className="mt-0.5 h-3.5 w-3.5 rounded border-gray-300"
+                                  />
+                                  <span>
+                                      On complete: deduct commission
+                                      {completePayoutPreview ? (
+                                          <span className="mt-0.5 block font-medium text-gray-800">
+                                              Provider +
+                                              {formatBookingAmount(completePayoutPreview.payout)}
+                                              {deductCommissionOnComplete
+                                                  ? ` (fee ${formatBookingAmount(completePayoutPreview.fee)})`
+                                                  : ' full service'}
+                                          </span>
+                                      ) : null}
+                                  </span>
+                              </label>
+                          ) : null}
+                      </div>
                   ) : (
                       <JobStatusBadge status={booking.status} />
                   ),
@@ -513,6 +579,29 @@ export function BookingDetailModal({
                                         className={secondaryButtonClassName('h-9 px-3 text-xs')}
                                     >
                                         Mark re-collected
+                                    </button>
+                                </div>
+                            </div>
+                        ) : null}
+
+                        {canAdminMarkPaid && onRecollectPayment && !needsRecollect ? (
+                            <div
+                                role="status"
+                                className="rounded-xl border border-indigo-200 bg-indigo-50/80 px-4 py-3"
+                            >
+                                <p className="text-[13px] font-medium text-indigo-950">
+                                    {isAdminBookerBooking(booking)
+                                        ? 'Admin booked — record offline payment. Provider is paid when you set status to Completed.'
+                                        : 'Mark as paid records payment only. Provider wallet credit happens on Completed.'}
+                                </p>
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                    <button
+                                        type="button"
+                                        disabled={recollectingPayment}
+                                        onClick={() => void onRecollectPayment(booking.id, 'mark_paid')}
+                                        className={primaryButtonClassName('h-9 px-3 text-xs')}
+                                    >
+                                        {recollectingPayment ? 'Working…' : 'Mark as paid (admin)'}
                                     </button>
                                 </div>
                             </div>
@@ -650,9 +739,7 @@ export function BookingDetailModal({
                                                 <JobStatusDropdown
                                                     status={booking.status}
                                                     updating={updatingStatus}
-                                                    onChange={(status) => {
-                                                        void onUpdateStatus(booking.id, status);
-                                                    }}
+                                                    onChange={changeJobStatus}
                                                 />
                                             ) : (
                                                 <JobStatusBadge status={booking.status} />
@@ -790,6 +877,16 @@ export function BookingDetailModal({
                                 Mark re-collected
                             </button>
                         </>
+                    ) : null}
+                    {booking && canAdminMarkPaid && onRecollectPayment && !needsRecollect ? (
+                        <button
+                            type="button"
+                            onClick={() => void onRecollectPayment(booking.id, 'mark_paid')}
+                            disabled={recollectingPayment}
+                            className={primaryButtonClassName()}
+                        >
+                            {recollectingPayment ? 'Working…' : 'Mark as paid (admin)'}
+                        </button>
                     ) : null}
                     {booking && canVerifyChapa && onVerifyPayment ? (
                         <button

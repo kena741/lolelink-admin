@@ -5,7 +5,10 @@ import {
     type AdminCommissionConfig,
 } from '@/lib/booking-admin-commission';
 import { customerBookingFundsHeld, hasBookingCustomerRefund } from '@/lib/booking-display';
-import { BOOKING_PAYMENT_STATUS, resolveBookingPaymentStatus } from '@/lib/booking-status';
+import {
+    isBookingActuallyPaid,
+    isPaymentRecordSettled,
+} from '@/lib/booking-status';
 import { walletTransactionMagnitude } from '@/lib/wallet-transaction-metrics';
 import { resolveCustomerAuthUserId } from '@/lib/wallet-transaction-user';
 
@@ -49,15 +52,25 @@ export function bookingGrossAmount(booking: {
 
 export function computeProviderPayoutAmount(
     gross: number,
-    commission: Pick<AdminCommissionConfig, 'value' | 'isFix' | 'active'>
+    commission: Pick<AdminCommissionConfig, 'value' | 'isFix' | 'active'>,
+    applyCommission = true
 ): number {
     if (!(gross > 0)) return 0;
+    if (!applyCommission) return roundMoney(gross);
     const fee = computeAdminCommissionFee(gross, commission);
     return Math.max(0, roundMoney(gross - fee));
 }
 
-export function completionPayoutNote(bookingId: string): string {
-    return `Order #${bookingId.slice(0, 6)} completed (payout after admin commission)`;
+export function completionPayoutNote(bookingId: string, applyCommission = true): string {
+    if (applyCommission) {
+        return `Order #${bookingId.slice(0, 6)} completed (payout after admin commission)`;
+    }
+    return `Order #${bookingId.slice(0, 6)} completed (full service amount)`;
+}
+
+export interface CreditProviderPayoutOptions {
+    /** When false, provider gets gross service total. Default true (platform fee deducted). */
+    applyCommission?: boolean;
 }
 
 export function completionPayoutReversalTxId(bookingId: string, sequence = 1): string {
@@ -75,7 +88,13 @@ export function isProviderCompletionPayoutCredit(row: {
 }): boolean {
     if (row.isCredit !== true) return false;
     const note = String(row.note ?? '').toLowerCase();
-    return note.includes('completed') && note.includes('payout');
+    if (note.includes('admin reversal')) return false;
+    // Admin admin path: "...completed (payout after admin commission)"
+    if (note.includes('completed') && note.includes('payout')) return true;
+    // Mobile / extra-payment path: "Order #xxxxxx completed with extra payment"
+    if (note.includes('completed') && note.includes('extra payment')) return true;
+    if (/order\s*#[0-9a-f]{4,12}\s*completed/.test(note)) return true;
+    return false;
 }
 
 export function isProviderCompletionPayoutReversal(
@@ -175,12 +194,13 @@ async function bookingCustomerPaymentBlockedByRefund(
 }
 
 /**
- * Credits provider wallet when admin marks a booking completed.
- * Mirrors mobile ledger shape: Order #<id6> completed (payout after admin commission).
+ * Credits provider wallet once payment is settled (and job is completed, or admin mark-paid path).
+ * Idempotent per booking. applyCommission=false → full service total (admin mark paid).
  */
 export async function creditProviderForCompletedBooking(
     admin: SupabaseClient,
-    bookingId: string
+    bookingId: string,
+    options?: CreditProviderPayoutOptions
 ): Promise<
     | {
           ok: true;
@@ -192,6 +212,7 @@ export async function creditProviderForCompletedBooking(
 > {
     const id = bookingId.trim();
     if (!id) return { ok: false, error: 'bookingId is required', status: 400 };
+    const applyCommission = options?.applyCommission !== false;
 
     const { data: bookingRaw, error: bookingError } = await admin
         .from('booked_service')
@@ -208,8 +229,17 @@ export async function creditProviderForCompletedBooking(
     const providerId = (booking.provider_id ?? '').trim();
     if (!providerId) return { ok: false, error: 'Booking has no provider', status: 400 };
 
-    const paymentStatus = resolveBookingPaymentStatus(booking.payment_status, booking.paymentCompleted);
-    if (paymentStatus !== BOOKING_PAYMENT_STATUS.COMPLETED) {
+    // Provider wallet credit requires real payment settlement — never job status alone.
+    let paid = isBookingActuallyPaid(booking.payment_status, booking.paymentCompleted);
+    if (!paid) {
+        const { data: payRow } = await admin
+            .from('payments')
+            .select('status')
+            .eq('booking_id', id)
+            .maybeSingle();
+        paid = isPaymentRecordSettled((payRow as { status?: string } | null)?.status);
+    }
+    if (!paid) {
         return { ok: true, skipped: true, reason: 'unpaid' };
     }
 
@@ -224,8 +254,8 @@ export async function creditProviderForCompletedBooking(
 
     const commission = await loadAdminCommissionConfig(admin);
     const gross = bookingGrossAmount(booking);
-    const commissionFee = computeAdminCommissionFee(gross, commission);
-    const payoutAmount = Math.max(0, roundMoney(gross - commissionFee));
+    const commissionFee = applyCommission ? computeAdminCommissionFee(gross, commission) : 0;
+    const payoutAmount = computeProviderPayoutAmount(gross, commission, applyCommission);
     if (payoutAmount <= 0) {
         return { ok: true, skipped: true, reason: 'zero_amount' };
     }
@@ -248,7 +278,7 @@ export async function creditProviderForCompletedBooking(
         amount: payoutAmount.toFixed(2),
         createdDate: now,
         isCredit: true,
-        note: completionPayoutNote(id),
+        note: completionPayoutNote(id, applyCommission),
         paymentType: completionPaymentTypeLabel(booking.paymentType),
         transactionId: id,
         type: 'provider',
@@ -266,12 +296,16 @@ export async function creditProviderForCompletedBooking(
 
     if (walletUpdateError) return { ok: false, error: walletUpdateError.message, status: 500 };
 
-    const storedCommission = parseAmount(booking.adminCommission);
-    if (!(storedCommission > 0) && commissionFee > 0) {
-        await admin
-            .from('booked_service')
-            .update({ adminCommission: commissionFee })
-            .eq('id', id);
+    if (applyCommission) {
+        const storedCommission = parseAmount(booking.adminCommission);
+        if (!(storedCommission > 0) && commissionFee > 0) {
+            await admin
+                .from('booked_service')
+                .update({ adminCommission: commissionFee })
+                .eq('id', id);
+        }
+    } else {
+        await admin.from('booked_service').update({ adminCommission: 0 }).eq('id', id);
     }
 
     return { ok: true, skipped: false, amount: payoutAmount, walletAmount: nextWallet };
@@ -358,4 +392,35 @@ export async function clawbackProviderCompletionPayout(
     if (walletUpdateError) return { ok: false, error: walletUpdateError.message, status: 500 };
 
     return { ok: true, skipped: false, amount: payoutAmount, walletAmount: nextWallet };
+}
+
+/**
+ * If job is already completed and payment just settled, credit provider wallet once.
+ * (payment can arrive after status is completed — status alone must not credit.)
+ * Admin-marked payments credit full service; other methods deduct platform commission.
+ */
+export async function maybeCreditProviderAfterPaymentSettled(
+    admin: SupabaseClient,
+    bookingId: string
+): Promise<void> {
+    const id = bookingId.trim();
+    if (!id) return;
+
+    const { data } = await admin
+        .from('booked_service')
+        .select('status, paymentType')
+        .eq('id', id)
+        .maybeSingle();
+    const row = data as { status?: string; paymentType?: string } | null;
+    const status = String(row?.status ?? '')
+        .trim()
+        .toLowerCase();
+    if (status !== 'completed' && status !== 'service_completion_approved_by_customer') return;
+
+    const paymentType = String(row?.paymentType ?? '')
+        .trim()
+        .toLowerCase();
+    const applyCommission = paymentType !== 'admin';
+
+    await creditProviderForCompletedBooking(admin, id, { applyCommission });
 }

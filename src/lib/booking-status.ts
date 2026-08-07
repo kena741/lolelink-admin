@@ -103,3 +103,32 @@ export function resolveBookingPaymentStatus(
     }
     return 'unknown';
 }
+
+/**
+ * True when customer/admin actually settled money — not job status alone.
+ * Provider completion credits must wait for this.
+ */
+export function isBookingActuallyPaid(
+    paymentStatus: string | null | undefined,
+    paymentCompleted?: boolean | null
+): boolean {
+    if (paymentCompleted === true) return true;
+    const s = (paymentStatus ?? '').trim().toLowerCase();
+    return (
+        s === BOOKING_PAYMENT_STATUS.COMPLETED ||
+        s === 'payment_approved_by_admin' ||
+        s === 'paid' ||
+        s === 'success'
+    );
+}
+
+export function isPaymentRecordSettled(status: string | null | undefined): boolean {
+    const s = (status ?? '').trim().toLowerCase();
+    return (
+        s === BOOKING_PAYMENT_STATUS.COMPLETED ||
+        s === 'payment_approved_by_admin' ||
+        s === 'paid' ||
+        s === 'success' ||
+        s === 'completed'
+    );
+}

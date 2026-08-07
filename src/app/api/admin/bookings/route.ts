@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { logAdminActivity } from '@/lib/admin-activity-log';
 import { requireAdminPermission } from '@/lib/admin-auth';
+import {
+    ensureAdminBookerWalletFloor,
+    isAdminBookerCustomer,
+} from '@/lib/admin-booker-customer';
 import { sendBookingCreatedNotifications, sendBookingPaymentConfirmedNotifications } from '@/lib/booking-notifications';
 import {
     buildBookingPayload,
@@ -16,7 +20,6 @@ import {
 import { resolveServiceName } from '@/lib/booking-pricing';
 import { BOOKING_PAYMENT_STATUS, BOOKING_STATUS } from '@/lib/booking-status';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
-import { isAdminBookerCustomer } from '@/lib/admin-booker-customer';
 
 export const runtime = 'nodejs';
 
@@ -37,8 +40,18 @@ interface CreateBookingBody {
 }
 
 function readCustomerName(row: Record<string, unknown>): string {
-    const first = typeof row.firstName === 'string' ? row.firstName : typeof row.first_name === 'string' ? row.first_name : '';
-    const last = typeof row.lastName === 'string' ? row.lastName : typeof row.last_name === 'string' ? row.last_name : '';
+    const first =
+        typeof row.firstName === 'string'
+            ? row.firstName
+            : typeof row.first_name === 'string'
+              ? row.first_name
+              : '';
+    const last =
+        typeof row.lastName === 'string'
+            ? row.lastName
+            : typeof row.last_name === 'string'
+              ? row.last_name
+              : '';
     return [first, last].filter(Boolean).join(' ').trim() || 'Customer';
 }
 
@@ -48,6 +61,77 @@ function resolvePaymentMode(body: CreateBookingBody): BookingPaymentMode {
     if (mode === 'wallet') return 'wallet';
     if (mode === 'mark_paid') return 'mark_paid';
     return 'pay_later';
+}
+
+async function attachWalletPayment(
+    supabaseAdmin: ReturnType<typeof getSupabaseAdminFromRequest>,
+    booking: { id: string; customer_id?: string | null; totalAmount?: string | number; price?: string | number },
+    customerId: string,
+    amount: number,
+    options?: { statusAdminPaid?: boolean; note?: string }
+): Promise<{ ok: true; paymentId: string } | { ok: false; error: string; status: number }> {
+    const debit = await debitCustomerWalletForBooking(
+        supabaseAdmin,
+        booking.id,
+        customerId,
+        amount,
+        {
+            note: options?.note ?? `Booking payment ${booking.id}`,
+            transactionId: booking.id,
+        }
+    );
+    if (!debit.ok) return debit;
+
+    const attachedPaymentId = await upsertBookingPaymentRecord(supabaseAdmin, booking, {
+        paymentId: debit.paymentId,
+        providerRef: debit.paymentId,
+        paymentMethod: 'wallet',
+        provider: 'wallet',
+        status: BOOKING_PAYMENT_STATUS.COMPLETED,
+    });
+
+    const { error } = await supabaseAdmin
+        .from('booked_service')
+        .update({
+            payment_id: attachedPaymentId,
+            payment_status: BOOKING_PAYMENT_STATUS.COMPLETED,
+            paymentCompleted: true,
+            paymentType: 'wallet',
+            ...(options?.statusAdminPaid ? { status: BOOKING_STATUS.ADMIN_PAID } : {}),
+        })
+        .eq('id', booking.id);
+
+    if (error) return { ok: false, error: error.message, status: 500 };
+    return { ok: true, paymentId: attachedPaymentId };
+}
+
+async function attachMarkPaidPayment(
+    supabaseAdmin: ReturnType<typeof getSupabaseAdminFromRequest>,
+    booking: { id: string; customer_id?: string | null; totalAmount?: string | number; price?: string | number }
+): Promise<{ ok: true; paymentId: string } | { ok: false; error: string; status: number }> {
+    // payments row must exist before payment_id is set (FK booked_service_payment_id_fkey)
+    const paymentId = crypto.randomUUID();
+    const attachedPaymentId = await upsertBookingPaymentRecord(supabaseAdmin, booking, {
+        paymentId,
+        providerRef: paymentId,
+        paymentMethod: 'admin',
+        provider: 'admin',
+        status: BOOKING_PAYMENT_STATUS.COMPLETED,
+    });
+
+    const { error } = await supabaseAdmin
+        .from('booked_service')
+        .update({
+            payment_id: attachedPaymentId,
+            payment_status: BOOKING_PAYMENT_STATUS.COMPLETED,
+            paymentCompleted: true,
+            paymentType: 'admin',
+            status: BOOKING_STATUS.ADMIN_PAID,
+        })
+        .eq('id', booking.id);
+
+    if (error) return { ok: false, error: error.message, status: 500 };
+    return { ok: true, paymentId: attachedPaymentId };
 }
 
 export async function POST(request: Request) {
@@ -62,7 +146,7 @@ export async function POST(request: Request) {
         const body = (await request.json()) as CreateBookingBody;
         const serviceId = (body.service_id ?? '').trim();
         const customerId = (body.customer_id ?? '').trim();
-        const paymentMode = resolvePaymentMode(body);
+        let paymentMode = resolvePaymentMode(body);
 
         if (!serviceId) return NextResponse.json({ error: 'service_id is required' }, { status: 400 });
         if (!customerId) return NextResponse.json({ error: 'customer_id is required' }, { status: 400 });
@@ -74,19 +158,45 @@ export async function POST(request: Request) {
                 .select('provider_id')
                 .eq('id', serviceId)
                 .maybeSingle();
-            providerId = typeof (serviceRow as { provider_id?: string } | null)?.provider_id === 'string'
-                ? (serviceRow as { provider_id: string }).provider_id
-                : '';
+            providerId =
+                typeof (serviceRow as { provider_id?: string } | null)?.provider_id === 'string'
+                    ? (serviceRow as { provider_id: string }).provider_id
+                    : '';
         }
 
         if (!providerId) {
             return NextResponse.json({ error: 'provider_id is required' }, { status: 400 });
         }
 
+        const { data: customerRow } = await supabaseAdmin
+            .from('customer')
+            .select('id, email, first_name, last_name, phone, wallet_amount')
+            .eq('id', customerId)
+            .maybeSingle();
+
+        const isAdminBooker = isAdminBookerCustomer(
+            customerRow as {
+                email?: string;
+                first_name?: string;
+                last_name?: string;
+                phone?: string;
+            } | null
+        );
+
+        // Zemen Admin: always pay from internal wallet float (no Chapa).
+        if (isAdminBooker) {
+            if (paymentMode === 'chapa' || paymentMode === 'mark_paid') paymentMode = 'wallet';
+            await ensureAdminBookerWalletFloor(supabaseAdmin, customerId);
+        }
+
         const coupon: CouponInput | null =
             body.coupon_id || body.coupon_code
                 ? { id: body.coupon_id, code: body.coupon_code }
                 : null;
+
+        // Always insert as unpaid so we never set payment_id before payments row exists.
+        const insertMode: BookingPaymentMode =
+            paymentMode === 'wallet' || paymentMode === 'mark_paid' ? 'pay_later' : paymentMode;
 
         const { row, totalAmountNumber } = await buildBookingPayload(supabaseAdmin, {
             customerId,
@@ -97,40 +207,36 @@ export async function POST(request: Request) {
             quantity: body.quantity,
             bookingAddress: body.bookingAddress,
             coupon,
-            paymentMode,
+            paymentMode: insertMode,
             unitPrice: body.unit_price ?? body.price,
         });
+
+        delete row.payment_id;
 
         if (paymentMode === 'wallet') {
             const { data: walletCustomer } = await supabaseAdmin
                 .from('customer')
-                .select('wallet_amount, email, first_name, last_name')
+                .select('wallet_amount')
                 .eq('id', customerId)
                 .maybeSingle();
-
-            if (
-                isAdminBookerCustomer(
-                    walletCustomer as {
-                        email?: string;
-                        first_name?: string;
-                        last_name?: string;
-                    } | null
-                )
-            ) {
+            const walletAmount = Number(
+                (walletCustomer as { wallet_amount?: string | number } | null)?.wallet_amount ?? 0
+            );
+            if (!Number.isFinite(walletAmount) || walletAmount < totalAmountNumber) {
                 return NextResponse.json(
-                    { error: 'Zemen Admin (admin booked) wallet is disabled — use mark paid, pay later, or Chapa' },
+                    {
+                        error: isAdminBooker
+                            ? `Zemen Admin wallet insufficient (ETB ${walletAmount.toFixed(2)}; need ${totalAmountNumber.toFixed(2)}).`
+                            : 'Insufficient wallet balance',
+                    },
                     { status: 400 }
                 );
-            }
-
-            const walletAmount = Number((walletCustomer as { wallet_amount?: string | number } | null)?.wallet_amount ?? 0);
-            if (!Number.isFinite(walletAmount) || walletAmount < totalAmountNumber) {
-                return NextResponse.json({ error: 'Insufficient wallet balance' }, { status: 400 });
             }
         }
 
         const bookingId = String(row.id);
-        const serviceName = resolveServiceName((row.serviceDetails ?? {}) as Record<string, unknown>) || 'Service';
+        const serviceName =
+            resolveServiceName((row.serviceDetails ?? {}) as Record<string, unknown>) || 'Service';
 
         const { data: created, error: upsertError } = await supabaseAdmin
             .from('booked_service')
@@ -139,39 +245,37 @@ export async function POST(request: Request) {
             .single();
 
         if (upsertError) {
-            return NextResponse.json({ error: upsertError.message || 'Failed to create booking' }, { status: 500 });
+            return NextResponse.json(
+                { error: upsertError.message || 'Failed to create booking' },
+                { status: 500 }
+            );
         }
 
         const customerName = readCustomerName(created as Record<string, unknown>);
+        const bookingRef = created as {
+            id: string;
+            customer_id?: string;
+            totalAmount?: string;
+            price?: string;
+        };
 
         if (paymentMode === 'wallet') {
-            const walletResult = await debitCustomerWalletForBooking(
+            const settled = await attachWalletPayment(
                 supabaseAdmin,
-                bookingId,
+                bookingRef,
                 customerId,
-                totalAmountNumber
-            );
-            if (!walletResult.ok) {
-                await supabaseAdmin.from('booked_service').delete().eq('id', bookingId);
-                return NextResponse.json({ error: walletResult.error }, { status: walletResult.status });
-            }
-
-            const attachedPaymentId = await upsertBookingPaymentRecord(
-                supabaseAdmin,
-                created as { id: string; customer_id?: string; totalAmount?: string; price?: string },
+                totalAmountNumber,
                 {
-                    paymentId: walletResult.paymentId,
-                    providerRef: walletResult.paymentId,
-                    paymentMethod: 'wallet',
-                    provider: 'wallet',
-                    status: BOOKING_PAYMENT_STATUS.COMPLETED,
+                    statusAdminPaid: isAdminBooker,
+                    note: isAdminBooker
+                        ? `Admin float payment ${bookingId}`
+                        : `Booking payment ${bookingId}`,
                 }
             );
-
-            await supabaseAdmin
-                .from('booked_service')
-                .update({ payment_id: attachedPaymentId })
-                .eq('id', bookingId);
+            if (!settled.ok) {
+                await supabaseAdmin.from('booked_service').delete().eq('id', bookingId);
+                return NextResponse.json({ error: settled.error }, { status: settled.status });
+            }
 
             await sendBookingPaymentConfirmedNotifications(supabaseAdmin, {
                 bookingId,
@@ -183,29 +287,11 @@ export async function POST(request: Request) {
         }
 
         if (paymentMode === 'mark_paid') {
-            const paymentId = String(row.payment_id ?? crypto.randomUUID());
-
-            const attachedPaymentId = await upsertBookingPaymentRecord(
-                supabaseAdmin,
-                created as { id: string; customer_id?: string; totalAmount?: string; price?: string },
-                {
-                    paymentId,
-                    providerRef: paymentId,
-                    paymentMethod: 'admin',
-                    provider: 'admin',
-                    status: BOOKING_PAYMENT_STATUS.COMPLETED,
-                }
-            );
-
-            await supabaseAdmin
-                .from('booked_service')
-                .update({
-                    payment_status: BOOKING_PAYMENT_STATUS.COMPLETED,
-                    paymentCompleted: true,
-                    status: BOOKING_STATUS.ADMIN_PAID,
-                    payment_id: attachedPaymentId,
-                })
-                .eq('id', bookingId);
+            const settled = await attachMarkPaidPayment(supabaseAdmin, bookingRef);
+            if (!settled.ok) {
+                await supabaseAdmin.from('booked_service').delete().eq('id', bookingId);
+                return NextResponse.json({ error: settled.error }, { status: settled.status });
+            }
 
             await sendBookingPaymentConfirmedNotifications(supabaseAdmin, {
                 bookingId,
@@ -216,8 +302,7 @@ export async function POST(request: Request) {
             });
         }
 
-        const notificationPaymentPath =
-            paymentMode === 'pay_later' ? 'pay_later' : 'pay_now';
+        const notificationPaymentPath = paymentMode === 'pay_later' ? 'pay_later' : 'pay_now';
         const notifyProviderOnCreate = paymentMode !== 'chapa';
 
         await sendBookingCreatedNotifications(supabaseAdmin, {
@@ -238,6 +323,12 @@ export async function POST(request: Request) {
             });
         }
 
+        const { data: finalRow } = await supabaseAdmin
+            .from('booked_service')
+            .select('*')
+            .eq('id', bookingId)
+            .single();
+
         await logAdminActivity({
             request,
             action: 'create',
@@ -250,10 +341,11 @@ export async function POST(request: Request) {
                 customer_id: customerId,
                 payment_mode: paymentMode,
                 total_amount: totalAmountNumber,
+                admin_booker: isAdminBooker,
             },
         });
 
-        return NextResponse.json({ data: created });
+        return NextResponse.json({ data: finalRow ?? created });
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unexpected error';
         return NextResponse.json({ error: message }, { status: 500 });

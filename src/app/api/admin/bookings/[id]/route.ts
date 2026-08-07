@@ -38,11 +38,15 @@ export async function PATCH(request: Request, context: { params: Promise<RoutePa
             status?: string;
             notifyProvider?: boolean;
             notifyCustomer?: boolean;
+            /** When completing: deduct platform commission from provider credit. Default false (full service). */
+            apply_commission?: boolean;
         };
         const nextStatus = (body.status ?? '').trim();
         if (!isBookedServiceStatus(nextStatus)) {
             return NextResponse.json({ error: 'Invalid job status' }, { status: 400 });
         }
+        // Admin complete defaults to full service total; opt-in to deduct commission.
+        const applyCommission = body.apply_commission === true;
 
         const { data: bookingRaw, error: bookingError } = await supabaseAdmin
             .from('booked_service')
@@ -106,16 +110,13 @@ export async function PATCH(request: Request, context: { params: Promise<RoutePa
         }
 
         if (nextStatus === 'completed') {
-            const credit = await creditProviderForCompletedBooking(supabaseAdmin, id);
+            const credit = await creditProviderForCompletedBooking(supabaseAdmin, id, {
+                applyCommission,
+            });
             if (!credit.ok) {
                 return NextResponse.json({ error: credit.error }, { status: credit.status });
             }
-            if (credit.skipped && credit.reason === 'unpaid') {
-                return NextResponse.json(
-                    { error: 'Booking must be paid before marking completed (provider payout requires payment).' },
-                    { status: 400 }
-                );
-            }
+            // Unpaid: still allow job status change; wallet credit only when actually paid.
             if (credit.skipped && credit.reason === 'customer_refunded') {
                 return NextResponse.json(
                     {

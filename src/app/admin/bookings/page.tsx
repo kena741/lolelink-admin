@@ -465,7 +465,7 @@ const BookingsPage = () => {
                 message:
                     mode === 'wallet'
                         ? `Re-collected ETB ${result.amount.toFixed(2)} from customer wallet. You can complete the job now.`
-                        : `Marked re-collected (admin). You can complete the job now.`,
+                        : `Marked paid (admin) ETB ${result.amount.toFixed(2)}. Provider is credited when you set status to Completed.`,
                 variant: 'success',
             });
             await dispatch(fetchBookingById(id));
@@ -478,10 +478,20 @@ const BookingsPage = () => {
         }
     };
 
-    const handleUpdateBookingStatus = async (id: string, status: BookedServiceStatus) => {
+    const handleUpdateBookingStatus = async (
+        id: string,
+        status: BookedServiceStatus,
+        options?: { applyCommission?: boolean }
+    ) => {
         setUpdatingStatus(true);
         try {
-            const result = await dispatch(updateBookingStatus({ bookingId: id, status })).unwrap();
+            const result = await dispatch(
+                updateBookingStatus({
+                    bookingId: id,
+                    status,
+                    applyCommission: options?.applyCommission,
+                })
+            ).unwrap();
             const payout = result.provider_payout;
             const clawback = result.provider_clawback;
             const refund = result.customer_refund;
@@ -489,6 +499,12 @@ const BookingsPage = () => {
                 setToast({
                     message: `Job completed. Provider wallet credited ETB ${payout.amount.toFixed(2)}.`,
                     variant: 'success',
+                });
+            } else if (status === 'completed' && payout?.skipped && payout.reason === 'unpaid') {
+                setToast({
+                    message:
+                        'Job completed without provider payout — mark as paid (or collect customer payment) first, then set Completed again or re-open completed.',
+                    variant: 'warning',
                 });
             } else if (status === 'completed' && payout?.skipped && payout.reason === 'already_credited') {
                 setToast({

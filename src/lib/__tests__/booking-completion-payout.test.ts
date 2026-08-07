@@ -22,9 +22,21 @@ describe('booking-completion-payout', () => {
         expect(computeProviderPayoutAmount(100, { value: 15, isFix: true })).toBe(85);
     });
 
+    it('can credit full service amount without commission', () => {
+        expect(
+            computeProviderPayoutAmount(12425, { value: 10, isFix: false, active: true }, false)
+        ).toBe(12425);
+        expect(
+            computeProviderPayoutAmount(12425, { value: 10, isFix: false, active: true }, true)
+        ).toBe(11182.5);
+    });
+
     it('builds mobile-shaped note from booking id prefix', () => {
         expect(completionPayoutNote('95bb9a66-b425-4c58-b10f-374fb7dcb07f')).toBe(
             'Order #95bb9a completed (payout after admin commission)'
+        );
+        expect(completionPayoutNote('95bb9a66-b425-4c58-b10f-374fb7dcb07f', false)).toBe(
+            'Order #95bb9a completed (full service amount)'
         );
     });
 
@@ -53,6 +65,12 @@ describe('booking-completion-payout', () => {
                 note: 'Order #95bb9a completed (payout after admin commission)',
             })
         ).toBe(false);
+        expect(
+            isProviderCompletionPayoutCredit({
+                isCredit: true,
+                note: 'Order #b30cc6 completed with extra payment',
+            })
+        ).toBe(true);
         expect(
             isProviderCompletionPayoutCredit({
                 isCredit: true,

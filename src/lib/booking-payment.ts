@@ -10,6 +10,7 @@ import {
     sendBookingProviderSms,
     upsertBookingPaymentRecord,
 } from '@/lib/booking-payment-side-effects';
+import { maybeCreditProviderAfterPaymentSettled } from '@/lib/booking-completion-payout';
 
 interface BookingRow {
     id: string;
@@ -120,6 +121,7 @@ export async function markBookingPaymentCompleted(
     if (booking.paymentCompleted || (booking.payment_status ?? '') === BOOKING_PAYMENT_STATUS.COMPLETED) {
         await applyPaidBookingState(supabaseAdmin, booking);
         await notifyProviderAboutBooking(supabaseAdmin, booking);
+        await maybeCreditProviderAfterPaymentSettled(supabaseAdmin, bookingId);
         return { ok: true };
     }
 
@@ -163,6 +165,8 @@ export async function markBookingPaymentCompleted(
 
         await notifyProviderAboutBooking(supabaseAdmin, booking);
     }
+
+    await maybeCreditProviderAfterPaymentSettled(supabaseAdmin, bookingId);
 
     return { ok: true };
 }

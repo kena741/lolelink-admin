@@ -1,9 +1,14 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import {
+    ensureAdminBookerWalletFloor,
+    isAdminBookerBooking,
+} from '@/lib/admin-booker-customer';
 import { BOOKING_PAYMENT_STATUS } from '@/lib/booking-status';
 import {
     customerBookingFundsHeld,
     netCustomerBookingHeldAmount,
 } from '@/lib/booking-display';
+import { maybeCreditProviderAfterPaymentSettled } from '@/lib/booking-completion-payout';
 import { resolveCustomerAuthUserId } from '@/lib/wallet-transaction-user';
 import { walletTransactionProfileColumns } from '@/lib/wallet-transaction-profile';
 
@@ -192,7 +197,9 @@ export async function recollectBookingPayment(
 
     const { data: bookingRaw, error: bookingError } = await admin
         .from('booked_service')
-        .select('id, customer_id, totalAmount, price, paymentType, payment_status, paymentCompleted')
+        .select(
+            'id, customer_id, totalAmount, price, paymentType, payment_status, paymentCompleted, email, firstName, lastName, phoneNumber'
+        )
         .eq('id', id)
         .maybeSingle();
 
@@ -203,6 +210,10 @@ export async function recollectBookingPayment(
         paymentType?: string | null;
         payment_status?: string | null;
         paymentCompleted?: boolean | null;
+        email?: string | null;
+        firstName?: string | null;
+        lastName?: string | null;
+        phoneNumber?: string | null;
     };
     const customerId = (booking.customer_id ?? '').trim();
     if (!customerId) return { ok: false, error: 'Booking has no customer', status: 400 };
@@ -210,14 +221,30 @@ export async function recollectBookingPayment(
     const amount = bookingTotalAmount(booking);
     if (!(amount > 0)) return { ok: false, error: 'Booking amount must be positive', status: 400 };
 
-    if (mode === 'wallet') {
+    const alreadyPaid =
+        booking.paymentCompleted === true ||
+        (booking.payment_status ?? '').toLowerCase() === BOOKING_PAYMENT_STATUS.COMPLETED;
+    if (alreadyPaid && mode === 'mark_paid') {
+        return { ok: false, error: 'Booking is already paid', status: 409 };
+    }
+
+    const adminBooked = isAdminBookerBooking(booking);
+
+    // Zemen Admin bookings always debit the float wallet (never ghost payment_id / fake admin pay).
+    const useWallet = mode === 'wallet' || adminBooked;
+
+    if (useWallet) {
+        if (adminBooked) {
+            await ensureAdminBookerWalletFloor(admin, customerId);
+        }
+
         const debit = await debitCustomerWalletForBooking(admin, id, customerId, amount, {
-            note: `Booking re-collection ${id}`,
+            note: adminBooked ? `Admin float re-collect ${id}` : `Booking re-collection ${id}`,
             transactionId: id,
         });
         if (!debit.ok) return debit;
 
-        await upsertBookingPaymentRecord(admin, booking, {
+        const attachedPaymentId = await upsertBookingPaymentRecord(admin, booking, {
             paymentId: debit.paymentId,
             providerRef: debit.paymentId,
             paymentMethod: 'wallet',
@@ -225,32 +252,18 @@ export async function recollectBookingPayment(
             status: BOOKING_PAYMENT_STATUS.COMPLETED,
         });
 
+        const { error: linkError } = await admin
+            .from('booked_service')
+            .update({ payment_id: attachedPaymentId })
+            .eq('id', id);
+        if (linkError) return { ok: false, error: linkError.message, status: 500 };
+
+        await maybeCreditProviderAfterPaymentSettled(admin, id);
+
         return { ok: true, mode: 'wallet', amount };
     }
 
-    const authUser = await resolveCustomerAuthUserId(admin, customerId);
-    if (!authUser.ok) {
-        return { ok: false, error: authUser.error, status: authUser.status };
-    }
-
-    const now = new Date().toISOString();
-    const { error: markerError } = await admin.from('wallet_transaction').insert({
-        amount: '0.00',
-        createdDate: now,
-        isCredit: false,
-        note: `Booking re-collection ${id} (admin mark paid)`,
-        paymentType: 'admin',
-        transactionId: id,
-        type: 'customer',
-        ...walletTransactionProfileColumns({
-            type: 'customer',
-            authUserId: authUser.authUserId,
-            customerId,
-        }),
-    });
-
-    if (markerError) return { ok: false, error: markerError.message, status: 500 };
-
+    // Non–admin-booker mark paid — payments row first, then link (FK-safe).
     const paymentId = crypto.randomUUID();
     const attachedPaymentId = await upsertBookingPaymentRecord(admin, booking, {
         paymentId,
@@ -271,6 +284,8 @@ export async function recollectBookingPayment(
         .eq('id', id);
 
     if (bookingUpdateError) return { ok: false, error: bookingUpdateError.message, status: 500 };
+
+    await maybeCreditProviderAfterPaymentSettled(admin, id);
 
     return { ok: true, mode: 'mark_paid', amount };
 }
