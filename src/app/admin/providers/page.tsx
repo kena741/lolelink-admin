@@ -322,10 +322,14 @@ const ProvidersPage = () => {
     };
 
     useEffect(() => {
+        // Service counts must not ride the providers list TTL — empty {} looks "stale-ok" while cards show 0.
+        void dispatch(fetchServiceCountsByProvider());
+    }, [dispatch]);
+
+    useEffect(() => {
         if (!shouldRefetchAdminList('providers', { hasRows: providers.length > 0 })) return;
         void Promise.all([
             dispatch(fetchProviders()),
-            dispatch(fetchServiceCountsByProvider()),
             dispatch(fetchSettings()),
         ]).then(() => markAdminListFetched('providers'));
     }, [dispatch, providers.length]);

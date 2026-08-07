@@ -247,28 +247,39 @@ export const fetchServiceCountsByProvider = createAsyncThunk<
 >(
     "provider/fetchServiceCountsByProvider",
     async (_, { rejectWithValue }) => {
-        // Try singular table
-        const { data: counts1, error: e1 } = await getSupabase()
-            .from("service")
-            .select("provider_id, count:id", { count: "exact" });
+        // Count rows per provider_id. Avoid `count:id` alias (PostgREST treats it as a column alias, not GROUP BY).
+        const map: Record<string, number> = {};
+        const pageSize = 1000;
+        let from = 0;
 
-        let countsData = counts1 as { provider_id: string; count: number }[] | null;
-        let err = e1;
+        for (;;) {
+            let { data, error } = await getSupabase()
+                .from("service")
+                .select("provider_id")
+                .range(from, from + pageSize - 1);
 
-        if (err) {
-            const { data: counts2, error: e2 } = await getSupabase()
-                .from("services")
-                .select("provider_id, count:id", { count: "exact" });
-            countsData = counts2 as { provider_id: string; count: number }[] | null;
-            err = e2;
+            if (error) {
+                const fallback = await getSupabase()
+                    .from("services")
+                    .select("provider_id")
+                    .range(from, from + pageSize - 1);
+                data = fallback.data;
+                error = fallback.error;
+            }
+
+            if (error) return rejectWithValue(error.message);
+
+            const rows = (data ?? []) as { provider_id?: string | null }[];
+            for (const row of rows) {
+                const id = row.provider_id?.trim();
+                if (!id) continue;
+                map[id] = (map[id] ?? 0) + 1;
+            }
+
+            if (rows.length < pageSize) break;
+            from += pageSize;
         }
 
-        if (err) return rejectWithValue(err.message);
-
-        const map: Record<string, number> = {};
-        (countsData ?? []).forEach((row) => {
-            if (row.provider_id) map[row.provider_id] = (map[row.provider_id] ?? 0) + 1;
-        });
         return map;
     }
 );
