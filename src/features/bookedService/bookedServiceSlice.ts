@@ -409,6 +409,8 @@ export interface CreateBookingInput {
     bookingAddress?: BookingAddressInput;
     coupon_id?: number;
     coupon_code?: string;
+    /** Admin custom unit price (ETB); overrides catalog service price. */
+    unit_price?: number;
 }
 
 interface CreateBookingResponse {

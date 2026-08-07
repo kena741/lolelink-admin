@@ -221,13 +221,14 @@ const SubCategoriesPage = () => {
                                         <p className="text-lg font-semibold text-gray-900 mb-2">No subcategories found</p>
                                         <p className="text-sm text-gray-600 mb-4">Get started by creating your first subcategory</p>
                                         {canWriteCatalog && (
-                                        <button
-                                            onClick={() => handleOpenModal()}
-                                            className="inline-flex items-center gap-2 rounded-lg inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-accent"
-                                        >
-                                            <Plus className="h-4 w-4" />
-                                            Insert
-                                        </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleOpenModal()}
+                                                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-accent"
+                                            >
+                                                <Plus className="h-4 w-4" />
+                                                Insert
+                                            </button>
                                         )}
                                     </div>
                                 ) : (

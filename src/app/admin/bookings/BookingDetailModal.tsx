@@ -17,6 +17,7 @@ import {
     getBookingProviderDisplayName,
     type BookedService,
 } from '@/features/bookedService/bookedServiceSlice';
+import { isAdminBookerBooking } from '@/lib/admin-booker-customer';
 import { formatServiceDiscountLabel } from '@/lib/service-discount';
 import {
     formatBookingAddress,
@@ -112,6 +113,7 @@ function PersonBlock({
     idLabel,
     idValue,
     extra,
+    badge,
 }: {
     title: string;
     name: string;
@@ -120,6 +122,7 @@ function PersonBlock({
     idLabel: string;
     idValue: string;
     extra?: React.ReactNode;
+    badge?: string;
 }) {
     const initial = name.trim().charAt(0).toUpperCase() || '?';
     return (
@@ -133,6 +136,11 @@ function PersonBlock({
                 </span>
                 <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-gray-900">{name || '—'}</p>
+                    {badge ? (
+                        <span className="mt-0.5 inline-flex rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700 ring-1 ring-indigo-100">
+                            {badge}
+                        </span>
+                    ) : null}
                     {email ? <p className="truncate text-xs text-gray-500">{email}</p> : null}
                 </div>
             </div>
@@ -527,6 +535,7 @@ export function BookingDetailModal({
                                 phone={booking.phoneNumber}
                                 idLabel="Customer ID"
                                 idValue={booking.customer_id || '—'}
+                                badge={isAdminBookerBooking(booking) ? 'Admin booked' : undefined}
                             />
                             <PersonBlock
                                 title="Provider"

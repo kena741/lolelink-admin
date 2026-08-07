@@ -7,6 +7,7 @@ import {
     getBookingProviderDisplayName,
     type BookedService,
 } from '@/features/bookedService/bookedServiceSlice';
+import { isAdminBookerBooking } from '@/lib/admin-booker-customer';
 import {
     formatBookingAmount,
     formatBookingTableDate,
@@ -81,7 +82,15 @@ function BookingAmount({ value }: { value: unknown }) {
     );
 }
 
-function PersonCell({ name, meta }: { name: string; meta?: string }) {
+function PersonCell({
+    name,
+    meta,
+    badge,
+}: {
+    name: string;
+    meta?: string;
+    badge?: string;
+}) {
     const initial = name.trim().charAt(0).toUpperCase() || '?';
     return (
         <div className="flex min-w-0 max-w-44 items-start gap-2.5">
@@ -95,6 +104,11 @@ function PersonCell({ name, meta }: { name: string; meta?: string }) {
                 <div className="truncate text-sm font-medium text-gray-900" title={name}>
                     {name}
                 </div>
+                {badge ? (
+                    <span className="mt-0.5 inline-flex rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700 ring-1 ring-indigo-100">
+                        {badge}
+                    </span>
+                ) : null}
                 {meta ? (
                     <div className="mt-0.5 truncate text-xs text-gray-500" title={meta}>
                         {meta}
@@ -277,7 +291,12 @@ export function BookingsTable({
                                     <td className="px-3 py-3 align-middle">
                                         <PersonCell
                                             name={customerName}
-                                            meta={booking.email || booking.phoneNumber || undefined}
+                                            meta={
+                                                isAdminBookerBooking(booking)
+                                                    ? undefined
+                                                    : booking.email || booking.phoneNumber || undefined
+                                            }
+                                            badge={isAdminBookerBooking(booking) ? 'Admin booked' : undefined}
                                         />
                                     </td>
                                     <td className="px-3 py-3 align-middle">

@@ -14,6 +14,11 @@ import {
     verifyBookingPayment,
 } from '@/features/bookedService/bookedServiceSlice';
 import { fetchAllCustomers } from '@/features/customer/customerSlice';
+import type { Customer } from '@/features/customer/customerSlice';
+import {
+    ADMIN_BOOKER,
+    isAdminBookerCustomer,
+} from '@/lib/admin-booker-customer';
 import { fetchServices } from '@/features/service/approveServicesSlice';
 import { fetchCoupons, type Coupon } from '@/features/coupon/couponSlice';
 import { fetchCategories } from '@/features/category/categorySlice';
@@ -32,7 +37,6 @@ import { formatServiceDiscountLabel } from '@/lib/service-discount';
 import { formatBookingAmount } from '@/lib/booking-display';
 import { BOOKING_FIELD_LIMITS, clampBookingQuantity, bookingSecurePhoneError, bookingSecureQuantityError, bookingSecureTextError } from '@/lib/booking-field-limits';
 import { distanceKm, parseProviderLocation, type ProviderAddressValue } from '@/lib/provider-location';
-import type { Customer } from '@/features/customer/customerSlice';
 import { SearchSelect, type SearchSelectOption } from '@/components/SearchSelect';
 import { ProviderAddressPicker } from '@/components/ProviderAddressPicker';
 import { useIsLocalhost } from '@/hooks/use-is-localhost';
@@ -106,12 +110,12 @@ function buildChapaDebugFormContext(
     locality: string,
     landmark: string,
     selectedCoupon: Coupon | null,
-    priceSummary: ReturnType<typeof computeBookingAmounts> | null
+    priceSummary: ReturnType<typeof computeBookingAmounts> | null,
+    unitPrice: number
 ): ChapaDebugFormContext | null {
     if (!selectedService || !selectedCustomer || !priceSummary) return null;
 
     const qty = parseInt(quantity, 10);
-    const unitPrice = resolveServiceUnitPrice(selectedService.price);
 
     return {
         providerId,
@@ -228,7 +232,7 @@ function isServiceSelectable(service: BookingServiceRow): boolean {
     if (service.isArchived === true) return false;
     if (service.status === false) return false;
     if (!service.provider_id) return false;
-    return resolveServiceUnitPrice(service.price) > 0;
+    return true;
 }
 
 function serviceCoords(service: BookingServiceRow): { latitude: number; longitude: number } | null {
@@ -284,6 +288,7 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
     const [locality, setLocality] = useState('');
     const [landmark, setLandmark] = useState('');
     const [couponId, setCouponId] = useState('');
+    const [unitPriceInput, setUnitPriceInput] = useState('');
     const [paymentPath, setPaymentPath] = useState<PaymentPath>('pay_later');
     const [chapaPhone, setChapaPhone] = useState('');
     const [createdBookingId, setCreatedBookingId] = useState('');
@@ -368,10 +373,23 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
     useEffect(() => {
         if (!open) return;
         dispatch(fetchServices());
-        dispatch(fetchAllCustomers());
         dispatch(fetchCoupons());
         dispatch(fetchCategories());
         dispatch(fetchSubCategories());
+
+        let cancelled = false;
+        void (async () => {
+            try {
+                await fetch('/api/admin/customers/admin-booker');
+            } catch {
+                // list still loads; create will fail clearly if ensure never ran
+            }
+            if (!cancelled) dispatch(fetchAllCustomers());
+        })();
+
+        return () => {
+            cancelled = true;
+        };
     }, [dispatch, open]);
 
     useEffect(() => {
@@ -443,6 +461,7 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
         if (servicesForSelect.some((service) => service.id === serviceId)) return;
         setServiceId('');
         setProviderId('');
+        setUnitPriceInput('');
     }, [servicesForSelect, serviceId]);
 
     const selectedProviderName = selectedService?.providerName || selectedService?.provider_id || '';
@@ -452,6 +471,8 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
         [activeCustomers, customerId]
     );
 
+    const isAdminBooker = isAdminBookerCustomer(selectedCustomer);
+
     const selectedCoupon = useMemo(
         () => activeCoupons.find((coupon) => String(coupon.id) === couponId) ?? null,
         [activeCoupons, couponId]
@@ -459,7 +480,8 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
 
     const priceSummary = useMemo(() => {
         if (!selectedService) return null;
-        const unitPrice = resolveServiceUnitPrice(selectedService.price);
+        const unitPrice = resolveServiceUnitPrice(unitPriceInput);
+        if (unitPrice <= 0) return null;
         const qty = parseInt(quantity, 10);
         return computeBookingAmounts(
             unitPrice,
@@ -467,13 +489,25 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
             Number.isFinite(qty) && qty > 0 ? qty : 1,
             selectedCoupon
         );
-    }, [selectedService, quantity, selectedCoupon]);
+    }, [selectedService, quantity, selectedCoupon, unitPriceInput]);
+
+    const catalogUnitPrice = selectedService
+        ? resolveServiceUnitPrice(selectedService.price)
+        : 0;
+    const resolvedUnitPrice = resolveServiceUnitPrice(unitPriceInput);
+    const priceIsCustom =
+        selectedService != null &&
+        Number.isFinite(resolvedUnitPrice) &&
+        resolvedUnitPrice > 0 &&
+        Math.abs(resolvedUnitPrice - catalogUnitPrice) > 0.0001;
 
     const customerWalletBalance = selectedCustomer?.wallet_amount ?? 0;
     const walletCanCover =
-        priceSummary !== null && customerWalletBalance >= priceSummary.totalAmount;
+        !isAdminBooker &&
+        priceSummary !== null &&
+        customerWalletBalance >= priceSummary.totalAmount;
     const walletInsufficient =
-        paymentPath === 'wallet' && priceSummary !== null && !walletCanCover;
+        paymentPath === 'wallet' && (isAdminBooker || (priceSummary !== null && !walletCanCover));
     const chapaPhoneNormalized = normalizeChapaPhone(chapaPhone);
     const chapaPhoneInvalid = paymentPath === 'pay_now' && !chapaPhoneNormalized;
 
@@ -537,18 +571,33 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
         [servicesForSelect, customerAddress.latitude, customerAddress.longitude]
     );
 
-    const customerOptions = useMemo<SearchSelectOption[]>(
-        () =>
-            activeCustomers
-                .filter((customer): customer is Customer & { id: string } => Boolean(customer.id))
-                .map((customer) => ({
-                    value: customer.id,
-                    label: customerName(customer),
-                    description: [customer.email, customerPhone(customer)].filter(Boolean).join(' · '),
-                    searchText: customer.id,
-                })),
-        [activeCustomers]
-    );
+    const customerOptions = useMemo<SearchSelectOption[]>(() => {
+        const withId = activeCustomers.filter(
+            (customer): customer is Customer & { id: string } => Boolean(customer.id)
+        );
+        const booker = withId.find((c) => isAdminBookerCustomer(c));
+        const rest = withId
+            .filter((c) => !isAdminBookerCustomer(c))
+            .map((customer) => ({
+                value: customer.id,
+                label: customerName(customer),
+                description: [customer.email, customerPhone(customer)].filter(Boolean).join(' · '),
+                searchText: [customer.id, customer.email, customerName(customer)].filter(Boolean).join(' '),
+            }));
+
+        const pinned: SearchSelectOption[] = booker
+            ? [
+                  {
+                      value: booker.id,
+                      label: ADMIN_BOOKER.displayName,
+                      description: `${ADMIN_BOOKER.badge} · ${ADMIN_BOOKER.email} · ${ADMIN_BOOKER.phoneDigits}`,
+                      searchText: `admin booker zemen ${booker.id} ${ADMIN_BOOKER.email}`,
+                  },
+              ]
+            : [];
+
+        return [...pinned, ...rest];
+    }, [activeCustomers]);
 
     const couponOptions = useMemo<SearchSelectOption[]>(
         () =>
@@ -566,18 +615,22 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
         setSubCategoryId('');
         setServiceId('');
         setProviderId('');
+        setUnitPriceInput('');
     }
 
     function handleSubCategoryChange(nextSubCategoryId: string) {
         setSubCategoryId(nextSubCategoryId);
         setServiceId('');
         setProviderId('');
+        setUnitPriceInput('');
     }
 
     function handleServiceChange(nextServiceId: string) {
         setServiceId(nextServiceId);
         const service = servicesForSelect.find((item) => item.id === nextServiceId);
         setProviderId(service?.provider_id ?? '');
+        const listPrice = resolveServiceUnitPrice(service?.price);
+        setUnitPriceInput(listPrice > 0 ? String(listPrice) : '');
     }
 
     function handleCustomerAddressChange(next: ProviderAddressValue) {
@@ -601,6 +654,7 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
         setLocality('');
         setLandmark('');
         setCouponId('');
+        setUnitPriceInput('');
         setPaymentPath('pay_later');
         setChapaPhone('');
         setCreatedBookingId('');
@@ -623,6 +677,7 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
             description: description.trim() || undefined,
             payment_path: path,
             payment_mode: path,
+            unit_price: resolveServiceUnitPrice(unitPriceInput) || undefined,
             bookingAddress: {
                 address: customerAddress.address.trim(),
                 locality: locality.trim(),
@@ -653,6 +708,7 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
         locality,
         landmark,
         selectedCoupon,
+        unitPriceInput,
     ]);
 
     const chapaDebugFormContext = useMemo(
@@ -671,7 +727,8 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                       locality,
                       landmark,
                       selectedCoupon,
-                      priceSummary
+                      priceSummary,
+                      resolvedUnitPrice
                   )
                 : null,
         [
@@ -689,6 +746,7 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
             landmark,
             selectedCoupon,
             priceSummary,
+            resolvedUnitPrice,
         ]
     );
 
@@ -752,6 +810,13 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
         if (!serviceId) return 'Select a service';
         if (!providerId) return 'Selected service has no provider';
         if (!customerId) return 'Select a customer';
+        const unitPrice = resolveServiceUnitPrice(unitPriceInput);
+        if (!Number.isFinite(unitPrice) || unitPrice < BOOKING_FIELD_LIMITS.unitPriceMin) {
+            return `Unit price must be at least ${BOOKING_FIELD_LIMITS.unitPriceMin} ETB`;
+        }
+        if (unitPrice > BOOKING_FIELD_LIMITS.unitPriceMax) {
+            return `Unit price cannot exceed ${BOOKING_FIELD_LIMITS.unitPriceMax} ETB`;
+        }
         const qty = parseInt(quantity, 10);
         const quantitySecurityError = bookingSecureQuantityError(quantity);
         if (quantitySecurityError) return quantitySecurityError;
@@ -812,8 +877,12 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
             return;
         }
 
-        if (path === 'wallet' && walletInsufficient) {
-            setError('Customer wallet balance is insufficient for this booking');
+        if (path === 'wallet' && (walletInsufficient || isAdminBooker)) {
+            setError(
+                isAdminBooker
+                    ? 'Zemen Admin (admin booked) has wallet pay disabled — use mark paid, pay later, or Chapa'
+                    : 'Customer wallet balance is insufficient for this booking'
+            );
             return;
         }
 
@@ -844,6 +913,7 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                     quantity,
                     description: description.trim() || undefined,
                     payment_mode: path,
+                    unit_price: resolveServiceUnitPrice(unitPriceInput),
                     bookingAddress: {
                         address: customerAddress.address.trim(),
                         locality: locality.trim(),
@@ -1082,12 +1152,20 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                         value={customerId}
                         onChange={setCustomerId}
                         options={customerOptions}
-                        placeholder="Search and select customer"
-                        searchPlaceholder="Search name, email, or phone..."
+                        placeholder="Search customer or Zemen Admin"
+                        searchPlaceholder="Search name, email, phone, or Zemen Admin..."
                         emptyMessage="No customers found"
                         loading={customersLoading}
                         loadingMessage="Loading customers..."
                     />
+
+                    {isAdminBooker ? (
+                        <div className="rounded-md border border-indigo-200 bg-indigo-50/80 px-3 py-2 text-[13px] text-indigo-900">
+                            Booking under <span className="font-semibold">{ADMIN_BOOKER.displayName}</span>{' '}
+                            ({ADMIN_BOOKER.badge}) — use for walk-in / internal jobs. Put real party details in
+                            admin notes if needed. Wallet pay is disabled for this seat.
+                        </div>
+                    ) : null}
 
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div className="grid gap-1.5">
@@ -1116,6 +1194,43 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                         </div>
                     </div>
 
+                    {selectedService ? (
+                        <div className="grid gap-1.5 rounded-md border border-border bg-card p-3">
+                            <Label htmlFor="booking-unit-price">Unit price (ETB) — editable</Label>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <Input
+                                    id="booking-unit-price"
+                                    type="number"
+                                    inputMode="decimal"
+                                    min={BOOKING_FIELD_LIMITS.unitPriceMin}
+                                    max={BOOKING_FIELD_LIMITS.unitPriceMax}
+                                    step="0.01"
+                                    value={unitPriceInput}
+                                    onChange={(e) => setUnitPriceInput(e.target.value)}
+                                    placeholder="e.g. 500"
+                                    required
+                                    className="max-w-56 font-medium tabular-nums"
+                                />
+                                {catalogUnitPrice > 0 && (
+                                    <button
+                                        type="button"
+                                        className="text-[12px] font-medium text-primary hover:underline"
+                                        onClick={() => setUnitPriceInput(String(catalogUnitPrice))}
+                                    >
+                                        Reset to list {formatBookingAmount(catalogUnitPrice)}
+                                    </button>
+                                )}
+                            </div>
+                            <p className="text-[12px] text-muted-foreground">
+                                {catalogUnitPrice > 0
+                                    ? priceIsCustom
+                                        ? `Custom price for this booking (catalog: ${formatBookingAmount(catalogUnitPrice)}). Discounts and coupons still apply.`
+                                        : 'Pre-filled from catalog. Type a new amount for this booking only — does not change the service list price.'
+                                    : 'No catalog price — enter the amount charged for this booking.'}
+                            </p>
+                        </div>
+                    ) : null}
+
                     <SearchSelect
                         id="booking-coupon"
                         label="Coupon (optional)"
@@ -1130,27 +1245,35 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                     />
 
                     <div className="grid gap-1.5">
-                        <Label htmlFor="booking-description">Description (optional)</Label>
+                        <Label htmlFor="booking-description">Admin notes / description</Label>
                         <textarea
                             id="booking-description"
                             value={description}
                             onChange={(e) =>
                                 setDescription(e.target.value.slice(0, BOOKING_FIELD_LIMITS.descriptionMax))
                             }
-                            rows={3}
+                            rows={4}
                             maxLength={BOOKING_FIELD_LIMITS.descriptionMax}
+                            placeholder="Notes for this booking (special terms, context, follow-up…) — stored as description"
                             className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm"
                         />
                         <p className="text-[12px] text-muted-foreground">
-                            {description.length}/{BOOKING_FIELD_LIMITS.descriptionMax}
+                            Optional. Visible on the booking detail. {description.length}/
+                            {BOOKING_FIELD_LIMITS.descriptionMax}
                         </p>
                     </div>
 
                     {priceSummary && selectedService && (
                         <div className="rounded-md border border-border bg-muted/40 p-3 text-sm">
                             <div className="flex justify-between">
-                                <span className="text-muted-foreground">Unit price × qty</span>
-                                <span>ETB {priceSummary.subTotal.toFixed(2)}</span>
+                                <span className="text-muted-foreground">
+                                    Unit price × qty
+                                    {priceIsCustom ? ' (custom)' : ''}
+                                </span>
+                                <span>
+                                    {formatBookingAmount(resolvedUnitPrice)} × {quantity || '1'}{' '}
+                                    = ETB {priceSummary.subTotal.toFixed(2)}
+                                </span>
                             </div>
                             {priceSummary.serviceDiscountAmount > 0 && (
                                 <div className="flex justify-between">
@@ -1181,9 +1304,15 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
 
                     {selectedCustomer && (
                         <div className="rounded-md border border-border bg-muted/20 p-3 text-sm text-muted-foreground">
-                            Booking for {customerLabel(selectedCustomer)}
-                            {typeof selectedCustomer.wallet_amount === 'number' && (
-                                <div className="mt-1">Wallet balance: ETB {selectedCustomer.wallet_amount.toFixed(2)}</div>
+                            Booking for {isAdminBooker ? ADMIN_BOOKER.displayName : customerLabel(selectedCustomer)}
+                            {isAdminBooker ? (
+                                <div className="mt-1 text-[12px]">Admin booked seat · wallet pay disabled</div>
+                            ) : (
+                                typeof selectedCustomer.wallet_amount === 'number' && (
+                                    <div className="mt-1">
+                                        Wallet balance: ETB {selectedCustomer.wallet_amount.toFixed(2)}
+                                    </div>
+                                )
                             )}
                         </div>
                     )}
@@ -1203,15 +1332,23 @@ export function CreateBookingModal({ open, onClose, onCreated }: CreateBookingMo
                             <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
                                 <span className="text-muted-foreground">Wallet balance</span>
                                 <span className="tabular-nums text-card-foreground">
-                                    {formatBookingAmount(customerWalletBalance)}
-                                    {walletCanCover ? (
-                                        <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-[11px] font-medium text-emerald-800">
-                                            Enough to pay
+                                    {isAdminBooker ? (
+                                        <span className="ml-0 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-700">
+                                            N/A · Zemen Admin
                                         </span>
                                     ) : (
-                                        <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800">
-                                            Use Chapa or pay later
-                                        </span>
+                                        <>
+                                            {formatBookingAmount(customerWalletBalance)}
+                                            {walletCanCover ? (
+                                                <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-[11px] font-medium text-emerald-800">
+                                                    Enough to pay
+                                                </span>
+                                            ) : (
+                                                <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800">
+                                                    Use Chapa or pay later
+                                                </span>
+                                            )}
+                                        </>
                                     )}
                                 </span>
                             </div>

@@ -16,6 +16,7 @@ import {
 import { resolveServiceName } from '@/lib/booking-pricing';
 import { BOOKING_PAYMENT_STATUS, BOOKING_STATUS } from '@/lib/booking-status';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
+import { isAdminBookerCustomer } from '@/lib/admin-booker-customer';
 
 export const runtime = 'nodejs';
 
@@ -31,6 +32,8 @@ interface CreateBookingBody {
     bookingAddress?: BookingAddressInput;
     coupon_id?: number;
     coupon_code?: string;
+    unit_price?: number | string;
+    price?: number | string;
 }
 
 function readCustomerName(row: Record<string, unknown>): string {
@@ -95,14 +98,30 @@ export async function POST(request: Request) {
             bookingAddress: body.bookingAddress,
             coupon,
             paymentMode,
+            unitPrice: body.unit_price ?? body.price,
         });
 
         if (paymentMode === 'wallet') {
             const { data: walletCustomer } = await supabaseAdmin
                 .from('customer')
-                .select('wallet_amount')
+                .select('wallet_amount, email, first_name, last_name')
                 .eq('id', customerId)
                 .maybeSingle();
+
+            if (
+                isAdminBookerCustomer(
+                    walletCustomer as {
+                        email?: string;
+                        first_name?: string;
+                        last_name?: string;
+                    } | null
+                )
+            ) {
+                return NextResponse.json(
+                    { error: 'Zemen Admin (admin booked) wallet is disabled — use mark paid, pay later, or Chapa' },
+                    { status: 400 }
+                );
+            }
 
             const walletAmount = Number((walletCustomer as { wallet_amount?: string | number } | null)?.wallet_amount ?? 0);
             if (!Number.isFinite(walletAmount) || walletAmount < totalAmountNumber) {

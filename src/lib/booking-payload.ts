@@ -65,6 +65,8 @@ export interface BuildBookingPayloadInput {
     coupon?: CouponInput | null;
     paymentMode: BookingPaymentMode;
     bookingId?: string;
+    /** Admin override; defaults to catalog service price. */
+    unitPrice?: number | string | null;
 }
 
 function readField(row: Record<string, unknown>, keys: string[]): string {
@@ -222,8 +224,22 @@ export async function buildBookingPayload(
     if (service.isArchived === true) throw new Error('Service is archived');
     if (service.status === false) throw new Error('Service is inactive');
 
-    const unitPrice = resolveServiceUnitPrice(service.price);
-    if (unitPrice <= 0) throw new Error('Service price is invalid');
+    const catalogPrice = resolveServiceUnitPrice(service.price);
+    const hasCustomPrice =
+        input.unitPrice !== undefined && input.unitPrice !== null && String(input.unitPrice).trim() !== '';
+    const unitPrice = hasCustomPrice
+        ? resolveServiceUnitPrice(input.unitPrice)
+        : catalogPrice;
+    if (!Number.isFinite(unitPrice) || unitPrice < BOOKING_FIELD_LIMITS.unitPriceMin) {
+        throw new Error(
+            hasCustomPrice
+                ? `Unit price must be at least ${BOOKING_FIELD_LIMITS.unitPriceMin}`
+                : 'Service price is invalid — set a custom unit price'
+        );
+    }
+    if (unitPrice > BOOKING_FIELD_LIMITS.unitPriceMax) {
+        throw new Error(`Unit price cannot exceed ${BOOKING_FIELD_LIMITS.unitPriceMax}`);
+    }
 
     const discountRaw = typeof service.discount === 'string' ? service.discount : undefined;
     const couponRow = await resolveCoupon(admin, input.coupon);

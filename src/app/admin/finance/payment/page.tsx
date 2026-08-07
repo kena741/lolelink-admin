@@ -213,10 +213,10 @@ const PaymentPage = () => {
 
                                                     return (
                                                         <TableRow key={payment.id}>
-                                                            <TableCell className="max-w-[180px] truncate font-medium text-gray-900">{payment.id}</TableCell>
-                                                            <TableCell className="max-w-[180px] truncate text-gray-700">{payment.customerId}</TableCell>
+                                                            <TableCell className="max-w-45 truncate font-medium text-gray-900">{payment.id}</TableCell>
+                                                            <TableCell className="max-w-45 truncate text-gray-700">{payment.customerId}</TableCell>
                                                             <TableCell className="text-gray-700">{payment.paymentType || '—'}</TableCell>
-                                                            <TableCell className="max-w-[180px] truncate text-gray-700">{payment.paymentId || '—'}</TableCell>
+                                                            <TableCell className="max-w-45 truncate text-gray-700">{payment.paymentId || '—'}</TableCell>
                                                             <TableCell className="font-semibold text-gray-900">
                                                                 {formatAmount(payment.totalAmount)}
                                                             </TableCell>

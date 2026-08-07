@@ -194,7 +194,7 @@ const CategoriesPage = () => {
                                         {canWriteCatalog && (
                                         <button
                                             onClick={() => handleOpenModal()}
-                                            className="inline-flex items-center gap-2 rounded-lg inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-accent"
+                                            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-accent"
                                         >
                                             <Plus className="h-4 w-4" />
                                             Add Category

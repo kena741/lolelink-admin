@@ -18,6 +18,9 @@ export const BOOKING_FIELD_LIMITS = {
     phoneMax: 20,
     /** Admin may schedule up to this many days ahead. */
     bookingDateMaxDaysAhead: 365,
+    /** Admin custom unit price (ETB). */
+    unitPriceMin: 0.01,
+    unitPriceMax: 1_000_000,
 } as const;
 
 export function clampBookingQuantity(raw: string): string {
