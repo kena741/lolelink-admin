@@ -1,6 +1,7 @@
 export interface OpsDeskAlertPrefs {
     sound: boolean;
     desktop: boolean;
+    sms: boolean;
 }
 
 export const OPS_DESK_ALERTS_KEY = 'ops-inbox-desk-alerts';
@@ -8,6 +9,7 @@ export const OPS_DESK_ALERTS_KEY = 'ops-inbox-desk-alerts';
 const DEFAULT_PREFS: OpsDeskAlertPrefs = {
     sound: false,
     desktop: false,
+    sms: true,
 };
 
 export function loadOpsDeskAlertPrefs(): OpsDeskAlertPrefs {
@@ -19,6 +21,8 @@ export function loadOpsDeskAlertPrefs(): OpsDeskAlertPrefs {
         return {
             sound: Boolean(parsed.sound),
             desktop: Boolean(parsed.desktop),
+            // default on for first-time / older prefs missing sms
+            sms: parsed.sms === undefined ? true : Boolean(parsed.sms),
         };
     } catch {
         return { ...DEFAULT_PREFS };
@@ -140,6 +144,22 @@ export function showOpsDesktopNotification(input: OpsDesktopNotifyInput): boolea
         return true;
     } catch {
         return false;
+    }
+}
+
+export async function requestOpsAlertSms(input: {
+    title: string;
+    body?: string;
+    count?: number;
+}): Promise<void> {
+    try {
+        await fetch('/api/admin/ops-alert', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(input),
+        });
+    } catch (error) {
+        console.error('Ops SMS alert failed:', error);
     }
 }
 

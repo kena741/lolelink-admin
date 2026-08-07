@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Bell, CheckCheck, Inbox, Volume2, VolumeX } from 'lucide-react';
+import { Bell, CheckCheck, Inbox, MessageSquare, Volume2, VolumeX } from 'lucide-react';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -49,6 +49,7 @@ export function NotificationBell() {
         'default'
     );
     const [alertsReady, setAlertsReady] = useState(false);
+    const [smsTestState, setSmsTestState] = useState<'idle' | 'sending' | 'ok' | 'error'>('idle');
 
     const isAdmin = Boolean(pathname?.startsWith('/admin'));
     const onInboxPage = Boolean(pathname?.startsWith('/admin/notifications'));
@@ -135,6 +136,33 @@ export function NotificationBell() {
         updatePrefs({ ...prefs, desktop: false });
     }
 
+    function toggleSms() {
+        updatePrefs({ ...prefs, sms: !prefs.sms });
+    }
+
+    async function handleTestSms() {
+        setSmsTestState('sending');
+        try {
+            const response = await fetch('/api/admin/ops-alert', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: 'Test alert',
+                    body: 'Ops SMS is working. You can ignore this message.',
+                }),
+            });
+            if (!response.ok) {
+                setSmsTestState('error');
+                return;
+            }
+            setSmsTestState('ok');
+        } catch {
+            setSmsTestState('error');
+        } finally {
+            window.setTimeout(() => setSmsTestState('idle'), 4000);
+        }
+    }
+
     const badge = counts.needsAttention;
     const desktopBlocked = permission === 'denied' || permission === 'unsupported';
 
@@ -194,50 +222,93 @@ export function NotificationBell() {
                     ) : null}
                 </div>
 
-                <div className="flex items-center gap-2 border-b border-border bg-muted/30 px-3 py-2">
-                    <button
-                        type="button"
-                        onClick={toggleSound}
-                        className={cn(
-                            'inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md border text-[12px] font-medium transition-colors duration-150',
-                            'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                            prefs.sound
-                                ? 'border-primary/30 bg-primary/10 text-primary'
-                                : 'border-border bg-card text-text-secondary hover:bg-muted hover:text-text-primary'
-                        )}
-                        aria-pressed={prefs.sound}
-                    >
-                        {prefs.sound ? (
-                            <Volume2 className="h-3.5 w-3.5" />
-                        ) : (
-                            <VolumeX className="h-3.5 w-3.5" />
-                        )}
-                        Sound {prefs.sound ? 'on' : 'off'}
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => void toggleDesktop()}
-                        disabled={desktopBlocked}
-                        title={
-                            permission === 'denied'
-                                ? 'Browser blocked notifications — enable them in site settings'
-                                : permission === 'unsupported'
-                                  ? 'This browser does not support desktop notifications'
-                                  : undefined
-                        }
-                        className={cn(
-                            'inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md border text-[12px] font-medium transition-colors duration-150',
-                            'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                            'disabled:cursor-not-allowed disabled:opacity-50',
-                            prefs.desktop
-                                ? 'border-primary/30 bg-primary/10 text-primary'
-                                : 'border-border bg-card text-text-secondary hover:bg-muted hover:text-text-primary'
-                        )}
-                        aria-pressed={prefs.desktop}
-                    >
-                        <Bell className="h-3.5 w-3.5" />
-                        Push {prefs.desktop ? 'on' : 'off'}
-                    </button>
+                <div className="flex flex-col gap-2 border-b border-border bg-muted/30 px-3 py-2">
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={toggleSound}
+                            className={cn(
+                                'inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md border text-[12px] font-medium transition-colors duration-150',
+                                'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                                prefs.sound
+                                    ? 'border-primary/30 bg-primary/10 text-primary'
+                                    : 'border-border bg-card text-text-secondary hover:bg-muted hover:text-text-primary'
+                            )}
+                            aria-pressed={prefs.sound}
+                        >
+                            {prefs.sound ? (
+                                <Volume2 className="h-3.5 w-3.5" />
+                            ) : (
+                                <VolumeX className="h-3.5 w-3.5" />
+                            )}
+                            Sound {prefs.sound ? 'on' : 'off'}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => void toggleDesktop()}
+                            disabled={desktopBlocked}
+                            title={
+                                permission === 'denied'
+                                    ? 'Browser blocked notifications — enable them in site settings'
+                                    : permission === 'unsupported'
+                                      ? 'This browser does not support desktop notifications'
+                                      : undefined
+                            }
+                            className={cn(
+                                'inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md border text-[12px] font-medium transition-colors duration-150',
+                                'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                                'disabled:cursor-not-allowed disabled:opacity-50',
+                                prefs.desktop
+                                    ? 'border-primary/30 bg-primary/10 text-primary'
+                                    : 'border-border bg-card text-text-secondary hover:bg-muted hover:text-text-primary'
+                            )}
+                            aria-pressed={prefs.desktop}
+                        >
+                            <Bell className="h-3.5 w-3.5" />
+                            Browser {prefs.desktop ? 'on' : 'off'}
+                        </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={toggleSms}
+                            className={cn(
+                                'inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md border text-[12px] font-medium transition-colors duration-150',
+                                'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                                prefs.sms
+                                    ? 'border-primary/30 bg-primary/10 text-primary'
+                                    : 'border-border bg-card text-text-secondary hover:bg-muted hover:text-text-primary'
+                            )}
+                            aria-pressed={prefs.sms}
+                            title="SMS your phone when new ops items appear while admin is open"
+                        >
+                            <MessageSquare className="h-3.5 w-3.5" />
+                            SMS {prefs.sms ? 'on' : 'off'}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => void handleTestSms()}
+                            disabled={smsTestState === 'sending'}
+                            className={cn(
+                                'inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md border border-border bg-card text-[12px] font-medium text-text-primary transition-colors duration-150',
+                                'hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                                'disabled:cursor-not-allowed disabled:opacity-50',
+                                smsTestState === 'ok' && 'border-primary/30 bg-primary/10 text-primary',
+                                smsTestState === 'error' && 'border-destructive/30 bg-destructive/10 text-destructive'
+                            )}
+                        >
+                            {smsTestState === 'sending'
+                                ? 'Sending…'
+                                : smsTestState === 'ok'
+                                  ? 'Sent ✓'
+                                  : smsTestState === 'error'
+                                    ? 'Failed'
+                                    : 'Test SMS'}
+                        </button>
+                    </div>
+                    <p className="px-0.5 text-[11px] leading-snug text-text-hint">
+                        Alerts go to +251941024355 · Test sends one message now
+                    </p>
                 </div>
 
                 <div className="max-h-[min(70vh,28rem)] overflow-y-auto">

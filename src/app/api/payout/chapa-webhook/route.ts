@@ -139,6 +139,20 @@ export async function POST(request: Request) {
             action_url: '/admin/finance/payout-request',
         });
 
+        if (nextStatus === 'rejected') {
+            try {
+                const { formatOpsAlertSms, sendOpsAlertSms } = await import('@/lib/ops-alert-sms');
+                await sendOpsAlertSms(
+                    formatOpsAlertSms({
+                        title: 'Payout transfer failed',
+                        body: `reference=${reference}`,
+                    })
+                );
+            } catch (smsError) {
+                console.error('Ops SMS alert failed:', smsError);
+            }
+        }
+
         if (nextStatus === 'completed' || nextStatus === 'rejected') {
             try {
                 const { notifyProviderPayoutStatus } = await import('@/lib/push/payoutNotify');
