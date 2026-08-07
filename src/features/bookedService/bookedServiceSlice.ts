@@ -59,6 +59,8 @@ export interface BookedService {
     service_proof?: unknown;
     countryCode?: string | null;
     reason?: string | null;
+    is_archived?: boolean | null;
+    archive_note?: string | null;
 }
 
 interface BookedServiceState {
@@ -315,15 +317,17 @@ export function getBookingCustomerDisplayName(booking: BookedService): string {
 
 export const fetchProviderBookings = createAsyncThunk<
     BookedService[],
-    { provider_id?: string; statuses?: string[] },
+    { provider_id?: string; statuses?: string[]; includeArchived?: boolean },
     { rejectValue: string }
 >(
     'bookedService/fetchProviderBookings',
-    async ({ statuses } = {}, { rejectWithValue }) => {
+    async ({ statuses, includeArchived = false } = {}, { rejectWithValue }) => {
         try {
             // Fetch across all providers (no provider_id filter)
             let query = getSupabase().from('booked_service').select('*');
-            console.log('query:', query)
+            if (!includeArchived) {
+                query = query.or('is_archived.is.null,is_archived.eq.false');
+            }
             if (statuses && statuses.length) {
                 query = query.in('status', statuses);
             }
@@ -339,14 +343,16 @@ export const fetchProviderBookings = createAsyncThunk<
 
 export const fetchAllBookings = createAsyncThunk<
     BookedService[],
-    { statuses?: string[] } | undefined,
+    { statuses?: string[]; includeArchived?: boolean } | undefined,
     { rejectValue: string }
 >(
     'bookedService/fetchAllBookings',
     async (args, { rejectWithValue }) => {
         try {
             let query = getSupabase().from('booked_service').select('*');
-            console.log('query:', query)
+            if (!args?.includeArchived) {
+                query = query.or('is_archived.is.null,is_archived.eq.false');
+            }
             const statuses = args?.statuses;
             if (statuses && statuses.length) {
                 query = query.in('status', statuses);

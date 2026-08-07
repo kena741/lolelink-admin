@@ -19,7 +19,8 @@
     "notify-fayda-segment": "tsx scripts/notify-fayda-segment-sms.ts",
     "notify-rejected-national-id": "tsx scripts/notify-rejected-national-id-sms.ts",
     "reconcile-converted-wallet-credits": "tsx scripts/reconcile-converted-wallet-credits.ts",
-    "cleanup-storage-orphans": "tsx scripts/cleanup-storage-orphans.ts"
+    "cleanup-storage-orphans": "tsx scripts/cleanup-storage-orphans.ts",
+    "archive-open-bookings": "tsx scripts/archive-open-bookings.ts"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",

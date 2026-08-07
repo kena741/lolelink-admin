@@ -43,7 +43,7 @@ export async function GET(request: Request) {
 
     const [{ data: walletRows }, { data: bookings }, { data: jobRequests }] = await Promise.all([
         supabaseAdmin.from('wallet_transaction').select('*'),
-        supabaseAdmin.from('booked_service').select('*'),
+        supabaseAdmin.from('booked_service').select('*').or('is_archived.is.null,is_archived.eq.false'),
         supabaseAdmin.from('job_request').select('id, createdAt, is_paid, price, title, status'),
     ]);
 

@@ -138,6 +138,7 @@ export const fetchPayments = createAsyncThunk<
         const { data, error } = await getSupabase()
             .from('booked_service')
             .select('*')
+            .or('is_archived.is.null,is_archived.eq.false')
             .order('createdAt', { ascending: false });
 
         if (error) throw error;

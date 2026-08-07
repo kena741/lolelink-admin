@@ -43,6 +43,7 @@ export async function GET(
             .from('booked_service')
             .select('id, serviceName, status, payment_status, paymentCompleted, totalAmount, price, createdAt, provider_id')
             .eq('customer_id', customerId)
+            .or('is_archived.is.null,is_archived.eq.false')
             .order('createdAt', { ascending: false });
 
         if (error) {

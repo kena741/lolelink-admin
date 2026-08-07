@@ -600,6 +600,7 @@ function DashboardContent() {
 				getSupabase()
 					.from("booked_service")
 					.select("*")
+					.or("is_archived.is.null,is_archived.eq.false")
 					.order("createdAt", { ascending: false }),
 				getSupabase().from("customer").select("created_at"),
 				getSupabase()
