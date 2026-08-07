@@ -665,7 +665,7 @@ const payoutSlice = createSlice({
     extraReducers: (builder) => {
         builder
             .addCase(fetchPayoutRequests.pending, (state) => {
-                state.loading = true;
+                if (state.requests.length === 0) state.loading = true;
                 state.error = null;
             })
             .addCase(fetchPayoutRequests.fulfilled, (state, action: PayloadAction<PayoutRequest[]>) => {

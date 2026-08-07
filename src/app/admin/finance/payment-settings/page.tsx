@@ -1,8 +1,6 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import Sidebar from '@/components/Sidebar';
-import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import { 
     RefreshCw, 
@@ -103,8 +101,8 @@ const PaymentSettingsPage = () => {
     };
 
     return (
-        <AuthGuard>
-            <div className="flex min-h-screen">
+        <>
+            
                 {toast && (
                     <div className="fixed right-6 top-6 z-100">
                         <div
@@ -118,8 +116,7 @@ const PaymentSettingsPage = () => {
                         </div>
                     </div>
                 )}
-                <Sidebar />
-                <main className="ml-64 w-full min-h-screen">
+                
                     <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
                         <AdminPageHeader
                             title="Payment Settings"
@@ -347,9 +344,9 @@ const PaymentSettingsPage = () => {
                             </div>
                         </fieldset>
                     </div>
-                </main>
-            </div>
-        </AuthGuard>
+                
+            
+        </>
     );
 };
 

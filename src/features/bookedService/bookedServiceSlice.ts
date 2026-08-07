@@ -637,7 +637,8 @@ const bookedServiceSlice = createSlice({
     extraReducers: (builder) => {
         builder
             .addCase(fetchProviderBookings.pending, (state) => {
-                state.loading = true;
+                // ponytail: keep rows visible while refetching (not RTK Query)
+                if (state.items.length === 0) state.loading = true;
                 state.error = null;
             })
             .addCase(fetchProviderBookings.fulfilled, (state, action: PayloadAction<BookedService[]>) => {
@@ -649,7 +650,7 @@ const bookedServiceSlice = createSlice({
                 state.error = (action.payload as string) || 'Failed to fetch bookings';
             })
             .addCase(fetchAllBookings.pending, (state) => {
-                state.loading = true;
+                if (state.items.length === 0) state.loading = true;
                 state.error = null;
             })
             .addCase(fetchAllBookings.fulfilled, (state, action: PayloadAction<BookedService[]>) => {
@@ -660,10 +661,12 @@ const bookedServiceSlice = createSlice({
                 state.loading = false;
                 state.error = (action.payload as string) || 'Failed to fetch bookings';
             })
-            .addCase(fetchBookingById.pending, (state) => {
-                state.loading = true;
+            .addCase(fetchBookingById.pending, (state, action) => {
                 state.error = null;
-                state.single = null;
+                if (!state.single || state.single.id !== action.meta.arg) {
+                    state.single = null;
+                    state.loading = true;
+                }
             })
             .addCase(fetchBookingById.fulfilled, (state, action: PayloadAction<BookedService>) => {
                 state.loading = false;

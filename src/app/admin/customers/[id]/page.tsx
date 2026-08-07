@@ -19,8 +19,6 @@ import {
     Wallet,
     Megaphone,
 } from 'lucide-react';
-import Sidebar from '@/components/Sidebar';
-import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import { AdminStatusBadge } from '@/components/admin/data-table';
 import { formatAdminDateTimeUtc } from '@/lib/admin-datetime';
@@ -430,10 +428,9 @@ export default function CustomerDetailPage() {
     }
 
     return (
-        <AuthGuard>
-            <div className="flex min-h-screen">
-                <Sidebar />
-                <main className="ml-64 w-full min-h-screen">
+        <>
+            
+                
                     {loading ? (
                         <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">Loading customer…</div>
                     ) : null}
@@ -879,8 +876,6 @@ export default function CustomerDetailPage() {
                             ) : null}
                         </div>
                     ) : null}
-                </main>
-            </div>
 
             {confirmConvert ? (
                 <div
@@ -1077,6 +1072,6 @@ export default function CustomerDetailPage() {
                     </div>
                 </div>
             ) : null}
-        </AuthGuard>
+        </>
     );
 }

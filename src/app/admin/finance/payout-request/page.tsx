@@ -1,7 +1,6 @@
 'use client';
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import {
     AdminErrorAlert,
@@ -39,6 +38,7 @@ import { calculateWithdrawalPayoutBreakdown } from '@/lib/withdrawal-payout';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AdminListPagination } from '@/components/admin/AdminListPagination';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
+import { markAdminListFetched, shouldRefetchAdminList } from '@/lib/admin-list-cache';
 
 type PayoutStatusFilter = 'all' | 'pending' | 'approved' | 'completed' | 'rejected';
 
@@ -101,8 +101,11 @@ function PayoutRequestPageContent() {
     const autoVerifyLastAttemptMsRef = useRef<Record<string, number>>({});
 
     useEffect(() => {
-        dispatch(fetchPayoutRequests());
-    }, [dispatch]);
+        if (!shouldRefetchAdminList('payouts', { hasRows: requests.length > 0 })) return;
+        void dispatch(fetchPayoutRequests()).then((action) => {
+            if (fetchPayoutRequests.fulfilled.match(action)) markAdminListFetched('payouts');
+        });
+    }, [dispatch, requests.length]);
 
     useEffect(() => {
         const urlRange = parseDashboardRange(searchParams.get('range'));
@@ -450,7 +453,7 @@ function PayoutRequestPageContent() {
         : '/api/payout/export-audit';
 
     return (
-        <AuthGuard>
+        <>
             <AdminShell wide>
                         <AdminPageHeader
                             title="Payout Request"
@@ -944,7 +947,7 @@ function PayoutRequestPageContent() {
                             </div>
                         )}
             </AdminShell>
-        </AuthGuard>
+        </>
     );
 }
 

@@ -10,8 +10,6 @@ import {
     Trash2,
     X,
 } from 'lucide-react';
-import Sidebar from '@/components/Sidebar';
-import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import { OpsInboxRow } from '@/components/ops-inbox/OpsInboxRow';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
@@ -37,6 +35,7 @@ import {
 } from '@/lib/ops-inbox';
 import { cn } from '@/lib/utils';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
+import { markAdminListFetched, shouldRefetchAdminList } from '@/lib/admin-list-cache';
 
 const STATUS_TABS: Array<{ id: OpsStatusFilter; label: string }> = [
     { id: 'needs', label: 'Needs attention' },
@@ -72,10 +71,13 @@ export default function NotificationsPage() {
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
     useEffect(() => {
-        dispatch(fetchNotifications());
-        dispatch(fetchPayoutRequests());
-        dispatch(fetchVerifyDocuments());
-    }, [dispatch]);
+        if (!shouldRefetchAdminList('ops-inbox', { hasRows: notifications.length > 0 })) return;
+        void Promise.all([
+            dispatch(fetchNotifications()),
+            dispatch(fetchPayoutRequests()),
+            dispatch(fetchVerifyDocuments()),
+        ]).then(() => markAdminListFetched('ops-inbox'));
+    }, [dispatch, notifications.length]);
 
     const queue = useMemo(
         () =>
@@ -114,9 +116,15 @@ export default function NotificationsPage() {
         selectableIds.length > 0 && selectableIds.every((id) => selectedIds.includes(id));
 
     function onRefresh() {
-        dispatch(fetchNotifications());
-        dispatch(fetchPayoutRequests());
-        dispatch(fetchVerifyDocuments());
+        void Promise.all([
+            dispatch(fetchNotifications()),
+            dispatch(fetchPayoutRequests()),
+            dispatch(fetchVerifyDocuments()),
+        ]).then(() => {
+            markAdminListFetched('ops-inbox');
+            markAdminListFetched('payouts');
+            markAdminListFetched('verify-documents');
+        });
     }
 
     async function onMarkRead(item: OpsInboxItem) {
@@ -166,10 +174,9 @@ export default function NotificationsPage() {
     };
 
     return (
-        <AuthGuard>
-            <div className="flex min-h-screen">
-                <Sidebar />
-                <main className="ml-64 w-full min-h-screen bg-background">
+        <>
+            
+                
                     <div className="mx-auto max-w-5xl px-6 py-8 lg:px-8">
                         <AdminPageHeader
                             title="Ops inbox"
@@ -485,8 +492,8 @@ export default function NotificationsPage() {
                             </p>
                         ) : null}
                     </div>
-                </main>
-            </div>
-        </AuthGuard>
+                
+            
+        </>
     );
 }

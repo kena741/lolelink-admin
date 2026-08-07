@@ -2,7 +2,6 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pencil, RefreshCw, Trash2 } from 'lucide-react';
-import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import {
     AdminErrorAlert,
@@ -222,7 +221,7 @@ const JobRequestsPage = () => {
     }, [currentPage, totalPages]);
 
     return (
-        <AuthGuard>
+        <>
             <AdminShell>
                         <AdminPageHeader
                             title="Customer Job Requests"
@@ -497,7 +496,7 @@ const JobRequestsPage = () => {
                             </div>
                         ) : null}
             </AdminShell>
-        </AuthGuard>
+        </>
     );
 };
 

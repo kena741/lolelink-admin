@@ -13,7 +13,6 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader from '@/components/AdminPageHeader';
 import {
     AdminErrorAlert,
@@ -28,6 +27,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
+import { markAdminListFetched, shouldRefetchAdminList } from '@/lib/admin-list-cache';
 
 import {
     customerIsArchived,
@@ -54,8 +54,11 @@ export default function CustomersPage() {
     const [pendingDeleteCustomerId, setPendingDeleteCustomerId] = useState<string | null>(null);
 
     useEffect(() => {
-        dispatch(fetchAllCustomers());
-    }, [dispatch]);
+        if (!shouldRefetchAdminList('customers', { hasRows: customers.length > 0 })) return;
+        void dispatch(fetchAllCustomers()).then((action) => {
+            if (fetchAllCustomers.fulfilled.match(action)) markAdminListFetched('customers');
+        });
+    }, [dispatch, customers.length]);
 
     useEffect(() => {
         setCurrentPage(1);
@@ -218,7 +221,7 @@ export default function CustomersPage() {
     }, [currentPage, totalPages]);
 
     return (
-        <AuthGuard>
+        <>
             <AdminShell>
                         <AdminPageHeader
                             title="Customers"
@@ -703,6 +706,6 @@ export default function CustomersPage() {
                         </div>
                     )}
             </AdminShell>
-        </AuthGuard>
+        </>
     );
 }

@@ -1,8 +1,6 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import Sidebar from '@/components/Sidebar';
-import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import { 
     FolderKanban, 
@@ -18,6 +16,7 @@ import { fetchSubCategories, createSubCategory, updateSubCategory, deleteSubCate
 import { fetchCategories } from '@/features/category/categorySlice';
 import { fetchDocuments } from '@/features/document/documentSlice';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
+import { markAdminListFetched, shouldRefetchAdminList } from '@/lib/admin-list-cache';
 
 const SubCategoriesPage = () => {
     const dispatch = useAppDispatch();
@@ -34,11 +33,17 @@ const SubCategoriesPage = () => {
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
     useEffect(() => {
-        dispatch(fetchSubCategories());
-        dispatch(fetchCategories());
-        dispatch(fetchDocuments());
-        dispatch(fetchAllSubCategoryDocumentIds());
-    }, [dispatch]);
+        if (!shouldRefetchAdminList('catalog', { hasRows: subCategories.length > 0 })) return;
+        void Promise.all([
+            dispatch(fetchSubCategories()),
+            dispatch(fetchCategories()),
+            dispatch(fetchDocuments()),
+            dispatch(fetchAllSubCategoryDocumentIds()),
+        ]).then(() => {
+            markAdminListFetched('catalog');
+            markAdminListFetched('documents');
+        });
+    }, [dispatch, subCategories.length]);
 
     useEffect(() => {
         if (editingSubCategory && documentIdsBySubCategoryId[editingSubCategory.id]) {
@@ -136,10 +141,9 @@ const SubCategoriesPage = () => {
     }, [subCategories, filterCategory, sortOrder]);
 
     return (
-        <AuthGuard>
-            <div className="flex min-h-screen">
-                <Sidebar />
-                <main className="ml-64 w-full min-h-screen">
+        <>
+            
+                
                     <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
                         <AdminPageHeader
                             title="Subcategories"
@@ -405,9 +409,9 @@ const SubCategoriesPage = () => {
                             </div>
                         </div>
                     )}
-                </main>
-            </div>
-        </AuthGuard>
+                
+            
+        </>
     );
 };
 

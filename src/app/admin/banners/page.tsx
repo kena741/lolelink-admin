@@ -1,14 +1,13 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import Sidebar from '@/components/Sidebar';
-import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import { RefreshCw, Plus, Edit, Trash2, X, Upload } from 'lucide-react';
 import { StorageImage } from '@/components/StorageImage';
 import { fetchBanners, createBanner, updateBanner, deleteBanner } from '@/features/banner/bannerSlice';
 import { deleteStorageFilesFromUrls, uploadFilesToSupabase } from '@/lib/upload';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
+import { markAdminListFetched, shouldRefetchAdminList } from '@/lib/admin-list-cache';
 import { Switch } from '@/components/ui/switch';
 
 /** Display frame for banners — matches ~3.8:1 (1200 × 315 / 1140 × 300). */
@@ -36,8 +35,11 @@ const BannersPage = () => {
     const hasImage = Boolean(imagePreview || formData.image);
 
     useEffect(() => {
-        dispatch(fetchBanners());
-    }, [dispatch]);
+        if (!shouldRefetchAdminList('banners', { hasRows: banners.length > 0 })) return;
+        void dispatch(fetchBanners()).then((action) => {
+            if (fetchBanners.fulfilled.match(action)) markAdminListFetched('banners');
+        });
+    }, [dispatch, banners.length]);
 
     const handleOpenModal = (banner?: typeof banners[0]) => {
         if (banner) {
@@ -211,10 +213,9 @@ const BannersPage = () => {
     };
 
     return (
-        <AuthGuard>
-            <div className="flex min-h-screen">
-                <Sidebar />
-                <main className="ml-64 w-full min-h-screen">
+        <>
+            
+                
                     <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
                         <AdminPageHeader
                             title="Banners"
@@ -388,8 +389,8 @@ const BannersPage = () => {
                             </div>
                         </div>
                     </div>
-                </main>
-            </div>
+                
+            
 
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
@@ -532,7 +533,7 @@ const BannersPage = () => {
                     </div>
                 </div>
             )}
-        </AuthGuard>
+        </>
     );
 };
 

@@ -17,7 +17,6 @@ import {
     Shield,
     Trash2,
 } from 'lucide-react';
-import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import {
     AdminErrorAlert,
@@ -250,7 +249,7 @@ function AdminsPage() {
     }
 
     return (
-        <AuthGuard>
+        <>
             <AdminShell>
                         <AdminPageHeader
                             title="Admin Management"
@@ -559,7 +558,7 @@ function AdminsPage() {
                         </form>
                     </Dialog>
             </AdminShell>
-        </AuthGuard>
+        </>
     );
 }
 

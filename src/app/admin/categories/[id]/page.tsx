@@ -2,8 +2,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { useParams, useRouter } from 'next/navigation';
-import Sidebar from '@/components/Sidebar';
-import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import { 
     RefreshCw, 
@@ -180,27 +178,25 @@ const CategoryDetailPage = () => {
 
     if (!category) {
         return (
-            <AuthGuard>
-                <div className="flex min-h-screen">
-                    <Sidebar />
-                    <main className="ml-64 w-full min-h-screen flex items-center justify-center">
+            <>
+                
+                    
                         <div className="text-center">
                             <p className="text-gray-600">Category not found</p>
                             <Link href="/admin/categories" className="text-indigo-600 hover:text-indigo-700 mt-2 inline-block">
                                 Go back to categories
                             </Link>
                         </div>
-                    </main>
-                </div>
-            </AuthGuard>
+                    
+                
+            </>
         );
     }
 
     return (
-        <AuthGuard>
-            <div className="flex min-h-screen">
-                <Sidebar />
-                <main className="ml-64 w-full min-h-screen">
+        <>
+            
+                
                     <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
                         <AdminPageHeader
                             title={category.categoryName}
@@ -478,9 +474,9 @@ const CategoryDetailPage = () => {
                             </div>
                         </div>
                     )}
-                </main>
-            </div>
-        </AuthGuard>
+                
+            
+        </>
     );
 };
 

@@ -272,7 +272,7 @@ const handymanSlice = createSlice({
     extraReducers: (builder) => {
         builder
             .addCase(fetchHandymen.pending, (state) => {
-                state.loading = true;
+                if (state.handymen.length === 0) state.loading = true;
                 state.error = null;
             })
             .addCase(fetchHandymen.fulfilled, (state, action: PayloadAction<Handyman[]>) => {

@@ -1,12 +1,11 @@
 "use client";
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import AuthGuard from '@/components/AuthGuard';
-import Sidebar from '@/components/Sidebar';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import { RefreshCw } from 'lucide-react';
-import { fetchServices, approveFeatureRequestById, rejectFeatureRequestById, unfeatureServiceById, resetApproveState } from '@/features/service/approveServicesSlice';
+import { fetchServices, approveFeatureRequestById, rejectFeatureRequestById, unfeatureServiceById } from '@/features/service/approveServicesSlice';
 import { deleteService as deleteServiceThunk } from '@/features/service/deleteServiceSlice';
+import { markAdminListFetched, shouldRefetchAdminList } from '@/lib/admin-list-cache';
 import type { RootState } from '@/store/store';
 import ServiceCard from '@/components/ServiceCard';
 import type { ServiceModel } from '@/features/service/editServiceSlice';
@@ -55,11 +54,11 @@ export default function ApproveServicesPage() {
     const featuredCount = featuredServices.length;
 
     useEffect(() => {
-        dispatch(fetchServices());
-        return () => {
-            dispatch(resetApproveState());
-        };
-    }, [dispatch]);
+        if (!shouldRefetchAdminList('approve-services', { hasRows: services.length > 0 })) return;
+        void dispatch(fetchServices()).then((action) => {
+            if (fetchServices.fulfilled.match(action)) markAdminListFetched('approve-services');
+        });
+    }, [dispatch, services.length]);
 
     const confirmDeletePendingService = async () => {
         if (!deleteId) return;
@@ -76,10 +75,9 @@ export default function ApproveServicesPage() {
     // Note: approval is now provider-scoped. Use the provider detail page to approve a provider's services.
 
     return (
-        <AuthGuard>
-            <div className="flex min-h-screen">
-                <Sidebar />
-                <main className="ml-64 w-full min-h-screen">
+        <>
+            
+                
                     <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
                         <AdminPageHeader
                             title="Approve Services"
@@ -334,7 +332,7 @@ export default function ApproveServicesPage() {
                             </div>
                         )}
                     </div>
-                </main>
+                
                 <EditServiceModal />
 
                 {canWriteServices && (
@@ -363,7 +361,7 @@ export default function ApproveServicesPage() {
                     </DialogFooter>
                 </Dialog>
                 )}
-            </div>
-        </AuthGuard>
+            
+        </>
     );
 }

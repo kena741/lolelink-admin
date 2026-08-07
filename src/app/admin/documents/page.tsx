@@ -1,12 +1,11 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import Sidebar from '@/components/Sidebar';
-import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import { RefreshCw, Plus, Edit, Trash2, X, CheckCircle2, XCircle } from 'lucide-react';
 import { fetchDocuments, createDocument, updateDocument, deleteDocument } from '@/features/document/documentSlice';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
+import { markAdminListFetched, shouldRefetchAdminList } from '@/lib/admin-list-cache';
 
 const DocumentsPage = () => {
     const dispatch = useAppDispatch();
@@ -22,8 +21,11 @@ const DocumentsPage = () => {
     const [deletingId, setDeletingId] = useState<string | null>(null);
 
     useEffect(() => {
-        dispatch(fetchDocuments());
-    }, [dispatch]);
+        if (!shouldRefetchAdminList('documents', { hasRows: documents.length > 0 })) return;
+        void dispatch(fetchDocuments()).then((action) => {
+            if (fetchDocuments.fulfilled.match(action)) markAdminListFetched('documents');
+        });
+    }, [dispatch, documents.length]);
 
     const handleOpenModal = (doc?: typeof documents[0]) => {
         if (doc) {
@@ -97,10 +99,9 @@ const DocumentsPage = () => {
     };
 
     return (
-        <AuthGuard>
-            <div className="flex min-h-screen">
-                <Sidebar />
-                <main className="ml-64 w-full min-h-screen">
+        <>
+            
+                
                     <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
                         <AdminPageHeader
                             title="Documents"
@@ -241,8 +242,8 @@ const DocumentsPage = () => {
                             </div>
                         </div>
                     </div>
-                </main>
-            </div>
+                
+            
 
             {/* Add/Edit Modal */}
             {isModalOpen && (
@@ -321,7 +322,7 @@ const DocumentsPage = () => {
                     </div>
                 </div>
             )}
-        </AuthGuard>
+        </>
     );
 };
 

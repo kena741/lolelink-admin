@@ -3,7 +3,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useAppDispatch, useAppSelector } from "../../../store/hooks";
 import { fetchAllBookings, fetchBookingById, clearSingle, deleteBooking, verifyBookingPayment, updateBookingStatus, recollectBookingPayment, getBookingCustomerDisplayName, getBookingProviderDisplayName } from "../../../features/bookedService/bookedServiceSlice";
 import { Plus, RefreshCw, Search, X } from "lucide-react";
-import AuthGuard from "@/components/AuthGuard";
 import AdminPageHeader, { adminHeaderButtonClassName } from "@/components/AdminPageHeader";
 import {
     AdminErrorAlert,
@@ -26,6 +25,7 @@ import {
 import type { BookedServiceStatus } from "@/lib/booking-status";
 import { BOOKING_PAYMENT_STATUS } from "@/lib/booking-status";
 import { cn } from "@/lib/utils";
+import { markAdminListFetched, shouldRefetchAdminList } from "@/lib/admin-list-cache";
 
 interface ToastState {
     message: string;
@@ -360,12 +360,26 @@ const BookingsPage = () => {
         [items, debugBookingId]
     );
 
-    const reloadBookings = useCallback(() => {
-        dispatch(fetchAllBookings({ includeArchived: showArchived }));
-    }, [dispatch, showArchived]);
+    const reloadBookings = useCallback(
+        (force = true) => {
+            const key = `bookings:arch=${showArchived ? '1' : '0'}`;
+            if (
+                !shouldRefetchAdminList(key, {
+                    force,
+                    hasRows: items.length > 0,
+                })
+            ) {
+                return;
+            }
+            void dispatch(fetchAllBookings({ includeArchived: showArchived })).then((action) => {
+                if (fetchAllBookings.fulfilled.match(action)) markAdminListFetched(key);
+            });
+        },
+        [dispatch, showArchived, items.length]
+    );
 
     useEffect(() => {
-        reloadBookings();
+        reloadBookings(false);
     }, [reloadBookings]);
 
     useEffect(() => {
@@ -650,7 +664,7 @@ const BookingsPage = () => {
     }, [currentPage, totalPages]);
 
     return (
-        <AuthGuard>
+        <>
             <AdminShell>
                         {toast ? (
                             <div className="fixed right-6 top-6 z-120">
@@ -883,7 +897,7 @@ const BookingsPage = () => {
                 />
                 )}
             </AdminShell>
-        </AuthGuard>
+        </>
     );
 };
 

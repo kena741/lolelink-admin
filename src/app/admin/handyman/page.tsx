@@ -1,8 +1,6 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import Sidebar from '@/components/Sidebar';
-import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import { getDisplayImageUrl } from '@/lib/media-url';
 import { 
@@ -22,6 +20,7 @@ import { fetchHandymen, createHandyman, updateHandyman, deleteHandyman } from '@
 import { formatDisplayPhone } from '@/lib/phone-display';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 import { AdminListPagination } from '@/components/admin/AdminListPagination';
+import { markAdminListFetched, shouldRefetchAdminList } from '@/lib/admin-list-cache';
 
 const HandymanPage = () => {
     const dispatch = useAppDispatch();
@@ -48,8 +47,11 @@ const HandymanPage = () => {
     const [deletingId, setDeletingId] = useState<string | null>(null);
 
     useEffect(() => {
-        dispatch(fetchHandymen());
-    }, [dispatch]);
+        if (!shouldRefetchAdminList('handymen', { hasRows: handymen.length > 0 })) return;
+        void dispatch(fetchHandymen()).then((action) => {
+            if (fetchHandymen.fulfilled.match(action)) markAdminListFetched('handymen');
+        });
+    }, [dispatch, handymen.length]);
 
     const totalPages = handymen.length > 0 ? Math.ceil(handymen.length / pageSize) : 1;
     const safePage = Math.min(currentPage, totalPages);
@@ -165,10 +167,9 @@ const HandymanPage = () => {
     };
 
     return (
-        <AuthGuard>
-            <div className="flex min-h-screen">
-                <Sidebar />
-                <main className="ml-64 w-full min-h-screen">
+        <>
+            
+                
                     <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
                         <AdminPageHeader
                             title="Handyman"
@@ -530,9 +531,9 @@ const HandymanPage = () => {
                             </div>
                         </div>
                     )}
-                </main>
-            </div>
-        </AuthGuard>
+                
+            
+        </>
     );
 };
 

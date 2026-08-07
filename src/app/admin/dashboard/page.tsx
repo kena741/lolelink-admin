@@ -8,8 +8,6 @@ import {
 	ProviderState,
 } from "@/features/provider/providerSlice";
 import { AppDispatch } from "@/store/store";
-import Sidebar from "@/components/Sidebar";
-import AuthGuard from "@/components/AuthGuard";
 import AdminPageHeader from "@/components/AdminPageHeader";
 import {
 	Users,
@@ -1238,10 +1236,9 @@ function DashboardContent() {
 	};
 
 	return (
-		<AuthGuard>
-			<div className="flex min-h-screen">
-				<Sidebar />
-				<main className="ml-64 w-full min-h-screen">
+		<>
+			
+				
 					<div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
 						<AdminPageHeader
 							title="Admin Dashboard"
@@ -1695,9 +1692,9 @@ function DashboardContent() {
 
 						{/* Status Breakdown & Quick Actions */}
 					</div>
-				</main>
-			</div>
-		</AuthGuard>
+				
+			
+		</>
 	);
 }
 

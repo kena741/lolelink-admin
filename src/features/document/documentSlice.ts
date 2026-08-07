@@ -148,7 +148,7 @@ const documentSlice = createSlice({
     extraReducers: (builder) => {
         builder
             .addCase(fetchDocuments.pending, (state) => {
-                state.loading = true;
+                if (state.documents.length === 0) state.loading = true;
                 state.error = null;
             })
             .addCase(fetchDocuments.fulfilled, (state, action) => {

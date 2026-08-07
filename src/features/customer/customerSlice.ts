@@ -377,7 +377,7 @@ const customerSlice = createSlice({
                 state.error = action.payload as string;
             })
             .addCase(fetchAllCustomers.pending, (state) => {
-                state.loading = true;
+                if (state.customers.length === 0) state.loading = true;
                 state.error = null;
             })
             .addCase(fetchAllCustomers.fulfilled, (state, action) => {

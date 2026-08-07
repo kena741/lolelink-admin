@@ -32,10 +32,14 @@ function readNote(): string {
 
 function fail(error: PostgrestError | Error | string | null | undefined, hint?: string): never {
     if (typeof error === 'string') console.error(error);
-    else if (error instanceof Error) console.error(error.message);
-    else if (error) {
-        const line = [error.message, error.details, error.hint, error.code].filter(Boolean).join(' | ');
-        console.error(line || JSON.stringify(error));
+    else if (error && typeof error === 'object' && 'message' in error) {
+        const pe = error as PostgrestError | Error;
+        if (pe instanceof Error && !('code' in pe)) console.error(pe.message);
+        else {
+            const pg = pe as PostgrestError;
+            const line = [pg.message, pg.details, pg.hint, pg.code].filter(Boolean).join(' | ');
+            console.error(line || JSON.stringify(error));
+        }
     } else {
         console.error('Unknown error');
     }

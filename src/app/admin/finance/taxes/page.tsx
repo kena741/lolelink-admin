@@ -1,7 +1,6 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import {
     AdminErrorAlert,
@@ -125,7 +124,7 @@ const TaxesPage = () => {
     };
 
     return (
-        <AuthGuard>
+        <>
             <AdminShell wide>
                         <AdminPageHeader
                             title="Tax Settings"
@@ -418,7 +417,7 @@ const TaxesPage = () => {
                         </div>
                     )}
             </AdminShell>
-        </AuthGuard>
+        </>
     );
 };
 

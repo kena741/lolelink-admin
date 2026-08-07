@@ -619,7 +619,7 @@ const providerSlice = createSlice({
     extraReducers: (builder) => {
         builder
             .addCase(fetchProviders.pending, (state) => {
-                state.loading = true;
+                if (state.providers.length === 0) state.loading = true;
                 state.error = null;
             })
             .addCase(fetchProviders.fulfilled, (state, action) => {

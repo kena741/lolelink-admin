@@ -146,7 +146,7 @@ const bannerSlice = createSlice({
     extraReducers: (builder) => {
         builder
             .addCase(fetchBanners.pending, (state) => {
-                state.loading = true;
+                if (state.banners.length === 0) state.loading = true;
                 state.error = null;
             })
             .addCase(fetchBanners.fulfilled, (state, action) => {

@@ -118,7 +118,7 @@ export function SheetTitle({
     className?: string;
 }) {
     return (
-        <h2 className={cn('text-lg font-semibold tracking-tight text-gray-900 text-wrap [overflow-wrap:anywhere]', className)}>
+        <h2 className={cn('text-lg font-semibold tracking-tight text-gray-900 text-wrap wrap-anywhere', className)}>
             {children}
         </h2>
     );

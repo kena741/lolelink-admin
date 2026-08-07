@@ -2,7 +2,6 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, Trash2, X } from 'lucide-react';
-import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader from '@/components/AdminPageHeader';
 import {
     AdminErrorAlert,
@@ -1107,7 +1106,7 @@ export default function MarketingTrackerPage() {
     }
 
     return (
-        <AuthGuard>
+        <>
             <AdminShell wide>
                 <div className="pb-14">
                 <AdminPageHeader
@@ -1484,6 +1483,6 @@ export default function MarketingTrackerPage() {
                     </div>
                 </div>
             </AdminShell>
-        </AuthGuard>
+        </>
     );
 }

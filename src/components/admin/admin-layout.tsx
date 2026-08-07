@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
 import { Search } from 'lucide-react';
-import Sidebar from '@/components/Sidebar';
 import { cn } from '@/lib/utils';
 
 export const adminPageMainClassName =
@@ -23,16 +22,12 @@ interface AdminShellProps {
     wide?: boolean;
 }
 
+/** Content rail only. Sidebar + auth live in `app/admin/layout.tsx`. */
 export function AdminShell({ children, wide = false }: AdminShellProps) {
     return (
-        <AdminPageLayout>
-            <Sidebar />
-            <AdminPageMain>
-                <AdminPageContent className={wide ? adminPageContentWideClassName : undefined}>
-                    {children}
-                </AdminPageContent>
-            </AdminPageMain>
-        </AdminPageLayout>
+        <AdminPageContent className={wide ? adminPageContentWideClassName : undefined}>
+            {children}
+        </AdminPageContent>
     );
 }
 

@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { Megaphone } from 'lucide-react';
-import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader from '@/components/AdminPageHeader';
 import { AdminShell } from '@/components/admin/admin-layout';
 import { Button } from '@/components/ui/button';
@@ -230,7 +229,7 @@ export default function PushNotificationsPage() {
     const { canWriteNotifications } = useAdminPermissions();
 
     return (
-        <AuthGuard>
+        <>
             <AdminShell>
                 <AdminPageHeader
                     title="Notifications"
@@ -267,6 +266,6 @@ export default function PushNotificationsPage() {
                     </>
                 )}
             </AdminShell>
-        </AuthGuard>
+        </>
     );
 }

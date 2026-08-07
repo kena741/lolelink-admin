@@ -1,12 +1,11 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import Sidebar from '@/components/Sidebar';
-import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import { RefreshCw, Plus, Edit, Trash2, X, CheckCircle2, XCircle } from 'lucide-react';
 import { fetchCoupons, createCoupon, updateCoupon, deleteCoupon } from '@/features/coupon/couponSlice';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
+import { markAdminListFetched, shouldRefetchAdminList } from '@/lib/admin-list-cache';
 
 const CouponsPage = () => {
     const dispatch = useAppDispatch();
@@ -27,8 +26,11 @@ const CouponsPage = () => {
     const [deletingId, setDeletingId] = useState<number | null>(null);
 
     useEffect(() => {
-        dispatch(fetchCoupons());
-    }, [dispatch]);
+        if (!shouldRefetchAdminList('coupons', { hasRows: coupons.length > 0 })) return;
+        void dispatch(fetchCoupons()).then((action) => {
+            if (fetchCoupons.fulfilled.match(action)) markAdminListFetched('coupons');
+        });
+    }, [dispatch, coupons.length]);
 
     const handleOpenModal = (coupon?: typeof coupons[0]) => {
         if (coupon) {
@@ -140,10 +142,9 @@ const CouponsPage = () => {
     };
 
     return (
-        <AuthGuard>
-            <div className="flex min-h-screen">
-                <Sidebar />
-                <main className="ml-64 w-full min-h-screen">
+        <>
+            
+                
                     <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
                         <AdminPageHeader
                             title="Coupons"
@@ -338,8 +339,8 @@ const CouponsPage = () => {
                             </div>
                         </div>
                     </div>
-                </main>
-            </div>
+                
+            
 
             {/* Add/Edit Modal */}
             {isModalOpen && (
@@ -522,7 +523,7 @@ const CouponsPage = () => {
                     </div>
                 </div>
             )}
-        </AuthGuard>
+        </>
     );
 };
 

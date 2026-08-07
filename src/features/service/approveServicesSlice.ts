@@ -484,7 +484,7 @@ const approveServicesSlice = createSlice({
         // fetchServices handlers
         builder
             .addCase(fetchServices.pending, (state) => {
-                state.loading = true;
+                if (state.services.length === 0) state.loading = true;
                 state.error = null;
             })
             .addCase(fetchServices.fulfilled, (state, action) => {

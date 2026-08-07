@@ -1,7 +1,6 @@
 'use client';
 import React, { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Clock, CreditCard, RefreshCw, XCircle } from 'lucide-react';
-import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import {
     AdminErrorAlert,
@@ -22,6 +21,7 @@ import {
     isDateInDashboardRange,
     type DashboardRange,
 } from '@/lib/dashboard-range';
+import { markAdminListFetched, shouldRefetchAdminList } from '@/lib/admin-list-cache';
 
 const STATUS_OPTIONS = [
     'pending_payment',
@@ -57,8 +57,11 @@ const PaymentPage = () => {
     const [dateFilter, setDateFilter] = useState<DashboardRange>('all');
 
     useEffect(() => {
-        dispatch(fetchPayments());
-    }, [dispatch]);
+        if (!shouldRefetchAdminList('payments', { hasRows: payments.length > 0 })) return;
+        void dispatch(fetchPayments()).then((action) => {
+            if (fetchPayments.fulfilled.match(action)) markAdminListFetched('payments');
+        });
+    }, [dispatch, payments.length]);
 
     const filteredPayments = useMemo(() => {
         return payments.filter((payment) => {
@@ -105,7 +108,7 @@ const PaymentPage = () => {
     }
 
     return (
-        <AuthGuard>
+        <>
             <AdminShell wide>
                         <AdminPageHeader
                             title="Payments"
@@ -251,7 +254,7 @@ const PaymentPage = () => {
                             onPageSizeChange={setPageSize}
                         />
             </AdminShell>
-        </AuthGuard>
+        </>
     );
 };
 

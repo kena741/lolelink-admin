@@ -223,7 +223,7 @@ const couponSlice = createSlice({
     extraReducers: (builder) => {
         builder
             .addCase(fetchCoupons.pending, (state) => {
-                state.loading = true;
+                if (state.coupons.length === 0) state.loading = true;
                 state.error = null;
             })
             .addCase(fetchCoupons.fulfilled, (state, action) => {

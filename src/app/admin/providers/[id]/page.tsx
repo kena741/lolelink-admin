@@ -1,8 +1,6 @@
 
 'use client';
 import React, { useEffect, useState } from 'react';
-import Sidebar from '@/components/Sidebar';
-import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import { useParams } from 'next/navigation';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
@@ -454,10 +452,9 @@ export default function ProviderDetailPage() {
     };
 
     return (
-        <AuthGuard>
-            <div className="flex min-h-screen">
-                <Sidebar />
-                <main className="ml-64 w-full min-h-screen">
+        <>
+            
+                
                     {(selectedLoading || servicesLoading) && (
                         <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">Loading...</div>
                     )}
@@ -1554,8 +1551,8 @@ export default function ProviderDetailPage() {
                             )}
                         </div>
                     )}
-                </main>
-            </div>
-        </AuthGuard>
+                
+            
+        </>
     );
 }

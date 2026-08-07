@@ -20,8 +20,26 @@ import { fetchCoupons } from '@/features/coupon/couponSlice';
 import { fetchPayments } from '@/features/payments/paymentsSlice';
 import { fetchWalletTransactions } from '@/features/walletTransaction/walletTransactionSlice';
 import { fetchNotifications } from '@/features/notification/notificationSlice';
+import { markAdminListFetched } from '@/lib/admin-list-cache';
 
-const SYNC_DEBOUNCE_MS = 500;
+const SYNC_DEBOUNCE_MS = 2_000;
+
+const LIST_KEYS_REFRESHED_BY_REALTIME = [
+    'providers',
+    'bookings:arch=0',
+    'bookings:arch=1',
+    'customers',
+    'approve-services',
+    'payouts',
+    'ops-inbox',
+    'verify-documents',
+    'catalog',
+    'handymen',
+    'documents',
+    'banners',
+    'coupons',
+    'payments',
+] as const;
 
 export function RealtimeDataSync() {
     const dispatch = useAppDispatch();
@@ -46,6 +64,7 @@ export function RealtimeDataSync() {
             dispatch(fetchPayments());
             dispatch(fetchWalletTransactions());
             dispatch(fetchNotifications());
+            for (const key of LIST_KEYS_REFRESHED_BY_REALTIME) markAdminListFetched(key);
         },
         [dispatch]
     );

@@ -15,7 +15,6 @@ import {
     Search,
     Trash2,
 } from 'lucide-react';
-import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import {
     AdminErrorAlert,
@@ -241,7 +240,7 @@ function RolesPage() {
     }
 
     return (
-        <AuthGuard>
+        <>
             <AdminShell>
                         <AdminPageHeader
                             title="Role Management"
@@ -563,7 +562,7 @@ function RolesPage() {
                         </form>
                     </Dialog>
             </AdminShell>
-        </AuthGuard>
+        </>
     );
 }
 

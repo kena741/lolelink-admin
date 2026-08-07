@@ -1,8 +1,6 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import Sidebar from '@/components/Sidebar';
-import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import {
     RefreshCw,
@@ -212,10 +210,9 @@ const SettingsPage = () => {
     }
 
     return (
-        <AuthGuard>
-            <div className="flex min-h-screen">
-                <Sidebar />
-                <main className="ml-64 w-full min-h-screen">
+        <>
+            
+                
                     <div className="mx-auto max-w-275 px-6 py-8 lg:px-8">
                         <AdminPageHeader
                             title="Settings"
@@ -892,9 +889,9 @@ const SettingsPage = () => {
                             </div>
                         </div>
                     </div>
-                </main>
-            </div>
-        </AuthGuard>
+                
+            
+        </>
     );
 };
 

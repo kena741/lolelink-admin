@@ -508,7 +508,7 @@ const verifyDocumentsSlice = createSlice({
     extraReducers: (builder) => {
         builder
             .addCase(fetchVerifyDocuments.pending, (state) => {
-                state.loading = true;
+                if (state.documents.length === 0) state.loading = true;
                 state.error = null;
             })
             .addCase(fetchVerifyDocuments.fulfilled, (state, action: PayloadAction<VerifyDocument[]>) => {

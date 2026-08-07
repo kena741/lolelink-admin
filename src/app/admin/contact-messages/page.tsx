@@ -2,7 +2,6 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
-import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import {
     AdminErrorAlert,
@@ -73,7 +72,7 @@ const ContactMessagesPage = () => {
     }, [messages, query]);
 
     return (
-        <AuthGuard>
+        <>
             <AdminShell>
                         <AdminPageHeader
                             title="Contact Messages"
@@ -140,7 +139,7 @@ const ContactMessagesPage = () => {
                             ) : null}
                         </AdminTableShell>
             </AdminShell>
-        </AuthGuard>
+        </>
     );
 };
 

@@ -1,123 +1,92 @@
-"use client";
-import React, { useEffect, useRef, useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
-import { getSupabase } from "@/lib/supabaseClient";
-import { DEFAULT_ADMIN_ROLES, hasPermission } from "@/lib/admin-permissions";
-import { canAccessAdminRoute } from "@/hooks/use-admin-permissions";
+'use client';
 
-async function getAuthenticatedUser() {
-    const { data: sess } = await getSupabase().auth.getSession();
-    if (sess.session?.user) return sess.session.user;
-    await new Promise((r) => setTimeout(r, 150));
-    const { data: retry } = await getSupabase().auth.getSession();
-    return retry.session?.user ?? null;
-}
+import React, { useEffect, useRef } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { useAdminSession } from '@/lib/admin-session';
+import { canAccessAdminRoute } from '@/hooks/use-admin-permissions';
+import { getSupabase } from '@/lib/supabaseClient';
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
     const router = useRouter();
     const pathname = usePathname();
-    const [checking, setChecking] = useState(true);
+    const { status, can, refresh } = useAdminSession();
     const didNavigate = useRef(false);
+    const readyOnce = useRef(false);
+
+    if (status === 'ready') readyOnce.current = true;
 
     useEffect(() => {
-        let mounted = true;
-        const check = async () => {
-            try {
-                const user = await getAuthenticatedUser();
-                if (!user) {
-                    await getSupabase().auth.signOut();
-                    if (mounted && !didNavigate.current) {
-                        didNavigate.current = true;
-                        router.replace("/login?error=auth&next=" + encodeURIComponent(pathname || "/admin/dashboard"));
-                    }
-                    return;
-                }
-                const { data: adminRow, error: adminError } = await getSupabase()
-                    .from("admin")
-                    .select("id, role, is_active")
-                    .eq("user_id", user.id)
-                    .maybeSingle();
-                if (adminError) {
-                    if (mounted && !didNavigate.current) {
-                        didNavigate.current = true;
-                        router.replace(
-                            "/login?error=auth&next=" + encodeURIComponent(pathname || "/admin/dashboard")
-                        );
-                    }
-                    return;
-                }
-                if (!adminRow || !adminRow.is_active) {
-                    await getSupabase().auth.signOut();
-                    if (mounted && !didNavigate.current) {
-                        didNavigate.current = true;
-                        router.replace("/login?error=forbidden");
-                    }
-                    return;
-                }
-                const { data: roleRow } = await getSupabase()
-                    .from("admin_role")
-                    .select("permissions")
-                    .eq("slug", adminRow.role as string)
-                    .maybeSingle();
-                const permissions =
-                    Array.isArray((roleRow as { permissions?: string[] } | null)?.permissions)
-                        ? [...((roleRow as { permissions?: string[] }).permissions ?? [])]
-                        : [...(DEFAULT_ADMIN_ROLES.find((role) => role.slug === adminRow.role)?.permissions ?? [])];
-                const can = (permission: string) => hasPermission(permissions, permission);
-                const routePath = pathname || "/admin/dashboard";
-                if (!canAccessAdminRoute(routePath, can)) {
-                    if (mounted && !didNavigate.current) {
-                        didNavigate.current = true;
-                        router.replace("/admin/dashboard?error=forbidden");
-                    }
-                    return;
-                }
-                if (mounted) setChecking(false);
-            } catch {
-                if (mounted && !didNavigate.current) {
-                    didNavigate.current = true;
-                    router.replace(
-                        "/login?error=auth&next=" + encodeURIComponent(pathname || "/admin/dashboard")
-                    );
-                }
-            } finally {
-                if (mounted) setChecking(false);
-            }
-        };
-        check();
-
-        const { data: sub } = getSupabase().auth.onAuthStateChange(() => {
-            check();
-        });
-        return () => {
-            mounted = false;
-            sub?.subscription?.unsubscribe();
-        };
-    }, [router, pathname]);
+        didNavigate.current = false;
+    }, [pathname]);
 
     useEffect(() => {
-        if (!checking || didNavigate.current) return;
-        const t = setTimeout(async () => {
+        if (status === 'loading') return;
+
+        if (status === 'unauthenticated') {
             if (didNavigate.current) return;
-            const { data: sessionData } = await getSupabase().auth.getSession();
-            if (sessionData.session?.user) return;
             didNavigate.current = true;
+            void getSupabase().auth.signOut();
             router.replace(
-                "/login?error=timeout&next=" + encodeURIComponent(pathname || "/admin/dashboard")
+                '/login?error=auth&next=' + encodeURIComponent(pathname || '/admin/dashboard')
             );
-        }, 20000);
-        return () => clearTimeout(t);
-    }, [checking, router, pathname]);
+            return;
+        }
 
-    if (checking) {
+        if (status === 'forbidden') {
+            if (didNavigate.current) return;
+            didNavigate.current = true;
+            void getSupabase().auth.signOut();
+            router.replace('/login?error=forbidden');
+            return;
+        }
+
+        if (status === 'ready') {
+            const routePath = pathname || '/admin/dashboard';
+            if (!canAccessAdminRoute(routePath, can)) {
+                if (didNavigate.current) return;
+                didNavigate.current = true;
+                router.replace('/admin/dashboard?error=forbidden');
+            }
+        }
+    }, [status, pathname, can, router]);
+
+    useEffect(() => {
+        if (status !== 'loading' || readyOnce.current) return;
+        const timeoutId = window.setTimeout(() => {
+            if (readyOnce.current || didNavigate.current) return;
+            void (async () => {
+                const { data } = await getSupabase().auth.getSession();
+                if (data.session?.user) {
+                    void refresh();
+                    return;
+                }
+                didNavigate.current = true;
+                router.replace(
+                    '/login?error=timeout&next=' + encodeURIComponent(pathname || '/admin/dashboard')
+                );
+            })();
+        }, 20000);
+        return () => window.clearTimeout(timeoutId);
+    }, [status, refresh, router, pathname]);
+
+    // First boot only — never blank the shell again on route change once ready.
+    if (status === 'loading' && !readyOnce.current) {
         return (
-            <div className="ml-64 grid min-h-screen w-full place-items-center bg-gray-50">
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-indigo-500" />
+            <div className="grid min-h-screen w-full place-items-center bg-background">
+                <div className="flex items-center gap-2 text-sm text-text-secondary">
+                    <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-primary" />
                     Checking access…
                 </div>
             </div>
         );
+    }
+
+    if (status === 'unauthenticated' || status === 'forbidden') {
+        return null;
+    }
+
+    if (status === 'ready' && !canAccessAdminRoute(pathname || '/admin/dashboard', can)) {
+        return null;
     }
 
     return <>{children}</>;

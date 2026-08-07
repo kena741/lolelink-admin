@@ -7,7 +7,6 @@ import {
     RefreshCw,
     Search,
 } from 'lucide-react';
-import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import {
     AdminErrorAlert,
@@ -71,7 +70,7 @@ function ActivityLogsPage() {
     }, [actionFilter, resourceFilter, query]);
 
     return (
-        <AuthGuard>
+        <>
             <AdminShell>
                         <AdminPageHeader
                             title="Activity Logs"
@@ -252,7 +251,7 @@ function ActivityLogsPage() {
                             </div>
                         )}
             </AdminShell>
-        </AuthGuard>
+        </>
     );
 }
 

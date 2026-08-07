@@ -1,7 +1,6 @@
 'use client';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Download, Filter, RefreshCw, X } from 'lucide-react';
-import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import {
     AdminErrorAlert,
@@ -138,7 +137,7 @@ const WalletTransactionsPage = () => {
     }
 
     return (
-        <AuthGuard>
+        <>
             <AdminShell wide>
                         <AdminPageHeader
                             title="Wallet Transactions"
@@ -279,7 +278,7 @@ const WalletTransactionsPage = () => {
                             />
                         </div>
             </AdminShell>
-        </AuthGuard>
+        </>
     );
 };
 

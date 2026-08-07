@@ -1,7 +1,6 @@
 "use client";
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import Link from "next/link";
-import Sidebar from "../../../components/Sidebar";
 import { useAppDispatch, useAppSelector } from "../../../store/hooks";
 import { fetchProviders, fetchServiceCountsByProvider, archiveProvider, restoreProvider, deleteProvider, updateProvider } from "../../../features/provider/providerSlice";
 import type { Provider } from "@/features/provider/providerSlice";
@@ -45,13 +44,13 @@ import {
     RotateCcw,
     X,
 } from "lucide-react";
-import AuthGuard from "@/components/AuthGuard";
 import AdminPageHeader, { adminHeaderButtonClassName } from "@/components/AdminPageHeader";
 import { ActivationPaymentModal } from "@/components/ActivationPaymentModal";
 import { useAdminPermissions } from "@/hooks/use-admin-permissions";
 import { ServiceTierBadge } from "@/components/ServiceTierBadge";
 import { fetchSettings } from "@/features/settings/settingsSlice";
 import { cn } from "@/lib/utils";
+import { markAdminListFetched, shouldRefetchAdminList } from "@/lib/admin-list-cache";
 import * as XLSX from "xlsx";
 
 const PAGE_SIZE = 20;
@@ -323,10 +322,13 @@ const ProvidersPage = () => {
     };
 
     useEffect(() => {
-        dispatch(fetchProviders());
-        dispatch(fetchServiceCountsByProvider());
-        dispatch(fetchSettings());
-    }, [dispatch]);
+        if (!shouldRefetchAdminList('providers', { hasRows: providers.length > 0 })) return;
+        void Promise.all([
+            dispatch(fetchProviders()),
+            dispatch(fetchServiceCountsByProvider()),
+            dispatch(fetchSettings()),
+        ]).then(() => markAdminListFetched('providers'));
+    }, [dispatch, providers.length]);
 
     const handleArchiveProvider = useCallback(
         async (providerId: string) => {
@@ -428,10 +430,9 @@ const ProvidersPage = () => {
     );
 
     return (
-        <AuthGuard>
-            <div className="flex min-h-screen">
-                <Sidebar />
-                <main className="ml-64 w-full min-h-screen">
+        <>
+            
+                
                     <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
                         <AdminPageHeader
                             title="Service Providers"
@@ -440,8 +441,10 @@ const ProvidersPage = () => {
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        dispatch(fetchProviders());
-                                        dispatch(fetchServiceCountsByProvider());
+                                        void Promise.all([
+                                            dispatch(fetchProviders()),
+                                            dispatch(fetchServiceCountsByProvider()),
+                                        ]).then(() => markAdminListFetched('providers'));
                                     }}
                                     className={adminHeaderButtonClassName()}
                                 >
@@ -1238,9 +1241,9 @@ const ProvidersPage = () => {
                             providerName={activationTarget.name}
                         />
                     )}
-                </main>
-            </div>
-        </AuthGuard>
+                
+            
+        </>
     );
 };
 

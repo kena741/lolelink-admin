@@ -269,7 +269,7 @@ const subcategorySlice = createSlice({
     extraReducers: (builder) => {
         builder
             .addCase(fetchSubCategories.pending, (state) => {
-                state.loading = true;
+                if (state.subCategories.length === 0) state.loading = true;
                 state.error = null;
             })
             .addCase(fetchSubCategories.fulfilled, (state, action: PayloadAction<SubCategory[]>) => {

@@ -1,8 +1,6 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import Sidebar from '@/components/Sidebar';
-import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import { 
     FolderTree, 
@@ -22,6 +20,7 @@ import { fetchCategories, createCategory, updateCategory, deleteCategory } from 
 import { fetchSubCategories } from '@/features/subcategory/subcategorySlice';
 import { uploadFilesToSupabase } from '@/lib/upload';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
+import { markAdminListFetched, shouldRefetchAdminList } from '@/lib/admin-list-cache';
 
 const CategoriesPage = () => {
     const dispatch = useAppDispatch();
@@ -36,9 +35,12 @@ const CategoriesPage = () => {
     const [deletingId, setDeletingId] = useState<string | null>(null);
 
     useEffect(() => {
-        dispatch(fetchCategories());
-        dispatch(fetchSubCategories());
-    }, [dispatch]);
+        if (!shouldRefetchAdminList('catalog', { hasRows: categories.length > 0 })) return;
+        void Promise.all([
+            dispatch(fetchCategories()),
+            dispatch(fetchSubCategories()),
+        ]).then(() => markAdminListFetched('catalog'));
+    }, [dispatch, categories.length]);
 
     // Calculate subcategory counts for each category
     const getSubCategoryCount = (categoryId: string) => {
@@ -138,10 +140,9 @@ const CategoriesPage = () => {
     };
 
     return (
-        <AuthGuard>
-            <div className="flex min-h-screen">
-                <Sidebar />
-                <main className="ml-64 w-full min-h-screen">
+        <>
+            
+                
                     <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
                         <AdminPageHeader
                             title="Categories"
@@ -448,9 +449,9 @@ const CategoriesPage = () => {
                             </div>
                         </div>
                     )}
-                </main>
-            </div>
-        </AuthGuard>
+                
+            
+        </>
     );
 };
 

@@ -1,7 +1,6 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader from '@/components/AdminPageHeader';
 import { AdminShell } from '@/components/admin/admin-layout';
 
@@ -39,7 +38,7 @@ function Note({ tone, children }: { tone: 'ok' | 'warn' | 'bad' | 'info'; childr
 
 export default function ProductScorecardPage() {
   return (
-    <AuthGuard>
+    <>
       <AdminShell>
         <AdminPageHeader
           title="Product scorecard (temp)"
@@ -249,6 +248,6 @@ export default function ProductScorecardPage() {
           </Section>
         </div>
       </AdminShell>
-    </AuthGuard>
+    </>
   );
 }

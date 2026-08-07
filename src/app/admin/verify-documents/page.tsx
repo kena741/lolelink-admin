@@ -1,8 +1,6 @@
 'use client';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import Sidebar from '@/components/Sidebar';
-import AuthGuard from '@/components/AuthGuard';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import { 
     FileCheck, 
@@ -35,6 +33,7 @@ import { sendSms, buildRecipient } from '@/lib/sms';
 import { cn } from '@/lib/utils';
 import { getDisplayImageUrl } from '@/lib/media-url';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
+import { markAdminListFetched, shouldRefetchAdminList } from '@/lib/admin-list-cache';
 
 type StatusFilter = 'all' | 'pending' | 'approved' | 'rejected';
 
@@ -53,8 +52,11 @@ const VerifyDocumentsPage = () => {
     const [subCategoryFilter, setSubCategoryFilter] = useState<string>('all');
 
     useEffect(() => {
-        dispatch(fetchVerifyDocuments());
-    }, [dispatch]);
+        if (!shouldRefetchAdminList('verify-documents', { hasRows: documents.length > 0 })) return;
+        void dispatch(fetchVerifyDocuments()).then((action) => {
+            if (fetchVerifyDocuments.fulfilled.match(action)) markAdminListFetched('verify-documents');
+        });
+    }, [dispatch, documents.length]);
 
     function getApproveMessage(providerName?: string, docName?: string) {
         const name = providerName || '';
@@ -282,10 +284,9 @@ const VerifyDocumentsPage = () => {
     const totalDocuments = filteredDocuments.length;
 
     return (
-        <AuthGuard>
-            <div className="flex min-h-screen">
-                <Sidebar />
-                <main className="ml-64 w-full min-h-screen">
+        <>
+            
+                
                     <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
                         <AdminPageHeader
                             title="Verify Documents"
@@ -895,12 +896,11 @@ const VerifyDocumentsPage = () => {
                             </div>
                         </div>
                     )}
-                </main>
-            </div>
-        </AuthGuard>
+                
+            
+        </>
     );
 };
 
 export default VerifyDocumentsPage;
-
 

@@ -2,8 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { RefreshCw, Save, Smartphone, Plus, Trash2, AlertTriangle, Dot, CircleCheck } from 'lucide-react';
-import AuthGuard from '@/components/AuthGuard';
-import Sidebar from '@/components/Sidebar';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 import { Button } from '@/components/ui/button';
@@ -228,10 +226,9 @@ export default function MobileAppConfigPage() {
     };
 
     return (
-        <AuthGuard>
-            <div className="flex min-h-screen">
-                <Sidebar />
-                <main className="ml-64 w-full min-h-screen">
+        <>
+            
+                
                     <div className="mx-auto max-w-[1100px] px-6 py-8 lg:px-8">
                         <AdminPageHeader
                             title="Mobile App Config"
@@ -453,8 +450,8 @@ export default function MobileAppConfigPage() {
                             </div>
                         )}
                     </div>
-                </main>
-            </div>
-        </AuthGuard>
+                
+            
+        </>
     );
 }
