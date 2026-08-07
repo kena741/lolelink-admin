@@ -28,15 +28,15 @@ export const BookingIssuesPanel = forwardRef<HTMLElement, BookingIssuesPanelProp
             ref={ref}
             id={id}
             className={cn(
-                'scroll-mt-4 rounded-lg border bg-white p-4 transition-shadow',
+                'scroll-mt-4 rounded-xl border bg-white p-4 transition-[box-shadow,border-color] duration-150',
                 highlighted
-                    ? 'border-indigo-300 shadow-[0_0_0_3px_rgba(99,102,241,0.15)]'
+                    ? 'border-indigo-300 shadow-[0_0_0_3px_rgba(99,102,241,0.12)]'
                     : 'border-gray-200'
             )}
         >
-            <div className="mb-4 flex flex-wrap items-start justify-between gap-2 border-b border-gray-100 pb-3">
+            <div className="mb-3 flex flex-wrap items-start justify-between gap-2 border-b border-gray-100 pb-3">
                 <div>
-                    <h3 className="text-base font-bold text-gray-900">Issues</h3>
+                    <h3 className="text-[13px] font-semibold text-gray-900">Issues</h3>
                     <p className="mt-0.5 text-sm text-gray-500">
                         {anomalies.length} total
                         {errorCount > 0 && warningCount > 0

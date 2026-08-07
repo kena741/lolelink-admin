@@ -2,7 +2,16 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { StorageImage } from '@/components/StorageImage';
-import { Check, ChevronDown, Loader2, Trash2 } from 'lucide-react';
+import {
+    Archive,
+    Check,
+    ChevronDown,
+    CreditCard,
+    Loader2,
+    MapPin,
+    Trash2,
+    Wallet,
+} from 'lucide-react';
 import {
     getBookingCustomerDisplayName,
     getBookingProviderDisplayName,
@@ -34,9 +43,15 @@ import { getSupabase } from '@/lib/supabaseClient';
 import {
     BOOKING_JOB_STATUS_OPTIONS,
     formatBookingJobStatusLabel,
+    formatBookingPaymentStatusLabel,
     type BookedServiceStatus,
 } from '@/lib/booking-status';
-import { getAdminStatusToneClasses, getBookingJobStatusTone } from '@/lib/admin-status-badge';
+import {
+    getAdminStatusToneClasses,
+    getBookingJobStatusTone,
+    getBookingPaymentMethodTone,
+    getBookingPaymentStatusTone,
+} from '@/lib/admin-status-badge';
 import { AdminStatusBadge } from '@/components/admin/data-table';
 import {
     DropdownMenu,
@@ -46,6 +61,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetBody, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { BookingIssuesPanel } from './BookingIssuesPanel';
+import { cn } from '@/lib/utils';
 
 interface WalletLedgerRow {
     id: string;
@@ -57,27 +73,83 @@ interface WalletLedgerRow {
     createdDate: string | null;
 }
 
-function DetailField({ label, value }: { label: string; value: React.ReactNode }) {
+function MetaRow({ label, value }: { label: string; value: React.ReactNode }) {
     return (
-        <div>
-            <div className="text-[13px] font-semibold text-gray-500">{label}</div>
-            <div className="mt-1 text-[14px] text-gray-900">{value}</div>
+        <div className="grid grid-cols-[minmax(0,110px)_1fr] items-start gap-3 py-2 sm:grid-cols-[minmax(0,132px)_1fr]">
+            <dt className="text-[12px] font-medium text-gray-500">{label}</dt>
+            <dd className="min-w-0 wrap-break-word text-[13px] text-gray-900">{value}</dd>
         </div>
     );
 }
 
-function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+    title,
+    children,
+    className,
+    action,
+}: {
+    title: string;
+    children: React.ReactNode;
+    className?: string;
+    action?: React.ReactNode;
+}) {
     return (
-        <section className="rounded-md border border-gray-200 bg-gray-50 p-4">
-            <h4 className="mb-3 text-[16px] font-bold text-gray-900">{title}</h4>
-            {children}
+        <section className={cn('rounded-xl border border-gray-200 bg-white', className)}>
+            <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
+                <h3 className="text-[13px] font-semibold text-gray-900">{title}</h3>
+                {action}
+            </div>
+            <div className="px-4 py-3">{children}</div>
         </section>
+    );
+}
+
+function PersonBlock({
+    title,
+    name,
+    email,
+    phone,
+    idLabel,
+    idValue,
+    extra,
+}: {
+    title: string;
+    name: string;
+    email?: string | null;
+    phone?: string | null;
+    idLabel: string;
+    idValue: string;
+    extra?: React.ReactNode;
+}) {
+    const initial = name.trim().charAt(0).toUpperCase() || '?';
+    return (
+        <Section title={title}>
+            <div className="mb-3 flex items-center gap-3">
+                <span
+                    aria-hidden
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-sm font-semibold text-indigo-700 ring-1 ring-indigo-100"
+                >
+                    {initial}
+                </span>
+                <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-gray-900">{name || '—'}</p>
+                    {email ? <p className="truncate text-xs text-gray-500">{email}</p> : null}
+                </div>
+            </div>
+            <dl className="divide-y divide-gray-100">
+                <MetaRow label="Phone" value={formatDisplayPhone(phone) || '—'} />
+                <MetaRow label={idLabel} value={<span className="font-mono text-[12px] text-gray-700">{idValue}</span>} />
+                {extra}
+            </dl>
+        </Section>
     );
 }
 
 function JobStatusBadge({ status }: { status?: string }) {
     return (
-        <AdminStatusBadge tone={getBookingJobStatusTone(status)}>{formatBookingJobStatusLabel(status)}</AdminStatusBadge>
+        <AdminStatusBadge tone={getBookingJobStatusTone(status)}>
+            {formatBookingJobStatusLabel(status)}
+        </AdminStatusBadge>
     );
 }
 
@@ -100,14 +172,17 @@ function JobStatusDropdown({
             <DropdownMenuTrigger asChild disabled={disabled || updating}>
                 <button
                     type="button"
-                    className={`inline-flex h-9 items-center gap-1.5 rounded-md px-2.5 text-[13px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-info focus-visible:ring-offset-2 disabled:opacity-60 ${toneClass}`}
+                    className={cn(
+                        'inline-flex h-9 items-center gap-1.5 rounded-md px-2.5 text-[13px] font-semibold transition-colors duration-150',
+                        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2',
+                        'disabled:opacity-60',
+                        toneClass
+                    )}
                     aria-label="Change job status"
                 >
-                    {updating ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : null}
+                    {updating ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : null}
                     {formatBookingJobStatusLabel(current)}
-                    <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+                    <ChevronDown className="h-3.5 w-3.5 opacity-70" aria-hidden />
                 </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="z-110 w-56">
@@ -122,16 +197,39 @@ function JobStatusDropdown({
                             className="justify-between gap-3"
                         >
                             <span
-                                className={`inline-flex rounded-md px-2 py-0.5 text-[12px] font-semibold ${getAdminStatusToneClasses(getBookingJobStatusTone(option.value))}`}
+                                className={cn(
+                                    'inline-flex rounded-md px-2 py-0.5 text-[12px] font-semibold',
+                                    getAdminStatusToneClasses(getBookingJobStatusTone(option.value))
+                                )}
                             >
                                 {option.label}
                             </span>
-                            {selected ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
+                            {selected ? <Check className="h-4 w-4 shrink-0 text-foreground" aria-hidden /> : null}
                         </DropdownMenuItem>
                     );
                 })}
             </DropdownMenuContent>
         </DropdownMenu>
+    );
+}
+
+function primaryButtonClassName(extra?: string) {
+    return cn(
+        'inline-flex h-10 items-center justify-center gap-2 rounded-md bg-indigo-600 px-4 text-[13px] font-semibold text-white',
+        'transition-colors duration-150 hover:bg-indigo-700',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2',
+        'disabled:cursor-not-allowed disabled:opacity-50',
+        extra
+    );
+}
+
+function secondaryButtonClassName(extra?: string) {
+    return cn(
+        'inline-flex h-10 items-center justify-center gap-2 rounded-md border border-gray-200 bg-white px-4 text-[13px] font-medium text-gray-700',
+        'transition-colors duration-150 hover:bg-gray-50',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200 focus-visible:ring-offset-2',
+        'disabled:cursor-not-allowed disabled:opacity-50',
+        extra
     );
 }
 
@@ -217,7 +315,6 @@ export function BookingDetailModal({
         }
 
         let cancelled = false;
-
         const bookingId = booking.id;
 
         async function loadWalletRows() {
@@ -269,268 +366,409 @@ export function BookingDetailModal({
             ? (booking.extraChargeModel as Record<string, unknown>)
             : null;
     const totalAmount = booking ? parseBookingAmount(booking.totalAmount ?? booking.price) : null;
+    const commissionAmount =
+        booking != null ? resolveBookingAdminCommissionAmount(booking, commissionConfig) : 0;
+    const isArchived = booking?.is_archived === true;
+
+    const snapshotItems = booking
+        ? [
+              {
+                  label: 'Total',
+                  value: (
+                      <span
+                          className={cn(
+                              'font-semibold tabular-nums',
+                              totalAmount !== null && totalAmount < 0 ? 'text-rose-600' : 'text-gray-900'
+                          )}
+                      >
+                          {formatBookingAmount(booking.totalAmount ?? booking.price)}
+                      </span>
+                  ),
+              },
+              {
+                  label: 'Method',
+                  value: (
+                      <AdminStatusBadge tone={getBookingPaymentMethodTone(booking.paymentType)}>
+                          {formatPaymentMethodLabel(booking.paymentType)}
+                      </AdminStatusBadge>
+                  ),
+              },
+              {
+                  label: 'Payment',
+                  value: (
+                      <AdminStatusBadge
+                          tone={getBookingPaymentStatusTone(booking.payment_status, booking.paymentCompleted)}
+                      >
+                          {formatBookingPaymentStatusLabel(booking.payment_status, booking.paymentCompleted)}
+                      </AdminStatusBadge>
+                  ),
+              },
+              {
+                  label: 'Job',
+                  value: canEditStatus && onUpdateStatus ? (
+                      <JobStatusDropdown
+                          status={booking.status}
+                          updating={updatingStatus}
+                          onChange={(status) => {
+                              void onUpdateStatus(booking.id, status);
+                          }}
+                      />
+                  ) : (
+                      <JobStatusBadge status={booking.status} />
+                  ),
+              },
+          ]
+        : [];
 
     return (
         <Sheet open={open} onClose={onClose} widthClassName="w-full max-w-3xl lg:max-w-4xl">
-            <SheetHeader onClose={onClose}>
-                <SheetTitle>{serviceName}</SheetTitle>
-                {booking && (
-                    <SheetDescription>
-                        <span className="font-mono text-xs">#{formatBookingShortId(booking.id)}</span>
-                        <span className="mt-1 block break-all font-mono text-xs text-gray-400">{booking.id}</span>
-                    </SheetDescription>
-                )}
+            <SheetHeader onClose={onClose} className="border-gray-200 bg-white px-5 py-4 sm:px-6">
+                <div className="flex min-w-0 items-start gap-3">
+                    {serviceImage ? (
+                        <StorageImage
+                            src={serviceImage}
+                            alt=""
+                            width={48}
+                            height={48}
+                            className="h-12 w-12 shrink-0 rounded-lg object-cover ring-1 ring-gray-200"
+                        />
+                    ) : (
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-gray-100 ring-1 ring-gray-200">
+                            <CreditCard className="h-5 w-5 text-gray-400" aria-hidden />
+                        </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                        <SheetTitle>{loading ? 'Loading booking…' : serviceName}</SheetTitle>
+                        {booking ? (
+                            <SheetDescription>
+                                <span className="inline-flex flex-wrap items-center gap-2">
+                                    <span className="font-mono text-xs font-medium text-gray-600">
+                                        #{formatBookingShortId(booking.id)}
+                                    </span>
+                                    {isArchived ? (
+                                        <span
+                                            className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700"
+                                            title={booking.archive_note ?? 'Archived'}
+                                        >
+                                            <Archive className="h-3 w-3" aria-hidden />
+                                            Archived
+                                        </span>
+                                    ) : null}
+                                </span>
+                                <span className="mt-1 block break-all font-mono text-[11px] text-gray-400">
+                                    {booking.id}
+                                </span>
+                            </SheetDescription>
+                        ) : null}
+                    </div>
+                </div>
             </SheetHeader>
 
-            <SheetBody className="space-y-4 bg-gray-50/50">
-                    {loading && <div className="text-[14px] text-gray-500">Loading booking…</div>}
+            <SheetBody className="space-y-4 bg-gray-50/80 px-4 py-4 sm:px-6">
+                {loading && !booking ? (
+                    <div className="space-y-3" aria-busy="true" aria-label="Loading booking details">
+                        {Array.from({ length: 4 }).map((_, index) => (
+                            <div key={index} className="h-28 animate-pulse rounded-xl bg-white ring-1 ring-gray-100" />
+                        ))}
+                    </div>
+                ) : null}
 
-                    {!loading && booking && (
-                        <>
-                            <BookingIssuesPanel
-                                ref={issuesSectionRef}
-                                anomalies={anomalies}
-                                highlighted={highlightIssues && anomalies.length > 0}
-                            />
+                {!loading && booking ? (
+                    <>
+                        <BookingIssuesPanel
+                            ref={issuesSectionRef}
+                            anomalies={anomalies}
+                            highlighted={highlightIssues && anomalies.length > 0}
+                        />
 
-                            <div className="grid gap-4 md:grid-cols-2">
-                                <SectionCard title="Customer">
-                                    <div className="space-y-3">
-                                        <DetailField label="Name" value={sanitizePersonDisplayName(getBookingCustomerDisplayName(booking)) || '—'} />
-                                        <DetailField label="Email" value={booking.email || '—'} />
-                                        <DetailField
-                                            label="Phone"
-                                            value={formatDisplayPhone(booking.phoneNumber) || '—'}
-                                        />
-                                        <DetailField
-                                            label="Customer ID"
-                                            value={<span className="font-mono text-[13px]">{booking.customer_id || '—'}</span>}
-                                        />
-                                    </div>
-                                </SectionCard>
-
-                                <SectionCard title="Provider">
-                                    <div className="space-y-3">
-                                        <DetailField label="Name" value={sanitizePersonDisplayName(getBookingProviderDisplayName(booking)) || '—'} />
-                                        <DetailField label="Email" value={booking.providerEmail || '—'} />
-                                        <DetailField
-                                            label="Phone"
-                                            value={formatDisplayPhone(booking.providerPhone) || '—'}
-                                        />
-                                        <DetailField
-                                            label="Provider ID"
-                                            value={<span className="font-mono text-[13px]">{booking.provider_id}</span>}
-                                        />
-                                        <DetailField
-                                            label="Handyman assignment"
-                                            value={booking.providerMySelf ? 'Provider (self)' : 'Other handyman'}
-                                        />
-                                    </div>
-                                </SectionCard>
+                        {needsRecollect && onRecollectPayment ? (
+                            <div
+                                role="status"
+                                className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3"
+                            >
+                                <p className="text-[13px] font-medium text-amber-950">
+                                    Customer was refunded. Re-collect payment before completing the job.
+                                </p>
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                    <button
+                                        type="button"
+                                        disabled={recollectingPayment}
+                                        onClick={() => void onRecollectPayment(booking.id, 'wallet')}
+                                        className={primaryButtonClassName('h-9 px-3 text-xs')}
+                                    >
+                                        {recollectingPayment ? 'Working…' : 'Re-collect from wallet'}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={recollectingPayment}
+                                        onClick={() => void onRecollectPayment(booking.id, 'mark_paid')}
+                                        className={secondaryButtonClassName('h-9 px-3 text-xs')}
+                                    >
+                                        Mark re-collected
+                                    </button>
+                                </div>
                             </div>
+                        ) : null}
 
-                            <SectionCard title="Financial breakdown">
-                                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                                    <DetailField label="List price" value={formatBookingAmount(booking.price)} />
-                                    <DetailField label="Discount" value={formatServiceDiscountLabel(booking.discount)} />
-                                    <DetailField label="Subtotal" value={formatBookingAmount(booking.subTotal)} />
-                                    <DetailField label="Extra charge" value={formatBookingAmount(booking.extraChargeAmount)} />
-                                    <DetailField
-                                        label="Coupon"
-                                        value={
-                                            coupon
-                                                ? `${coupon.code ?? '—'} (${coupon.amount ?? '0'})${coupon.active ? '' : ' · inactive'}`
-                                                : '—'
-                                        }
+                        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-gray-200 bg-gray-200 sm:grid-cols-4">
+                            {snapshotItems.map((item) => (
+                                <div key={item.label} className="bg-white px-3 py-3 sm:px-4">
+                                    <p className="text-[11px] font-medium text-gray-500">{item.label}</p>
+                                    <div className="mt-1.5 min-h-8 flex items-center">{item.value}</div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-2">
+                            <PersonBlock
+                                title="Customer"
+                                name={sanitizePersonDisplayName(getBookingCustomerDisplayName(booking))}
+                                email={booking.email}
+                                phone={booking.phoneNumber}
+                                idLabel="Customer ID"
+                                idValue={booking.customer_id || '—'}
+                            />
+                            <PersonBlock
+                                title="Provider"
+                                name={sanitizePersonDisplayName(getBookingProviderDisplayName(booking))}
+                                email={booking.providerEmail}
+                                phone={booking.providerPhone}
+                                idLabel="Provider ID"
+                                idValue={booking.provider_id}
+                                extra={
+                                    <MetaRow
+                                        label="Assignment"
+                                        value={booking.providerMySelf ? 'Provider (self)' : 'Other handyman'}
                                     />
-                                    <DetailField
-                                        label="Admin commission"
-                                        value={(() => {
-                                            if (!booking) return '—';
-                                            const fee = resolveBookingAdminCommissionAmount(
-                                                booking,
-                                                commissionConfig
-                                            );
-                                            return fee > 0 ? formatBookingAmount(fee) : '—';
-                                        })()}
-                                    />
-                                    <DetailField
+                                }
+                            />
+                        </div>
+
+                        <Section title="Financial breakdown">
+                            <dl className="grid gap-x-6 sm:grid-cols-2">
+                                <MetaRow label="List price" value={formatBookingAmount(booking.price)} />
+                                <MetaRow label="Discount" value={formatServiceDiscountLabel(booking.discount)} />
+                                <MetaRow label="Subtotal" value={formatBookingAmount(booking.subTotal)} />
+                                <MetaRow
+                                    label="Extra charge"
+                                    value={formatBookingAmount(booking.extraChargeAmount)}
+                                />
+                                <MetaRow
+                                    label="Coupon"
+                                    value={
+                                        coupon
+                                            ? `${coupon.code ?? '—'} (${coupon.amount ?? '0'})${
+                                                  coupon.active ? '' : ' · inactive'
+                                              }`
+                                            : '—'
+                                    }
+                                />
+                                <MetaRow
+                                    label="Admin commission"
+                                    value={commissionAmount > 0 ? formatBookingAmount(commissionAmount) : '—'}
+                                />
+                                <div className="sm:col-span-2">
+                                    <MetaRow
                                         label="Total"
                                         value={
                                             <span
-                                                className={
+                                                className={cn(
+                                                    'text-sm font-semibold tabular-nums',
                                                     totalAmount !== null && totalAmount < 0
-                                                        ? 'font-bold text-red-600'
-                                                        : 'font-bold text-gray-900'
-                                                }
+                                                        ? 'text-rose-600'
+                                                        : 'text-gray-900'
+                                                )}
                                             >
                                                 {formatBookingAmount(booking.totalAmount ?? booking.price)}
                                             </span>
                                         }
                                     />
                                 </div>
-                                {extraChargeModel && (
-                                    <p className="mt-3 text-[14px] text-gray-600">
-                                        Extra charge note:{' '}
-                                        {typeof extraChargeModel.chargeDetail === 'string'
-                                            ? extraChargeModel.chargeDetail
-                                            : '—'}
-                                    </p>
-                                )}
-                            </SectionCard>
+                            </dl>
+                            {extraChargeModel ? (
+                                <p className="mt-2 border-t border-gray-100 pt-3 text-[13px] text-gray-600">
+                                    Extra charge note:{' '}
+                                    {typeof extraChargeModel.chargeDetail === 'string'
+                                        ? extraChargeModel.chargeDetail
+                                        : '—'}
+                                </p>
+                            ) : null}
+                        </Section>
 
-                            <div className="grid gap-4 md:grid-cols-2">
-                                <SectionCard title="Payment">
-                                    <div className="space-y-3">
-                                        <DetailField label="Method" value={formatPaymentMethodLabel(booking.paymentType)} />
-                                        <DetailField label="Payment status" value={booking.payment_status || '—'} />
-                                        <DetailField
-                                            label="paymentCompleted"
-                                            value={booking.paymentCompleted ? 'true' : 'false'}
-                                        />
-                                        <DetailField
-                                            label="Payment ID"
-                                            value={
-                                                booking.payment_id ? (
-                                                    <span className="font-mono text-[13px]">{booking.payment_id}</span>
-                                                ) : (
-                                                    '—'
-                                                )
-                                            }
-                                        />
-                                        {needsRecollect && onRecollectPayment ? (
-                                            <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3">
-                                                <p className="text-[13px] text-amber-900">
-                                                    Customer was refunded. Re-collect payment before completing.
-                                                </p>
-                                                <div className="flex flex-wrap gap-2">
-                                                    <button
-                                                        type="button"
-                                                        disabled={recollectingPayment}
-                                                        onClick={() => void onRecollectPayment(booking.id, 'wallet')}
-                                                        className="inline-flex h-8 items-center rounded-md bg-accent-primary px-3 text-[12px] font-medium text-text-inverse hover:bg-accent-primary-hover disabled:opacity-50"
-                                                    >
-                                                        {recollectingPayment ? 'Working…' : 'Re-collect from wallet'}
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        disabled={recollectingPayment}
-                                                        onClick={() => void onRecollectPayment(booking.id, 'mark_paid')}
-                                                        className="inline-flex h-8 items-center rounded-md border border-border bg-card px-3 text-[12px] font-medium text-foreground hover:bg-muted disabled:opacity-50"
-                                                    >
-                                                        Mark re-collected
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ) : null}
-                                    </div>
-                                </SectionCard>
-
-                                <SectionCard title="Job lifecycle">
-                                    <div className="space-y-3">
-                                        <DetailField
-                                            label="Job status"
-                                            value={
-                                                canEditStatus && onUpdateStatus && booking ? (
-                                                    <JobStatusDropdown
-                                                        status={booking.status}
-                                                        updating={updatingStatus}
-                                                        onChange={(status) => {
-                                                            void onUpdateStatus(booking.id, status);
-                                                        }}
-                                                    />
-                                                ) : (
-                                                    <JobStatusBadge status={booking.status} />
-                                                )
-                                            }
-                                        />
-                                        <DetailField label="Booking date" value={formatBookingDateTime(booking.bookingDate)} />
-                                        <DetailField label="Created" value={formatBookingDateTime(booking.createdAt)} />
-                                        <DetailField label="Started" value={formatBookingDateTime(booking.startTime)} />
-                                        <DetailField label="Ended" value={formatBookingDateTime(booking.endTime)} />
-                                        <DetailField label="OTP" value={booking.otp || '—'} />
-                                        <DetailField label="Quantity" value={booking.quantity ?? '1'} />
-                                    </div>
-                                </SectionCard>
-                            </div>
-
-                            <SectionCard title="Wallet ledger (this booking)">
-                                {walletLoading && <p className="text-[14px] text-gray-500">Loading wallet rows…</p>}
-                                {!walletLoading && walletRows.length === 0 && (
-                                    <p className="text-[14px] text-gray-500">No wallet_transaction rows for this booking ID.</p>
-                                )}
-                                {!walletLoading && walletRows.length > 0 && (
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-left text-[14px]">
-                                            <thead>
-                                                <tr className="border-b border-gray-200 text-[13px] font-semibold text-gray-500">
-                                                    <th className="py-2 pr-3">When</th>
-                                                    <th className="py-2 pr-3">Direction</th>
-                                                    <th className="py-2 pr-3">Amount</th>
-                                                    <th className="py-2 pr-3">Type</th>
-                                                    <th className="py-2">Note</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {walletRows.map((row) => (
-                                                    <tr key={row.id} className="border-b border-gray-100">
-                                                        <td className="py-2 pr-3 whitespace-nowrap">
-                                                            {formatBookingDateTime(row.createdDate)}
-                                                        </td>
-                                                        <td className="py-2 pr-3">
-                                                            {row.isCredit ? 'Credit' : 'Debit'}
-                                                        </td>
-                                                        <td className="py-2 pr-3 font-medium tabular-nums">
-                                                            {formatBookingAmount(row.amount)}
-                                                        </td>
-                                                        <td className="py-2 pr-3">{row.type || '—'}</td>
-                                                        <td className="py-2">{row.note || '—'}</td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                )}
-                            </SectionCard>
-
-                            <div className="grid gap-4 md:grid-cols-2">
-                                <SectionCard title="Location">
-                                    <DetailField label="Address" value={formatBookingAddress(booking.bookingAddress)} />
-                                </SectionCard>
-
-                                <SectionCard title="Notes">
-                                    <DetailField label="Customer note" value={booking.description?.trim() || '—'} />
-                                    {booking.reason && (
-                                        <div className="mt-3">
-                                            <DetailField label="Rejection reason" value={booking.reason} />
-                                        </div>
-                                    )}
-                                </SectionCard>
-                            </div>
-
-                            {serviceImage && (
-                                <SectionCard title="Service image">
-                                    <StorageImage
-                                        src={serviceImage}
-                                        alt="service"
-                                        width={800}
-                                        height={300}
-                                        className="h-48 w-full rounded-md object-cover"
+                        <div className="grid gap-4 md:grid-cols-2">
+                            <Section title="Payment">
+                                <dl className="divide-y divide-gray-100">
+                                    <MetaRow
+                                        label="Method"
+                                        value={formatPaymentMethodLabel(booking.paymentType)}
                                     />
-                                </SectionCard>
-                            )}
-                        </>
-                    )}
+                                    <MetaRow
+                                        label="Status"
+                                        value={formatBookingPaymentStatusLabel(
+                                            booking.payment_status,
+                                            booking.paymentCompleted
+                                        )}
+                                    />
+                                    <MetaRow
+                                        label="Marked paid"
+                                        value={booking.paymentCompleted ? 'Yes' : 'No'}
+                                    />
+                                    <MetaRow
+                                        label="Payment ID"
+                                        value={
+                                            booking.payment_id ? (
+                                                <span className="font-mono text-[12px]">{booking.payment_id}</span>
+                                            ) : (
+                                                '—'
+                                            )
+                                        }
+                                    />
+                                    {isArchived ? (
+                                        <MetaRow
+                                            label="Archive note"
+                                            value={booking.archive_note?.trim() || 'Archived'}
+                                        />
+                                    ) : null}
+                                </dl>
+                            </Section>
+
+                            <Section title="Job lifecycle">
+                                <dl className="divide-y divide-gray-100">
+                                    <MetaRow
+                                        label="Status"
+                                        value={
+                                            canEditStatus && onUpdateStatus ? (
+                                                <JobStatusDropdown
+                                                    status={booking.status}
+                                                    updating={updatingStatus}
+                                                    onChange={(status) => {
+                                                        void onUpdateStatus(booking.id, status);
+                                                    }}
+                                                />
+                                            ) : (
+                                                <JobStatusBadge status={booking.status} />
+                                            )
+                                        }
+                                    />
+                                    <MetaRow
+                                        label="Booking date"
+                                        value={formatBookingDateTime(booking.bookingDate)}
+                                    />
+                                    <MetaRow label="Created" value={formatBookingDateTime(booking.createdAt)} />
+                                    <MetaRow label="Started" value={formatBookingDateTime(booking.startTime)} />
+                                    <MetaRow label="Ended" value={formatBookingDateTime(booking.endTime)} />
+                                    <MetaRow label="OTP" value={booking.otp || '—'} />
+                                    <MetaRow label="Quantity" value={booking.quantity ?? '1'} />
+                                </dl>
+                            </Section>
+                        </div>
+
+                        <Section
+                            title="Wallet ledger"
+                            action={
+                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-500">
+                                    <Wallet className="h-3.5 w-3.5" aria-hidden />
+                                    This booking
+                                </span>
+                            }
+                        >
+                            {walletLoading ? (
+                                <p className="text-[13px] text-gray-500">Loading wallet rows…</p>
+                            ) : null}
+                            {!walletLoading && walletRows.length === 0 ? (
+                                <p className="text-[13px] text-gray-500">
+                                    No wallet movements linked to this booking.
+                                </p>
+                            ) : null}
+                            {!walletLoading && walletRows.length > 0 ? (
+                                <div className="overflow-x-auto -mx-1">
+                                    <table className="w-full min-w-120 text-left text-[13px]">
+                                        <thead>
+                                            <tr className="border-b border-gray-100 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                                                <th className="pb-2 pr-3 font-semibold">When</th>
+                                                <th className="pb-2 pr-3 font-semibold">Dir</th>
+                                                <th className="pb-2 pr-3 font-semibold">Amount</th>
+                                                <th className="pb-2 pr-3 font-semibold">Type</th>
+                                                <th className="pb-2 font-semibold">Note</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-50">
+                                            {walletRows.map((row) => (
+                                                <tr key={row.id}>
+                                                    <td className="whitespace-nowrap py-2.5 pr-3 text-gray-600">
+                                                        {formatBookingDateTime(row.createdDate)}
+                                                    </td>
+                                                    <td className="py-2.5 pr-3">
+                                                        <span
+                                                            className={cn(
+                                                                'inline-flex rounded-md px-1.5 py-0.5 text-[11px] font-semibold',
+                                                                row.isCredit
+                                                                    ? 'bg-emerald-50 text-emerald-700'
+                                                                    : 'bg-rose-50 text-rose-700'
+                                                            )}
+                                                        >
+                                                            {row.isCredit ? 'Credit' : 'Debit'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-2.5 pr-3 font-medium tabular-nums text-gray-900">
+                                                        {formatBookingAmount(row.amount)}
+                                                    </td>
+                                                    <td className="py-2.5 pr-3 text-gray-700">{row.type || '—'}</td>
+                                                    <td className="py-2.5 text-gray-600">{row.note || '—'}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            ) : null}
+                        </Section>
+
+                        <div className="grid gap-4 md:grid-cols-2">
+                            <Section
+                                title="Location"
+                                action={<MapPin className="h-3.5 w-3.5 text-gray-400" aria-hidden />}
+                            >
+                                <p className="text-[13px] leading-relaxed text-gray-800">
+                                    {formatBookingAddress(booking.bookingAddress)}
+                                </p>
+                            </Section>
+                            <Section title="Notes">
+                                <dl className="divide-y divide-gray-100">
+                                    <MetaRow
+                                        label="Customer"
+                                        value={booking.description?.trim() || '—'}
+                                    />
+                                    {booking.reason ? (
+                                        <MetaRow label="Rejection" value={booking.reason} />
+                                    ) : null}
+                                </dl>
+                            </Section>
+                        </div>
+
+                        {serviceImage ? (
+                            <Section title="Service image">
+                                <StorageImage
+                                    src={serviceImage}
+                                    alt=""
+                                    width={800}
+                                    height={300}
+                                    className="h-44 w-full rounded-lg object-cover ring-1 ring-gray-100"
+                                />
+                            </Section>
+                        ) : null}
+                    </>
+                ) : null}
             </SheetBody>
 
-            <SheetFooter>
-                    {booking && needsRecollect && onRecollectPayment && (
+            <SheetFooter className="flex-wrap gap-2 border-gray-200 bg-white px-4 py-3 sm:px-6">
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                    {booking && needsRecollect && onRecollectPayment ? (
                         <>
                             <button
                                 type="button"
                                 onClick={() => void onRecollectPayment(booking.id, 'wallet')}
                                 disabled={recollectingPayment}
-                                className="inline-flex h-10 items-center rounded-md bg-accent-primary px-4 text-[14px] font-medium text-text-inverse hover:bg-accent-primary-hover disabled:opacity-50"
+                                className={primaryButtonClassName()}
                             >
                                 {recollectingPayment ? 'Working…' : 'Re-collect from wallet'}
                             </button>
@@ -538,40 +776,47 @@ export function BookingDetailModal({
                                 type="button"
                                 onClick={() => void onRecollectPayment(booking.id, 'mark_paid')}
                                 disabled={recollectingPayment}
-                                className="inline-flex h-10 items-center rounded-md border border-gray-200 bg-white px-4 text-[14px] font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                                className={secondaryButtonClassName()}
                             >
                                 Mark re-collected
                             </button>
                         </>
-                    )}
-                    {booking && canVerifyChapa && onVerifyPayment && (
+                    ) : null}
+                    {booking && canVerifyChapa && onVerifyPayment ? (
                         <button
                             type="button"
                             onClick={() => void onVerifyPayment(booking.id)}
                             disabled={verifyingPayment}
-                            className="inline-flex h-10 items-center rounded-md bg-accent-primary px-4 text-[14px] font-medium text-text-inverse hover:bg-accent-primary-hover disabled:opacity-50"
+                            className={primaryButtonClassName()}
                         >
-                            {verifyingPayment ? 'Verifying…' : 'Verify Chapa payment'}
+                            {verifyingPayment ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                                    Verifying…
+                                </>
+                            ) : (
+                                'Verify Chapa payment'
+                            )}
                         </button>
-                    )}
-                    {booking && canDelete && (
+                    ) : null}
+                    {booking && canDelete ? (
                         <button
                             type="button"
                             onClick={() => void onDelete(booking.id)}
                             disabled={deleting}
-                            className="inline-flex h-10 items-center gap-2 rounded-md border border-red-200 px-4 text-[14px] font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                            className={cn(
+                                secondaryButtonClassName(),
+                                'border-rose-200 text-rose-600 hover:bg-rose-50'
+                            )}
                         >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-4 w-4" aria-hidden />
                             {deleting ? 'Deleting…' : 'Delete'}
                         </button>
-                    )}
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="ml-auto h-10 rounded-md border border-gray-200 bg-white px-4 text-[14px] font-medium text-gray-700 hover:bg-gray-50"
-                    >
-                        Close
-                    </button>
+                    ) : null}
+                </div>
+                <button type="button" onClick={onClose} className={secondaryButtonClassName('ml-auto')}>
+                    Close
+                </button>
             </SheetFooter>
         </Sheet>
     );

@@ -30,7 +30,7 @@ export function RealtimeDataSync() {
     const refetchAll = useMemo(
         () => () => {
             dispatch(fetchProviders());
-            dispatch(fetchAllBookings());
+            dispatch(fetchAllBookings({ includeArchived: true }));
             dispatch(fetchAllCustomers());
             dispatch(fetchServices());
             dispatch(fetchPayoutRequests());

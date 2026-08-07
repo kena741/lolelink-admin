@@ -2,17 +2,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAppDispatch, useAppSelector } from "../../../store/hooks";
 import { fetchAllBookings, fetchBookingById, clearSingle, deleteBooking, verifyBookingPayment, updateBookingStatus, recollectBookingPayment, getBookingCustomerDisplayName, getBookingProviderDisplayName } from "../../../features/bookedService/bookedServiceSlice";
-import { Plus, RefreshCw } from "lucide-react";
+import { Plus, RefreshCw, Search, X } from "lucide-react";
 import AuthGuard from "@/components/AuthGuard";
 import AdminPageHeader, { adminHeaderButtonClassName } from "@/components/AdminPageHeader";
 import {
     AdminErrorAlert,
-    AdminFilterPanel,
-    AdminLoadingRow,
-    AdminSearchInput,
-    AdminSelect,
     AdminShell,
 } from "@/components/admin/admin-layout";
+import { AdminFilterSelect } from "@/components/admin/AdminFilterSelect";
 import { AdminListPagination } from "@/components/admin/AdminListPagination";
 import { getSupabase } from "@/lib/supabaseClient";
 import type { BookedService } from "@/features/bookedService/bookedServiceSlice";
@@ -27,10 +24,40 @@ import {
     resolveBookingServiceName,
 } from "@/lib/booking-display";
 import type { BookedServiceStatus } from "@/lib/booking-status";
+import { BOOKING_PAYMENT_STATUS } from "@/lib/booking-status";
+import { cn } from "@/lib/utils";
 
 interface ToastState {
     message: string;
     variant: 'success' | 'error' | 'warning';
+}
+
+type QueueFocus = 'all' | 'awaiting' | 'issues' | 'unpaid';
+
+const JOB_STATUS_OPTIONS: Array<{ value: string; label: string }> = [
+    { value: 'all', label: 'All job statuses' },
+    { value: 'pending', label: 'Awaiting provider' },
+    { value: 'completed', label: 'Completed' },
+    { value: 'rejected', label: 'Rejected' },
+    { value: 'accepted', label: 'Accepted' },
+    { value: 'in_progress', label: 'In progress' },
+    { value: 'on_the_way', label: 'On the way' },
+    { value: 'ongoing', label: 'Ongoing' },
+    { value: 'cancelled', label: 'Cancelled' },
+];
+
+const PAYMENT_METHOD_OPTIONS: Array<{ value: string; label: string }> = [
+    { value: 'all', label: 'All methods' },
+    { value: 'wallet', label: 'Wallet' },
+    { value: 'chapa', label: 'Chapa' },
+    { value: 'admin', label: 'Admin' },
+];
+
+function isUnpaidBooking(booking: BookedService): boolean {
+    return !(
+        booking.paymentCompleted === true ||
+        booking.payment_status === BOOKING_PAYMENT_STATUS.COMPLETED
+    );
 }
 
 function DebugJsonBlock({ title, value }: { title: string; value: unknown }) {
@@ -309,6 +336,8 @@ const BookingsPage = () => {
     const [jobStatusFilter, setJobStatusFilter] = useState("all");
     const [paymentMethodFilter, setPaymentMethodFilter] = useState("all");
     const [flaggedOnly, setFlaggedOnly] = useState(false);
+    const [unpaidOnly, setUnpaidOnly] = useState(false);
+    const [showArchived, setShowArchived] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(20);
     const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -331,10 +360,13 @@ const BookingsPage = () => {
         [items, debugBookingId]
     );
 
+    const reloadBookings = useCallback(() => {
+        dispatch(fetchAllBookings({ includeArchived: showArchived }));
+    }, [dispatch, showArchived]);
+
     useEffect(() => {
-        // Load all bookings across all providers
-        dispatch(fetchAllBookings());
-    }, [dispatch]);
+        reloadBookings();
+    }, [reloadBookings]);
 
     useEffect(() => {
         if (!toast) return;
@@ -357,7 +389,7 @@ const BookingsPage = () => {
                 await dispatch(verifyBookingPayment({ bookingId })).unwrap();
                 if (cancelled) return;
                 setToast({ message: 'Chapa payment verified. Booking marked as paid.', variant: 'success' });
-                dispatch(fetchAllBookings());
+                reloadBookings();
                 setHighlightIssues(false);
                 setOpen(true);
                 dispatch(fetchBookingById(bookingId));
@@ -378,10 +410,10 @@ const BookingsPage = () => {
         return () => {
             cancelled = true;
         };
-    }, [dispatch]);
+    }, [dispatch, reloadBookings]);
 
     const onRefresh = () => {
-        dispatch(fetchAllBookings());
+        reloadBookings();
     };
 
     const onOpenDetail = (id: string, options?: { focusIssues?: boolean }) => {
@@ -402,7 +434,7 @@ const BookingsPage = () => {
             await dispatch(verifyBookingPayment({ bookingId: id })).unwrap();
             setToast({ message: 'Chapa payment verified. Booking marked as paid.', variant: 'success' });
             await dispatch(fetchBookingById(id));
-            dispatch(fetchAllBookings());
+            reloadBookings();
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : 'Verification failed';
             setToast({ message, variant: 'error' });
@@ -423,7 +455,7 @@ const BookingsPage = () => {
                 variant: 'success',
             });
             await dispatch(fetchBookingById(id));
-            dispatch(fetchAllBookings());
+            reloadBookings();
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : 'Failed to re-collect payment';
             setToast({ message, variant: 'error' });
@@ -467,7 +499,7 @@ const BookingsPage = () => {
                 setToast({ message: 'Job status updated.', variant: 'success' });
             }
             await dispatch(fetchBookingById(id));
-            dispatch(fetchAllBookings());
+            reloadBookings();
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : 'Failed to update job status';
             setToast({ message, variant: 'error' });
@@ -509,6 +541,8 @@ const BookingsPage = () => {
             if (jobStatusFilter !== "all" && status !== jobStatusFilter) return false;
             if (paymentMethodFilter !== "all" && paymentMethod !== paymentMethodFilter) return false;
             if (flaggedOnly && getBookingAnomalies(bookingRecord).length === 0) return false;
+            if (unpaidOnly && !isUnpaidBooking(b)) return false;
+            if (!showArchived && b.is_archived === true) return false;
 
             if (!q) return true;
 
@@ -525,11 +559,87 @@ const BookingsPage = () => {
                 paymentMethod.includes(q)
             );
         });
-    }, [items, query, jobStatusFilter, paymentMethodFilter, flaggedOnly]);
+    }, [items, query, jobStatusFilter, paymentMethodFilter, flaggedOnly, unpaidOnly, showArchived]);
+
+    const queueCounts = useMemo(() => {
+        let awaiting = 0;
+        let withIssues = 0;
+        let unpaid = 0;
+
+        for (const booking of items) {
+            if (!showArchived && booking.is_archived === true) continue;
+            if ((booking.status ?? '').toLowerCase() === 'pending') awaiting += 1;
+            if (getBookingAnomalies(booking as unknown as Record<string, unknown>).length > 0) {
+                withIssues += 1;
+            }
+            if (isUnpaidBooking(booking)) unpaid += 1;
+        }
+
+        return { awaiting, withIssues, unpaid, visible: items.filter((b) => showArchived || b.is_archived !== true).length };
+    }, [items, showArchived]);
+
+    const queueFocus: QueueFocus = useMemo(() => {
+        if (flaggedOnly && jobStatusFilter === 'all' && !unpaidOnly) return 'issues';
+        if (unpaidOnly && jobStatusFilter === 'all' && !flaggedOnly) return 'unpaid';
+        if (jobStatusFilter === 'pending' && !flaggedOnly && !unpaidOnly) return 'awaiting';
+        if (!flaggedOnly && !unpaidOnly && jobStatusFilter === 'all') return 'all';
+        return 'all';
+    }, [flaggedOnly, unpaidOnly, jobStatusFilter]);
+
+    const filtersActive =
+        query.trim().length > 0 ||
+        jobStatusFilter !== 'all' ||
+        paymentMethodFilter !== 'all' ||
+        flaggedOnly ||
+        unpaidOnly ||
+        showArchived;
+
+    function clearFilters() {
+        setQuery('');
+        setJobStatusFilter('all');
+        setPaymentMethodFilter('all');
+        setFlaggedOnly(false);
+        setUnpaidOnly(false);
+        setShowArchived(false);
+    }
+
+    function applyQueueFocus(focus: QueueFocus) {
+        if (focus === 'all') {
+            setJobStatusFilter('all');
+            setFlaggedOnly(false);
+            setUnpaidOnly(false);
+            return;
+        }
+        if (focus === 'awaiting') {
+            setJobStatusFilter('pending');
+            setFlaggedOnly(false);
+            setUnpaidOnly(false);
+            return;
+        }
+        if (focus === 'issues') {
+            setJobStatusFilter('all');
+            setFlaggedOnly(true);
+            setUnpaidOnly(false);
+            return;
+        }
+        setJobStatusFilter('all');
+        setFlaggedOnly(false);
+        setUnpaidOnly(true);
+    }
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [query, jobStatusFilter, paymentMethodFilter, flaggedOnly, pageSize]);
+    }, [query, jobStatusFilter, paymentMethodFilter, flaggedOnly, unpaidOnly, showArchived, pageSize]);
+
+    const jobStatusOptions = useMemo(() => {
+        if (
+            jobStatusFilter !== 'all' &&
+            !JOB_STATUS_OPTIONS.some((option) => option.value === jobStatusFilter)
+        ) {
+            return [...JOB_STATUS_OPTIONS, { value: jobStatusFilter, label: jobStatusFilter }];
+        }
+        return JOB_STATUS_OPTIONS;
+    }, [jobStatusFilter]);
 
     const totalPages = filtered.length > 0 ? Math.ceil(filtered.length / pageSize) : 1;
     const safePage = Math.min(currentPage, totalPages);
@@ -559,7 +669,7 @@ const BookingsPage = () => {
                         ) : null}
                         <AdminPageHeader
                             title="Bookings"
-                            description="All booked services from customers across providers"
+                            description="Verify payment, update job status, investigate issues"
                             actions={
                                 <>
                                     {canWriteBookings && (
@@ -576,6 +686,7 @@ const BookingsPage = () => {
                                         type="button"
                                         onClick={onRefresh}
                                         className={adminHeaderButtonClassName()}
+                                        disabled={loading}
                                     >
                                         <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                                         Refresh
@@ -583,65 +694,140 @@ const BookingsPage = () => {
                                 </>
                             }
                         />
-                        <AdminFilterPanel>
-                            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                                <AdminSearchInput
-                                    className="w-full lg:max-w-md"
-                                    value={query}
-                                    onChange={setQuery}
-                                    placeholder="Search ID, customer, provider, service…"
-                                />
-                                <div className="text-sm text-gray-500">
-                                    Showing <span className="font-semibold text-gray-900">{filtered.length}</span> of{' '}
-                                    <span className="font-semibold text-gray-900">{items.length}</span> bookings
-                                </div>
-                            </div>
 
-                            <div className="flex flex-wrap items-center gap-2">
-                                <AdminSelect value={jobStatusFilter} onChange={setJobStatusFilter}>
-                                    <option value="all">All job statuses</option>
-                                    <option value="pending">Awaiting provider</option>
-                                    <option value="completed">Completed</option>
-                                    <option value="rejected">Rejected</option>
-                                    <option value="accepted">Accepted</option>
-                                    <option value="in_progress">In progress</option>
-                                    <option value="on_the_way">On the way</option>
-                                    <option value="ongoing">Ongoing</option>
-                                    <option value="cancelled">Cancelled</option>
-                                    {jobStatusFilter !== 'all'
-                                        && ![
-                                            'pending',
-                                            'completed',
-                                            'rejected',
-                                            'accepted',
-                                            'in_progress',
-                                            'on_the_way',
-                                            'ongoing',
-                                            'cancelled',
-                                        ].includes(jobStatusFilter) ? (
-                                        <option value={jobStatusFilter}>{jobStatusFilter}</option>
-                                    ) : null}
-                                </AdminSelect>
-                                <AdminSelect value={paymentMethodFilter} onChange={setPaymentMethodFilter}>
-                                    <option value="all">All payment methods</option>
-                                    <option value="wallet">Wallet</option>
-                                    <option value="chapa">Chapa</option>
-                                    <option value="admin">Admin</option>
-                                </AdminSelect>
-                                <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-700">
-                                    <input
-                                        type="checkbox"
-                                        checked={flaggedOnly}
-                                        onChange={(e) => setFlaggedOnly(e.target.checked)}
-                                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-200"
-                                    />
-                                    Has issues
-                                </label>
-                            </div>
-                        </AdminFilterPanel>
-
-                        {loading ? <AdminLoadingRow label="Loading bookings..." /> : null}
                         {error ? <AdminErrorAlert message={error} /> : null}
+
+                        <section
+                            aria-label="Booking queue filters"
+                            className="mb-4 flex flex-col gap-3"
+                        >
+                            <div
+                                role="tablist"
+                                aria-label="Queue focus"
+                                className="flex flex-wrap gap-1 rounded-md border border-border bg-card p-1"
+                            >
+                                {(
+                                    [
+                                        { id: 'all' as const, label: 'All', count: queueCounts.visible },
+                                        {
+                                            id: 'awaiting' as const,
+                                            label: 'Awaiting provider',
+                                            count: queueCounts.awaiting,
+                                        },
+                                        {
+                                            id: 'issues' as const,
+                                            label: 'Has issues',
+                                            count: queueCounts.withIssues,
+                                        },
+                                        {
+                                            id: 'unpaid' as const,
+                                            label: 'Unpaid',
+                                            count: queueCounts.unpaid,
+                                        },
+                                    ] as const
+                                ).map((tab) => {
+                                    const selected = queueFocus === tab.id;
+                                    return (
+                                        <button
+                                            key={tab.id}
+                                            type="button"
+                                            role="tab"
+                                            aria-selected={selected}
+                                            onClick={() => applyQueueFocus(tab.id)}
+                                            className={cn(
+                                                'inline-flex h-9 items-center gap-2 rounded-[calc(var(--radius)-2px)] px-3 text-sm font-medium transition-colors duration-150',
+                                                'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                                                selected
+                                                    ? 'bg-primary text-primary-foreground'
+                                                    : 'text-text-secondary hover:bg-muted hover:text-text-primary'
+                                            )}
+                                        >
+                                            {tab.label}
+                                            <span
+                                                className={cn(
+                                                    'tabular-nums text-[12px]',
+                                                    selected
+                                                        ? 'text-primary-foreground/85'
+                                                        : 'text-text-hint'
+                                                )}
+                                            >
+                                                {tab.count}
+                                            </span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 sm:p-4">
+                                <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                                    <div className="relative min-w-0 flex-1">
+                                        <Search
+                                            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-hint"
+                                            aria-hidden
+                                        />
+                                        <input
+                                            type="search"
+                                            value={query}
+                                            onChange={(event) => setQuery(event.target.value)}
+                                            placeholder="Search ID, customer, provider, service…"
+                                            className="h-10 w-full rounded-md border border-border bg-background py-2 pl-9 pr-3 text-sm text-text-primary placeholder:text-text-hint focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/30"
+                                        />
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <AdminFilterSelect
+                                            aria-label="Job status"
+                                            value={jobStatusFilter}
+                                            options={jobStatusOptions}
+                                            onChange={(value) => {
+                                                setJobStatusFilter(value);
+                                                if (value !== 'pending') setUnpaidOnly(false);
+                                            }}
+                                            className="min-w-44"
+                                        />
+                                        <AdminFilterSelect
+                                            aria-label="Payment method"
+                                            value={paymentMethodFilter}
+                                            options={PAYMENT_METHOD_OPTIONS}
+                                            onChange={setPaymentMethodFilter}
+                                            className="min-w-36"
+                                        />
+                                        <button
+                                            type="button"
+                                            aria-pressed={showArchived}
+                                            onClick={() => setShowArchived((value) => !value)}
+                                            className={cn(
+                                                'inline-flex h-9 items-center rounded-md border px-3 text-sm font-medium transition-colors duration-150',
+                                                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                                                showArchived
+                                                    ? 'border-primary/30 bg-secondary text-secondary-foreground'
+                                                    : 'border-border bg-background text-text-primary hover:bg-muted'
+                                            )}
+                                        >
+                                            Show archived
+                                        </button>
+                                        {filtersActive ? (
+                                            <button
+                                                type="button"
+                                                onClick={clearFilters}
+                                                className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-sm font-medium text-text-primary transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                            >
+                                                <X className="h-3.5 w-3.5" aria-hidden />
+                                                Clear
+                                            </button>
+                                        ) : null}
+                                    </div>
+                                </div>
+                                <p className="text-sm text-text-secondary">
+                                    <span className="font-semibold tabular-nums text-text-primary">
+                                        {filtered.length}
+                                    </span>
+                                    {' of '}
+                                    <span className="tabular-nums">{queueCounts.visible}</span>
+                                    {' bookings'}
+                                    {loading ? ' · updating…' : null}
+                                </p>
+                            </div>
+                        </section>
 
                         <BookingsTable
                             bookings={paginated}
@@ -686,14 +872,14 @@ const BookingsPage = () => {
                         bookingId={debugBookingId}
                         listRow={debugListRow}
                         onClose={() => setDebugBookingId(null)}
-                        onVerified={() => dispatch(fetchAllBookings())}
+                        onVerified={() => reloadBookings()}
                     />
                 )}
                 {canWriteBookings && (
                 <CreateBookingModal
                     open={createOpen}
                     onClose={() => setCreateOpen(false)}
-                    onCreated={() => dispatch(fetchAllBookings())}
+                    onCreated={() => reloadBookings()}
                 />
                 )}
             </AdminShell>

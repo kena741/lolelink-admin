@@ -50,7 +50,7 @@ export function Sheet({
     const slideFromRight = side === 'right';
 
     const sheet = (
-        <div className="fixed inset-0 z-[100]">
+        <div className="fixed inset-0 z-100">
             <div
                 className={cn(
                     'absolute inset-0 bg-black/40 transition-opacity duration-200',
@@ -110,12 +110,28 @@ export function SheetHeader({
     );
 }
 
-export function SheetTitle({ children }: { children: React.ReactNode }) {
-    return <h2 className="truncate text-lg font-bold text-gray-900">{children}</h2>;
+export function SheetTitle({
+    children,
+    className,
+}: {
+    children: React.ReactNode;
+    className?: string;
+}) {
+    return (
+        <h2 className={cn('text-lg font-semibold tracking-tight text-gray-900 text-wrap [overflow-wrap:anywhere]', className)}>
+            {children}
+        </h2>
+    );
 }
 
-export function SheetDescription({ children }: { children: React.ReactNode }) {
-    return <p className="mt-1 text-sm text-gray-500">{children}</p>;
+export function SheetDescription({
+    children,
+    className,
+}: {
+    children: React.ReactNode;
+    className?: string;
+}) {
+    return <div className={cn('mt-1 text-sm text-gray-500', className)}>{children}</div>;
 }
 
 export function SheetBody({

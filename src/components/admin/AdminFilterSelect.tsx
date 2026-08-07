@@ -47,12 +47,16 @@ export function AdminFilterSelect<T extends string>({
                 aria-label={ariaLabel}
                 aria-expanded={open}
                 aria-haspopup="listbox"
-                className="flex h-9 min-w-[10.5rem] items-center justify-between gap-2 rounded-lg border border-gray-200/80 bg-white px-3 text-sm text-gray-800 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200"
+                className={cn(
+                    'flex h-9 min-w-42 items-center justify-between gap-2 rounded-md border border-border bg-background px-3 text-sm text-text-primary shadow-sm transition-colors',
+                    'hover:border-border hover:bg-muted',
+                    'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+                )}
             >
                 <span className="truncate">{selected?.label ?? 'Select'}</span>
                 <ChevronDown
                     className={cn(
-                        'h-4 w-4 shrink-0 text-gray-400 transition-transform duration-150',
+                        'h-4 w-4 shrink-0 text-text-hint transition-transform duration-150',
                         open ? 'rotate-180' : ''
                     )}
                 />
@@ -61,7 +65,7 @@ export function AdminFilterSelect<T extends string>({
             {open ? (
                 <ul
                     role="listbox"
-                    className="absolute z-30 mt-1 max-h-56 min-w-full overflow-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+                    className="absolute z-30 mt-1 max-h-56 min-w-full overflow-auto rounded-md border border-border bg-card py-1 shadow-md"
                 >
                     {options.map((option) => {
                         const isSelected = option.value === value;
@@ -76,12 +80,14 @@ export function AdminFilterSelect<T extends string>({
                                     className={cn(
                                         'flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm transition-colors',
                                         isSelected
-                                            ? 'bg-indigo-50 font-medium text-indigo-900'
-                                            : 'text-gray-700 hover:bg-gray-50'
+                                            ? 'bg-secondary font-medium text-text-primary'
+                                            : 'text-text-secondary hover:bg-muted hover:text-text-primary'
                                     )}
                                 >
                                     <span className="truncate">{option.label}</span>
-                                    {isSelected ? <Check className="h-4 w-4 shrink-0 text-indigo-600" /> : null}
+                                    {isSelected ? (
+                                        <Check className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+                                    ) : null}
                                 </button>
                             </li>
                         );
