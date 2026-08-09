@@ -31,12 +31,14 @@ import {
     Activity,
     Smartphone,
     Table2,
+    X,
 } from 'lucide-react';
 import { getSupabase } from '@/lib/supabaseClient';
 import { SupabaseEnvSwitcher, SupabaseStagingBanner } from '@/components/SupabaseEnvSwitcher';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { canAccessAdminRoute, useAdminPermissions } from '@/hooks/use-admin-permissions';
+import { useAdminNav } from '@/lib/admin-nav-context';
 
 function navClass(active: boolean) {
     return active
@@ -95,6 +97,7 @@ const financeSubItems = [
 const Sidebar = () => {
     const pathname = usePathname();
     const { can } = useAdminPermissions();
+    const { open, setOpen } = useAdminNav();
     const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
     const isCategoryActive = pathname?.startsWith('/admin/categories') || pathname?.startsWith('/admin/subcategories');
@@ -157,8 +160,29 @@ const Sidebar = () => {
     };
 
     return (
-        <aside className="admin-shell fixed left-0 top-0 z-40 flex h-screen w-64 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
-            <div className="flex h-16 shrink-0 items-center gap-3 border-b border-sidebar-border px-5">
+        <>
+            {/* Mobile backdrop */}
+            <button
+                type="button"
+                aria-label="Close navigation"
+                className={cn(
+                    'fixed inset-0 z-40 bg-black/40 transition-opacity duration-200 lg:hidden',
+                    open ? 'opacity-100' : 'pointer-events-none opacity-0'
+                )}
+                onClick={() => setOpen(false)}
+                tabIndex={open ? 0 : -1}
+            />
+
+            <aside
+                id="admin-sidebar"
+                className={cn(
+                    'admin-shell fixed left-0 top-0 z-50 flex h-dvh w-64 max-w-[85vw] flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground',
+                    'transition-transform duration-200 ease-out will-change-transform motion-reduce:transition-none',
+                    'lg:translate-x-0',
+                    open ? 'translate-x-0' : '-translate-x-full'
+                )}
+            >
+            <div className="flex h-14 shrink-0 items-center gap-3 border-b border-sidebar-border px-4 sm:h-16 sm:px-5">
                 <Image
                     src="/logo.png"
                     alt="Zemen Service logo"
@@ -167,9 +191,17 @@ const Sidebar = () => {
                     className="h-8 w-8 rounded-lg object-contain"
                     priority
                 />
-                <span className="font-heading text-[15px] font-semibold tracking-normal text-sidebar-foreground">
+                <span className="min-w-0 flex-1 font-heading text-[15px] font-semibold tracking-normal text-sidebar-foreground">
                     Zemen Service
                 </span>
+                <button
+                    type="button"
+                    onClick={() => setOpen(false)}
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground lg:hidden"
+                    aria-label="Close navigation"
+                >
+                    <X className="h-5 w-5" />
+                </button>
             </div>
 
             <div className="flex-1 overflow-y-auto px-3 py-4">
@@ -531,6 +563,7 @@ const Sidebar = () => {
                 <p className="mt-2 text-center text-[11px] text-text-hint">© {new Date().getFullYear()} Zemen Service</p>
             </div>
         </aside>
+        </>
     );
 };
 

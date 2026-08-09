@@ -254,6 +254,7 @@
   }
 
   /* Admin content — neutral surfaces & text, separate from brand green theme */
+  main.admin-page-main,
   main.ml-64,
   aside.admin-shell {
     font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
@@ -269,6 +270,12 @@
     --sidebar-border: #2e3a40;
   }
 
+  main.admin-page-main h1,
+  main.admin-page-main h2,
+  main.admin-page-main h3,
+  main.admin-page-main h4,
+  main.admin-page-main h5,
+  main.admin-page-main h6,
   main.ml-64 h1,
   main.ml-64 h2,
   main.ml-64 h3,
@@ -284,6 +291,7 @@
     @apply font-heading tracking-normal;
   }
 
+  main.admin-page-main,
   main.ml-64 {
     --background: #f8fbfa;
     --foreground: var(--text-primary);
@@ -298,6 +306,7 @@
     color: var(--text-primary);
   }
 
+  .dark main.admin-page-main,
   .dark main.ml-64 {
     --background: #12181a;
     --foreground: var(--text-primary);

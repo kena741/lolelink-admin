@@ -456,13 +456,13 @@ export default function ProviderDetailPage() {
             
                 
                     {(selectedLoading || servicesLoading) && (
-                        <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">Loading...</div>
+                        <div className="mx-auto min-w-0 w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">Loading...</div>
                     )}
                     {error && (
-                        <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8 text-red-600">{error}</div>
+                        <div className="mx-auto min-w-0 w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8 text-red-600">{error}</div>
                     )}
                     {!selectedLoading && provider && (
-                        <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+                        <div className="mx-auto min-w-0 w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
                             <AdminPageHeader
                                 title={displayName}
                                 description={`${provider.email || '—'} · ${provider.phoneNumber || provider.phone || '—'} · ${provider.address || '—'}`}

@@ -3,7 +3,7 @@ import { Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export const adminPageMainClassName =
-    'ml-64 min-h-screen min-w-0 flex-1 overflow-x-hidden';
+    'admin-page-main min-h-screen min-w-0 w-full flex-1 overflow-x-hidden lg:ml-64';
 
 export const adminPageContentClassName = 'mx-auto min-w-0 w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8';
 

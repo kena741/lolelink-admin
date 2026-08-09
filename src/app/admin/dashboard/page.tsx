@@ -1239,23 +1239,23 @@ function DashboardContent() {
 		<>
 			
 				
-					<div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+					<div className="mx-auto min-w-0 w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
 						<AdminPageHeader
 							title="Admin Dashboard"
 							description="Real-time insights and analytics for your platform"
 							actions={
 								<Link
 									href="/admin/providers"
-									className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-text-secondary transition-colors hover:text-text-primary"
+									className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-text-secondary transition-colors hover:text-text-primary sm:gap-1.5 sm:text-sm"
 								>
-									Manage Providers
+									Providers
 									<ArrowUpRight className="h-4 w-4" />
 								</Link>
 							}
 						/>
 
-						<div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-							<div className="flex flex-wrap items-center gap-2">
+						<div className="mb-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+							<div className="flex max-w-full flex-wrap items-center gap-1.5 sm:gap-2">
 								{[
 									{ id: "today", label: "Today" },
 									{ id: "7d", label: "7D" },
@@ -1267,7 +1267,7 @@ function DashboardContent() {
 										onClick={() =>
 											setDashboardRange(range.id as DashboardRange)
 										}
-										className={`rounded-full px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+										className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:px-4 sm:py-2 sm:text-sm ${
 											dashboardRange === range.id
 												? "bg-primary text-primary-foreground"
 												: "border border-border bg-card text-text-primary hover:bg-muted"
@@ -1448,7 +1448,7 @@ function DashboardContent() {
 							/>
 						)}
 
-						<section className="mb-8 rounded-2xl border border-border bg-card p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+						<section className="mb-8 rounded-2xl border border-border bg-card p-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)] sm:p-6">
 							<div className="mb-5 flex flex-wrap items-center justify-between gap-3">
 								<div className="flex items-center gap-3">
 									<div className="rounded-xl bg-primary/15 p-2">
@@ -1478,9 +1478,9 @@ function DashboardContent() {
 						</section>
 
 						{canFinanceRead ? (
-						<section className="mb-8 rounded-2xl border border-border bg-card p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-							<div className="mb-5 flex items-center justify-between">
-								<div>
+						<section className="mb-8 rounded-2xl border border-border bg-card p-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)] sm:p-6">
+							<div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+								<div className="min-w-0">
 									<h2 className="admin-section-title">Payout Health</h2>
 									<p className="admin-section-desc">
 										Includes waiting confirmations and delivery issues in
@@ -1489,7 +1489,7 @@ function DashboardContent() {
 								</div>
 								<Link
 									href="/admin/finance/payout-request"
-									className="text-sm font-medium text-text-secondary underline-offset-4 hover:text-text-primary hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
+									className="shrink-0 text-sm font-medium text-text-secondary underline-offset-4 hover:text-text-primary hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
 								>
 									Open payout requests
 								</Link>
@@ -1582,13 +1582,13 @@ function DashboardContent() {
 						{/* Analytics Charts Section */}
 						{canFinanceRead ? (
 						<section className="mb-8">
-							<div className="rounded-2xl border border-border bg-card p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-								<div className="flex items-center justify-between mb-6">
-									<div className="flex items-center gap-3">
+							<div className="rounded-2xl border border-border bg-card p-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)] sm:p-6">
+								<div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+									<div className="flex min-w-0 items-center gap-3">
 										<div className="rounded-xl bg-primary/15 p-2">
 											<BarChart3 className="h-5 w-5 text-text-secondary" />
 										</div>
-										<div>
+										<div className="min-w-0">
 											<h2 className="admin-section-title">
 												{getPaymentChartTitle(dashboardRange)}
 											</h2>
@@ -1597,7 +1597,7 @@ function DashboardContent() {
 											</p>
 										</div>
 									</div>
-									<div className="flex items-center gap-2 rounded-full bg-muted px-3 py-1">
+									<div className="flex shrink-0 items-center gap-2 self-start rounded-full bg-muted px-3 py-1 sm:self-auto">
 										<Zap className="h-4 w-4 text-text-secondary" />
 										<span className="text-xs font-semibold text-text-secondary">
 											Live
@@ -1615,7 +1615,7 @@ function DashboardContent() {
 						</section>
 						) : null}
 						<section className="mb-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
-							<div className="lg:col-span-2 rounded-2xl border border-border bg-card p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+							<div className="lg:col-span-2 rounded-2xl border border-border bg-card p-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)] sm:p-6">
 								<div className="flex items-center gap-3 mb-6">
 									<div className="rounded-xl bg-primary/15 p-2">
 										<CheckCircle2 className="h-5 w-5 text-text-secondary" />
@@ -1631,7 +1631,7 @@ function DashboardContent() {
 								</div>
 							</div>
 
-							<div className="rounded-2xl border border-border bg-card p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+							<div className="rounded-2xl border border-border bg-card p-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)] sm:p-6">
 								<h3 className="admin-section-title mb-4 flex items-center gap-2">
 									<Zap className="h-5 w-5 text-text-secondary" />
 									Quick Actions
