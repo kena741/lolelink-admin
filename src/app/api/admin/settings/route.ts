@@ -57,6 +57,8 @@ interface BookingStatusOption {
 
 interface ConstantSettings {
     minimum_wallet_balance_to_keep?: string;
+    minimum_amount_withdraw?: string;
+    maximum_amount_withdraw?: string;
     provider_service_featured_request_fee_amount?: string;
     provider_activation_account_activation_fee_amount?: string;
     service_posting_tiers?: Array<{ total_price: number; max_services: number }>;

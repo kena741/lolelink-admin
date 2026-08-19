@@ -61,6 +61,8 @@ export interface ServicePostingTierConstant {
 
 export interface ConstantSettings {
     minimum_wallet_balance_to_keep?: string;
+    minimum_amount_withdraw?: string;
+    maximum_amount_withdraw?: string;
     provider_service_featured_request_fee_amount?: string;
     provider_activation_account_activation_fee_amount?: string;
     service_posting_tiers?: ServicePostingTierConstant[];
@@ -247,6 +249,8 @@ function parseServicePostingTiersConstant(data: unknown): ServicePostingTierCons
 function parseConstants(data: Record<string, unknown>): ConstantSettings {
     return {
         minimum_wallet_balance_to_keep: readString(data.minimum_wallet_balance_to_keep),
+        minimum_amount_withdraw: readString(data.minimum_amount_withdraw),
+        maximum_amount_withdraw: readString(data.maximum_amount_withdraw),
         provider_service_featured_request_fee_amount: readString(data.provider_service_featured_request_fee_amount),
         provider_activation_account_activation_fee_amount: readString(data.provider_activation_account_activation_fee_amount),
         service_posting_tiers: parseServicePostingTiersConstant(data.service_posting_tiers),
