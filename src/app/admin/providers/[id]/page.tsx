@@ -441,7 +441,7 @@ export default function ProviderDetailPage() {
             await dispatch(deleteServiceThunk(deleteId)).unwrap();
             await dispatch(fetchProviderServices(id));
         } catch (e) {
-            console.error('Delete failed', e);
+            console.error('Archive failed', e);
         } finally {
             setDeleteId(null);
         }
@@ -776,8 +776,8 @@ export default function ProviderDetailPage() {
                                                                                     size="icon"
                                                                                     variant="ghost"
                                                                                     className="h-9 w-9 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                                                                    aria-label="Delete service"
-                                                                                    title="Delete service"
+                                                                                    aria-label="Archive service"
+                                                                                    title="Archive service"
                                                                                     onClick={() => setDeleteId(s.id)}
                                                                                 >
                                                                                     <Trash2 className="h-4 w-4" />
@@ -1369,12 +1369,12 @@ export default function ProviderDetailPage() {
                             {/* Global Edit Service modal */}
                             <EditServiceModal />
 
-                            {/* Delete confirmation dialog */}
+                            {/* Archive confirmation dialog */}
                             <Dialog open={!!deleteId} onClose={() => setDeleteId(null)}>
                                 <DialogHeader>
-                                    <DialogTitle>Delete service?</DialogTitle>
+                                    <DialogTitle>Archive service?</DialogTitle>
                                     <DialogDescription>
-                                        This action cannot be undone. If there are existing bookings, the service will be archived instead of deleted.
+                                        The service will be hidden from lists but kept for booking history. This is not a permanent delete.
                                     </DialogDescription>
                                 </DialogHeader>
                                 {deleteError && (
@@ -1388,7 +1388,7 @@ export default function ProviderDetailPage() {
                                         onClick={confirmDelete}
                                         disabled={deleteLoading}
                                     >
-                                        {deleteLoading ? 'Deleting…' : 'Delete'}
+                                        {deleteLoading ? 'Archiving…' : 'Archive'}
                                     </Button>
                                 </DialogFooter>
                             </Dialog>

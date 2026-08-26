@@ -232,7 +232,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({
                         className={`${actionButtonClass} border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100`}
                     >
                         <Trash2 className="h-4 w-4" aria-hidden />
-                        Delete
+                        Archive
                     </button>
                 ) : null}
                 <button

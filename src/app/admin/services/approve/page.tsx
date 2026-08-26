@@ -72,7 +72,7 @@ export default function ApproveServicesPage() {
             await dispatch(deleteServiceThunk(deleteId)).unwrap();
             await dispatch(fetchServices());
         } catch (e) {
-            console.error('Delete pending service failed', e);
+            console.error('Archive pending service failed', e);
         } finally {
             setDeleteId(null);
         }
@@ -344,9 +344,9 @@ export default function ApproveServicesPage() {
                 {canWriteServices && (
                 <Dialog open={!!deleteId} onClose={() => setDeleteId(null)}>
                     <DialogHeader>
-                        <DialogTitle>Delete pending service?</DialogTitle>
+                        <DialogTitle>Archive pending service?</DialogTitle>
                         <DialogDescription>
-                            This removes the service from the pending queue. If it has bookings, it will be archived instead of permanently deleted.
+                            The service will be hidden from the queue and provider lists but kept for booking history.
                         </DialogDescription>
                     </DialogHeader>
                     {deleteError && (
@@ -362,7 +362,7 @@ export default function ApproveServicesPage() {
                             onClick={confirmDeletePendingService}
                             disabled={deleteLoading}
                         >
-                            {deleteLoading ? 'Deleting…' : 'Delete'}
+                            {deleteLoading ? 'Archiving…' : 'Archive'}
                         </Button>
                     </DialogFooter>
                 </Dialog>

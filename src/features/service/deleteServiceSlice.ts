@@ -14,79 +14,50 @@ const initialState: DeleteServiceState = {
     success: false,
 };
 
+/** Soft-archive only — never hard-delete (bookings/history keep service_id). */
 export const deleteService = createAsyncThunk<string, string, { rejectValue: string }>(
     'service/deleteService',
     async (serviceId, thunkAPI) => {
         try {
-            // 1. Check if the service exists
             const { data: found, error: fetchError } = await getSupabase()
                 .from('service')
-                .select('*')
+                .select('id, serviceName, isArchived')
                 .eq('id', serviceId)
                 .single();
 
             if (fetchError || !found) {
-                const msg = fetchError?.message || 'Service not found.';
-                return thunkAPI.rejectWithValue(msg);
+                return thunkAPI.rejectWithValue(fetchError?.message || 'Service not found.');
             }
 
-            // 2. Check for references in booked_service
-            const { data: bookings, error: bookingsError } = await getSupabase()
-                .from('booked_service')
-                .select('id')
-                .eq('service_id', serviceId);
-
-            if (bookingsError) {
-                return thunkAPI.rejectWithValue(bookingsError.message || 'Error checking bookings');
-            }
-
-            const isReferenced = Array.isArray(bookings) && bookings.length > 0;
-
-            if (isReferenced) {
-                const { error: softDeleteError } = await getSupabase()
-                    .from('service')
-                    .update({ isArchived: true })
-                    .eq('id', serviceId);
-
-                if (softDeleteError) {
-                    return thunkAPI.rejectWithValue(softDeleteError.message || 'Soft delete failed');
-                }
-
-                const serviceName = typeof found.serviceName === 'string' ? found.serviceName : serviceId;
-                const logged = await logClientAdminActivity({
-                    action: 'archive',
-                    resource_type: 'service',
-                    resource_id: serviceId,
-                    summary: `Archived service ${serviceName} (has bookings)`,
-                });
-                if (!logged) {
-                    return thunkAPI.rejectWithValue('Service archived, but failed to write admin activity log');
-                }
-
-                return serviceId;
-            } else {
-                const { error: deleteError } = await getSupabase()
-                    .from('service')
-                    .delete()
-                    .eq('id', serviceId);
-
-                if (deleteError) {
-                    return thunkAPI.rejectWithValue(deleteError.message || 'Delete failed');
-                }
-
-                const serviceName = typeof found.serviceName === 'string' ? found.serviceName : serviceId;
-                const logged = await logClientAdminActivity({
-                    action: 'delete',
-                    resource_type: 'service',
-                    resource_id: serviceId,
-                    summary: `Deleted service ${serviceName}`,
-                });
-                if (!logged) {
-                    return thunkAPI.rejectWithValue('Service deleted, but failed to write admin activity log');
-                }
-
+            if (found.isArchived === true) {
                 return serviceId;
             }
+
+            const { error: softDeleteError } = await getSupabase()
+                .from('service')
+                .update({
+                    isArchived: true,
+                    status: false,
+                    active: false,
+                })
+                .eq('id', serviceId);
+
+            if (softDeleteError) {
+                return thunkAPI.rejectWithValue(softDeleteError.message || 'Archive failed');
+            }
+
+            const serviceName = typeof found.serviceName === 'string' ? found.serviceName : serviceId;
+            const logged = await logClientAdminActivity({
+                action: 'archive',
+                resource_type: 'service',
+                resource_id: serviceId,
+                summary: `Archived service ${serviceName}`,
+            });
+            if (!logged) {
+                return thunkAPI.rejectWithValue('Service archived, but failed to write admin activity log');
+            }
+
+            return serviceId;
         } catch (error) {
             const msg = error instanceof Error ? error.message : 'Unexpected error';
             return thunkAPI.rejectWithValue(msg);
@@ -118,7 +89,7 @@ const deleteServiceSlice = createSlice({
             })
             .addCase(deleteService.rejected, (state, action) => {
                 state.loading = false;
-                state.error = (action.payload as string) || 'Failed to delete service';
+                state.error = (action.payload as string) || 'Failed to archive service';
                 state.success = false;
             });
     },

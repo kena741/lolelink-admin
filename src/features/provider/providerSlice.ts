@@ -235,14 +235,16 @@ export const fetchProviderServices = createAsyncThunk<
         let { data, error } = await getSupabase()
             .from("service")
             .select("*")
-            .eq("provider_id", providerId);
+            .eq("provider_id", providerId)
+            .neq("isArchived", true);
 
         if (error) {
             // Fallback to plural 'services'
             const fallback = await getSupabase()
                 .from("services")
                 .select("*")
-                .eq("provider_id", providerId);
+                .eq("provider_id", providerId)
+                .neq("isArchived", true);
             data = fallback.data;
             error = fallback.error;
         }
@@ -268,12 +270,14 @@ export const fetchServiceCountsByProvider = createAsyncThunk<
             let { data, error } = await getSupabase()
                 .from("service")
                 .select("provider_id")
+                .neq("isArchived", true)
                 .range(from, from + pageSize - 1);
 
             if (error) {
                 const fallback = await getSupabase()
                     .from("services")
                     .select("provider_id")
+                    .neq("isArchived", true)
                     .range(from, from + pageSize - 1);
                 data = fallback.data;
                 error = fallback.error;
