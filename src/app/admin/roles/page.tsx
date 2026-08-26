@@ -27,8 +27,9 @@ import {
 import { AdminTableShell } from '@/components/admin/data-table';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { createAdminRole, deleteAdminRole, fetchAdminRoles, updateAdminRole } from '@/features/admin/adminRoleSlice';
-import { groupPermissionsByCategory, PERMISSION_DEFINITIONS } from '@/lib/admin-permissions';
+import { groupPermissionsByCategory, PERMISSION_DEFINITIONS, ROLE_PERMISSION_DENYLIST } from '@/lib/admin-permissions';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
+import { useAdminSession } from '@/lib/admin-session';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -65,6 +66,7 @@ type SortDir = 'asc' | 'desc';
 function RolesPage() {
     const dispatch = useAppDispatch();
     const { canWriteRoles } = useAdminPermissions();
+    const { refresh: refreshSession } = useAdminSession();
     const { roles, loading, error } = useAppSelector((state) => state.adminRole);
     const [query, setQuery] = useState('');
     const [sortBy, setSortBy] = useState<SortKey>('name');
@@ -75,6 +77,11 @@ function RolesPage() {
     const [form, setForm] = useState<RoleFormState>(emptyForm);
     const [saving, setSaving] = useState(false);
     const [deletingId, setDeletingId] = useState<string | null>(null);
+
+    const deniedPermissions = useMemo(
+        () => new Set(ROLE_PERMISSION_DENYLIST[form.slug] ?? []),
+        [form.slug]
+    );
 
     const groupedPermissions = useMemo(
         () => groupPermissionsByCategory(PERMISSION_DEFINITIONS),
@@ -176,6 +183,7 @@ function RolesPage() {
     }
 
     function togglePermission(permission: string) {
+        if (deniedPermissions.has(permission)) return;
         setForm((current) => {
             if (permission === '*') {
                 return {
@@ -217,6 +225,7 @@ function RolesPage() {
                 })).unwrap();
             }
             await dispatch(fetchAdminRoles());
+            await refreshSession();
             closeModal();
         } catch (submitError) {
             const message = submitError instanceof Error ? submitError.message : 'Failed to save role';
@@ -514,11 +523,14 @@ function RolesPage() {
                             </div>
 
                             <div className="rounded-md border border-subtle bg-subtle/40 p-4">
-                                <label className="flex items-center gap-2 text-sm font-semibold text-primary">
+                                <label className={`flex items-center gap-2 text-sm font-semibold text-primary ${
+                                    deniedPermissions.size > 0 ? 'opacity-50' : ''
+                                }`}>
                                     <input
                                         type="checkbox"
                                         checked={form.permissions.includes('*')}
                                         onChange={() => togglePermission('*')}
+                                        disabled={deniedPermissions.size > 0}
                                         className="rounded border-subtle"
                                     />
                                     Full access (*)
@@ -534,12 +546,17 @@ function RolesPage() {
                                                 {permissions.map((permission) => (
                                                     <label
                                                         key={permission.key}
-                                                        className="flex items-center gap-2 rounded-md border border-subtle bg-base px-3 py-2 text-sm text-primary"
+                                                        className={`flex items-center gap-2 rounded-md border border-subtle bg-base px-3 py-2 text-sm text-primary ${
+                                                            deniedPermissions.has(permission.key)
+                                                                ? 'cursor-not-allowed opacity-50'
+                                                                : ''
+                                                        }`}
                                                     >
                                                         <input
                                                             type="checkbox"
                                                             checked={form.permissions.includes(permission.key)}
                                                             onChange={() => togglePermission(permission.key)}
+                                                            disabled={deniedPermissions.has(permission.key)}
                                                             className="rounded border-subtle"
                                                         />
                                                         {permission.label}

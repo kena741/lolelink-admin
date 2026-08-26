@@ -65,7 +65,7 @@ export const DEFAULT_ADMIN_ROLES = [
     {
         slug: 'support_admin',
         name: 'Support Admin',
-        description: 'Customer support with access to customers, bookings, providers, services, catalog/marketing, notifications, contact, settings, and finance view',
+        description: 'Customer support with access to customers, bookings, providers, services, catalog/marketing, notifications, contact, settings, and finance view (no document catalog)',
         permissions: [
             'customers:read', 'customers:write',
             'bookings:read', 'bookings:write',
@@ -103,6 +103,36 @@ export function permissionMatches(granted: string, required: string): boolean {
 
 export function hasPermission(permissions: string[], required: string): boolean {
     return permissions.some((granted) => permissionMatches(granted, required));
+}
+
+/** Hard denials for system roles — applied on save and when resolving grants. */
+export const ROLE_PERMISSION_DENYLIST: Record<string, readonly string[]> = {
+    viewer: ['services:write'],
+    support_admin: ['documents:read', 'documents:write'],
+};
+
+export function normalizePermissions(value: unknown): string[] {
+    if (Array.isArray(value)) {
+        return value.filter((item): item is string => typeof item === 'string' && item.length > 0);
+    }
+    if (typeof value === 'string' && value.trim()) {
+        try {
+            return normalizePermissions(JSON.parse(value) as unknown);
+        } catch {
+            return [];
+        }
+    }
+    return [];
+}
+
+export function applyRolePermissionPolicy(roleSlug: string, permissions: string[]): string[] {
+    const denied = new Set(ROLE_PERMISSION_DENYLIST[roleSlug] ?? []);
+    if (denied.size === 0) return [...permissions];
+    return permissions.filter((permission) => {
+        if (denied.has(permission)) return false;
+        if (permission === '*') return roleSlug !== 'viewer' && roleSlug !== 'support_admin';
+        return true;
+    });
 }
 
 export function groupPermissionsByCategory(permissions: PermissionDefinition[]): Record<string, PermissionDefinition[]> {

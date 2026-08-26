@@ -94,7 +94,7 @@ const adminRoleSlice = createSlice({
     extraReducers: (builder) => {
         builder
             .addCase(fetchAdminRoles.pending, (state) => {
-                state.loading = true;
+                if (state.roles.length === 0) state.loading = true;
                 state.error = null;
             })
             .addCase(fetchAdminRoles.fulfilled, (state, action) => {

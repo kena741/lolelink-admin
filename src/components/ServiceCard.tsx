@@ -136,6 +136,11 @@ const ServiceCard: React.FC<ServiceCardProps> = ({
                                 {service.featureRequestPaid ? "Paid" : "Unpaid"}
                             </span>
                         ) : null}
+                        {service.isArchived ? (
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+                                Archived
+                            </span>
+                        ) : null}
                     </div>
 
                     <h3 className="truncate text-base font-bold text-gray-900">{service.serviceName}</h3>
@@ -224,7 +229,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({
                         Remove featured
                     </button>
                 ) : null}
-                {onDelete ? (
+                {onDelete && !service.isArchived ? (
                     <button
                         type="button"
                         disabled={isActionLoading}

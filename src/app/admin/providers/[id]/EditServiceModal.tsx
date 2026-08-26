@@ -151,7 +151,7 @@ export default function EditServiceModal() {
         if (!success || !service) return;
         const pid = resolveProviderIdForUpload(params?.id, service);
         if (pid) {
-            void dispatch(fetchProviderServices(pid));
+            void dispatch(fetchProviderServices({ providerId: pid }));
         }
         void dispatch(fetchServices());
         dispatch(closeEditModal());

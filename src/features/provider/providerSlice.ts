@@ -97,6 +97,7 @@ export interface Service {
     billing_interval?: string | null;
     billing_interval_count?: number | null;
     duration?: string;
+    isArchived?: boolean;
 }
 
 const initialState: ProviderState = {
@@ -175,6 +176,7 @@ type ServiceRow = {
     billing_interval?: string | null;
     billing_interval_count?: number | null;
     duration?: string;
+    isArchived?: boolean;
 };
 
 const normalizeService = (rows: ServiceRow[] | null | undefined): Service[] =>
@@ -221,30 +223,32 @@ const normalizeService = (rows: ServiceRow[] | null | undefined): Service[] =>
             billing_interval: r.billing_interval,
             billing_interval_count: r.billing_interval_count,
             duration: r.duration,
+            isArchived: r.isArchived === true,
         };
     });
 
 export const fetchProviderServices = createAsyncThunk<
     Service[],
-    string,
+    { providerId: string; includeArchived?: boolean },
     { rejectValue: string }
 >(
     "provider/fetchProviderServices",
-    async (providerId, { rejectWithValue }) => {
-        // Try singular 'service' table first
-        let { data, error } = await getSupabase()
+    async ({ providerId, includeArchived = false }, { rejectWithValue }) => {
+        let query = getSupabase()
             .from("service")
             .select("*")
-            .eq("provider_id", providerId)
-            .neq("isArchived", true);
+            .eq("provider_id", providerId);
+        if (!includeArchived) query = query.neq("isArchived", true);
+
+        let { data, error } = await query;
 
         if (error) {
-            // Fallback to plural 'services'
-            const fallback = await getSupabase()
+            let fallbackQuery = getSupabase()
                 .from("services")
                 .select("*")
-                .eq("provider_id", providerId)
-                .neq("isArchived", true);
+                .eq("provider_id", providerId);
+            if (!includeArchived) fallbackQuery = fallbackQuery.neq("isArchived", true);
+            const fallback = await fallbackQuery;
             data = fallback.data;
             error = fallback.error;
         }
@@ -671,9 +675,9 @@ const providerSlice = createSlice({
                 state.error = (action.payload as string) || 'Failed to load provider';
             })
             .addCase(fetchProviderServices.pending, (state) => {
-                state.servicesLoading = true;
+                // Keep existing cards visible while refetching (e.g. show-archived toggle)
+                if (state.services.length === 0) state.servicesLoading = true;
                 state.servicesError = null;
-                state.services = [];
             })
             .addCase(fetchProviderServices.fulfilled, (state, action: PayloadAction<Service[]>) => {
                 state.servicesLoading = false;

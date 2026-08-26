@@ -5,7 +5,7 @@ import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminP
 import { RefreshCw } from 'lucide-react';
 import { fetchServices, approveFeatureRequestById, rejectFeatureRequestById, unfeatureServiceById } from '@/features/service/approveServicesSlice';
 import { deleteService as deleteServiceThunk } from '@/features/service/deleteServiceSlice';
-import { markAdminListFetched, shouldRefetchAdminList } from '@/lib/admin-list-cache';
+import { markAdminListFetched } from '@/lib/admin-list-cache';
 import type { RootState } from '@/store/store';
 import ServiceCard from '@/components/ServiceCard';
 import type { ServiceModel } from '@/features/service/editServiceSlice';
@@ -23,6 +23,7 @@ export default function ApproveServicesPage() {
 
     const [deleteId, setDeleteId] = useState<string | null>(null);
     const [query, setQuery] = useState('');
+    const [showArchivedServices, setShowArchivedServices] = useState(false);
     const [activeTab, setActiveTab] = useState<'services' | 'featured'>('services');
     const [servicesSubTab, setServicesSubTab] = useState<'pending' | 'approved'>('pending');
     const [featuredSubTab, setFeaturedSubTab] = useState<'pending' | 'existing'>('pending');
@@ -60,17 +61,18 @@ export default function ApproveServicesPage() {
     const featuredCount = featuredServices.length;
 
     useEffect(() => {
-        if (!shouldRefetchAdminList('approve-services', { hasRows: services.length > 0 })) return;
-        void dispatch(fetchServices()).then((action) => {
-            if (fetchServices.fulfilled.match(action)) markAdminListFetched('approve-services');
+        void dispatch(fetchServices({ includeArchived: showArchivedServices })).then((action) => {
+            if (fetchServices.fulfilled.match(action) && !showArchivedServices) {
+                markAdminListFetched('approve-services');
+            }
         });
-    }, [dispatch, services.length]);
+    }, [dispatch, showArchivedServices]);
 
     const confirmDeletePendingService = async () => {
         if (!deleteId) return;
         try {
             await dispatch(deleteServiceThunk(deleteId)).unwrap();
-            await dispatch(fetchServices());
+            await dispatch(fetchServices({ includeArchived: showArchivedServices }));
         } catch (e) {
             console.error('Archive pending service failed', e);
         } finally {
@@ -91,7 +93,7 @@ export default function ApproveServicesPage() {
                             actions={
                                 <button
                                     type="button"
-                                    onClick={() => dispatch(fetchServices())}
+                                    onClick={() => dispatch(fetchServices({ includeArchived: showArchivedServices }))}
                                     className={adminHeaderButtonClassName()}
                                 >
                                     <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
@@ -101,14 +103,25 @@ export default function ApproveServicesPage() {
                         />
                         {/* Search and Tabs */}
                         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                            <div className="w-full sm:w-96">
-                                <input 
-                                    aria-label="Search services" 
-                                    placeholder="Search by name, description, or id" 
-                                    value={query} 
-                                    onChange={(e) => setQuery(e.target.value)} 
-                                    className="w-full rounded-xl border border-white/20 bg-white/80 backdrop-blur-xl py-3 px-4 text-sm text-gray-900 placeholder:text-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200/50 shadow-lg transition-all"
-                                />
+                            <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+                                <div className="w-full sm:w-96">
+                                    <input
+                                        aria-label="Search services"
+                                        placeholder="Search by name, description, or id"
+                                        value={query}
+                                        onChange={(e) => setQuery(e.target.value)}
+                                        className="w-full rounded-xl border border-white/20 bg-white/80 backdrop-blur-xl py-3 px-4 text-sm text-gray-900 placeholder:text-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200/50 shadow-lg transition-all"
+                                    />
+                                </div>
+                                <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                                    <input
+                                        type="checkbox"
+                                        checked={showArchivedServices}
+                                        onChange={(e) => setShowArchivedServices(e.target.checked)}
+                                        className="h-4 w-4"
+                                    />
+                                    Show archived
+                                </label>
                             </div>
                             <div className="flex items-center gap-3 bg-white/80 backdrop-blur-xl rounded-xl p-1 border border-white/20 shadow-lg">
                                 <button
@@ -134,7 +147,7 @@ export default function ApproveServicesPage() {
                             </div>
                         </div>
 
-                        {loading && (
+                        {loading && services.length === 0 && (
                             <div className="p-8 text-center">
                                 <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent mx-auto mb-4" />
                                 <p className="text-gray-600">Loading services...</p>
@@ -146,6 +159,7 @@ export default function ApproveServicesPage() {
                             </div>
                         )}
 
+                    <div className={loading && services.length > 0 ? 'pointer-events-none opacity-60 transition-opacity duration-150' : undefined}>
                     {activeTab === 'services' && (
                         <div className="mb-6 flex flex-wrap items-center gap-3">
                             <button
@@ -261,7 +275,7 @@ export default function ApproveServicesPage() {
                                         const onApprove = async (serviceId: string) => {
                                             try {
                                                 await dispatch(approveFeatureRequestById(serviceId)).unwrap();
-                                                await dispatch(fetchServices());
+                                                await dispatch(fetchServices({ includeArchived: showArchivedServices }));
                                             } catch (e) {
                                                 console.error('Approve featured request failed', e);
                                             }
@@ -270,7 +284,7 @@ export default function ApproveServicesPage() {
                                         const onReject = async (serviceId: string) => {
                                             try {
                                                 await dispatch(rejectFeatureRequestById(serviceId)).unwrap();
-                                                await dispatch(fetchServices());
+                                                await dispatch(fetchServices({ includeArchived: showArchivedServices }));
                                             } catch (e) {
                                                 console.error('Reject featured request failed', e);
                                             }
@@ -309,7 +323,7 @@ export default function ApproveServicesPage() {
                                         const onRemoveFeatured = async (serviceId: string) => {
                                             try {
                                                 await dispatch(unfeatureServiceById(serviceId)).unwrap();
-                                                await dispatch(fetchServices());
+                                                await dispatch(fetchServices({ includeArchived: showArchivedServices }));
                                             } catch (e) {
                                                 console.error('Remove featured failed', e);
                                             }
@@ -338,7 +352,8 @@ export default function ApproveServicesPage() {
                             </div>
                         )}
                     </div>
-                
+                    </div>
+
                 <EditServiceModal />
 
                 {canWriteServices && (

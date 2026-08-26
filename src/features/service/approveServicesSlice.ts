@@ -48,16 +48,23 @@ function isFeaturedRequestPaymentNote(note: string): boolean {
     );
 }
 
-// Fetch services (non-archived)
-export const fetchServices = createAsyncThunk<unknown[], void, { rejectValue: string }>(
+// Fetch services (default: active + non-archived)
+export const fetchServices = createAsyncThunk<
+    unknown[],
+    { includeArchived?: boolean } | undefined,
+    { rejectValue: string }
+>(
     'service/fetchServices',
-    async (_, thunkAPI) => {
+    async (arg, thunkAPI) => {
         try {
-            const { data, error } = await getSupabase()
-                .from('service')
-                .select('*')
-                .eq('status', true)
-                .neq('isArchived', true);
+            const includeArchived = arg?.includeArchived === true;
+            // Archived rows are status=false; drop status filter when including them
+            let query = getSupabase().from('service').select('*');
+            if (!includeArchived) {
+                query = query.eq('status', true).neq('isArchived', true);
+            }
+
+            const { data, error } = await query;
 
             if (error) return thunkAPI.rejectWithValue(error.message || 'Failed to fetch services');
             const rows = (data || []) as Array<Record<string, unknown>>;

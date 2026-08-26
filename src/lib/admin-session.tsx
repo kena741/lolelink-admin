@@ -10,7 +10,7 @@ import React, {
     useState,
 } from 'react';
 import type { User } from '@supabase/supabase-js';
-import { DEFAULT_ADMIN_ROLES, hasPermission } from '@/lib/admin-permissions';
+import { hasPermission } from '@/lib/admin-permissions';
 import { getSupabase } from '@/lib/supabaseClient';
 
 export type AdminSessionStatus = 'loading' | 'ready' | 'unauthenticated' | 'forbidden';
@@ -26,22 +26,6 @@ export interface AdminSessionValue {
 }
 
 const AdminSessionContext = createContext<AdminSessionValue | null>(null);
-
-async function resolveRolePermissions(roleSlug: string): Promise<string[]> {
-    const { data: roleRow } = await getSupabase()
-        .from('admin_role')
-        .select('permissions')
-        .eq('slug', roleSlug)
-        .maybeSingle();
-
-    const permissions = (roleRow as { permissions?: string[] } | null)?.permissions;
-    if (Array.isArray(permissions) && permissions.length > 0) {
-        return [...permissions];
-    }
-
-    const defaultRole = DEFAULT_ADMIN_ROLES.find((role) => role.slug === roleSlug);
-    return defaultRole ? [...defaultRole.permissions] : [];
-}
 
 async function readUser(): Promise<User | null> {
     const { data: sess } = await getSupabase().auth.getSession();
@@ -74,30 +58,49 @@ export function AdminSessionProvider({ children }: { children: React.ReactNode }
                 return;
             }
 
-            const { data: adminRow, error: adminError } = await getSupabase()
-                .from('admin')
-                .select('id, role, is_active')
-                .eq('user_id', nextUser.id)
-                .maybeSingle();
-
+            // Resolve grants via service-role API so role edits apply immediately
+            // (client RLS on admin_role often falls back to code defaults).
+            const response = await fetch('/api/admin/me', { cache: 'no-store' });
             if (gen !== loadGen.current) return;
 
-            if (adminError || !adminRow || !adminRow.is_active) {
+            if (response.status === 401) {
                 setUser(nextUser);
                 setAdminId(null);
                 setRole(null);
                 setPermissions([]);
-                setStatus(adminError ? 'unauthenticated' : 'forbidden');
+                setStatus('unauthenticated');
                 return;
             }
 
-            const rolePermissions = await resolveRolePermissions(adminRow.role as string);
+            if (response.status === 403) {
+                setUser(nextUser);
+                setAdminId(null);
+                setRole(null);
+                setPermissions([]);
+                setStatus('forbidden');
+                return;
+            }
+
+            if (!response.ok) {
+                setUser(nextUser);
+                setAdminId(null);
+                setRole(null);
+                setPermissions([]);
+                setStatus('unauthenticated');
+                return;
+            }
+
+            const payload = (await response.json()) as {
+                data?: { adminId?: string; role?: string; permissions?: string[] };
+            };
             if (gen !== loadGen.current) return;
 
             setUser(nextUser);
-            setAdminId(adminRow.id as string);
-            setRole(adminRow.role as string);
-            setPermissions(rolePermissions);
+            setAdminId(typeof payload.data?.adminId === 'string' ? payload.data.adminId : null);
+            setRole(typeof payload.data?.role === 'string' ? payload.data.role : null);
+            setPermissions(
+                Array.isArray(payload.data?.permissions) ? [...payload.data.permissions] : []
+            );
             setStatus('ready');
         } catch {
             if (gen !== loadGen.current) return;

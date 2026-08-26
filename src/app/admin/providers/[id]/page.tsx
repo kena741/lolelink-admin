@@ -109,11 +109,11 @@ export default function ProviderDetailPage() {
     const [notifyMessage, setNotifyMessage] = useState<string | null>(null);
     const [notifyStatus, setNotifyStatus] = useState<ProviderNotifyStatus | null>(null);
     const [notifyStatusLoading, setNotifyStatusLoading] = useState(false);
+    const [showArchivedServices, setShowArchivedServices] = useState(false);
 
     useEffect(() => {
         if (!id) return;
         dispatch(fetchProviderById(id));
-        dispatch(fetchProviderServices(id));
         dispatch(fetchVerifyDocuments());
         dispatch(fetchPayoutRequests());
         dispatch(fetchHandymen());
@@ -125,6 +125,11 @@ export default function ProviderDetailPage() {
             dispatch(clearServices());
         };
     }, [dispatch, id]);
+
+    useEffect(() => {
+        if (!id) return;
+        void dispatch(fetchProviderServices({ providerId: id, includeArchived: showArchivedServices }));
+    }, [dispatch, id, showArchivedServices]);
 
     // Filter data for this provider
     const providerDocuments = documents.filter(doc => doc.providerId === id);
@@ -411,7 +416,7 @@ export default function ProviderDetailPage() {
 
         try {
             await dispatch(addService({ service, imageFiles: addImages, videoFile: addVideo })).unwrap();
-            await dispatch(fetchProviderServices(id));
+            await dispatch(fetchProviderServices({ providerId: id, includeArchived: showArchivedServices }));
             resetServiceForm();
             setAddImages([]);
             setAddVideo(undefined);
@@ -439,7 +444,7 @@ export default function ProviderDetailPage() {
         if (!deleteId || !id) return;
         try {
             await dispatch(deleteServiceThunk(deleteId)).unwrap();
-            await dispatch(fetchProviderServices(id));
+            await dispatch(fetchProviderServices({ providerId: id, includeArchived: showArchivedServices }));
         } catch (e) {
             console.error('Archive failed', e);
         } finally {
@@ -472,13 +477,16 @@ export default function ProviderDetailPage() {
         <>
             
                 
-                    {(selectedLoading || servicesLoading) && (
-                        <div className="mx-auto min-w-0 w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">Loading...</div>
+                    {selectedLoading && !provider && (
+                        <div className="mx-auto flex min-h-[40vh] min-w-0 w-full max-w-7xl items-center justify-center gap-2 px-4 py-6 text-sm text-muted-foreground sm:px-6 sm:py-8 lg:px-8">
+                            <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
+                            Loading provider…
+                        </div>
                     )}
                     {error && (
                         <div className="mx-auto min-w-0 w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8 text-red-600">{error}</div>
                     )}
-                    {!selectedLoading && provider && (
+                    {provider && (
                         <div className="mx-auto min-w-0 w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
                             <AdminPageHeader
                                 title={displayName}
@@ -658,11 +666,26 @@ export default function ProviderDetailPage() {
 
                                     {/* Services Tab */}
                                     {activeTab === 'services' && (
-                                    <section>
-                                        <div className="mb-4 flex items-center justify-between">
+                                    <section className={servicesLoading && services.length > 0 ? 'opacity-60 transition-opacity duration-150' : undefined}>
+                                        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                                             <div className="flex flex-wrap items-center gap-3">
                                                 <h2 className="text-2xl font-semibold tracking-tight text-foreground">Services</h2>
                                                 <ServiceTierBadge tierMax={provider.service_tier_max} />
+                                                {servicesLoading ? (
+                                                    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                                                        <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
+                                                        Updating…
+                                                    </span>
+                                                ) : null}
+                                                <label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={showArchivedServices}
+                                                        onChange={(e) => setShowArchivedServices(e.target.checked)}
+                                                        className="h-4 w-4"
+                                                    />
+                                                    Show archived
+                                                </label>
                                             </div>
                                             <div className="flex gap-2">
                                                 {canWriteServices ? (
@@ -673,7 +696,7 @@ export default function ProviderDetailPage() {
                                                                 try {
                                                                     const updated = await dispatch(approveServicesByProvider(id)).unwrap();
                                                                     if (updated > 0) {
-                                                                        await dispatch(fetchProviderServices(id));
+                                                                        await dispatch(fetchProviderServices({ providerId: id, includeArchived: showArchivedServices }));
                                                                     }
                                                                 } catch (e) {
                                                                     console.error('Approve services for provider failed', e);
@@ -757,6 +780,11 @@ export default function ProviderDetailPage() {
                                                                                     Recurring{s.billing_interval ? ` · ${billingIntervalLabel(s.billing_interval)}` : ''}
                                                                                 </span>
                                                                             ) : null}
+                                                                            {s.isArchived ? (
+                                                                                <span className="inline-flex items-center rounded-md bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                                                                                    Archived
+                                                                                </span>
+                                                                            ) : null}
                                                                         </div>
                                                                     </div>
                                                                     <div className="flex shrink-0 gap-1">
@@ -772,16 +800,18 @@ export default function ProviderDetailPage() {
                                                                                 >
                                                                                     <Pencil className="h-4 w-4" />
                                                                                 </Button>
-                                                                                <Button
-                                                                                    size="icon"
-                                                                                    variant="ghost"
-                                                                                    className="h-9 w-9 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                                                                    aria-label="Archive service"
-                                                                                    title="Archive service"
-                                                                                    onClick={() => setDeleteId(s.id)}
-                                                                                >
-                                                                                    <Trash2 className="h-4 w-4" />
-                                                                                </Button>
+                                                                                {!s.isArchived ? (
+                                                                                    <Button
+                                                                                        size="icon"
+                                                                                        variant="ghost"
+                                                                                        className="h-9 w-9 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                                                                        aria-label="Archive service"
+                                                                                        title="Archive service"
+                                                                                        onClick={() => setDeleteId(s.id)}
+                                                                                    >
+                                                                                        <Trash2 className="h-4 w-4" />
+                                                                                    </Button>
+                                                                                ) : null}
                                                                             </>
                                                                         ) : null}
                                                                     </div>

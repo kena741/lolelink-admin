@@ -1,5 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { DEFAULT_ADMIN_ROLES, hasPermission } from '@/lib/admin-permissions';
+import {
+    DEFAULT_ADMIN_ROLES,
+    applyRolePermissionPolicy,
+    hasPermission,
+    normalizePermissions,
+} from '@/lib/admin-permissions';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 import { createSupabaseServerClientFromRequest } from '@/lib/supabase-server';
 
@@ -29,13 +34,18 @@ async function resolveRolePermissions(
         .eq('slug', roleSlug)
         .maybeSingle();
 
-    const permissions = (roleRow as { permissions?: string[] } | null)?.permissions;
-    if (Array.isArray(permissions) && permissions.length > 0) {
-        return permissions;
+    const fromDb = normalizePermissions(
+        (roleRow as { permissions?: unknown } | null)?.permissions
+    );
+    if (fromDb.length > 0) {
+        return applyRolePermissionPolicy(roleSlug, fromDb);
     }
 
     const defaultRole = DEFAULT_ADMIN_ROLES.find((role) => role.slug === roleSlug);
-    return defaultRole ? [...defaultRole.permissions] : [];
+    return applyRolePermissionPolicy(
+        roleSlug,
+        defaultRole ? [...defaultRole.permissions] : []
+    );
 }
 
 async function resolveAdminAuthContext(request: Request): Promise<AdminAuthResult> {

@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 import { requireAdminPermission } from '@/lib/admin-auth';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
-import { DEFAULT_ADMIN_ROLES } from '@/lib/admin-permissions';
+import {
+    DEFAULT_ADMIN_ROLES,
+    ROLE_PERMISSION_DENYLIST,
+    applyRolePermissionPolicy,
+    normalizePermissions,
+} from '@/lib/admin-permissions';
 import { logAdminActivity } from '@/lib/admin-activity-log';
 import { buildChangeMetadata } from '@/lib/activity-log-changes';
 
@@ -30,16 +35,20 @@ function normalizeSlug(value: string): string {
     return value.trim().toLowerCase().replace(/\s+/g, '_');
 }
 
+function mapRoleRow(row: AdminRoleRow): AdminRoleRow {
+    const permissions = applyRolePermissionPolicy(row.slug, normalizePermissions(row.permissions));
+    return { ...row, permissions };
+}
+
 async function ensureDefaultRoles(supabaseAdmin: ReturnType<typeof getSupabaseAdminFromRequest>) {
     const { data: existing, error: listError } = await supabaseAdmin
         .from('admin_role')
-        .select('slug');
+        .select('id, slug, permissions');
 
     if (listError) throw listError;
 
-    const existingSlugs = new Set(
-        ((existing ?? []) as Array<{ slug: string }>).map((row) => row.slug)
-    );
+    const existingRows = (existing ?? []) as Array<{ id: string; slug: string; permissions: unknown }>;
+    const existingSlugs = new Set(existingRows.map((row) => row.slug));
 
     const rowsToInsert = DEFAULT_ADMIN_ROLES.filter((role) => !existingSlugs.has(role.slug)).map(
         (role) => ({
@@ -51,10 +60,24 @@ async function ensureDefaultRoles(supabaseAdmin: ReturnType<typeof getSupabaseAd
         })
     );
 
-    if (rowsToInsert.length === 0) return;
+    if (rowsToInsert.length > 0) {
+        const { error: seedError } = await supabaseAdmin.from('admin_role').insert(rowsToInsert);
+        if (seedError) throw seedError;
+    }
 
-    const { error: seedError } = await supabaseAdmin.from('admin_role').insert(rowsToInsert);
-    if (seedError) throw seedError;
+    // Strip hard-denied grants from seeded system roles (viewer / support_admin)
+    for (const row of existingRows) {
+        const denied = ROLE_PERMISSION_DENYLIST[row.slug];
+        if (!denied?.length) continue;
+        const current = normalizePermissions(row.permissions);
+        const next = applyRolePermissionPolicy(row.slug, current);
+        if (next.length === current.length && next.every((p, i) => p === current[i])) continue;
+        const { error: syncError } = await supabaseAdmin
+            .from('admin_role')
+            .update({ permissions: next, updated_at: new Date().toISOString() })
+            .eq('id', row.id);
+        if (syncError) throw syncError;
+    }
 }
 
 export async function GET(request: Request) {
@@ -71,7 +94,9 @@ export async function GET(request: Request) {
             .order('name', { ascending: true });
 
         if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-        return NextResponse.json({ data: (data as AdminRoleRow[]) ?? [] });
+        return NextResponse.json({
+            data: ((data as AdminRoleRow[]) ?? []).map(mapRoleRow),
+        });
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unexpected error';
         return NextResponse.json({ error: message }, { status: 500 });
@@ -88,7 +113,10 @@ export async function POST(request: Request) {
         const slug = normalizeSlug(body.slug ?? '');
         const name = (body.name ?? '').trim();
         const description = (body.description ?? '').trim() || null;
-        const permissions = Array.isArray(body.permissions) ? body.permissions : [];
+        const permissions = applyRolePermissionPolicy(
+            slug,
+            normalizePermissions(body.permissions)
+        );
 
         if (!slug) return NextResponse.json({ error: 'slug is required' }, { status: 400 });
         if (!name) return NextResponse.json({ error: 'name is required' }, { status: 400 });
@@ -109,7 +137,7 @@ export async function POST(request: Request) {
             .single();
 
         if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-        const row = data as AdminRoleRow;
+        const row = mapRoleRow(data as AdminRoleRow);
         await logAdminActivity({
             request,
             action: 'create',
@@ -151,9 +179,25 @@ export async function PATCH(request: Request) {
         if (typeof body.description === 'string') {
             updates.description = body.description.trim() || null;
         }
-        if (Array.isArray(body.permissions)) updates.permissions = body.permissions;
         if (typeof body.slug === 'string' && !existing.is_system) {
             updates.slug = normalizeSlug(body.slug);
+        }
+
+        const nextSlug =
+            typeof updates.slug === 'string' ? updates.slug : (existing.slug as string);
+
+        if (Array.isArray(body.permissions)) {
+            const sanitized = applyRolePermissionPolicy(
+                nextSlug,
+                normalizePermissions(body.permissions)
+            );
+            if (sanitized.length === 0) {
+                return NextResponse.json(
+                    { error: 'At least one permission is required' },
+                    { status: 400 }
+                );
+            }
+            updates.permissions = sanitized;
         }
 
         const { data, error } = await supabaseAdmin
@@ -164,7 +208,7 @@ export async function PATCH(request: Request) {
             .single();
 
         if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-        const row = data as AdminRoleRow;
+        const row = mapRoleRow(data as AdminRoleRow);
         await logAdminActivity({
             request,
             action: 'update',
