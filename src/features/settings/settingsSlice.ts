@@ -59,7 +59,16 @@ export interface ServicePostingTierConstant {
     max_services: number;
 }
 
-export type RecurringBillingCycle = 'WEEK' | 'MONTH' | 'QUARTER' | 'YEAR';
+export type RecurringBillingCycle = string;
+
+export const STANDARD_RECURRING_CYCLES = [
+    'MINUTE',
+    'HOUR',
+    'WEEK',
+    'MONTH',
+    'QUARTER',
+    'YEAR',
+] as const;
 
 export interface RecurringPaymentSettings {
     enabled: boolean;
@@ -261,7 +270,15 @@ function parseServicePostingTiersConstant(data: unknown): ServicePostingTierCons
     return tiers.length > 0 ? tiers : undefined;
 }
 
-const RECURRING_CYCLES: RecurringBillingCycle[] = ['WEEK', 'MONTH', 'QUARTER', 'YEAR'];
+const RECURRING_CYCLE_SLUG = /^[A-Z][A-Z0-9_]{0,31}$/;
+
+export function normalizeRecurringCycleSlug(raw: string): string {
+    return raw
+        .trim()
+        .toUpperCase()
+        .replace(/[\s-]+/g, '_')
+        .replace(/[^A-Z0-9_]/g, '');
+}
 
 function parseRecurringPaymentSettings(raw: unknown): RecurringPaymentSettings {
     const map = parseObjectValue(raw);
@@ -270,9 +287,9 @@ function parseRecurringPaymentSettings(raw: unknown): RecurringPaymentSettings {
     const cyclesRaw = map.available_cycles ?? map.availableCycles;
     if (Array.isArray(cyclesRaw)) {
         for (const item of cyclesRaw) {
-            const cycle = String(item ?? '').trim().toUpperCase();
-            if ((RECURRING_CYCLES as string[]).includes(cycle) && !cycles.includes(cycle as RecurringBillingCycle)) {
-                cycles.push(cycle as RecurringBillingCycle);
+            const cycle = normalizeRecurringCycleSlug(String(item ?? ''));
+            if (RECURRING_CYCLE_SLUG.test(cycle) && !cycles.includes(cycle)) {
+                cycles.push(cycle);
             }
         }
     }

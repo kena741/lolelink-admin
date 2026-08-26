@@ -2,6 +2,8 @@ import type { RecurringBillingCycle } from '@/features/settings/settingsSlice';
 import { DEFAULT_RECURRING_PAYMENT_SETTINGS } from '@/features/settings/settingsSlice';
 
 export const RECURRING_CYCLE_OPTIONS: Array<{ value: RecurringBillingCycle; label: string }> = [
+    { value: 'MINUTE', label: 'Every minute' },
+    { value: 'HOUR', label: 'Hourly' },
     { value: 'WEEK', label: 'Weekly' },
     { value: 'MONTH', label: 'Monthly' },
     { value: 'QUARTER', label: 'Quarterly' },
@@ -17,14 +19,21 @@ export function normalizeBillingInterval(
     available: RecurringBillingCycle[] = DEFAULT_RECURRING_PAYMENT_SETTINGS.available_cycles,
 ): RecurringBillingCycle {
     const cycle = (raw ?? '').trim().toUpperCase();
-    if ((available as string[]).includes(cycle)) return cycle as RecurringBillingCycle;
+    if (available.includes(cycle)) return cycle;
     if (available.includes('MONTH')) return 'MONTH';
     return available[0] ?? 'MONTH';
 }
 
 export function billingIntervalLabel(raw: string | null | undefined): string {
-    const cycle = normalizeBillingInterval(raw);
-    return RECURRING_CYCLE_OPTIONS.find((o) => o.value === cycle)?.label ?? cycle;
+    const cycle = (raw ?? '').trim().toUpperCase() || 'MONTH';
+    const known = RECURRING_CYCLE_OPTIONS.find((o) => o.value === cycle);
+    if (known) return known.label;
+    return cycle
+        .toLowerCase()
+        .split('_')
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ');
 }
 
 export function bookingServiceDetailsRecord(serviceDetails: unknown): Record<string, unknown> | null {

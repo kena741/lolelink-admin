@@ -33,8 +33,11 @@ import {
     ConstantSettings,
     LanguageSettings,
     DEFAULT_RECURRING_PAYMENT_SETTINGS,
+    STANDARD_RECURRING_CYCLES,
+    normalizeRecurringCycleSlug,
     type RecurringBillingCycle,
 } from '@/features/settings/settingsSlice';
+import { billingIntervalLabel } from '@/lib/recurring-payments';
 import { DEFAULT_CONTACT_US } from '@/features/settings/contactDefaults';
 import HTMLEditor from '@/components/RichTextEditor';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
@@ -43,21 +46,13 @@ import { DEFAULT_SERVICE_POSTING_TIERS } from '@/lib/service-posting-tiers';
 
 type TabType = 'app' | 'general' | 'policy' | 'contact' | 'commission' | 'status' | 'constants' | 'language' | 'country_tax';
 
-const ALL_RECURRING_CYCLES: RecurringBillingCycle[] = ['WEEK', 'MONTH', 'QUARTER', 'YEAR'];
-
-const RECURRING_CYCLE_LABELS: Record<RecurringBillingCycle, string> = {
-    WEEK: 'Weekly',
-    MONTH: 'Monthly',
-    QUARTER: 'Quarterly',
-    YEAR: 'Yearly',
-};
-
 const SettingsPage = () => {
     const dispatch = useAppDispatch();
     const { canWriteSettings } = useAdminPermissions();
     const { settings, loading, error } = useAppSelector((state) => state.settings);
     const [activeTab, setActiveTab] = useState<TabType>('app');
     const [saving, setSaving] = useState(false);
+    const [customCycleInput, setCustomCycleInput] = useState('');
     
     // Form states
     const [appSettings, setAppSettings] = useState<AppSettings>({});
@@ -868,8 +863,8 @@ const SettingsPage = () => {
                                                 <span className="mb-2 block text-sm font-medium text-gray-700">
                                                     Available billing cycles
                                                 </span>
-                                                <div className="flex flex-wrap gap-3">
-                                                    {ALL_RECURRING_CYCLES.map((cycle) => {
+                                                <div className="flex flex-wrap gap-x-4 gap-y-2">
+                                                    {STANDARD_RECURRING_CYCLES.map((cycle) => {
                                                         const selected = (
                                                             constants.recurring_payments?.available_cycles
                                                             ?? DEFAULT_RECURRING_PAYMENT_SETTINGS.available_cycles
@@ -897,19 +892,105 @@ const SettingsPage = () => {
                                                                                 ...constants.recurring_payments,
                                                                                 available_cycles: next.length > 0
                                                                                     ? next
-                                                                                    : [DEFAULT_RECURRING_PAYMENT_SETTINGS.available_cycles.includes('MONTH')
-                                                                                        ? 'MONTH'
-                                                                                        : ALL_RECURRING_CYCLES[0]],
+                                                                                    : ['MONTH'],
                                                                             },
                                                                         });
                                                                     }}
                                                                     className="h-4 w-4"
                                                                 />
-                                                                {RECURRING_CYCLE_LABELS[cycle]}
+                                                                {billingIntervalLabel(cycle)}
                                                             </label>
                                                         );
                                                     })}
                                                 </div>
+                                                <p className="mt-2 text-xs text-gray-500">
+                                                    Minute / hour are for testing short cycles. Mobile billing still needs to support them for period math.
+                                                </p>
+                                                {(() => {
+                                                    const current =
+                                                        constants.recurring_payments?.available_cycles
+                                                        ?? DEFAULT_RECURRING_PAYMENT_SETTINGS.available_cycles;
+                                                    const customCycles = current.filter(
+                                                        (cycle) =>
+                                                            !(STANDARD_RECURRING_CYCLES as readonly string[]).includes(cycle)
+                                                    );
+                                                    if (customCycles.length === 0 && !canWriteSettings) return null;
+                                                    return (
+                                                        <div className="mt-4 space-y-3">
+                                                            {customCycles.length > 0 ? (
+                                                                <div className="flex flex-wrap gap-2">
+                                                                    {customCycles.map((cycle) => (
+                                                                        <span
+                                                                            key={cycle}
+                                                                            className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-sm text-indigo-900"
+                                                                        >
+                                                                            {billingIntervalLabel(cycle)}
+                                                                            <span className="font-mono text-xs text-indigo-600">
+                                                                                {cycle}
+                                                                            </span>
+                                                                            {canWriteSettings ? (
+                                                                                <button
+                                                                                    type="button"
+                                                                                    aria-label={`Remove ${cycle}`}
+                                                                                    onClick={() => {
+                                                                                        const next = current.filter((c) => c !== cycle);
+                                                                                        setConstants({
+                                                                                            ...constants,
+                                                                                            recurring_payments: {
+                                                                                                ...DEFAULT_RECURRING_PAYMENT_SETTINGS,
+                                                                                                ...constants.recurring_payments,
+                                                                                                available_cycles:
+                                                                                                    next.length > 0 ? next : ['MONTH'],
+                                                                                            },
+                                                                                        });
+                                                                                    }}
+                                                                                    className="rounded-full p-0.5 text-indigo-700 hover:bg-indigo-100"
+                                                                                >
+                                                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                                                </button>
+                                                                            ) : null}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            ) : null}
+                                                            {canWriteSettings ? (
+                                                                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                                                                    <input
+                                                                        type="text"
+                                                                        value={customCycleInput}
+                                                                        onChange={(e) => setCustomCycleInput(e.target.value)}
+                                                                        placeholder="Other custom cycle e.g. BIWEEKLY"
+                                                                        className="w-full max-w-md rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                                                                    />
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            const slug = normalizeRecurringCycleSlug(customCycleInput);
+                                                                            if (!/^[A-Z][A-Z0-9_]{0,31}$/.test(slug)) return;
+                                                                            if (current.includes(slug)) {
+                                                                                setCustomCycleInput('');
+                                                                                return;
+                                                                            }
+                                                                            setConstants({
+                                                                                ...constants,
+                                                                                recurring_payments: {
+                                                                                    ...DEFAULT_RECURRING_PAYMENT_SETTINGS,
+                                                                                    ...constants.recurring_payments,
+                                                                                    available_cycles: [...current, slug],
+                                                                                },
+                                                                            });
+                                                                            setCustomCycleInput('');
+                                                                        }}
+                                                                        className="inline-flex h-10 items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-gray-800 hover:bg-gray-50"
+                                                                    >
+                                                                        <Plus className="h-4 w-4" />
+                                                                        Add custom
+                                                                    </button>
+                                                                </div>
+                                                            ) : null}
+                                                        </div>
+                                                    );
+                                                })()}
                                             </div>
                                             <div>
                                                 <label className="mb-2 block text-sm font-medium text-gray-700">

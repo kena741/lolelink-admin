@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Plus, Trash2, X } from 'lucide-react';
+import { Pencil, Plus, Trash2, X, ChevronDown } from 'lucide-react';
 import AdminPageHeader from '@/components/AdminPageHeader';
 import {
     AdminErrorAlert,
@@ -74,17 +74,30 @@ interface TrackerCellEditorProps {
     filled?: boolean;
 }
 
-function TrackerCellEditor({ column, value, onChange, filled = false, readOnly = false }: TrackerCellEditorProps & { readOnly?: boolean }) {
+function TrackerCellEditor({
+    column,
+    value,
+    onChange,
+    filled = false,
+    readOnly = false,
+    form = false,
+}: TrackerCellEditorProps & { readOnly?: boolean; form?: boolean }) {
     if (column.column_type === 'boolean') {
         const checked = value === true;
         return (
-            <label className={cn('flex h-9 items-center gap-2 px-2', readOnly ? 'cursor-default' : 'cursor-pointer')}>
+            <label
+                className={cn(
+                    'flex min-h-11 items-center gap-3 px-2',
+                    form && 'rounded-md border border-input bg-card px-3',
+                    readOnly ? 'cursor-default' : 'cursor-pointer'
+                )}
+            >
                 <input
                     type="checkbox"
                     checked={checked}
                     disabled={readOnly}
                     onChange={(event) => onChange(event.target.checked)}
-                    className="h-4 w-4 rounded border border-input accent-primary focus:ring-2 focus:ring-ring/40"
+                    className="h-5 w-5 rounded border border-input accent-primary focus:ring-2 focus:ring-ring/40"
                 />
                 <span className="text-sm text-muted-foreground">{checked ? 'Yes' : 'No'}</span>
             </label>
@@ -100,14 +113,19 @@ function TrackerCellEditor({ column, value, onChange, filled = false, readOnly =
                 readOnly={readOnly}
                 disabled={readOnly}
                 onChange={(event) => onChange(event.target.value || null)}
-                className="h-9 border-0 bg-transparent px-2 shadow-none focus-visible:ring-1"
+                className={cn(
+                    'h-11 shadow-none focus-visible:ring-1',
+                    form ? 'border border-input bg-card px-3' : 'border-0 bg-transparent px-2'
+                )}
             />
         );
     }
 
-    const textCellClassName = filled
-        ? 'h-9 min-w-0 w-full border-0 bg-muted px-2 shadow-none outline-none ring-0 focus:border-0 focus:bg-muted focus:outline-none focus:ring-0 focus-visible:border-0 focus-visible:ring-0'
-        : 'h-9 min-w-0 w-full border-0 bg-transparent px-2 shadow-none outline-none ring-0 focus:border-0 focus:outline-none focus:ring-0 focus-visible:border-0 focus-visible:ring-0';
+    const textCellClassName = form
+        ? 'min-h-11 min-w-0 w-full rounded-md border border-input bg-card px-3 shadow-none outline-none focus-visible:ring-2 focus-visible:ring-ring/40'
+        : filled
+          ? 'h-9 min-w-0 w-full border-0 bg-muted px-2 shadow-none outline-none ring-0 focus:border-0 focus:bg-muted focus:outline-none focus:ring-0 focus-visible:border-0 focus-visible:ring-0'
+          : 'h-9 min-w-0 w-full border-0 bg-transparent px-2 shadow-none outline-none ring-0 focus:border-0 focus:outline-none focus:ring-0 focus-visible:border-0 focus-visible:ring-0';
 
     const textValue = typeof value === 'string' ? value : '';
     if (column.key === 'note') {
@@ -116,8 +134,13 @@ function TrackerCellEditor({ column, value, onChange, filled = false, readOnly =
                 value={textValue}
                 readOnly={readOnly}
                 onChange={(event) => onChange(event.target.value)}
-                rows={2}
-                className={`min-h-9 min-w-0 w-full resize-y overflow-hidden rounded-none px-2 py-1.5 text-sm ${textCellClassName}`}
+                rows={form ? 3 : 2}
+                className={cn(
+                    'min-w-0 w-full resize-y overflow-hidden px-2 py-2 text-sm',
+                    form
+                        ? 'min-h-24 rounded-md border border-input bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40'
+                        : `min-h-9 rounded-none ${textCellClassName}`
+                )}
             />
         );
     }
@@ -129,6 +152,145 @@ function TrackerCellEditor({ column, value, onChange, filled = false, readOnly =
             onChange={(event) => onChange(event.target.value)}
             className={textCellClassName}
         />
+    );
+}
+
+interface MobileLeadCardsProps {
+    columns: MarketingTrackerColumn[];
+    rows: MarketingTrackerRow[];
+    titleKey: string | null;
+    canWrite: boolean;
+    onChange: (rowId: string, columnKey: string, value: MarketingTrackerCellValue) => void;
+    onDeleteRow: (rowId: string) => void;
+    onInsertBelow: (rowId: string) => void;
+}
+
+function MobileLeadCards({
+    columns,
+    rows,
+    titleKey,
+    canWrite,
+    onChange,
+    onDeleteRow,
+    onInsertBelow,
+}: MobileLeadCardsProps) {
+    const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
+
+    if (columns.length === 0) {
+        return (
+            <div className="rounded-xl border border-dashed border-border bg-card px-4 py-10 text-center text-sm text-muted-foreground md:hidden">
+                Empty sheet — add a column to start tracking leads.
+            </div>
+        );
+    }
+
+    const previewColumns = columns
+        .filter((column) => column.key !== titleKey)
+        .slice(0, 2);
+
+    return (
+        <div className="space-y-2 md:hidden">
+            {rows.map((row) => {
+                const isPhantom = isPhantomRowId(row.id);
+                const isExpanded = expandedRowId === row.id;
+                const title =
+                    (titleKey ? cellDisplayValue(row.values[titleKey]) : '') ||
+                    (isPhantom ? 'New lead' : 'Untitled lead');
+
+                return (
+                    <article
+                        key={row.id}
+                        className={cn(
+                            'overflow-hidden rounded-xl border border-border bg-card shadow-sm',
+                            isPhantom && 'border-dashed border-primary/40 bg-primary/5'
+                        )}
+                    >
+                        <div className="flex items-center gap-2 px-3 py-2.5">
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setExpandedRowId((current) => (current === row.id ? null : row.id))
+                                }
+                                className="min-w-0 flex-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                aria-expanded={isExpanded}
+                            >
+                                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                    {isPhantom ? 'Add lead' : 'Lead'}
+                                </p>
+                                <h3 className="truncate text-sm font-semibold text-foreground">{title}</h3>
+                                {!isExpanded && !isPhantom ? (
+                                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                                        {previewColumns
+                                            .map((column) => {
+                                                const value = cellDisplayValue(row.values[column.key]);
+                                                return value ? `${column.label}: ${value}` : null;
+                                            })
+                                            .filter(Boolean)
+                                            .join(' · ') || 'No other details yet'}
+                                    </p>
+                                ) : null}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setExpandedRowId((current) => (current === row.id ? null : row.id))
+                                }
+                                className="inline-flex h-9 shrink-0 items-center rounded-lg border border-indigo-200 bg-white px-3 text-xs font-semibold text-indigo-700 transition-colors hover:bg-indigo-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+                            >
+                                {isExpanded ? 'Hide' : 'View'}
+                            </button>
+                        </div>
+
+                        {isExpanded ? (
+                            <div className="space-y-3 border-t border-border/70 p-4">
+                                {!isPhantom && canWrite ? (
+                                    <div className="flex items-center justify-end gap-1">
+                                        <button
+                                            type="button"
+                                            aria-label="Insert row below"
+                                            onClick={() => onInsertBelow(row.id)}
+                                            className={cn(gridIconButtonClassName, 'h-10 w-10')}
+                                        >
+                                            <Plus className="h-4 w-4" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            aria-label="Delete row"
+                                            onClick={() => onDeleteRow(row.id)}
+                                            className={cn(
+                                                gridIconButtonClassName,
+                                                'h-10 w-10 hover:bg-destructive/10 hover:text-destructive'
+                                            )}
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                ) : null}
+                                {columns.map((column) => (
+                                    <div key={`${row.id}-${column.id}`} className="space-y-1.5">
+                                        <Label className="text-xs font-medium text-muted-foreground">
+                                            {column.label}
+                                        </Label>
+                                        <TrackerCellEditor
+                                            column={column}
+                                            value={row.values[column.key] ?? null}
+                                            onChange={(value) => onChange(row.id, column.key, value)}
+                                            form
+                                            readOnly={!canWrite}
+                                        />
+                                    </div>
+                                ))}
+                                {isPhantom ? (
+                                    <p className="text-xs text-muted-foreground">
+                                        Start typing in any field to create this lead.
+                                    </p>
+                                ) : null}
+                            </div>
+                        ) : null}
+                    </article>
+                );
+            })}
+        </div>
     );
 }
 
@@ -298,6 +460,8 @@ function SheetMetricsSection({
     sheetName,
     loading,
     analytics,
+    open,
+    onToggle,
     assigneePanelOpen,
     onAssigneePanelOpen,
     onAssigneePanelClose,
@@ -305,64 +469,92 @@ function SheetMetricsSection({
     sheetName: string | null;
     loading: boolean;
     analytics: ReturnType<typeof computeSheetAnalytics>;
+    open: boolean;
+    onToggle: () => void;
     assigneePanelOpen: boolean;
     onAssigneePanelOpen: () => void;
     onAssigneePanelClose: () => void;
 }) {
+    const title = sheetName ? `${sheetName} metrics` : 'Sheet metrics';
+
     return (
-        <section className="mb-6 space-y-4">
-            <p className="text-sm font-medium text-muted-foreground">
-                {sheetName ? `${sheetName} metrics` : 'Sheet metrics'}
-            </p>
-            <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:gap-4">
-                <AdminStatCard title="Total Leads" value={loading ? '…' : String(analytics.total)} />
-                <AdminStatCard
-                    title="Contacted"
-                    value={loading ? '…' : String(analytics.contacted)}
-                    valueClassName="text-primary"
+        <section className="mb-4 space-y-3 sm:mb-6 sm:space-y-4">
+            <button
+                type="button"
+                onClick={onToggle}
+                className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3 text-left md:hidden"
+                aria-expanded={open}
+            >
+                <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-foreground">{title}</span>
+                    <span className="block text-xs text-muted-foreground">
+                        {loading
+                            ? 'Loading…'
+                            : `${analytics.total} leads · ${analytics.contacted} contacted · ${analytics.onboarded} onboarded`}
+                    </span>
+                </span>
+                <ChevronDown
+                    className={cn(
+                        'h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-150',
+                        open && 'rotate-180'
+                    )}
+                    aria-hidden
                 />
-                <AdminStatCard
-                    title="Onboarded"
-                    value={loading ? '…' : String(analytics.onboarded)}
-                    valueClassName="text-emerald-600"
-                />
-                <AdminStatCard
-                    title="Pending Contact"
-                    value={loading ? '…' : String(analytics.pendingContact)}
-                    valueClassName="text-amber-600"
-                />
+            </button>
+
+            <p className="hidden text-sm font-medium text-muted-foreground md:block">{title}</p>
+
+            <div className={cn(!open && 'hidden', 'space-y-3 md:block md:space-y-4')}>
+                <div className="grid w-full min-w-0 grid-cols-2 gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4 lg:gap-4">
+                    <AdminStatCard title="Total Leads" value={loading ? '…' : String(analytics.total)} />
+                    <AdminStatCard
+                        title="Contacted"
+                        value={loading ? '…' : String(analytics.contacted)}
+                        valueClassName="text-primary"
+                    />
+                    <AdminStatCard
+                        title="Onboarded"
+                        value={loading ? '…' : String(analytics.onboarded)}
+                        valueClassName="text-emerald-600"
+                    />
+                    <AdminStatCard
+                        title="Pending Contact"
+                        value={loading ? '…' : String(analytics.pendingContact)}
+                        valueClassName="text-amber-600"
+                    />
+                </div>
+                <div className="grid w-full min-w-0 grid-cols-2 gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4 lg:gap-4">
+                    <AdminStatCard
+                        title="Contact Rate"
+                        value={loading ? '…' : `${analytics.contactRate}%`}
+                    />
+                    <AdminStatCard
+                        title="Onboard Rate"
+                        value={loading ? '…' : `${analytics.onboardRate}%`}
+                    />
+                    <AdminStatCard title="Trainers" value={loading ? '…' : String(analytics.trainers)} />
+                    <AdminStatCard
+                        title="Unassigned"
+                        value={loading ? '…' : String(analytics.unassigned)}
+                        valueClassName="text-muted-foreground"
+                    />
+                </div>
+                {assigneePanelOpen ? (
+                    <AssigneeBreakdownPanel
+                        assignees={analytics.assignees}
+                        loading={loading}
+                        onClose={onAssigneePanelClose}
+                    />
+                ) : !loading && analytics.assignees.length > 0 ? (
+                    <button
+                        type="button"
+                        onClick={onAssigneePanelOpen}
+                        className="inline-flex min-h-11 items-center text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                        Show assignee breakdown
+                    </button>
+                ) : null}
             </div>
-            <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:gap-4">
-                <AdminStatCard
-                    title="Contact Rate"
-                    value={loading ? '…' : `${analytics.contactRate}%`}
-                />
-                <AdminStatCard
-                    title="Onboard Rate"
-                    value={loading ? '…' : `${analytics.onboardRate}%`}
-                />
-                <AdminStatCard title="Trainers" value={loading ? '…' : String(analytics.trainers)} />
-                <AdminStatCard
-                    title="Unassigned"
-                    value={loading ? '…' : String(analytics.unassigned)}
-                    valueClassName="text-muted-foreground"
-                />
-            </div>
-            {assigneePanelOpen ? (
-                <AssigneeBreakdownPanel
-                    assignees={analytics.assignees}
-                    loading={loading}
-                    onClose={onAssigneePanelClose}
-                />
-            ) : !loading && analytics.assignees.length > 0 ? (
-                <button
-                    type="button"
-                    onClick={onAssigneePanelOpen}
-                    className="text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                    Show assignee breakdown
-                </button>
-            ) : null}
         </section>
     );
 }
@@ -384,7 +576,8 @@ export default function MarketingTrackerPage() {
     const [newColumnType, setNewColumnType] = useState<'text' | 'yes-no' | 'date'>('text');
     const [editingSheetId, setEditingSheetId] = useState<string | null>(null);
     const [editingSheetName, setEditingSheetName] = useState('');
-    const [assigneePanelOpen, setAssigneePanelOpen] = useState(true);
+    const [assigneePanelOpen, setAssigneePanelOpen] = useState(false);
+    const [metricsOpen, setMetricsOpen] = useState(false);
     const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmState | null>(null);
     const [deleteConfirmLoading, setDeleteConfirmLoading] = useState(false);
     const pendingFocusRowId = useRef<string | null>(null);
@@ -1108,7 +1301,7 @@ export default function MarketingTrackerPage() {
     return (
         <>
             <AdminShell wide>
-                <div className="pb-14">
+                <div className="pb-[calc(4.5rem+env(safe-area-inset-bottom))] sm:pb-14">
                 <AdminPageHeader
                     title="Marketing Tracker"
                     description="Spreadsheet-style outreach tracker for Zemen Service marketing leads."
@@ -1122,33 +1315,71 @@ export default function MarketingTrackerPage() {
                     sheetName={activeSheetName}
                     loading={metricsLoading}
                     analytics={analytics}
+                    open={metricsOpen}
+                    onToggle={() => setMetricsOpen((current) => !current)}
                     assigneePanelOpen={assigneePanelOpen}
                     onAssigneePanelOpen={() => setAssigneePanelOpen(true)}
                     onAssigneePanelClose={() => setAssigneePanelOpen(false)}
                 />
 
-                <div className="mb-4 max-w-md">
+                <div className="mb-4 w-full max-w-md sm:max-w-md">
                     <AdminSearchInput
                         value={query}
                         onChange={setQuery}
-                        placeholder="Search across all cells..."
+                        placeholder="Search leads…"
                     />
                 </div>
 
                 {error ? <AdminErrorAlert message={error} /> : null}
 
-                <div className="relative flex max-h-[calc(100vh-18rem)] min-h-90 flex-col overflow-hidden rounded-lg border border-border bg-card">
-                    {initialLoading ? (
-                        <div className="flex flex-1 items-center justify-center p-8">
-                            <AdminLoadingRow label="Loading marketing tracker..." />
+                {initialLoading ? (
+                    <div className="flex items-center justify-center rounded-xl border border-border bg-card p-8">
+                        <AdminLoadingRow label="Loading marketing tracker..." />
+                    </div>
+                ) : (
+                    <>
+                        {canWriteCatalog ? (
+                            <div className="mb-3 flex items-center gap-2 md:hidden">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="h-11 flex-1"
+                                    onClick={() => setAddColumnOpen(true)}
+                                >
+                                    <Plus className="mr-1.5 h-4 w-4" />
+                                    Column
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="h-11 flex-1"
+                                    onClick={() => setAddSheetOpen(true)}
+                                >
+                                    <Plus className="mr-1.5 h-4 w-4" />
+                                    Sheet
+                                </Button>
+                            </div>
+                        ) : null}
+
+                        <div className={cn(sheetLoading && 'pointer-events-none opacity-60')}>
+                            <MobileLeadCards
+                                columns={columns}
+                                rows={displayRows}
+                                titleKey={stickyColumnKey}
+                                canWrite={canWriteCatalog}
+                                onChange={scheduleSave}
+                                onDeleteRow={requestDeleteRow}
+                                onInsertBelow={insertRowAfter}
+                            />
                         </div>
-                    ) : (
-                        <div
-                            className={cn(
-                                'relative min-h-0 flex-1 overflow-x-auto overflow-y-auto',
-                                sheetLoading && 'pointer-events-none opacity-60'
-                            )}
-                        >
+
+                        <div className="relative hidden max-h-[calc(100vh-18rem)] min-h-90 flex-col overflow-hidden rounded-lg border border-border bg-card md:flex">
+                            <div
+                                className={cn(
+                                    'relative min-h-0 flex-1 overflow-x-auto overflow-y-auto overscroll-contain',
+                                    sheetLoading && 'pointer-events-none opacity-60'
+                                )}
+                            >
                             <table className="min-w-full table-fixed border-collapse text-sm">
                                 <colgroup>
                                     <col style={{ width: ROW_GUTTER_PX }} />
@@ -1234,7 +1465,7 @@ export default function MarketingTrackerPage() {
                                                                     onClick={() => insertRowAfter(row.id)}
                                                                     className={cn(
                                                                         gridIconButtonClassName,
-                                                                        'h-5 w-5 opacity-0 transition-opacity group-hover:opacity-100'
+                                                                        'h-5 w-5 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100'
                                                                     )}
                                                                 >
                                                                     <Plus className="h-3 w-3" />
@@ -1295,7 +1526,7 @@ export default function MarketingTrackerPage() {
                                                                 aria-label="Delete row"
                                                                 className={cn(
                                                                     gridIconButtonClassName,
-                                                                    'opacity-0 group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive'
+                                                                    'opacity-100 hover:bg-destructive/10 hover:text-destructive md:opacity-0 md:group-hover:opacity-100'
                                                                 )}
                                                             >
                                                                 <Trash2 className="h-4 w-4" />
@@ -1308,9 +1539,10 @@ export default function MarketingTrackerPage() {
                                     )}
                                 </tbody>
                             </table>
+                            </div>
                         </div>
-                    )}
-                </div>
+                    </>
+                )}
 
                 <Dialog open={addColumnOpen} onClose={() => setAddColumnOpen(false)}>
                     <DialogHeader className="mb-4 px-4 pt-4">
@@ -1403,8 +1635,8 @@ export default function MarketingTrackerPage() {
                 </Dialog>
                 </div>
 
-                <div className="fixed bottom-0 left-64 right-0 z-40 flex items-end gap-0 border-t border-border bg-muted px-2 pb-0 pt-1">
-                    <div className="flex min-w-0 flex-1 items-end gap-0.5 overflow-x-auto">
+                <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-muted/95 pb-[env(safe-area-inset-bottom)] pt-1 backdrop-blur-sm lg:left-64">
+                    <div className="flex min-w-0 items-end gap-1 overflow-x-auto px-2 [-webkit-overflow-scrolling:touch]">
                         {sheets.map((sheet) => {
                             const isActive = sheet.id === activeSheetId;
                             const isEditing = editingSheetId === sheet.id;
@@ -1412,7 +1644,8 @@ export default function MarketingTrackerPage() {
                                 <div
                                     key={sheet.id}
                                     className={cn(
-                                        'group relative flex max-w-55 shrink-0 items-center rounded-t-md border pr-8',
+                                        'group relative flex max-w-[11rem] shrink-0 items-center rounded-t-md border',
+                                        canWriteCatalog ? 'pr-16' : 'pr-2',
                                         isActive
                                             ? '-mb-px border-border border-b-card bg-card text-primary'
                                             : 'border-transparent text-muted-foreground hover:bg-muted'
@@ -1435,7 +1668,7 @@ export default function MarketingTrackerPage() {
                                                 }
                                             }}
                                             onClick={(event) => event.stopPropagation()}
-                                            className="h-7 min-w-0 flex-1 rounded-t-md border-0 bg-transparent px-3 text-xs font-medium text-primary outline-none ring-2 ring-ring/40"
+                                            className="h-10 min-w-0 flex-1 rounded-t-md border-0 bg-transparent px-3 text-sm font-medium text-primary outline-none ring-2 ring-ring/40"
                                         />
                                     ) : (
                                         <button
@@ -1445,12 +1678,28 @@ export default function MarketingTrackerPage() {
                                                 event.preventDefault();
                                                 startSheetRename(sheet.id, sheet.name);
                                             }}
-                                            className="min-w-0 flex-1 truncate px-4 py-1.5 text-left text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                            title="Double-click to rename"
+                                            className="min-h-10 min-w-0 flex-1 truncate px-3 py-2 text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                            title="Double-click or tap rename to edit"
                                         >
                                             {sheet.name}
                                         </button>
                                     )}
+                                    {canWriteCatalog && isActive && !isEditing ? (
+                                        <button
+                                            type="button"
+                                            aria-label={`Rename ${sheet.name}`}
+                                            onClick={(event) => {
+                                                event.stopPropagation();
+                                                startSheetRename(sheet.id, sheet.name);
+                                            }}
+                                            className={cn(
+                                                gridIconButtonClassName,
+                                                'absolute right-8 top-1/2 z-10 h-8 w-8 -translate-y-1/2'
+                                            )}
+                                        >
+                                            <Pencil className="h-3.5 w-3.5" />
+                                        </button>
+                                    ) : null}
                                     {canWriteCatalog && sheets.length > 1 ? (
                                         <button
                                             type="button"
@@ -1461,7 +1710,7 @@ export default function MarketingTrackerPage() {
                                             }}
                                             className={cn(
                                                 gridIconButtonClassName,
-                                                'absolute right-1 top-1/2 z-10 h-6 w-6 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:bg-destructive/10 hover:text-destructive'
+                                                'absolute right-1 top-1/2 z-10 h-8 w-8 -translate-y-1/2 opacity-100 transition-opacity hover:bg-destructive/10 hover:text-destructive md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100'
                                             )}
                                         >
                                             <Trash2 className="h-3.5 w-3.5" />
@@ -1474,10 +1723,10 @@ export default function MarketingTrackerPage() {
                         <button
                             type="button"
                             onClick={() => setAddSheetOpen(true)}
-                            className="mb-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            className="mb-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                             aria-label="Add sheet"
                         >
-                            <Plus className="h-3.5 w-3.5" />
+                            <Plus className="h-4 w-4" />
                         </button>
                         ) : null}
                     </div>

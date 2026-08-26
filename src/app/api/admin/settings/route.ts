@@ -57,7 +57,7 @@ interface BookingStatusOption {
 
 interface RecurringPaymentSettings {
     enabled: boolean;
-    available_cycles: Array<'WEEK' | 'MONTH' | 'QUARTER' | 'YEAR'>;
+    available_cycles: string[];
     payment_window_days: number;
 }
 
