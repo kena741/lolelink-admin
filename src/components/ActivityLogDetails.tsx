@@ -54,8 +54,8 @@ export function ActivityLogDetails({ metadata, resourceId, route, env }: Activit
                     </p>
                     {!hasBeforeValues ? (
                         <p className="mb-3 text-sm text-amber-800">
-                            This older log did not store the previous values, so the exact changed field cannot be confirmed.
-                            These are the values sent in the update request.
+                            This log only stored the values sent in the update request (no previous values), so the exact
+                            changed field cannot be confirmed.
                         </p>
                     ) : null}
                     <div className="overflow-x-auto rounded-lg border border-white/80 bg-white/90">

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAdminPermission } from '@/lib/admin-auth';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 import { logAdminActivity } from '@/lib/admin-activity-log';
-import { buildChangeMetadata } from '@/lib/activity-log-changes';
+import { buildChangeMetadata, buildFieldChanges, buildChangeOnlySummary } from '@/lib/activity-log-changes';
 
 export const runtime = 'nodejs';
 
@@ -82,12 +82,18 @@ export async function PUT(request: Request, context: { params: Promise<RoutePara
             || (data.userName as string | undefined)?.trim()
             || id;
 
+        const changes = buildFieldChanges(
+            existingProvider as Record<string, unknown>,
+            data as Record<string, unknown>,
+            Object.keys(updates)
+        );
+
         await logAdminActivity({
             request,
             action: 'update',
             resource_type: 'provider',
             resource_id: id,
-            summary: `Updated provider ${providerName}`,
+            summary: buildChangeOnlySummary(changes) || `Updated provider ${providerName}`,
             metadata: buildChangeMetadata(
                 existingProvider as Record<string, unknown>,
                 data as Record<string, unknown>,

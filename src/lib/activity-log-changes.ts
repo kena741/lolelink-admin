@@ -62,19 +62,63 @@ export function buildChangeMetadata(
     return { changes };
 }
 
+const METADATA_FIELD_LABELS: Record<string, string> = {
+    provider_name: 'Provider',
+    provider_email: 'Provider email',
+    provider_id: 'Provider ID',
+    withdrawal_id: 'Withdrawal ID',
+    amount: 'Amount',
+    amount_etb: 'Amount',
+    reference: 'Chapa reference',
+    tx_ref: 'Chapa reference',
+    verify_status: 'Verify status',
+    transfer_status: 'Transfer status',
+    source: 'Source',
+    wallet_deducted: 'Wallet deducted',
+    wallet_skipped_reason: 'Wallet skip reason',
+    admin_note: 'admin note',
+    firstName: 'first name',
+    lastName: 'last name',
+    phoneNumber: 'phone',
+    profileBio: 'bio',
+    companyName: 'company',
+    profileImage: 'profile image',
+    countryCode: 'country code',
+};
+
+function metadataFieldLabel(field: string): string {
+    return METADATA_FIELD_LABELS[field] ?? field.replace(/_/g, ' ');
+}
+
+export function getActivityMetadataFieldLabel(field: string): string {
+    return metadataFieldLabel(field);
+}
+
 export function summarizeChangedFields(changes: ActivityFieldChange[]): string {
     if (changes.length === 0) return '';
-    return changes.map((change) => change.label || change.field).join(', ');
+    return changes.map((change) => change.label || metadataFieldLabel(change.field)).join(', ');
+}
+
+/** Short change blurb for tables that already show action + resource name. */
+export function buildChangeOnlySummary(changes: ActivityFieldChange[]): string {
+    if (changes.length === 0) return '';
+
+    if (changes.length === 1) {
+        const change = changes[0];
+        const label = change.label || metadataFieldLabel(change.field);
+        const after = change.after;
+        if (typeof after === 'string' && after.trim().length > 0 && after.trim().length <= 80) {
+            return `${label}: ${after.trim()}`;
+        }
+        return `Updated ${label}`;
+    }
+
+    return `Updated ${summarizeChangedFields(changes)}`;
 }
 
 export function buildUpdateSummary(baseSummary: string, changes: ActivityFieldChange[]): string {
-    const fields = summarizeChangedFields(changes);
-    return fields ? `${baseSummary} (${fields})` : baseSummary;
-}
-
-function isLegacyFlatMetadata(metadata: Record<string, unknown>): boolean {
-    if (Array.isArray(metadata.changes) && metadata.changes.length > 0) return false;
-    return Object.keys(metadata).some((key) => !LEGACY_RESERVED_KEYS.has(key) && !IGNORE_FIELDS.has(key));
+    const changeOnly = buildChangeOnlySummary(changes);
+    return changeOnly || baseSummary;
 }
 
 const LEGACY_RESERVED_KEYS = new Set([
@@ -98,28 +142,9 @@ const LEGACY_RESERVED_KEYS = new Set([
     'wallet_skipped_reason',
 ]);
 
-const METADATA_FIELD_LABELS: Record<string, string> = {
-    provider_name: 'Provider',
-    provider_email: 'Provider email',
-    provider_id: 'Provider ID',
-    withdrawal_id: 'Withdrawal ID',
-    amount: 'Amount',
-    amount_etb: 'Amount',
-    reference: 'Chapa reference',
-    tx_ref: 'Chapa reference',
-    verify_status: 'Verify status',
-    transfer_status: 'Transfer status',
-    source: 'Source',
-    wallet_deducted: 'Wallet deducted',
-    wallet_skipped_reason: 'Wallet skip reason',
-};
-
-function metadataFieldLabel(field: string): string {
-    return METADATA_FIELD_LABELS[field] ?? field.replace(/_/g, ' ');
-}
-
-export function getActivityMetadataFieldLabel(field: string): string {
-    return metadataFieldLabel(field);
+function isLegacyFlatMetadata(metadata: Record<string, unknown>): boolean {
+    if (Array.isArray(metadata.changes) && metadata.changes.length > 0) return false;
+    return Object.keys(metadata).some((key) => !LEGACY_RESERVED_KEYS.has(key) && !IGNORE_FIELDS.has(key));
 }
 
 export interface ActivityDetailItem {
@@ -249,9 +274,8 @@ export function extractActivityDetails(metadata: Record<string, unknown> | null 
 }
 
 export function changeItemsHaveBeforeValues(items: ActivityDetailItem[]): boolean {
-    return items.some(
-        (item) => item.kind === 'change' && item.before !== undefined && item.before !== null && item.before !== ''
-    );
+    // null / '' are real previous values (show Before: —). Only missing `before` is legacy.
+    return items.some((item) => item.kind === 'change' && item.before !== undefined);
 }
 
 export function hasActivityDetails(metadata: Record<string, unknown> | null | undefined): boolean {

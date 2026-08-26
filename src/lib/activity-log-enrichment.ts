@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AdminActivityLog } from '../../type/activity-log';
+import { buildChangeOnlySummary, type ActivityFieldChange } from '@/lib/activity-log-changes';
 
 function formatPersonName(...parts: (string | null | undefined)[]): string {
     return parts
@@ -8,19 +9,24 @@ function formatPersonName(...parts: (string | null | undefined)[]): string {
         .trim();
 }
 
-function readNameFromRow(row: Record<string, unknown>): string {
-    const full = formatPersonName(
-        row.full_name as string | undefined,
-        row.firstName as string | undefined,
-        row.lastName as string | undefined,
-        row.first_name as string | undefined,
-        row.last_name as string | undefined,
-        row.name as string | undefined,
-        row.serviceName as string | undefined,
-        row.userName as string | undefined,
-        row.user_name as string | undefined
+/** Prefer first+last; never append userName on top (providers often store full name there). */
+export function resolveActivityResourceLabel(row: Record<string, unknown>): string {
+    const person =
+        formatPersonName(row.firstName as string | undefined, row.lastName as string | undefined) ||
+        formatPersonName(row.first_name as string | undefined, row.last_name as string | undefined);
+    if (person) return person;
+
+    return (
+        formatPersonName(row.full_name as string | undefined) ||
+        formatPersonName(row.name as string | undefined) ||
+        formatPersonName(row.serviceName as string | undefined) ||
+        formatPersonName(row.userName as string | undefined) ||
+        formatPersonName(row.user_name as string | undefined)
     );
-    return full;
+}
+
+function readNameFromRow(row: Record<string, unknown>): string {
+    return resolveActivityResourceLabel(row);
 }
 
 async function fetchNameMap(
@@ -178,14 +184,41 @@ function enrichPayoutMetadata(
 }
 
 function buildDisplaySummary(summary: string, resourceId: string | null, resourceName: string | null): string {
-    let result = summary;
+    // Resource column already shows the name — only swap UUIDs embedded in the summary.
     if (resourceId && resourceName && resourceId !== resourceName && summary.includes(resourceId)) {
-        result = summary.split(resourceId).join(resourceName);
+        return summary.split(resourceId).join(resourceName);
     }
-    if (resourceName && !result.includes(resourceName)) {
-        result = `${result} · ${resourceName}`;
-    }
-    return result;
+    return summary;
+}
+
+function changesFromMetadata(metadata: Record<string, unknown> | null | undefined): ActivityFieldChange[] {
+    if (!metadata || !Array.isArray(metadata.changes)) return [];
+    return metadata.changes.filter((entry): entry is ActivityFieldChange => {
+        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false;
+        return typeof (entry as ActivityFieldChange).field === 'string';
+    });
+}
+
+/** Prefer change-only text; Action + Resource columns already cover who/what entity. */
+export function clarifyActivitySummary(
+    summary: string,
+    metadata: Record<string, unknown> | null | undefined
+): string {
+    const changeOnly = buildChangeOnlySummary(changesFromMetadata(metadata));
+    return changeOnly || summary;
+}
+
+export function buildActivityDisplaySummary(
+    summary: string,
+    resourceId: string | null,
+    resourceName: string | null,
+    metadata?: Record<string, unknown> | null
+): string {
+    return buildDisplaySummary(
+        clarifyActivitySummary(summary, metadata),
+        resourceId,
+        resourceName
+    );
 }
 
 export async function enrichActivityLogs(
@@ -274,7 +307,12 @@ export async function enrichActivityLogs(
             ...log,
             admin_name: adminName,
             resource_name: resourceName,
-            display_summary: buildDisplaySummary(log.summary, log.resource_id, resourceName),
+            display_summary: buildActivityDisplaySummary(
+                log.summary,
+                log.resource_id,
+                resourceName,
+                log.metadata
+            ),
             metadata: enrichPayoutMetadata(log, resourceName),
         };
     });

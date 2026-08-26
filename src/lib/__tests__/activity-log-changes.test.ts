@@ -91,12 +91,19 @@ describe('buildChangeMetadata', () => {
 });
 
 describe('buildUpdateSummary', () => {
-    it('appends changed field names', () => {
+    it('uses change-only text when changes exist', () => {
+        const summary = buildUpdateSummary('Updated provider Nardos Ketsela', [
+            { field: 'admin_note', before: null, after: 'Interested' },
+        ]);
+        expect(summary).toBe('admin note: Interested');
+    });
+
+    it('lists fields for multiple changes', () => {
         const summary = buildUpdateSummary('Updated category', [
             { field: 'categoryName', before: 'A', after: 'B' },
             { field: 'active', before: true, after: false },
         ]);
-        expect(summary).toBe('Updated category (categoryName, active)');
+        expect(summary).toBe('Updated categoryName, active');
     });
 
     it('returns base summary when no changes', () => {
@@ -169,6 +176,27 @@ describe('changeItemsHaveBeforeValues', () => {
                 { kind: 'change', field: 'name', before: 'Old', after: 'New' },
             ])
         ).toBe(true);
+    });
+
+    it('returns true when before is null or empty string', () => {
+        expect(
+            changeItemsHaveBeforeValues([
+                { kind: 'change', field: 'admin_note', before: null, after: 'Interested' },
+            ])
+        ).toBe(true);
+        expect(
+            changeItemsHaveBeforeValues([
+                { kind: 'change', field: 'admin_note', before: '', after: 'Interested' },
+            ])
+        ).toBe(true);
+    });
+
+    it('returns false for after-only legacy change items', () => {
+        expect(
+            changeItemsHaveBeforeValues([
+                { kind: 'change', field: 'admin_note', after: 'Interested' },
+            ])
+        ).toBe(false);
     });
 
     it('returns false for legacy info-only items', () => {
