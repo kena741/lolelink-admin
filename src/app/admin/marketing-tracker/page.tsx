@@ -160,6 +160,7 @@ interface MobileLeadCardsProps {
     rows: MarketingTrackerRow[];
     titleKey: string | null;
     canWrite: boolean;
+    expandRowId?: string | null;
     onChange: (rowId: string, columnKey: string, value: MarketingTrackerCellValue) => void;
     onDeleteRow: (rowId: string) => void;
     onInsertBelow: (rowId: string) => void;
@@ -170,11 +171,16 @@ function MobileLeadCards({
     rows,
     titleKey,
     canWrite,
+    expandRowId = null,
     onChange,
     onDeleteRow,
     onInsertBelow,
 }: MobileLeadCardsProps) {
     const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (expandRowId) setExpandedRowId(expandRowId);
+    }, [expandRowId]);
 
     if (columns.length === 0) {
         return (
@@ -563,6 +569,7 @@ export default function MarketingTrackerPage() {
     const { canWriteCatalog } = useAdminPermissions();
     const [sheets, setSheets] = useState<MarketingTrackerSheet[]>([]);
     const [activeSheetId, setActiveSheetId] = useState<string | null>(null);
+    const [mobileExpandRowId, setMobileExpandRowId] = useState<string | null>(null);
     const [columns, setColumns] = useState<MarketingTrackerColumn[]>([]);
     const [rows, setRows] = useState<MarketingTrackerRow[]>([]);
     const [initialLoading, setInitialLoading] = useState(true);
@@ -858,6 +865,7 @@ export default function MarketingTrackerPage() {
                 if (phantomPromotedRowId.current === tempId) {
                     phantomPromotedRowId.current = savedRow.id;
                 }
+                setMobileExpandRowId((current) => (current === tempId ? savedRow.id : current));
                 return savedRow.id;
             })();
 
@@ -866,6 +874,7 @@ export default function MarketingTrackerPage() {
                 if (phantomPromotedRowId.current === tempId) {
                     phantomPromotedRowId.current = null;
                 }
+                setMobileExpandRowId((current) => (current === tempId ? null : current));
                 setRows((current) =>
                     current
                         .filter((row) => row.id !== tempId)
@@ -1344,6 +1353,21 @@ export default function MarketingTrackerPage() {
                                     type="button"
                                     variant="outline"
                                     className="h-11 flex-1"
+                                    disabled={columns.length === 0}
+                                    onClick={() => {
+                                        const newId = insertRowAfter(
+                                            filteredRows[filteredRows.length - 1]?.id ?? null
+                                        );
+                                        if (newId) setMobileExpandRowId(newId);
+                                    }}
+                                >
+                                    <Plus className="mr-1.5 h-4 w-4" />
+                                    Row
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="h-11 flex-1"
                                     onClick={() => setAddColumnOpen(true)}
                                 >
                                     <Plus className="mr-1.5 h-4 w-4" />
@@ -1367,6 +1391,7 @@ export default function MarketingTrackerPage() {
                                 rows={displayRows}
                                 titleKey={stickyColumnKey}
                                 canWrite={canWriteCatalog}
+                                expandRowId={mobileExpandRowId}
                                 onChange={scheduleSave}
                                 onDeleteRow={requestDeleteRow}
                                 onInsertBelow={insertRowAfter}
