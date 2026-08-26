@@ -16,6 +16,16 @@ import {
 } from "@/lib/service-discount";
 import { ProviderAddressPicker } from "@/components/ProviderAddressPicker";
 import type { ProviderAddressValue } from "@/lib/provider-location";
+import {
+    billingIntervalLabel,
+    isRecurringPricingType,
+    normalizeBillingInterval,
+} from "@/lib/recurring-payments";
+import {
+    DEFAULT_RECURRING_PAYMENT_SETTINGS,
+    fetchSettings,
+    type RecurringBillingCycle,
+} from "@/features/settings/settingsSlice";
 
 const UUID_RE =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -52,6 +62,9 @@ export default function EditServiceModal() {
     const { open, service, coverIdx, images, loading, error, success } = useAppSelector((s) => s.editService);
     const { categories } = useAppSelector((s) => s.category);
     const { subCategories } = useAppSelector((s) => s.subcategory);
+    const recurringSettings =
+        useAppSelector((s) => s.settings.settings?.constants?.recurring_payments)
+        ?? DEFAULT_RECURRING_PAYMENT_SETTINGS;
 
     const [form, setForm] = useState({
         serviceName: "",
@@ -68,6 +81,10 @@ export default function EditServiceModal() {
         address: "",
         latitude: null as number | null,
         longitude: null as number | null,
+        isRecurring: false,
+        billingInterval: "MONTH" as RecurringBillingCycle,
+        prePayment: false,
+        prePaymentPercent: "10",
     });
     const [mediaType, setMediaType] = useState<"images" | "video">("images");
     const [existingVideoUrl, setExistingVideoUrl] = useState<string | null>(null);
@@ -81,12 +98,14 @@ export default function EditServiceModal() {
         if (!open) return;
         dispatch(fetchCategories());
         dispatch(fetchSubCategories());
+        void dispatch(fetchSettings());
     }, [open, dispatch]);
 
     useEffect(() => {
         if (!service) return;
         const categoryModel = service.categoryModel as { id?: string } | undefined;
         const subCategoryModel = service.subCategoryModel as { id?: string } | undefined;
+        const recurring = isRecurringPricingType(service.pricing_type);
         setForm({
             serviceName: service.serviceName || "",
             type: service.type || "Fixed",
@@ -102,6 +121,15 @@ export default function EditServiceModal() {
             address: service.address || "",
             latitude: service.location?.latitude ?? null,
             longitude: service.location?.longitude ?? null,
+            isRecurring: recurring,
+            billingInterval: normalizeBillingInterval(
+                service.billing_interval,
+                recurringSettings.available_cycles,
+            ),
+            prePayment: recurring ? false : !!service.prePayment,
+            prePaymentPercent: service.prePaymentPercent != null
+                ? String(service.prePaymentPercent)
+                : "10",
         });
         if (service.video) {
             setMediaType("video");
@@ -306,6 +334,13 @@ export default function EditServiceModal() {
         const selectedCategory = categories.find((cat) => cat.id === form.categoryId);
         const selectedSubCategory = subCategories.find((sub) => sub.id === form.subCategoryId);
         const normalizedDuration = toMinutesString(form.duration);
+        const isRecurring = form.isRecurring && recurringSettings.enabled;
+        let prePaymentPercent: number | null = null;
+        if (!isRecurring) {
+            const parsed = Number.parseFloat(form.prePaymentPercent);
+            const percent = Number.isFinite(parsed) ? parsed : 10;
+            prePaymentPercent = Math.min(100, Math.max(10, percent));
+        }
         dispatch(updateService({
             id: service.id,
             serviceName: form.serviceName,
@@ -337,6 +372,11 @@ export default function EditServiceModal() {
                 categoryId: form.categoryId,
             },
             serviceImage: images,
+            pricing_type: isRecurring ? 'RECURRING' : 'ONE_TIME',
+            billing_interval: isRecurring ? form.billingInterval : null,
+            billing_interval_count: isRecurring ? 1 : null,
+            prePayment: isRecurring ? false : !!form.prePayment,
+            prePaymentPercent,
             videoFile: mediaType === 'video' ? (videoFile ?? undefined) : undefined,
             removeVideo: mediaType === 'video' ? (removeVideo ? true : undefined) : (existingVideoUrl ? true : undefined),
         }));
@@ -472,6 +512,88 @@ export default function EditServiceModal() {
                             Featured
                         </label>
                     </div>
+                    {recurringSettings.enabled ? (
+                        <div className="space-y-3 rounded-md border border-gray-200 bg-gray-50 p-4">
+                            <label className="flex items-center gap-2 text-sm font-medium text-gray-800">
+                                <input
+                                    type="checkbox"
+                                    checked={form.isRecurring}
+                                    onChange={(e) =>
+                                        setForm((f) => ({
+                                            ...f,
+                                            isRecurring: e.target.checked,
+                                            prePayment: e.target.checked ? false : f.prePayment,
+                                        }))
+                                    }
+                                    className="h-4 w-4"
+                                />
+                                Recurring payment
+                            </label>
+                            {form.isRecurring ? (
+                                <div>
+                                    <label className="text-sm font-medium" htmlFor="edit-billing-interval">
+                                        Billing cycle
+                                    </label>
+                                    <select
+                                        id="edit-billing-interval"
+                                        value={form.billingInterval}
+                                        onChange={(e) =>
+                                            setForm((f) => ({
+                                                ...f,
+                                                billingInterval: normalizeBillingInterval(
+                                                    e.target.value,
+                                                    recurringSettings.available_cycles,
+                                                ),
+                                            }))
+                                        }
+                                        className={selectClassName}
+                                    >
+                                        {(recurringSettings.available_cycles.length
+                                            ? recurringSettings.available_cycles
+                                            : DEFAULT_RECURRING_PAYMENT_SETTINGS.available_cycles
+                                        ).map((cycle) => (
+                                            <option key={cycle} value={cycle}>
+                                                {billingIntervalLabel(cycle)}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <p className="mt-1 text-xs text-gray-500">
+                                        Full amount each cycle. No 10% pre-payment.
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                    <label className="flex items-center gap-2 text-sm text-gray-700">
+                                        <input
+                                            type="checkbox"
+                                            checked={form.prePayment}
+                                            onChange={(e) =>
+                                                setForm((f) => ({ ...f, prePayment: e.target.checked }))
+                                            }
+                                            className="h-4 w-4"
+                                        />
+                                        Pre-payment
+                                    </label>
+                                    <div>
+                                        <label className="text-sm font-medium" htmlFor="edit-prepay-percent">
+                                            Pre-payment %
+                                        </label>
+                                        <input
+                                            id="edit-prepay-percent"
+                                            type="number"
+                                            min={10}
+                                            max={100}
+                                            value={form.prePaymentPercent}
+                                            onChange={(e) =>
+                                                setForm((f) => ({ ...f, prePaymentPercent: e.target.value }))
+                                            }
+                                            className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    ) : null}
                     <div>
                         <label className="text-sm font-medium">Service Location Mode</label>
                         <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-3">

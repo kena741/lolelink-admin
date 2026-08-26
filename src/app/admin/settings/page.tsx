@@ -32,6 +32,8 @@ import {
     BookingStatusOption,
     ConstantSettings,
     LanguageSettings,
+    DEFAULT_RECURRING_PAYMENT_SETTINGS,
+    type RecurringBillingCycle,
 } from '@/features/settings/settingsSlice';
 import { DEFAULT_CONTACT_US } from '@/features/settings/contactDefaults';
 import HTMLEditor from '@/components/RichTextEditor';
@@ -40,6 +42,15 @@ import { CountryTaxSettingsPanel } from '@/app/admin/settings/CountryTaxSettings
 import { DEFAULT_SERVICE_POSTING_TIERS } from '@/lib/service-posting-tiers';
 
 type TabType = 'app' | 'general' | 'policy' | 'contact' | 'commission' | 'status' | 'constants' | 'language' | 'country_tax';
+
+const ALL_RECURRING_CYCLES: RecurringBillingCycle[] = ['WEEK', 'MONTH', 'QUARTER', 'YEAR'];
+
+const RECURRING_CYCLE_LABELS: Record<RecurringBillingCycle, string> = {
+    WEEK: 'Weekly',
+    MONTH: 'Monthly',
+    QUARTER: 'Quarterly',
+    YEAR: 'Yearly',
+};
 
 const SettingsPage = () => {
     const dispatch = useAppDispatch();
@@ -86,6 +97,14 @@ const SettingsPage = () => {
                     settings.constants?.service_posting_tiers?.length
                         ? settings.constants.service_posting_tiers.map((tier) => ({ ...tier }))
                         : DEFAULT_SERVICE_POSTING_TIERS.map((tier) => ({ ...tier })),
+                recurring_payments: {
+                    ...DEFAULT_RECURRING_PAYMENT_SETTINGS,
+                    ...(settings.constants?.recurring_payments || {}),
+                    available_cycles:
+                        settings.constants?.recurring_payments?.available_cycles?.length
+                            ? [...settings.constants.recurring_payments.available_cycles]
+                            : [...DEFAULT_RECURRING_PAYMENT_SETTINGS.available_cycles],
+                },
             });
             setLanguageSettings(settings.languageSettings || []);
             setLanguageDeletedIds([]);
@@ -817,6 +836,111 @@ const SettingsPage = () => {
                                                     )}
                                                 </div>
                                             ))}
+                                        </div>
+                                    </div>
+                                    <div className="border-t border-gray-200 pt-6">
+                                        <h3 className="mb-1 text-base font-semibold text-gray-900">Recurring payments</h3>
+                                        <p className="mb-4 text-xs text-gray-500">
+                                            Read by provider and customer apps from{' '}
+                                            <code className="rounded bg-gray-100 px-1">constant.recurring_payments</code>.
+                                        </p>
+                                        <div className="space-y-4">
+                                            <label className="flex items-center gap-2 text-sm text-gray-800">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={constants.recurring_payments?.enabled ?? true}
+                                                    disabled={!canWriteSettings}
+                                                    onChange={(e) =>
+                                                        setConstants({
+                                                            ...constants,
+                                                            recurring_payments: {
+                                                                ...DEFAULT_RECURRING_PAYMENT_SETTINGS,
+                                                                ...constants.recurring_payments,
+                                                                enabled: e.target.checked,
+                                                            },
+                                                        })
+                                                    }
+                                                    className="h-4 w-4"
+                                                />
+                                                Enable recurring payments
+                                            </label>
+                                            <div>
+                                                <span className="mb-2 block text-sm font-medium text-gray-700">
+                                                    Available billing cycles
+                                                </span>
+                                                <div className="flex flex-wrap gap-3">
+                                                    {ALL_RECURRING_CYCLES.map((cycle) => {
+                                                        const selected = (
+                                                            constants.recurring_payments?.available_cycles
+                                                            ?? DEFAULT_RECURRING_PAYMENT_SETTINGS.available_cycles
+                                                        ).includes(cycle);
+                                                        return (
+                                                            <label
+                                                                key={cycle}
+                                                                className="flex items-center gap-2 text-sm text-gray-800"
+                                                            >
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={selected}
+                                                                    disabled={!canWriteSettings}
+                                                                    onChange={(e) => {
+                                                                        const current =
+                                                                            constants.recurring_payments?.available_cycles
+                                                                            ?? [...DEFAULT_RECURRING_PAYMENT_SETTINGS.available_cycles];
+                                                                        const next = e.target.checked
+                                                                            ? [...current.filter((c) => c !== cycle), cycle]
+                                                                            : current.filter((c) => c !== cycle);
+                                                                        setConstants({
+                                                                            ...constants,
+                                                                            recurring_payments: {
+                                                                                ...DEFAULT_RECURRING_PAYMENT_SETTINGS,
+                                                                                ...constants.recurring_payments,
+                                                                                available_cycles: next.length > 0
+                                                                                    ? next
+                                                                                    : [DEFAULT_RECURRING_PAYMENT_SETTINGS.available_cycles.includes('MONTH')
+                                                                                        ? 'MONTH'
+                                                                                        : ALL_RECURRING_CYCLES[0]],
+                                                                            },
+                                                                        });
+                                                                    }}
+                                                                    className="h-4 w-4"
+                                                                />
+                                                                {RECURRING_CYCLE_LABELS[cycle]}
+                                                            </label>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="mb-2 block text-sm font-medium text-gray-700">
+                                                    Payment window (days before due)
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    min={1}
+                                                    max={365}
+                                                    disabled={!canWriteSettings}
+                                                    value={
+                                                        constants.recurring_payments?.payment_window_days
+                                                        ?? DEFAULT_RECURRING_PAYMENT_SETTINGS.payment_window_days
+                                                    }
+                                                    onChange={(e) => {
+                                                        const parsed = Number.parseInt(e.target.value, 10);
+                                                        setConstants({
+                                                            ...constants,
+                                                            recurring_payments: {
+                                                                ...DEFAULT_RECURRING_PAYMENT_SETTINGS,
+                                                                ...constants.recurring_payments,
+                                                                payment_window_days:
+                                                                    Number.isFinite(parsed) && parsed > 0
+                                                                        ? parsed
+                                                                        : DEFAULT_RECURRING_PAYMENT_SETTINGS.payment_window_days,
+                                                            },
+                                                        });
+                                                    }}
+                                                    className="w-full max-w-xs rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:bg-gray-50"
+                                                />
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

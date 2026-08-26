@@ -30,17 +30,23 @@ export default function ApproveServicesPage() {
     const normalizedServices = useMemo(() => (services || []).map(s => s as ServiceModel), [services]);
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase();
-        if (!q) return normalizedServices;
-        return normalizedServices.filter(s => {
-            const name = (s.serviceName ?? '').toString().toLowerCase();
-            const desc = (s.description ?? '').toString().toLowerCase();
-            const providerName = (s.providerName ?? '').toString().toLowerCase();
-            return (
-                name.includes(q) ||
-                desc.includes(q) ||
-                providerName.includes(q) ||
-                (s.id ?? '').toString().toLowerCase().includes(q)
-            );
+        const list = !q
+            ? normalizedServices
+            : normalizedServices.filter(s => {
+                const name = (s.serviceName ?? '').toString().toLowerCase();
+                const desc = (s.description ?? '').toString().toLowerCase();
+                const providerName = (s.providerName ?? '').toString().toLowerCase();
+                return (
+                    name.includes(q) ||
+                    desc.includes(q) ||
+                    providerName.includes(q) ||
+                    (s.id ?? '').toString().toLowerCase().includes(q)
+                );
+            });
+        return [...list].sort((a, b) => {
+            const ar = (a.pricing_type ?? '').toString().toUpperCase() === 'RECURRING' ? 0 : 1;
+            const br = (b.pricing_type ?? '').toString().toUpperCase() === 'RECURRING' ? 0 : 1;
+            return ar - br;
         });
     }, [normalizedServices, query]);
 

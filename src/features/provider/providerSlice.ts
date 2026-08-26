@@ -92,6 +92,10 @@ export interface Service {
     feature?: boolean;
     type?: string;
     prePayment?: boolean;
+    prePaymentPercent?: number | null;
+    pricing_type?: string;
+    billing_interval?: string | null;
+    billing_interval_count?: number | null;
     duration?: string;
 }
 
@@ -166,6 +170,10 @@ type ServiceRow = {
     feature?: boolean;
     type?: string;
     prePayment?: boolean;
+    prePaymentPercent?: number | null;
+    pricing_type?: string;
+    billing_interval?: string | null;
+    billing_interval_count?: number | null;
     duration?: string;
 };
 
@@ -208,6 +216,10 @@ const normalizeService = (rows: ServiceRow[] | null | undefined): Service[] =>
             feature: r.feature,
             type: r.type,
             prePayment: r.prePayment,
+            prePaymentPercent: r.prePaymentPercent,
+            pricing_type: r.pricing_type,
+            billing_interval: r.billing_interval,
+            billing_interval_count: r.billing_interval_count,
             duration: r.duration,
         };
     });

@@ -61,6 +61,10 @@ export interface BookedService {
     reason?: string | null;
     is_archived?: boolean | null;
     archive_note?: string | null;
+    currentPeriodStart?: string | null;
+    currentPeriodEnd?: string | null;
+    nextCycleDue?: boolean | null;
+    nextCycleNotifiedAt?: string | null;
 }
 
 interface BookedServiceState {

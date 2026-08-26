@@ -36,6 +36,7 @@ import {
     AdminTableShell,
 } from '@/components/admin/data-table';
 import { cn } from '@/lib/utils';
+import { isRecurringBooking } from '@/lib/recurring-payments';
 
 function JobStatusBadge({ status }: { status?: string }) {
     return (
@@ -280,12 +281,26 @@ export function BookingsTable({
                                                     <Briefcase className="h-4 w-4 text-gray-400" aria-hidden />
                                                 </div>
                                             )}
-                                            <span
-                                                className="min-w-0 truncate text-sm font-medium text-gray-900"
-                                                title={serviceName}
-                                            >
-                                                {serviceName}
-                                            </span>
+                                            <div className="min-w-0">
+                                                <span
+                                                    className="block min-w-0 truncate text-sm font-medium text-gray-900"
+                                                    title={serviceName}
+                                                >
+                                                    {serviceName}
+                                                </span>
+                                                {isRecurringBooking(booking) ? (
+                                                    <span
+                                                        className={cn(
+                                                            'mt-0.5 inline-flex rounded px-1.5 py-0.5 text-[10px] font-semibold',
+                                                            booking.nextCycleDue === true
+                                                                ? 'bg-amber-100 text-amber-800'
+                                                                : 'bg-indigo-50 text-indigo-700'
+                                                        )}
+                                                    >
+                                                        {booking.nextCycleDue === true ? 'Cycle due' : 'Recurring'}
+                                                    </span>
+                                                ) : null}
+                                            </div>
                                         </div>
                                     </td>
                                     <td className="px-3 py-3 align-middle">

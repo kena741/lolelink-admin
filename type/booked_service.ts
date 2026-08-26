@@ -32,4 +32,8 @@ export interface BookedServiceSchema {
     | "admin_paid";
   description?: string;
   paymentCompleted?: boolean;
+  currentPeriodStart?: string | null;
+  currentPeriodEnd?: string | null;
+  nextCycleDue?: boolean | null;
+  nextCycleNotifiedAt?: string | null;
 }

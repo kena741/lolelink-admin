@@ -24,7 +24,12 @@ import { fetchCategories } from '@/features/category/categorySlice';
 import { fetchSubCategories } from '@/features/subcategory/subcategorySlice';
 import { Pencil, Trash2, FileText, DollarSign, Wrench, Clock, Briefcase, History, CreditCard, Megaphone, Wallet } from 'lucide-react';
 import { ActivationPaymentModal } from '@/components/ActivationPaymentModal';
-import { fetchSettings } from '@/features/settings/settingsSlice';
+import { fetchSettings, DEFAULT_RECURRING_PAYMENT_SETTINGS, type RecurringBillingCycle } from '@/features/settings/settingsSlice';
+import {
+    billingIntervalLabel,
+    isRecurringPricingType,
+    normalizeBillingInterval,
+} from '@/lib/recurring-payments';
 import { Button } from '@/components/ui/button';
 import type { RootState } from '@/store/store';
 import { Input } from '@/components/ui/input';
@@ -253,6 +258,9 @@ export default function ProviderDetailPage() {
         discount: '',
         duration: '',
         prePayment: false,
+        prePaymentPercent: '10',
+        isRecurring: false,
+        billingInterval: 'MONTH' as RecurringBillingCycle,
         feature: false,
         status: true,
         active: true,
@@ -263,9 +271,12 @@ export default function ProviderDetailPage() {
     const [addImages, setAddImages] = useState<File[]>([]);
     const [addVideo, setAddVideo] = useState<File | undefined>(undefined);
     // removed: local editVideo state (handled by EditServiceModal)
+    const recurringSettings =
+        useAppSelector((s) => s.settings.settings?.constants?.recurring_payments)
+        ?? DEFAULT_RECURRING_PAYMENT_SETTINGS;
 
     const resetServiceForm = () => setServiceForm({
-        name: '', description: '', imageUrl: '', price: '', address: '', categoryId: '', subCategoryId: '', discount: '', duration: '', prePayment: false, feature: false, status: true, active: true, type: '', serviceLocationMode: 'onsite'
+        name: '', description: '', imageUrl: '', price: '', address: '', categoryId: '', subCategoryId: '', discount: '', duration: '', prePayment: false, prePaymentPercent: '10', isRecurring: false, billingInterval: normalizeBillingInterval(undefined, recurringSettings.available_cycles), feature: false, status: true, active: true, type: '', serviceLocationMode: 'onsite'
     });
 
     const openAddService = () => {
@@ -375,7 +386,13 @@ export default function ProviderDetailPage() {
             video: undefined,
             createdAt: new Date(),
             duration: (serviceForm.duration ?? '').toString().trim() || undefined,
-            prePayment: !!serviceForm.prePayment,
+            prePayment: serviceForm.isRecurring ? false : !!serviceForm.prePayment,
+            prePaymentPercent: serviceForm.isRecurring
+                ? null
+                : Math.min(100, Math.max(10, Number.parseFloat(serviceForm.prePaymentPercent) || 10)),
+            pricing_type: serviceForm.isRecurring ? 'RECURRING' : 'ONE_TIME',
+            billing_interval: serviceForm.isRecurring ? serviceForm.billingInterval : null,
+            billing_interval_count: serviceForm.isRecurring ? 1 : null,
             likedUser: null,
             reviewCount: 0,
             reviewSum: 0,
@@ -679,7 +696,13 @@ export default function ProviderDetailPage() {
                                             </div>
                                         ) : (
                                             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                                                {services.map((s) => {
+                                                {[...services]
+                                                    .sort((a, b) => {
+                                                        const ar = isRecurringPricingType(a.pricing_type) ? 0 : 1;
+                                                        const br = isRecurringPricingType(b.pricing_type) ? 0 : 1;
+                                                        return ar - br;
+                                                    })
+                                                    .map((s) => {
                                                     const serviceTitle = s.serviceName || s.name || 'Service';
                                                     const primaryImage = s.images?.[0]
                                                         ?? (Array.isArray(s.serviceImage) ? s.serviceImage[0] : s.serviceImage ?? undefined)
@@ -687,6 +710,7 @@ export default function ProviderDetailPage() {
                                                         ?? s.image_url
                                                         ?? undefined;
                                                     const isActive = s.status !== false;
+                                                    const isRecurring = isRecurringPricingType(s.pricing_type);
 
                                                     return (
                                                         <div
@@ -726,6 +750,11 @@ export default function ProviderDetailPage() {
                                                                             {s.feature ? (
                                                                                 <span className="inline-flex items-center rounded-md bg-chart-4/15 px-2.5 py-1 text-xs font-semibold text-chart-4">
                                                                                     Featured
+                                                                                </span>
+                                                                            ) : null}
+                                                                            {isRecurring ? (
+                                                                                <span className="inline-flex items-center rounded-md bg-indigo-100 px-2.5 py-1 text-xs font-semibold text-indigo-800">
+                                                                                    Recurring{s.billing_interval ? ` · ${billingIntervalLabel(s.billing_interval)}` : ''}
                                                                                 </span>
                                                                             ) : null}
                                                                         </div>
@@ -1250,10 +1279,30 @@ export default function ProviderDetailPage() {
                                         </div>
                                     </div>
                                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                                        <label className="flex items-center gap-2 text-sm text-gray-700">
-                                            <input type="checkbox" name="prePayment" checked={serviceForm.prePayment} onChange={onServiceChange} className="h-4 w-4" />
-                                            Pre-payment
-                                        </label>
+                                        {recurringSettings.enabled ? (
+                                            <label className="flex items-center gap-2 text-sm text-gray-700">
+                                                <input
+                                                    type="checkbox"
+                                                    name="isRecurring"
+                                                    checked={serviceForm.isRecurring}
+                                                    onChange={(e) =>
+                                                        setServiceForm((f) => ({
+                                                            ...f,
+                                                            isRecurring: e.target.checked,
+                                                            prePayment: e.target.checked ? false : f.prePayment,
+                                                        }))
+                                                    }
+                                                    className="h-4 w-4"
+                                                />
+                                                Recurring
+                                            </label>
+                                        ) : null}
+                                        {!serviceForm.isRecurring ? (
+                                            <label className="flex items-center gap-2 text-sm text-gray-700">
+                                                <input type="checkbox" name="prePayment" checked={serviceForm.prePayment} onChange={onServiceChange} className="h-4 w-4" />
+                                                Pre-payment
+                                            </label>
+                                        ) : null}
                                         <label className="flex items-center gap-2 text-sm text-gray-700">
                                             <input type="checkbox" name="feature" checked={serviceForm.feature} onChange={onServiceChange} className="h-4 w-4" />
                                             Featured
@@ -1267,6 +1316,45 @@ export default function ProviderDetailPage() {
                                             Active
                                         </label>
                                     </div>
+                                    {serviceForm.isRecurring ? (
+                                        <div className="grid gap-1.5">
+                                            <Label htmlFor="svc-billing-interval">Billing cycle</Label>
+                                            <select
+                                                id="svc-billing-interval"
+                                                value={serviceForm.billingInterval}
+                                                onChange={(e) =>
+                                                    setServiceForm((f) => ({
+                                                        ...f,
+                                                        billingInterval: normalizeBillingInterval(
+                                                            e.target.value,
+                                                            recurringSettings.available_cycles,
+                                                        ),
+                                                    }))
+                                                }
+                                                className={selectClassName}
+                                            >
+                                                {recurringSettings.available_cycles.map((cycle) => (
+                                                    <option key={cycle} value={cycle}>
+                                                        {billingIntervalLabel(cycle)}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    ) : (
+                                        <div className="grid gap-1.5 max-w-xs">
+                                            <Label htmlFor="svc-prepay-percent">Pre-payment %</Label>
+                                            <Input
+                                                id="svc-prepay-percent"
+                                                type="number"
+                                                min={10}
+                                                max={100}
+                                                value={serviceForm.prePaymentPercent}
+                                                onChange={(e) =>
+                                                    setServiceForm((f) => ({ ...f, prePaymentPercent: e.target.value }))
+                                                }
+                                            />
+                                        </div>
+                                    )}
                                     {addError && <div className="text-sm text-red-600">{addError}</div>}
                                 </div>
                                 </div>

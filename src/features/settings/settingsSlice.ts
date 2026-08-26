@@ -59,6 +59,20 @@ export interface ServicePostingTierConstant {
     max_services: number;
 }
 
+export type RecurringBillingCycle = 'WEEK' | 'MONTH' | 'QUARTER' | 'YEAR';
+
+export interface RecurringPaymentSettings {
+    enabled: boolean;
+    available_cycles: RecurringBillingCycle[];
+    payment_window_days: number;
+}
+
+export const DEFAULT_RECURRING_PAYMENT_SETTINGS: RecurringPaymentSettings = {
+    enabled: true,
+    available_cycles: ['WEEK', 'MONTH', 'QUARTER', 'YEAR'],
+    payment_window_days: 3,
+};
+
 export interface ConstantSettings {
     minimum_wallet_balance_to_keep?: string;
     minimum_amount_withdraw?: string;
@@ -66,6 +80,7 @@ export interface ConstantSettings {
     provider_service_featured_request_fee_amount?: string;
     provider_activation_account_activation_fee_amount?: string;
     service_posting_tiers?: ServicePostingTierConstant[];
+    recurring_payments?: RecurringPaymentSettings;
 }
 
 export interface LanguageSetting {
@@ -246,7 +261,36 @@ function parseServicePostingTiersConstant(data: unknown): ServicePostingTierCons
     return tiers.length > 0 ? tiers : undefined;
 }
 
+const RECURRING_CYCLES: RecurringBillingCycle[] = ['WEEK', 'MONTH', 'QUARTER', 'YEAR'];
+
+function parseRecurringPaymentSettings(raw: unknown): RecurringPaymentSettings {
+    const map = parseObjectValue(raw);
+    const enabled = map.enabled !== false && map.enabled?.toString().toLowerCase() !== 'false';
+    const cycles: RecurringBillingCycle[] = [];
+    const cyclesRaw = map.available_cycles ?? map.availableCycles;
+    if (Array.isArray(cyclesRaw)) {
+        for (const item of cyclesRaw) {
+            const cycle = String(item ?? '').trim().toUpperCase();
+            if ((RECURRING_CYCLES as string[]).includes(cycle) && !cycles.includes(cycle as RecurringBillingCycle)) {
+                cycles.push(cycle as RecurringBillingCycle);
+            }
+        }
+    }
+    const windowRaw = map.payment_window_days ?? map.paymentWindowDays;
+    const windowParsed = typeof windowRaw === 'number'
+        ? windowRaw
+        : Number.parseInt(String(windowRaw ?? ''), 10);
+    return {
+        enabled,
+        available_cycles: cycles.length > 0 ? cycles : [...DEFAULT_RECURRING_PAYMENT_SETTINGS.available_cycles],
+        payment_window_days: Number.isFinite(windowParsed) && windowParsed > 0
+            ? Math.trunc(windowParsed)
+            : DEFAULT_RECURRING_PAYMENT_SETTINGS.payment_window_days,
+    };
+}
+
 function parseConstants(data: Record<string, unknown>): ConstantSettings {
+    const recurringRaw = data.recurring_payments ?? data.recurringPayments;
     return {
         minimum_wallet_balance_to_keep: readString(data.minimum_wallet_balance_to_keep),
         minimum_amount_withdraw: readString(data.minimum_amount_withdraw),
@@ -254,6 +298,9 @@ function parseConstants(data: Record<string, unknown>): ConstantSettings {
         provider_service_featured_request_fee_amount: readString(data.provider_service_featured_request_fee_amount),
         provider_activation_account_activation_fee_amount: readString(data.provider_activation_account_activation_fee_amount),
         service_posting_tiers: parseServicePostingTiersConstant(data.service_posting_tiers),
+        recurring_payments: recurringRaw !== undefined
+            ? parseRecurringPaymentSettings(recurringRaw)
+            : undefined,
     };
 }
 

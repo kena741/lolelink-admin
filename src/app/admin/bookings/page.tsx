@@ -32,7 +32,7 @@ interface ToastState {
     variant: 'success' | 'error' | 'warning';
 }
 
-type QueueFocus = 'all' | 'awaiting' | 'issues' | 'unpaid';
+type QueueFocus = 'all' | 'awaiting' | 'issues' | 'unpaid' | 'next_cycle';
 
 const JOB_STATUS_OPTIONS: Array<{ value: string; label: string }> = [
     { value: 'all', label: 'All job statuses' },
@@ -337,6 +337,7 @@ const BookingsPage = () => {
     const [paymentMethodFilter, setPaymentMethodFilter] = useState("all");
     const [flaggedOnly, setFlaggedOnly] = useState(false);
     const [unpaidOnly, setUnpaidOnly] = useState(false);
+    const [nextCycleDueOnly, setNextCycleDueOnly] = useState(false);
     const [showArchived, setShowArchived] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(20);
@@ -572,6 +573,7 @@ const BookingsPage = () => {
             if (paymentMethodFilter !== "all" && paymentMethod !== paymentMethodFilter) return false;
             if (flaggedOnly && getBookingAnomalies(bookingRecord).length === 0) return false;
             if (unpaidOnly && !isUnpaidBooking(b)) return false;
+            if (nextCycleDueOnly && b.nextCycleDue !== true) return false;
             if (!showArchived && b.is_archived === true) return false;
 
             if (!q) return true;
@@ -589,12 +591,13 @@ const BookingsPage = () => {
                 paymentMethod.includes(q)
             );
         });
-    }, [items, query, jobStatusFilter, paymentMethodFilter, flaggedOnly, unpaidOnly, showArchived]);
+    }, [items, query, jobStatusFilter, paymentMethodFilter, flaggedOnly, unpaidOnly, nextCycleDueOnly, showArchived]);
 
     const queueCounts = useMemo(() => {
         let awaiting = 0;
         let withIssues = 0;
         let unpaid = 0;
+        let nextCycleDue = 0;
 
         for (const booking of items) {
             if (!showArchived && booking.is_archived === true) continue;
@@ -603,18 +606,26 @@ const BookingsPage = () => {
                 withIssues += 1;
             }
             if (isUnpaidBooking(booking)) unpaid += 1;
+            if (booking.nextCycleDue === true) nextCycleDue += 1;
         }
 
-        return { awaiting, withIssues, unpaid, visible: items.filter((b) => showArchived || b.is_archived !== true).length };
+        return {
+            awaiting,
+            withIssues,
+            unpaid,
+            nextCycleDue,
+            visible: items.filter((b) => showArchived || b.is_archived !== true).length,
+        };
     }, [items, showArchived]);
 
     const queueFocus: QueueFocus = useMemo(() => {
-        if (flaggedOnly && jobStatusFilter === 'all' && !unpaidOnly) return 'issues';
-        if (unpaidOnly && jobStatusFilter === 'all' && !flaggedOnly) return 'unpaid';
-        if (jobStatusFilter === 'pending' && !flaggedOnly && !unpaidOnly) return 'awaiting';
-        if (!flaggedOnly && !unpaidOnly && jobStatusFilter === 'all') return 'all';
+        if (nextCycleDueOnly && jobStatusFilter === 'all' && !flaggedOnly && !unpaidOnly) return 'next_cycle';
+        if (flaggedOnly && jobStatusFilter === 'all' && !unpaidOnly && !nextCycleDueOnly) return 'issues';
+        if (unpaidOnly && jobStatusFilter === 'all' && !flaggedOnly && !nextCycleDueOnly) return 'unpaid';
+        if (jobStatusFilter === 'pending' && !flaggedOnly && !unpaidOnly && !nextCycleDueOnly) return 'awaiting';
+        if (!flaggedOnly && !unpaidOnly && !nextCycleDueOnly && jobStatusFilter === 'all') return 'all';
         return 'all';
-    }, [flaggedOnly, unpaidOnly, jobStatusFilter]);
+    }, [flaggedOnly, unpaidOnly, nextCycleDueOnly, jobStatusFilter]);
 
     const filtersActive =
         query.trim().length > 0 ||
@@ -622,6 +633,7 @@ const BookingsPage = () => {
         paymentMethodFilter !== 'all' ||
         flaggedOnly ||
         unpaidOnly ||
+        nextCycleDueOnly ||
         showArchived;
 
     function clearFilters() {
@@ -630,6 +642,7 @@ const BookingsPage = () => {
         setPaymentMethodFilter('all');
         setFlaggedOnly(false);
         setUnpaidOnly(false);
+        setNextCycleDueOnly(false);
         setShowArchived(false);
     }
 
@@ -638,28 +651,39 @@ const BookingsPage = () => {
             setJobStatusFilter('all');
             setFlaggedOnly(false);
             setUnpaidOnly(false);
+            setNextCycleDueOnly(false);
             return;
         }
         if (focus === 'awaiting') {
             setJobStatusFilter('pending');
             setFlaggedOnly(false);
             setUnpaidOnly(false);
+            setNextCycleDueOnly(false);
             return;
         }
         if (focus === 'issues') {
             setJobStatusFilter('all');
             setFlaggedOnly(true);
             setUnpaidOnly(false);
+            setNextCycleDueOnly(false);
+            return;
+        }
+        if (focus === 'next_cycle') {
+            setJobStatusFilter('all');
+            setFlaggedOnly(false);
+            setUnpaidOnly(false);
+            setNextCycleDueOnly(true);
             return;
         }
         setJobStatusFilter('all');
         setFlaggedOnly(false);
         setUnpaidOnly(true);
+        setNextCycleDueOnly(false);
     }
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [query, jobStatusFilter, paymentMethodFilter, flaggedOnly, unpaidOnly, showArchived, pageSize]);
+    }, [query, jobStatusFilter, paymentMethodFilter, flaggedOnly, unpaidOnly, nextCycleDueOnly, showArchived, pageSize]);
 
     const jobStatusOptions = useMemo(() => {
         if (
@@ -753,6 +777,11 @@ const BookingsPage = () => {
                                             id: 'unpaid' as const,
                                             label: 'Unpaid',
                                             count: queueCounts.unpaid,
+                                        },
+                                        {
+                                            id: 'next_cycle' as const,
+                                            label: 'Next cycle due',
+                                            count: queueCounts.nextCycleDue,
                                         },
                                     ] as const
                                 ).map((tab) => {

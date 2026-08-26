@@ -110,6 +110,11 @@ const ServiceCard: React.FC<ServiceCardProps> = ({
                         >
                             {service.approved ? "Approved" : "Not approved"}
                         </span>
+                        {(service.pricing_type ?? "").toString().toUpperCase() === "RECURRING" ? (
+                            <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-semibold text-indigo-800">
+                                Recurring
+                            </span>
+                        ) : null}
                         {isFeatured ? (
                             <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-800">
                                 Featured

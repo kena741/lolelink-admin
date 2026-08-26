@@ -88,6 +88,10 @@ export function mapServiceRowToEditServiceModel(
         type: row.type as string | undefined,
         status: row.status as boolean | undefined,
         prePayment: row.prePayment as boolean | undefined,
+        prePaymentPercent: row.prePaymentPercent as number | null | undefined,
+        pricing_type: row.pricing_type as string | undefined,
+        billing_interval: (row.billing_interval as string | null | undefined) ?? null,
+        billing_interval_count: (row.billing_interval_count as number | null | undefined) ?? null,
         feature: row.feature as boolean | undefined,
         serviceLocationMode: (row.serviceLocationMode as string | undefined) ?? 'onsite',
         video: (row.video as string | null | undefined) ?? null,
@@ -126,6 +130,10 @@ export type ServiceModel = {
     type?: string;
     status?: boolean;
     prePayment?: boolean;
+    prePaymentPercent?: number | null;
+    pricing_type?: string;
+    billing_interval?: string | null;
+    billing_interval_count?: number | null;
     feature?: boolean;
     active?: boolean | null;
     isArchived?: boolean;
@@ -252,6 +260,10 @@ export const updateService = createAsyncThunk<ServiceModel, UpdateServiceArgs, {
                 'type',
                 'status',
                 'prePayment',
+                'prePaymentPercent',
+                'pricing_type',
+                'billing_interval',
+                'billing_interval_count',
                 'feature',
                 'feature_requested_status',
                 'approved',

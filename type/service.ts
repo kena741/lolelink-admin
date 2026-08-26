@@ -21,6 +21,10 @@ export interface ServiceSchema {
   approved?: boolean;
   type?: string;
   prePayment?: boolean;
+  prePaymentPercent?: number | null;
+  pricing_type?: 'ONE_TIME' | 'RECURRING' | string;
+  billing_interval?: string | null;
+  billing_interval_count?: number | null;
   duration?: string;
   categoryId?: string;
   categoryModel?: Record<string, unknown> | null;

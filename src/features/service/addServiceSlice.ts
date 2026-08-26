@@ -24,6 +24,10 @@ export interface AddServiceModel {
   createdAt?: Date;
   duration?: string;
   prePayment?: boolean;
+  prePaymentPercent?: number | null;
+  pricing_type?: string;
+  billing_interval?: string | null;
+  billing_interval_count?: number | null;
   likedUser?: string[] | null;
   reviewCount: number | null;
   reviewSum: number | null;

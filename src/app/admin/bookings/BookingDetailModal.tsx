@@ -66,6 +66,7 @@ import {
 import { Sheet, SheetBody, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { BookingIssuesPanel } from './BookingIssuesPanel';
 import { cn } from '@/lib/utils';
+import { isRecurringBooking } from '@/lib/recurring-payments';
 
 interface WalletLedgerRow {
     id: string;
@@ -710,6 +711,26 @@ export function BookingDetailModal({
                                     <MetaRow
                                         label="Marked paid"
                                         value={booking.paymentCompleted ? 'Yes' : 'No'}
+                                    />
+                                    <MetaRow
+                                        label="Pricing"
+                                        value={
+                                            isRecurringBooking(booking)
+                                                ? 'Recurring'
+                                                : 'One-time'
+                                        }
+                                    />
+                                    <MetaRow
+                                        label="Period start"
+                                        value={formatBookingDateTime(booking.currentPeriodStart)}
+                                    />
+                                    <MetaRow
+                                        label="Period end"
+                                        value={formatBookingDateTime(booking.currentPeriodEnd)}
+                                    />
+                                    <MetaRow
+                                        label="Next cycle due"
+                                        value={booking.nextCycleDue === true ? 'Yes' : 'No'}
                                     />
                                     <MetaRow
                                         label="Payment ID"

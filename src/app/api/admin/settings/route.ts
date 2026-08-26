@@ -55,6 +55,12 @@ interface BookingStatusOption {
     name: string;
 }
 
+interface RecurringPaymentSettings {
+    enabled: boolean;
+    available_cycles: Array<'WEEK' | 'MONTH' | 'QUARTER' | 'YEAR'>;
+    payment_window_days: number;
+}
+
 interface ConstantSettings {
     minimum_wallet_balance_to_keep?: string;
     minimum_amount_withdraw?: string;
@@ -62,6 +68,7 @@ interface ConstantSettings {
     provider_service_featured_request_fee_amount?: string;
     provider_activation_account_activation_fee_amount?: string;
     service_posting_tiers?: Array<{ total_price: number; max_services: number }>;
+    recurring_payments?: RecurringPaymentSettings;
 }
 
 interface LanguageSetting {
