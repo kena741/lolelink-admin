@@ -5,6 +5,7 @@ import {
     completionPayoutReversalNote,
     completionPayoutReversalTxId,
     computeProviderPayoutAmount,
+    computeProviderPayoutWithPercent,
     isProviderCompletionPayoutCredit,
     isProviderCompletionPayoutReversal,
     nextCompletionPayoutReversalSequence,
@@ -16,6 +17,12 @@ describe('booking-completion-payout', () => {
         expect(computeProviderPayoutAmount(11.12, { value: 10, isFix: false })).toBe(10.01);
         expect(computeProviderPayoutAmount(83.4, { value: 10, isFix: false })).toBe(75.06);
         expect(computeProviderPayoutAmount(1.11, { value: 10, isFix: false })).toBe(1);
+    });
+
+    it('computes explicit percent overrides for admin completion', () => {
+        expect(computeProviderPayoutWithPercent(100, 10)).toBe(90);
+        expect(computeProviderPayoutWithPercent(100, 7)).toBe(93);
+        expect(computeProviderPayoutWithPercent(100, 0)).toBe(100);
     });
 
     it('supports fixed commission', () => {

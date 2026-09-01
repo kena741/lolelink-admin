@@ -590,18 +590,19 @@ export const updateBookingStatus = createAsyncThunk<
             | { skipped: false; amount: number; walletAmount: number }
             | null;
     },
-    { bookingId: string; status: BookedServiceStatus; applyCommission?: boolean },
+    { bookingId: string; status: BookedServiceStatus; applyCommission?: boolean; commissionPercent?: number },
     { rejectValue: string }
 >(
     'bookedService/updateBookingStatus',
-    async ({ bookingId, status, applyCommission }, { rejectWithValue }) => {
+    async ({ bookingId, status, applyCommission, commissionPercent }, { rejectWithValue }) => {
         try {
             const response = await fetch(`/api/admin/bookings/${encodeURIComponent(bookingId)}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     status,
-                    apply_commission: applyCommission === true,
+                    apply_commission: applyCommission !== false,
+                    commission_percent: commissionPercent,
                 }),
             });
 

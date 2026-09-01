@@ -8,6 +8,7 @@ import {
 import { refundCustomerForRejectedBooking } from '@/lib/booking-payment-side-effects';
 import { sendBookingStatusUpdatedNotifications } from '@/lib/booking-notifications';
 import { formatBookingJobStatusLabel, isBookedServiceStatus } from '@/lib/booking-status';
+import { clampCommissionPercent } from '@/lib/booking-admin-commission';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
@@ -38,15 +39,26 @@ export async function PATCH(request: Request, context: { params: Promise<RoutePa
             status?: string;
             notifyProvider?: boolean;
             notifyCustomer?: boolean;
-            /** When completing: deduct platform commission from provider credit. Default false (full service). */
+            /** When completing: waive platform fee (provider gets full service). */
             apply_commission?: boolean;
+            /** When completing: platform fee percent from gross. Default 10. */
+            commission_percent?: number;
         };
         const nextStatus = (body.status ?? '').trim();
         if (!isBookedServiceStatus(nextStatus)) {
             return NextResponse.json({ error: 'Invalid job status' }, { status: 400 });
         }
-        // Admin complete defaults to full service total; opt-in to deduct commission.
-        const applyCommission = body.apply_commission === true;
+
+        let commissionPercent = 10;
+        if (body.apply_commission === false) {
+            commissionPercent = 0;
+        } else if (
+            typeof body.commission_percent === 'number' &&
+            Number.isFinite(body.commission_percent)
+        ) {
+            commissionPercent = clampCommissionPercent(body.commission_percent);
+        }
+        const applyCommission = commissionPercent > 0;
 
         const { data: bookingRaw, error: bookingError } = await supabaseAdmin
             .from('booked_service')
@@ -112,6 +124,7 @@ export async function PATCH(request: Request, context: { params: Promise<RoutePa
         if (nextStatus === 'completed') {
             const credit = await creditProviderForCompletedBooking(supabaseAdmin, id, {
                 applyCommission,
+                commissionPercent: applyCommission ? commissionPercent : undefined,
             });
             if (!credit.ok) {
                 return NextResponse.json({ error: credit.error }, { status: credit.status });
@@ -166,6 +179,7 @@ export async function PATCH(request: Request, context: { params: Promise<RoutePa
                 metadata: {
                     from_status: previousStatus || null,
                     to_status: nextStatus,
+                    commission_percent: applyCommission ? commissionPercent : 0,
                     provider_payout: payout,
                     provider_clawback: clawback,
                     customer_refund: customerRefund,

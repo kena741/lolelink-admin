@@ -56,6 +56,16 @@ export function computeAdminCommissionFee(
     return roundMoney((gross * commission.value) / 100);
 }
 
+export function computePercentCommissionFee(gross: number, percent: number): number {
+    if (!(gross > 0) || !(percent > 0)) return 0;
+    return roundMoney((gross * percent) / 100);
+}
+
+export function clampCommissionPercent(value: number): number {
+    if (!Number.isFinite(value)) return 0;
+    return Math.min(100, Math.max(0, value));
+}
+
 export async function loadAdminCommissionConfig(
     admin: SupabaseClient
 ): Promise<AdminCommissionConfig> {

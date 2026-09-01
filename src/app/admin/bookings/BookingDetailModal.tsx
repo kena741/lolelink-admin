@@ -35,12 +35,13 @@ import {
     sanitizePersonDisplayName,
 } from '@/lib/booking-display';
 import {
-    computeAdminCommissionFee,
+    clampCommissionPercent,
+    computePercentCommissionFee,
     parseAdminCommissionConfig,
     resolveBookingAdminCommissionAmount,
     type AdminCommissionConfig,
 } from '@/lib/booking-admin-commission';
-import { computeProviderPayoutAmount } from '@/lib/booking-completion-payout';
+import { computeProviderPayoutWithPercent } from '@/lib/booking-completion-payout';
 
 import { formatDisplayPhone } from '@/lib/phone-display';
 import { getSupabase } from '@/lib/supabaseClient';
@@ -67,6 +68,8 @@ import { Sheet, SheetBody, SheetDescription, SheetFooter, SheetHeader, SheetTitl
 import { BookingIssuesPanel } from './BookingIssuesPanel';
 import { cn } from '@/lib/utils';
 import { isRecurringBooking } from '@/lib/recurring-payments';
+
+type CompletionCommissionPreset = '10' | '7' | 'custom';
 
 interface WalletLedgerRow {
     id: string;
@@ -276,14 +279,16 @@ export function BookingDetailModal({
     onUpdateStatus?: (
         id: string,
         status: BookedServiceStatus,
-        options?: { applyCommission?: boolean }
+        options?: { applyCommission?: boolean; commissionPercent?: number }
     ) => Promise<void>;
     updatingStatus?: boolean;
 }) {
     const [walletRows, setWalletRows] = useState<WalletLedgerRow[]>([]);
     const [walletLoading, setWalletLoading] = useState(false);
     const [commissionConfig, setCommissionConfig] = useState<AdminCommissionConfig | null>(null);
-    const [deductCommissionOnComplete, setDeductCommissionOnComplete] = useState(false);
+    const [completionCommissionPreset, setCompletionCommissionPreset] =
+        useState<CompletionCommissionPreset>('10');
+    const [customCompletionCommissionPercent, setCustomCompletionCommissionPercent] = useState('10');
     const issuesSectionRef = useRef<HTMLElement>(null);
 
     const canVerifyChapa =
@@ -312,21 +317,23 @@ export function BookingDetailModal({
 
     const canEditStatus = Boolean(onUpdateStatus) && Boolean(booking?.id);
 
+    const resolvedCompletionCommissionPercent = (() => {
+        if (completionCommissionPreset === '10') return 10;
+        if (completionCommissionPreset === '7') return 7;
+        return clampCommissionPercent(parseFloat(customCompletionCommissionPercent));
+    })();
+
     const completePayoutPreview = (() => {
         if (!booking) return null;
         const gross =
             parseBookingAmount(booking.totalAmount) ?? parseBookingAmount(booking.price) ?? 0;
         if (!(gross > 0)) return null;
-        const config = commissionConfig ?? { value: 0, isFix: false, active: false };
-        const fee = deductCommissionOnComplete
-            ? computeAdminCommissionFee(gross, config)
-            : 0;
-        const payout = computeProviderPayoutAmount(
-            gross,
-            config,
-            deductCommissionOnComplete
-        );
-        return { gross, fee, payout };
+        const fee =
+            resolvedCompletionCommissionPercent > 0
+                ? computePercentCommissionFee(gross, resolvedCompletionCommissionPercent)
+                : 0;
+        const payout = computeProviderPayoutWithPercent(gross, resolvedCompletionCommissionPercent);
+        return { gross, fee, payout, percent: resolvedCompletionCommissionPercent };
     })();
 
     const changeJobStatus = (status: BookedServiceStatus) => {
@@ -334,7 +341,12 @@ export function BookingDetailModal({
         void onUpdateStatus(
             booking.id,
             status,
-            status === 'completed' ? { applyCommission: deductCommissionOnComplete } : undefined
+            status === 'completed'
+                ? {
+                      applyCommission: resolvedCompletionCommissionPercent > 0,
+                      commissionPercent: resolvedCompletionCommissionPercent,
+                  }
+                : undefined
         );
     };
 
@@ -464,28 +476,53 @@ export function BookingDetailModal({
                               onChange={changeJobStatus}
                           />
                           {booking.status !== 'completed' ? (
-                              <label className="flex max-w-xs items-start gap-2 text-[11px] leading-snug text-gray-600">
-                                  <input
-                                      type="checkbox"
-                                      checked={deductCommissionOnComplete}
-                                      onChange={(e) =>
-                                          setDeductCommissionOnComplete(e.target.checked)
-                                      }
-                                      className="mt-0.5 h-3.5 w-3.5 rounded border-gray-300"
-                                  />
-                                  <span>
-                                      On complete: deduct commission
-                                      {completePayoutPreview ? (
-                                          <span className="mt-0.5 block font-medium text-gray-800">
-                                              Provider +
-                                              {formatBookingAmount(completePayoutPreview.payout)}
-                                              {deductCommissionOnComplete
-                                                  ? ` (fee ${formatBookingAmount(completePayoutPreview.fee)})`
-                                                  : ' full service'}
-                                          </span>
-                                      ) : null}
-                                  </span>
-                              </label>
+                              <div className="max-w-xs space-y-2 text-[11px] leading-snug text-gray-600">
+                                  <p className="font-medium text-gray-800">Platform fee on complete</p>
+                                  <div className="flex flex-wrap gap-1.5">
+                                      {(['10', '7', 'custom'] as const).map((preset) => (
+                                          <button
+                                              key={preset}
+                                              type="button"
+                                              onClick={() => setCompletionCommissionPreset(preset)}
+                                              className={cn(
+                                                  'h-8 rounded-md border px-2.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                                                  completionCommissionPreset === preset
+                                                      ? 'border-indigo-300 bg-indigo-50 text-indigo-800'
+                                                      : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                                              )}
+                                          >
+                                              {preset === 'custom' ? 'Custom' : `${preset}%`}
+                                          </button>
+                                      ))}
+                                  </div>
+                                  {completionCommissionPreset === 'custom' ? (
+                                      <label className="flex items-center gap-2">
+                                          <span>Percent</span>
+                                          <input
+                                              type="number"
+                                              min={0}
+                                              max={100}
+                                              step={0.01}
+                                              value={customCompletionCommissionPercent}
+                                              onChange={(event) =>
+                                                  setCustomCompletionCommissionPercent(
+                                                      event.target.value
+                                                  )
+                                              }
+                                              className="h-8 w-20 rounded-md border border-gray-200 px-2 text-xs text-gray-900"
+                                          />
+                                      </label>
+                                  ) : null}
+                                  {completePayoutPreview ? (
+                                      <p className="font-medium text-gray-800">
+                                          Provider wallet +
+                                          {formatBookingAmount(completePayoutPreview.payout)}
+                                          {completePayoutPreview.percent > 0
+                                              ? ` (fee ${formatBookingAmount(completePayoutPreview.fee)} · ${completePayoutPreview.percent}%)`
+                                              : ' (full service)'}
+                                      </p>
+                                  ) : null}
+                              </div>
                           ) : null}
                       </div>
                   ) : (

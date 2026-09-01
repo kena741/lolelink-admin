@@ -482,7 +482,7 @@ const BookingsPage = () => {
     const handleUpdateBookingStatus = async (
         id: string,
         status: BookedServiceStatus,
-        options?: { applyCommission?: boolean }
+        options?: { applyCommission?: boolean; commissionPercent?: number }
     ) => {
         setUpdatingStatus(true);
         try {
@@ -491,6 +491,7 @@ const BookingsPage = () => {
                     bookingId: id,
                     status,
                     applyCommission: options?.applyCommission,
+                    commissionPercent: options?.commissionPercent,
                 })
             ).unwrap();
             const payout = result.provider_payout;

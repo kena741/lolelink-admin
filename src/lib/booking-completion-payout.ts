@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
     computeAdminCommissionFee,
+    computePercentCommissionFee,
     loadAdminCommissionConfig,
     type AdminCommissionConfig,
 } from '@/lib/booking-admin-commission';
@@ -61,6 +62,13 @@ export function computeProviderPayoutAmount(
     return Math.max(0, roundMoney(gross - fee));
 }
 
+export function computeProviderPayoutWithPercent(gross: number, percent: number): number {
+    if (!(gross > 0)) return 0;
+    if (!(percent > 0)) return roundMoney(gross);
+    const fee = computePercentCommissionFee(gross, percent);
+    return Math.max(0, roundMoney(gross - fee));
+}
+
 export function completionPayoutNote(bookingId: string, applyCommission = true): string {
     if (applyCommission) {
         return `Order #${bookingId.slice(0, 6)} completed (payout after admin commission)`;
@@ -71,6 +79,8 @@ export function completionPayoutNote(bookingId: string, applyCommission = true):
 export interface CreditProviderPayoutOptions {
     /** When false, provider gets gross service total. Default true (platform fee deducted). */
     applyCommission?: boolean;
+    /** Admin completion override — percentage fee from gross (e.g. 7 or 10). */
+    commissionPercent?: number;
 }
 
 export function completionPayoutReversalTxId(bookingId: string, sequence = 1): string {
@@ -213,6 +223,7 @@ export async function creditProviderForCompletedBooking(
     const id = bookingId.trim();
     if (!id) return { ok: false, error: 'bookingId is required', status: 400 };
     const applyCommission = options?.applyCommission !== false;
+    const commissionPercentOverride = options?.commissionPercent;
 
     const { data: bookingRaw, error: bookingError } = await admin
         .from('booked_service')
@@ -252,10 +263,22 @@ export async function creditProviderForCompletedBooking(
         return { ok: true, skipped: true, reason: 'already_credited' };
     }
 
-    const commission = await loadAdminCommissionConfig(admin);
     const gross = bookingGrossAmount(booking);
-    const commissionFee = applyCommission ? computeAdminCommissionFee(gross, commission) : 0;
-    const payoutAmount = computeProviderPayoutAmount(gross, commission, applyCommission);
+    let commissionFee = 0;
+    let payoutAmount = 0;
+    if (!applyCommission) {
+        payoutAmount = roundMoney(gross);
+    } else if (
+        commissionPercentOverride != null &&
+        Number.isFinite(commissionPercentOverride)
+    ) {
+        commissionFee = computePercentCommissionFee(gross, commissionPercentOverride);
+        payoutAmount = computeProviderPayoutWithPercent(gross, commissionPercentOverride);
+    } else {
+        const commission = await loadAdminCommissionConfig(admin);
+        commissionFee = computeAdminCommissionFee(gross, commission);
+        payoutAmount = computeProviderPayoutAmount(gross, commission, true);
+    }
     if (payoutAmount <= 0) {
         return { ok: true, skipped: true, reason: 'zero_amount' };
     }
