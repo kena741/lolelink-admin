@@ -57,6 +57,7 @@ export function canAccessAdminRoute(pathname: string, can: (permission: string) 
         return can('catalog:read');
     }
     if (pathname.startsWith('/admin/documents')) return can('documents:read');
+    if (pathname.startsWith('/admin/internal-documents')) return can('documents:read');
     if (pathname.startsWith('/admin/banners') || pathname.startsWith('/admin/coupon')) {
         return can('catalog:read');
     }

@@ -62,7 +62,8 @@ const providerManagementSubItems = [
 const serviceManagementSubItems = [
     { href: '/admin/services/approve', label: 'All Services', icon: CheckSquare },
     { href: '/admin/categories', label: 'Categories', icon: FolderTree, isCategory: true },
-    { href: '/admin/documents', label: 'Documents', icon: FileText },
+    { href: '/admin/documents', label: 'Document types', icon: FileText },
+    { href: '/admin/internal-documents', label: 'Internal documents', icon: FileText },
     { href: '/admin/banners', label: 'Banners', icon: FileImage },
     { href: '/admin/coupon', label: 'Coupon', icon: Ticket },
     { href: '/admin/marketing-tracker', label: 'Marketing Tracker', icon: Table2 },
@@ -367,7 +368,8 @@ const Sidebar = () => {
                                     }
                                     const active = pathname === href ||
                                         (href === '/admin/services/approve' && pathname?.startsWith('/admin/services')) ||
-                                        (href === '/admin/documents' && pathname?.startsWith('/admin/documents')) ||
+                                        (href === '/admin/documents' && pathname?.startsWith('/admin/documents') && !pathname?.startsWith('/admin/internal-documents')) ||
+                                        (href === '/admin/internal-documents' && pathname?.startsWith('/admin/internal-documents')) ||
                                         (href === '/admin/banners' && pathname?.startsWith('/admin/banners')) ||
                                         (href === '/admin/marketing-tracker' && pathname?.startsWith('/admin/marketing-tracker'));
                                     return (

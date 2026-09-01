@@ -50,6 +50,7 @@ import {
     type AdminNotifyDraft,
 } from '@/lib/admin-notify';
 import { ProviderWalletHistory } from './ProviderWalletHistory';
+import { ProviderSharedDocuments } from '@/components/providers/ProviderSharedDocuments';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 
 interface ProviderNotifyStatus {
@@ -866,8 +867,10 @@ export default function ProviderDetailPage() {
 
                                     {/* Documents Tab */}
                                     {activeTab === 'documents' && (
-                                    <section>
-                                        <h2 className="text-2xl font-semibold mb-4">Uploaded Documents</h2>
+                                    <section className="space-y-8">
+                                        <ProviderSharedDocuments providerId={id} />
+                                        <div>
+                                        <h2 className="text-2xl font-semibold mb-4">Verification uploads</h2>
                                         {providerDocuments.length === 0 ? (
                                             <div className="rounded-lg border border-border bg-card p-6 text-text-secondary">No documents uploaded.</div>
                                         ) : (
@@ -909,6 +912,7 @@ export default function ProviderDetailPage() {
                                                 })}
                                             </div>
                                         )}
+                                        </div>
                                     </section>
                                     )}
 
