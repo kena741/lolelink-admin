@@ -5,7 +5,6 @@ import type { OpsInboxItem } from '@/lib/ops-inbox';
 import {
     loadOpsDeskAlertPrefs,
     playOpsInboxSound,
-    requestOpsAlertSms,
     saveOpsDeskAlertPrefs,
     showOpsDesktopNotification,
     unlockOpsAlertAudio,
@@ -15,7 +14,6 @@ import {
 export function useOpsInboxAlerts(needsItems: OpsInboxItem[], ready: boolean) {
     const [prefs, setPrefs] = useState<OpsDeskAlertPrefs>(() => loadOpsDeskAlertPrefs());
     const seenRef = useRef<Set<string> | null>(null);
-    const lastSmsAtRef = useRef(0);
 
     useEffect(() => {
         setPrefs(loadOpsDeskAlertPrefs());
@@ -72,22 +70,8 @@ export function useOpsInboxAlerts(needsItems: OpsInboxItem[], ready: boolean) {
             }
         }
 
-        if (prefs.sms) {
-            const now = Date.now();
-            // ponytail: avoid SMS storms from bursty realtime refetches
-            if (now - lastSmsAtRef.current >= 45_000) {
-                lastSmsAtRef.current = now;
-                const first = newItems[0];
-                if (first) {
-                    void requestOpsAlertSms({
-                        title: first.title,
-                        body: first.body,
-                        count: newItems.length,
-                    });
-                }
-            }
-        }
-    }, [needsItems, prefs.desktop, prefs.sms, prefs.sound, ready]);
+        // ponytail: ops desk SMS to +251941024355 disabled (UI hidden)
+    }, [needsItems, prefs.desktop, prefs.sound, ready]);
 
     function updatePrefs(next: OpsDeskAlertPrefs) {
         if (next.sound || next.desktop) {

@@ -9,8 +9,9 @@ export function resolveOpsAlertPhone(): string {
 }
 
 export function isOpsAlertSmsEnabled(): boolean {
-    const flag = (process.env.OPS_ALERT_SMS_ENABLED ?? '1').trim().toLowerCase();
-    return flag !== '0' && flag !== 'false' && flag !== 'off';
+    // ponytail: ops SMS to +251941024355 off by default; set OPS_ALERT_SMS_ENABLED=1 to re-enable
+    const flag = (process.env.OPS_ALERT_SMS_ENABLED ?? '0').trim().toLowerCase();
+    return flag === '1' || flag === 'true' || flag === 'on';
 }
 
 export function formatOpsAlertSms(input: {

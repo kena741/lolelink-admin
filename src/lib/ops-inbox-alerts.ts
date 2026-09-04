@@ -9,7 +9,7 @@ export const OPS_DESK_ALERTS_KEY = 'ops-inbox-desk-alerts';
 const DEFAULT_PREFS: OpsDeskAlertPrefs = {
     sound: false,
     desktop: false,
-    sms: true,
+    sms: false,
 };
 
 export function loadOpsDeskAlertPrefs(): OpsDeskAlertPrefs {
@@ -21,8 +21,8 @@ export function loadOpsDeskAlertPrefs(): OpsDeskAlertPrefs {
         return {
             sound: Boolean(parsed.sound),
             desktop: Boolean(parsed.desktop),
-            // default on for first-time / older prefs missing sms
-            sms: parsed.sms === undefined ? true : Boolean(parsed.sms),
+            // ponytail: SMS toggle hidden — never auto-SMS ops desk
+            sms: false,
         };
     } catch {
         return { ...DEFAULT_PREFS };
