@@ -184,165 +184,288 @@ const CategoriesPage = () => {
                                 <RefreshCw className="h-8 w-8 animate-spin text-indigo-600 mx-auto mb-4" />
                                 <p className="text-gray-600">Loading categories...</p>
                             </div>
-                        ) : (
-                            <div className="rounded-xl bg-white/80 backdrop-blur-xl border border-white/20 shadow-lg overflow-hidden">
-                                {categories.length === 0 ? (
-                                    <div className="p-12 text-center">
-                                        <FolderTree className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                                        <p className="text-lg font-semibold text-gray-900 mb-2">No categories found</p>
-                                        <p className="text-sm text-gray-600 mb-4">Get started by creating your first category</p>
-                                        {canWriteCatalog && (
-                                        <button
-                                            onClick={() => handleOpenModal()}
-                                            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-accent"
-                                        >
-                                            <Plus className="h-4 w-4" />
-                                            Add Category
-                                        </button>
-                                        )}
-                                    </div>
-                                ) : (
-                                    <table className="w-full">
-                                        <thead className="bg-gray-50/50 border-b border-gray-200">
-                                            <tr>
-                                                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Image</th>
-                                                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Category Name</th>
-                                                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Description</th>
-                                                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Subcategories</th>
-                                                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
-                                                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-gray-200/50">
-                                            {categories.map((category) => (
-                                                <tr 
-                                                    key={category.id}
-                                                    className="hover:bg-gray-50/50 transition-colors"
-                                                >
-                                                    <td className="px-6 py-4 whitespace-nowrap">
-                                                        {category.image ? (
-                                                            <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100">
-                                                                <StorageImage
-                                                                    src={category.image}
-                                                                    alt={category.categoryName}
-                                                                    width={48}
-                                                                    height={48}
-                                                                    className="w-full h-full object-cover"
-                                                                />
-                                                            </div>
-                                                        ) : (
-                                                            <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center">
-                                                                <ImageIcon className="h-5 w-5 text-gray-400" />
-                                                            </div>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        <Link 
-                                                            href={`/admin/categories/${category.id}`}
-                                                            className="text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
-                                                        >
-                                                            {category.categoryName}
-                                                        </Link>
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        <span className="text-sm text-gray-600">
-                                                            {category.description || '-'}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap">
-                                                        <span className="text-sm text-gray-600">
-                                                            {getSubCategoryCount(category.id)} subcategories
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap">
-                                                        {canWriteCatalog ? (
-                                                        <button
-                                                            onClick={() => toggleActive(category)}
-                                                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all ${
-                                                                category.active
-                                                                    ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-                                                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                                            }`}
-                                                        >
-                                                            {category.active ? (
-                                                                <>
-                                                                    <Check className="h-3 w-3" />
-                                                                    Active
-                                                                </>
-                                                            ) : (
-                                                                <>
-                                                                    <XCircle className="h-3 w-3" />
-                                                                    Inactive
-                                                                </>
-                                                            )}
-                                                        </button>
-                                                        ) : (
-                                                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
-                                                            category.active
-                                                                ? 'bg-emerald-100 text-emerald-700'
-                                                                : 'bg-gray-100 text-gray-700'
-                                                        }`}>
-                                                            {category.active ? 'Active' : 'Inactive'}
-                                                        </span>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                        {canWriteCatalog ? (
-                                                        <div className="flex items-center justify-end gap-2">
-                                                            <button
-                                                                onClick={() => handleOpenModal(category)}
-                                                                className="p-2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"
-                                                                title="Edit"
-                                                            >
-                                                                <Edit className="h-4 w-4" />
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleDelete(category.id)}
-                                                                disabled={deletingId === category.id}
-                                                                className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
-                                                                title="Delete"
-                                                            >
-                                                                {deletingId === category.id ? (
-                                                                    <RefreshCw className="h-4 w-4 animate-spin" />
-                                                                ) : (
-                                                                    <Trash2 className="h-4 w-4" />
-                                                                )}
-                                                            </button>
-                                                        </div>
-                                                        ) : null}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                        ) : categories.length === 0 ? (
+                            <div className="rounded-xl border border-white/20 bg-white/80 p-12 text-center shadow-lg backdrop-blur-xl">
+                                <FolderTree className="mx-auto mb-4 h-16 w-16 text-gray-400" />
+                                <p className="mb-2 text-lg font-semibold text-gray-900">No categories found</p>
+                                <p className="mb-4 text-sm text-gray-600">Get started by creating your first category</p>
+                                {canWriteCatalog && (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleOpenModal()}
+                                        className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-accent"
+                                    >
+                                        <Plus className="h-4 w-4" />
+                                        Add Category
+                                    </button>
                                 )}
                             </div>
+                        ) : (
+                            <>
+                                <div className="space-y-3 md:hidden">
+                                    {categories.map((category) => (
+                                        <article
+                                            key={category.id}
+                                            className="rounded-xl border border-border bg-card p-4 shadow-sm"
+                                        >
+                                            <div className="flex items-start gap-3">
+                                                {category.image ? (
+                                                    <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-gray-100">
+                                                        <StorageImage
+                                                            src={category.image}
+                                                            alt={category.categoryName}
+                                                            width={48}
+                                                            height={48}
+                                                            className="h-full w-full object-cover"
+                                                        />
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-gray-100">
+                                                        <ImageIcon className="h-5 w-5 text-gray-400" />
+                                                    </div>
+                                                )}
+                                                <div className="min-w-0 flex-1">
+                                                    <Link
+                                                        href={`/admin/categories/${category.id}`}
+                                                        className="text-sm font-semibold text-indigo-600 hover:underline"
+                                                    >
+                                                        {category.categoryName}
+                                                    </Link>
+                                                    {category.description ? (
+                                                        <p className="mt-0.5 line-clamp-2 text-xs text-gray-500">
+                                                            {category.description}
+                                                        </p>
+                                                    ) : null}
+                                                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                                                        <span className="text-xs text-gray-600">
+                                                            {getSubCategoryCount(category.id)} subcategories
+                                                        </span>
+                                                        {canWriteCatalog ? (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => toggleActive(category)}
+                                                                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
+                                                                    category.active
+                                                                        ? 'bg-emerald-100 text-emerald-700'
+                                                                        : 'bg-gray-100 text-gray-700'
+                                                                }`}
+                                                            >
+                                                                {category.active ? (
+                                                                    <>
+                                                                        <Check className="h-3 w-3" />
+                                                                        Active
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <XCircle className="h-3 w-3" />
+                                                                        Inactive
+                                                                    </>
+                                                                )}
+                                                            </button>
+                                                        ) : (
+                                                            <span
+                                                                className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
+                                                                    category.active
+                                                                        ? 'bg-emerald-100 text-emerald-700'
+                                                                        : 'bg-gray-100 text-gray-700'
+                                                                }`}
+                                                            >
+                                                                {category.active ? 'Active' : 'Inactive'}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {canWriteCatalog ? (
+                                                <div className="mt-3 flex items-center justify-end gap-2 border-t border-border pt-3">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleOpenModal(category)}
+                                                        className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-gray-200 px-3 text-sm font-medium text-indigo-700 hover:bg-indigo-50"
+                                                    >
+                                                        <Edit className="h-4 w-4" />
+                                                        Edit
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleDelete(category.id)}
+                                                        disabled={deletingId === category.id}
+                                                        className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 text-red-600 hover:bg-red-50 disabled:opacity-50"
+                                                        title="Delete"
+                                                    >
+                                                        {deletingId === category.id ? (
+                                                            <RefreshCw className="h-4 w-4 animate-spin" />
+                                                        ) : (
+                                                            <Trash2 className="h-4 w-4" />
+                                                        )}
+                                                    </button>
+                                                </div>
+                                            ) : null}
+                                        </article>
+                                    ))}
+                                </div>
+
+                                <div className="hidden overflow-hidden rounded-xl border border-white/20 bg-white/80 shadow-lg backdrop-blur-xl md:block">
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full min-w-[720px]">
+                                            <thead className="border-b border-gray-200 bg-gray-50/50">
+                                                <tr>
+                                                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
+                                                        Image
+                                                    </th>
+                                                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
+                                                        Category Name
+                                                    </th>
+                                                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
+                                                        Description
+                                                    </th>
+                                                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
+                                                        Subcategories
+                                                    </th>
+                                                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
+                                                        Status
+                                                    </th>
+                                                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-600">
+                                                        Actions
+                                                    </th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-200/50">
+                                                {categories.map((category) => (
+                                                    <tr
+                                                        key={category.id}
+                                                        className="transition-colors hover:bg-gray-50/50"
+                                                    >
+                                                        <td className="whitespace-nowrap px-4 py-4">
+                                                            {category.image ? (
+                                                                <div className="h-12 w-12 overflow-hidden rounded-lg bg-gray-100">
+                                                                    <StorageImage
+                                                                        src={category.image}
+                                                                        alt={category.categoryName}
+                                                                        width={48}
+                                                                        height={48}
+                                                                        className="h-full w-full object-cover"
+                                                                    />
+                                                                </div>
+                                                            ) : (
+                                                                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gray-100">
+                                                                    <ImageIcon className="h-5 w-5 text-gray-400" />
+                                                                </div>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-4 py-4">
+                                                            <Link
+                                                                href={`/admin/categories/${category.id}`}
+                                                                className="text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
+                                                            >
+                                                                {category.categoryName}
+                                                            </Link>
+                                                        </td>
+                                                        <td className="px-4 py-4">
+                                                            <span className="text-sm text-gray-600">
+                                                                {category.description || '-'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="whitespace-nowrap px-4 py-4">
+                                                            <span className="text-sm text-gray-600">
+                                                                {getSubCategoryCount(category.id)} subcategories
+                                                            </span>
+                                                        </td>
+                                                        <td className="whitespace-nowrap px-4 py-4">
+                                                            {canWriteCatalog ? (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => toggleActive(category)}
+                                                                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold transition-all ${
+                                                                        category.active
+                                                                            ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                                                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                                                    }`}
+                                                                >
+                                                                    {category.active ? (
+                                                                        <>
+                                                                            <Check className="h-3 w-3" />
+                                                                            Active
+                                                                        </>
+                                                                    ) : (
+                                                                        <>
+                                                                            <XCircle className="h-3 w-3" />
+                                                                            Inactive
+                                                                        </>
+                                                                    )}
+                                                                </button>
+                                                            ) : (
+                                                                <span
+                                                                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                                                                        category.active
+                                                                            ? 'bg-emerald-100 text-emerald-700'
+                                                                            : 'bg-gray-100 text-gray-700'
+                                                                    }`}
+                                                                >
+                                                                    {category.active ? 'Active' : 'Inactive'}
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        <td className="whitespace-nowrap px-4 py-4 text-right text-sm font-medium">
+                                                            {canWriteCatalog ? (
+                                                                <div className="flex items-center justify-end gap-2">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleOpenModal(category)}
+                                                                        className="rounded-lg p-2 text-indigo-600 transition-colors hover:bg-indigo-50 hover:text-indigo-700"
+                                                                        title="Edit"
+                                                                    >
+                                                                        <Edit className="h-4 w-4" />
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleDelete(category.id)}
+                                                                        disabled={deletingId === category.id}
+                                                                        className="rounded-lg p-2 text-red-600 transition-colors hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
+                                                                        title="Delete"
+                                                                    >
+                                                                        {deletingId === category.id ? (
+                                                                            <RefreshCw className="h-4 w-4 animate-spin" />
+                                                                        ) : (
+                                                                            <Trash2 className="h-4 w-4" />
+                                                                        )}
+                                                                    </button>
+                                                                </div>
+                                                            ) : null}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </>
                         )}
                     </div>
 
-                    {/* Add/Edit Modal */}
                     {isModalOpen && (
-                        <div 
-                            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+                        <div
+                            className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-4"
                             onClick={handleCloseModal}
                         >
-                            <div 
-                                className="relative bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+                            <div
+                                className="relative max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl"
                                 onClick={(e) => e.stopPropagation()}
                             >
-                                <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
-                                    <h2 className="text-xl font-bold text-gray-900">
+                                <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white px-4 py-4 sm:px-6">
+                                    <h2 className="text-lg font-bold text-gray-900 sm:text-xl">
                                         {editingCategory ? 'Edit Category' : 'Add New Category'}
                                     </h2>
                                     <button
+                                        type="button"
                                         onClick={handleCloseModal}
-                                        className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                                        className="rounded-lg p-2 transition-colors hover:bg-gray-100"
                                     >
                                         <X className="h-5 w-5 text-gray-500" />
                                     </button>
                                 </div>
 
-                                <form onSubmit={handleSubmit} className="p-6 space-y-6">
+                                <form onSubmit={handleSubmit} className="space-y-6 p-4 sm:p-6">
                                     <div className="space-y-4">
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -429,7 +552,7 @@ const CategoriesPage = () => {
                                         </label>
                                     </div>
 
-                                    <div className="flex items-center gap-3 pt-4 border-t border-gray-200">
+                                    <div className="flex flex-col-reverse gap-3 border-t border-gray-200 pt-4 sm:flex-row sm:items-center">
                                         <button
                                             type="submit"
                                             disabled={uploading || !formData.categoryName.trim()}
@@ -440,7 +563,7 @@ const CategoriesPage = () => {
                                         <button
                                             type="button"
                                             onClick={handleCloseModal}
-                                            className="px-4 py-2.5 rounded-lg bg-gray-100 text-gray-700 font-semibold hover:bg-gray-200 transition-colors"
+                                            className="rounded-lg bg-gray-100 px-4 py-2.5 font-semibold text-gray-700 transition-colors hover:bg-gray-200 sm:w-auto"
                                         >
                                             Cancel
                                         </button>

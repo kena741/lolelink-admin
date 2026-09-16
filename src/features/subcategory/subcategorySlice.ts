@@ -8,6 +8,7 @@ export interface SubCategory {
     subCategoryName: string;
     categoryId: string;
     categoryName?: string; // Joined from category table
+    isFree: boolean;
 }
 
 interface SubCategoryState {
@@ -29,6 +30,7 @@ type SubCategoryRow = {
     id: string;
     subCategoryName: string;
     categoryId: string;
+    isFree?: boolean | null;
     category?: {
         categoryName: string;
     };
@@ -40,6 +42,7 @@ const normalizeRows = (rows: SubCategoryRow[] | null | undefined): SubCategory[]
         subCategoryName: row.subCategoryName,
         categoryId: row.categoryId,
         categoryName: row.category?.categoryName,
+        isFree: row.isFree === true,
     }));
 
 export const fetchSubCategories = createAsyncThunk<
@@ -123,15 +126,15 @@ export const fetchAllSubCategoryDocumentIds = createAsyncThunk<
 
 export const createSubCategory = createAsyncThunk<
     SubCategory,
-    { subCategoryName: string; categoryId: string; documentIds?: string[] },
+    { subCategoryName: string; categoryId: string; isFree?: boolean; documentIds?: string[] },
     { rejectValue: string }
 >(
     'subcategory/createSubCategory',
-    async ({ subCategoryName, categoryId, documentIds }, { rejectWithValue }) => {
+    async ({ subCategoryName, categoryId, isFree = false, documentIds }, { rejectWithValue }) => {
         try {
             const { data, error } = await getSupabase()
                 .from('sub_category')
-                .insert({ subCategoryName, categoryId })
+                .insert({ subCategoryName, categoryId, isFree: isFree === true })
                 .select(`
                     *,
                     category:categoryId (
@@ -153,7 +156,7 @@ export const createSubCategory = createAsyncThunk<
                 resource_type: 'settings',
                 resource_id: subCategory.id,
                 summary: `Created subcategory ${subCategory.subCategoryName}`,
-                metadata: documentIds?.length ? { documentIds } : undefined,
+                metadata: documentIds?.length ? { documentIds, isFree: subCategory.isFree } : { isFree: subCategory.isFree },
             });
             return subCategory;
         } catch (e: unknown) {
@@ -165,7 +168,7 @@ export const createSubCategory = createAsyncThunk<
 
 export const updateSubCategory = createAsyncThunk<
     SubCategory,
-    { id: string; subCategoryName?: string; categoryId?: string; documentIds?: string[] },
+    { id: string; subCategoryName?: string; categoryId?: string; isFree?: boolean; documentIds?: string[] },
     { rejectValue: string }
 >(
     'subcategory/updateSubCategory',
@@ -179,9 +182,12 @@ export const updateSubCategory = createAsyncThunk<
             if (existingError) throw existingError;
             if (!existing) return rejectWithValue('Subcategory not found');
 
+            const payload: Record<string, unknown> = { ...updates };
+            if (updates.isFree !== undefined) payload.isFree = updates.isFree === true;
+
             const { data, error } = await getSupabase()
                 .from('sub_category')
-                .update(updates)
+                .update(payload)
                 .eq('id', id)
                 .select(`
                     *,
@@ -205,7 +211,7 @@ export const updateSubCategory = createAsyncThunk<
             const metadata = buildChangeMetadata(
                 existing as Record<string, unknown>,
                 updated as unknown as Record<string, unknown>,
-                Object.keys(updates)
+                Object.keys(payload)
             );
             if (documentIds !== undefined) {
                 metadata.documentIds = { before: null, after: documentIds };
