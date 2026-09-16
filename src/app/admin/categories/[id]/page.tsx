@@ -68,6 +68,21 @@ const CategoryDetailPage = () => {
             .filter(Boolean);
     }
 
+    function RequiredDocsCount({ subCategoryId }: { subCategoryId: string }) {
+        const docs = documentNamesFor(subCategoryId);
+        if (docs.length === 0) {
+            return <span className="text-sm text-gray-500">0</span>;
+        }
+        return (
+            <span
+                className="cursor-default text-sm font-medium text-gray-900 underline decoration-dotted underline-offset-2"
+                title={docs.join('\n')}
+            >
+                {docs.length}
+            </span>
+        );
+    }
+
     const handleOpenModal = (
         subCategory?: (typeof categorySubCategories)[0],
         multiple: boolean = false
@@ -295,7 +310,6 @@ const CategoryDetailPage = () => {
                     <>
                         <div className="space-y-3 md:hidden">
                             {categorySubCategories.map((subCategory) => {
-                                const docs = documentNamesFor(subCategory.id);
                                 return (
                                     <article
                                         key={subCategory.id}
@@ -315,21 +329,11 @@ const CategoryDetailPage = () => {
                                                 {subCategory.isFree ? 'Free' : 'Paid'}
                                             </span>
                                         </div>
-                                        <div className="mt-3">
+                                        <div className="mt-3 flex items-center justify-between gap-2">
                                             <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                                                Required documents
+                                                Required docs
                                             </p>
-                                            {docs.length === 0 ? (
-                                                <p className="mt-1 text-sm text-gray-500">None</p>
-                                            ) : (
-                                                <ul className="mt-1 space-y-0.5">
-                                                    {docs.map((name) => (
-                                                        <li key={name} className="text-sm text-gray-700">
-                                                            · {name}
-                                                        </li>
-                                                    ))}
-                                                </ul>
-                                            )}
+                                            <RequiredDocsCount subCategoryId={subCategory.id} />
                                         </div>
                                         {canWriteCatalog ? (
                                             <div className="mt-3 flex items-center justify-end gap-2 border-t border-border pt-3">
@@ -373,7 +377,7 @@ const CategoryDetailPage = () => {
                                                 Listing
                                             </th>
                                             <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
-                                                Required documents
+                                                Docs
                                             </th>
                                             <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-600">
                                                 Actions
@@ -382,7 +386,6 @@ const CategoryDetailPage = () => {
                                     </thead>
                                     <tbody className="divide-y divide-gray-200/50">
                                         {categorySubCategories.map((subCategory) => {
-                                            const docs = documentNamesFor(subCategory.id);
                                             return (
                                                 <tr
                                                     key={subCategory.id}
@@ -405,20 +408,7 @@ const CategoryDetailPage = () => {
                                                         </span>
                                                     </td>
                                                     <td className="px-4 py-4">
-                                                        {docs.length === 0 ? (
-                                                            <span className="text-sm text-gray-500">None</span>
-                                                        ) : (
-                                                            <ul className="space-y-0.5">
-                                                                {docs.map((name) => (
-                                                                    <li
-                                                                        key={name}
-                                                                        className="text-sm text-gray-700"
-                                                                    >
-                                                                        {name}
-                                                                    </li>
-                                                                ))}
-                                                            </ul>
-                                                        )}
+                                                        <RequiredDocsCount subCategoryId={subCategory.id} />
                                                     </td>
                                                     <td className="whitespace-nowrap px-4 py-4 text-right text-sm font-medium">
                                                         {canWriteCatalog ? (
