@@ -9,6 +9,7 @@ export const runtime = 'nodejs';
 interface AddRowBody {
     sheet_id?: string;
     after_row_id?: string;
+    at_start?: boolean;
 }
 
 export async function POST(request: Request) {
@@ -20,6 +21,7 @@ export async function POST(request: Request) {
     const body = (await request.json()) as AddRowBody;
     const sheetId = (body.sheet_id ?? '').trim();
     const afterRowId = (body.after_row_id ?? '').trim();
+    const atStart = body.at_start === true;
     if (!sheetId) {
         return NextResponse.json({ error: 'sheet_id is required' }, { status: 400 });
     }
@@ -28,22 +30,26 @@ export async function POST(request: Request) {
     const now = new Date().toISOString();
     let position = 1;
 
-    if (afterRowId) {
-        const { data: afterRow, error: afterRowError } = await supabaseAdmin
-            .from('marketing_tracker_row')
-            .select('id, position')
-            .eq('id', afterRowId)
-            .eq('sheet_id', sheetId)
-            .maybeSingle();
+    if (atStart || afterRowId) {
+        position = atStart ? 1 : 0;
 
-        if (afterRowError) {
-            return NextResponse.json({ error: afterRowError.message }, { status: 500 });
-        }
-        if (!afterRow) {
-            return NextResponse.json({ error: 'after_row_id not found' }, { status: 404 });
-        }
+        if (!atStart) {
+            const { data: afterRow, error: afterRowError } = await supabaseAdmin
+                .from('marketing_tracker_row')
+                .select('id, position')
+                .eq('id', afterRowId)
+                .eq('sheet_id', sheetId)
+                .maybeSingle();
 
-        position = (afterRow as { position: number }).position + 1;
+            if (afterRowError) {
+                return NextResponse.json({ error: afterRowError.message }, { status: 500 });
+            }
+            if (!afterRow) {
+                return NextResponse.json({ error: 'after_row_id not found' }, { status: 404 });
+            }
+
+            position = (afterRow as { position: number }).position + 1;
+        }
 
         const { data: rowsToShift, error: shiftListError } = await supabaseAdmin
             .from('marketing_tracker_row')
@@ -105,7 +111,12 @@ export async function POST(request: Request) {
         resource_type: 'marketing_tracker_row',
         resource_id: (created as MarketingTrackerRow).id,
         summary: 'Added marketing tracker row',
-        metadata: { sheet_id: sheetId, position, after_row_id: afterRowId || null },
+        metadata: {
+            sheet_id: sheetId,
+            position,
+            after_row_id: afterRowId || null,
+            at_start: atStart,
+        },
     });
 
     return NextResponse.json({ row: created as MarketingTrackerRow }, { status: 201 });

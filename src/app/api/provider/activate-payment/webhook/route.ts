@@ -48,7 +48,7 @@ export async function POST(request: Request) {
         const body = (rawBody ? JSON.parse(rawBody) : {}) as ChapaWebhookPayload;
         const txRef = body.tx_ref || '';
 
-        if (!txRef.startsWith('act-')) {
+        if (!txRef.startsWith('act-') && !txRef.startsWith('activation_')) {
             return NextResponse.json({ status: 'ignored', reason: 'Not an activation transaction' });
         }
 

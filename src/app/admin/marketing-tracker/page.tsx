@@ -163,7 +163,7 @@ interface MobileLeadCardsProps {
     expandRowId?: string | null;
     onChange: (rowId: string, columnKey: string, value: MarketingTrackerCellValue) => void;
     onDeleteRow: (rowId: string) => void;
-    onInsertBelow: (rowId: string) => void;
+    onAddLead: () => void;
 }
 
 function MobileLeadCards({
@@ -174,13 +174,15 @@ function MobileLeadCards({
     expandRowId = null,
     onChange,
     onDeleteRow,
-    onInsertBelow,
+    onAddLead,
 }: MobileLeadCardsProps) {
     const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
+    const [seenExpandRowId, setSeenExpandRowId] = useState<string | null>(expandRowId);
 
-    useEffect(() => {
+    if (expandRowId !== seenExpandRowId) {
+        setSeenExpandRowId(expandRowId);
         if (expandRowId) setExpandedRowId(expandRowId);
-    }, [expandRowId]);
+    }
 
     if (columns.length === 0) {
         return (
@@ -196,20 +198,33 @@ function MobileLeadCards({
 
     return (
         <div className="space-y-2 md:hidden">
+            {canWrite ? (
+                <button
+                    type="button"
+                    onClick={onAddLead}
+                    className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-primary/40 bg-primary/5 px-4 py-3 text-sm font-semibold text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                    <Plus className="h-4 w-4" />
+                    Add lead
+                </button>
+            ) : null}
+
+            {rows.length === 0 ? (
+                <div className="rounded-xl border border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground">
+                    No leads yet.
+                </div>
+            ) : null}
+
             {rows.map((row) => {
-                const isPhantom = isPhantomRowId(row.id);
                 const isExpanded = expandedRowId === row.id;
                 const title =
-                    (titleKey ? cellDisplayValue(row.values[titleKey]) : '') ||
-                    (isPhantom ? 'New lead' : 'Untitled lead');
+                    (titleKey ? cellDisplayValue(row.values[titleKey]) : '') || 'Untitled lead';
 
                 return (
                     <article
                         key={row.id}
-                        className={cn(
-                            'overflow-hidden rounded-xl border border-border bg-card shadow-sm',
-                            isPhantom && 'border-dashed border-primary/40 bg-primary/5'
-                        )}
+                        data-row-id={row.id}
+                        className="overflow-hidden rounded-xl border border-border bg-card shadow-sm"
                     >
                         <div className="flex items-center gap-2 px-3 py-2.5">
                             <button
@@ -221,10 +236,10 @@ function MobileLeadCards({
                                 aria-expanded={isExpanded}
                             >
                                 <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                    {isPhantom ? 'Add lead' : 'Lead'}
+                                    Lead
                                 </p>
                                 <h3 className="truncate text-sm font-semibold text-foreground">{title}</h3>
-                                {!isExpanded && !isPhantom ? (
+                                {!isExpanded ? (
                                     <p className="mt-0.5 truncate text-xs text-muted-foreground">
                                         {previewColumns
                                             .map((column) => {
@@ -243,25 +258,17 @@ function MobileLeadCards({
                                 }
                                 className="inline-flex h-9 shrink-0 items-center rounded-lg border border-indigo-200 bg-white px-3 text-xs font-semibold text-indigo-700 transition-colors hover:bg-indigo-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
                             >
-                                {isExpanded ? 'Hide' : 'View'}
+                                {isExpanded ? (canWrite ? 'Done' : 'Hide') : canWrite ? 'Edit' : 'View'}
                             </button>
                         </div>
 
                         {isExpanded ? (
                             <div className="space-y-3 border-t border-border/70 p-4">
-                                {!isPhantom && canWrite ? (
-                                    <div className="flex items-center justify-end gap-1">
+                                {canWrite ? (
+                                    <div className="flex items-center justify-end">
                                         <button
                                             type="button"
-                                            aria-label="Insert row below"
-                                            onClick={() => onInsertBelow(row.id)}
-                                            className={cn(gridIconButtonClassName, 'h-10 w-10')}
-                                        >
-                                            <Plus className="h-4 w-4" />
-                                        </button>
-                                        <button
-                                            type="button"
-                                            aria-label="Delete row"
+                                            aria-label="Delete lead"
                                             onClick={() => onDeleteRow(row.id)}
                                             className={cn(
                                                 gridIconButtonClassName,
@@ -272,8 +279,13 @@ function MobileLeadCards({
                                         </button>
                                     </div>
                                 ) : null}
-                                {columns.map((column) => (
-                                    <div key={`${row.id}-${column.id}`} className="space-y-1.5">
+                                {columns.map((column, columnIndex) => (
+                                    <div
+                                        key={`${row.id}-${column.id}`}
+                                        className="space-y-1.5"
+                                        data-cell-key={column.key}
+                                        data-first-cell={columnIndex === 0 ? 'true' : undefined}
+                                    >
                                         <Label className="text-xs font-medium text-muted-foreground">
                                             {column.label}
                                         </Label>
@@ -286,11 +298,6 @@ function MobileLeadCards({
                                         />
                                     </div>
                                 ))}
-                                {isPhantom ? (
-                                    <p className="text-xs text-muted-foreground">
-                                        Start typing in any field to create this lead.
-                                    </p>
-                                ) : null}
                             </div>
                         ) : null}
                     </article>
@@ -663,7 +670,9 @@ export default function MarketingTrackerPage() {
             `[data-row-id="${rowId}"] ${columnSelector} input, [data-row-id="${rowId}"] ${columnSelector} textarea`
         );
         cell?.focus();
-        phantomPromotedRowId.current = null;
+        if (phantomPromotedRowId.current === rowId) {
+            phantomPromotedRowId.current = null;
+        }
         pendingFocusRowId.current = null;
         pendingFocusColumnKey.current = null;
     }, [rows]);
@@ -777,18 +786,23 @@ export default function MarketingTrackerPage() {
         (
             afterRowId: string | null,
             initialValues?: Record<string, MarketingTrackerCellValue>,
-            focusColumnKey?: string
+            focusColumnKey?: string,
+            options?: { atStart?: boolean }
         ): string => {
             if (!canWriteCatalog) return '';
             if (!activeSheetId) return '';
             setError(null);
 
+            const atStart = options?.atStart === true;
             const tempId = createLocalId();
             const now = new Date().toISOString();
             let insertPosition = rows.length + 1;
             let insertIndex = rows.length;
 
-            if (afterRowId) {
+            if (atStart) {
+                insertPosition = 1;
+                insertIndex = 0;
+            } else if (afterRowId) {
                 const afterIndex = rows.findIndex((row) => row.id === afterRowId);
                 if (afterIndex >= 0) {
                     insertPosition = rows[afterIndex].position + 1;
@@ -819,8 +833,12 @@ export default function MarketingTrackerPage() {
 
             const createPromise = (async () => {
                 const sheetId = await resolveSheetId(activeSheetId);
-                const body: { sheet_id: string; after_row_id?: string } = { sheet_id: sheetId };
-                if (afterRowId) {
+                const body: { sheet_id: string; after_row_id?: string; at_start?: boolean } = {
+                    sheet_id: sheetId,
+                };
+                if (atStart) {
+                    body.at_start = true;
+                } else if (afterRowId) {
                     const resolvedAfterId = await resolveRowId(afterRowId);
                     if (!isLocalId(resolvedAfterId)) {
                         body.after_row_id = resolvedAfterId;
@@ -945,6 +963,13 @@ export default function MarketingTrackerPage() {
         },
         [applyRowCellSave, insertRowAfter, rows]
     );
+
+    function handleAddMobileLead() {
+        if (!canWriteCatalog || columns.length === 0) return;
+        const newId = insertRowAfter(null, undefined, undefined, { atStart: true });
+        if (!newId) return;
+        setMobileExpandRowId(newId);
+    }
 
     async function handleDeleteRow(rowId: string) {
         if (!canWriteCatalog) return;
@@ -1351,18 +1376,12 @@ export default function MarketingTrackerPage() {
                             <div className="mb-3 flex items-center gap-2 md:hidden">
                                 <Button
                                     type="button"
-                                    variant="outline"
-                                    className="h-11 flex-1"
+                                    className="h-11 flex-[1.4]"
                                     disabled={columns.length === 0}
-                                    onClick={() => {
-                                        const newId = insertRowAfter(
-                                            filteredRows[filteredRows.length - 1]?.id ?? null
-                                        );
-                                        if (newId) setMobileExpandRowId(newId);
-                                    }}
+                                    onClick={handleAddMobileLead}
                                 >
                                     <Plus className="mr-1.5 h-4 w-4" />
-                                    Row
+                                    Add lead
                                 </Button>
                                 <Button
                                     type="button"
@@ -1388,13 +1407,13 @@ export default function MarketingTrackerPage() {
                         <div className={cn(sheetLoading && 'pointer-events-none opacity-60')}>
                             <MobileLeadCards
                                 columns={columns}
-                                rows={displayRows}
+                                rows={filteredRows}
                                 titleKey={stickyColumnKey}
                                 canWrite={canWriteCatalog}
                                 expandRowId={mobileExpandRowId}
                                 onChange={scheduleSave}
                                 onDeleteRow={requestDeleteRow}
-                                onInsertBelow={insertRowAfter}
+                                onAddLead={handleAddMobileLead}
                             />
                         </div>
 
