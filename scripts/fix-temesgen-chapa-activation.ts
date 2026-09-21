@@ -201,7 +201,6 @@ async function main(): Promise<void> {
         paymentType: 'chapa',
         transactionId: txRef,
         type: 'provider',
-        userId: authUserId,
         ...walletTransactionProfileColumns({
             type: 'provider',
             authUserId,
