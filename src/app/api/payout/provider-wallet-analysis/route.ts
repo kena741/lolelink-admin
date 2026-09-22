@@ -31,9 +31,9 @@ function parseServiceTierMax(provider: Record<string, unknown>): number | null {
 
 function resolvePlanMinimumFromServiceTierMax(serviceTierMax: number | null): number | null {
     if (serviceTierMax === null) return null;
-    // Business rule: <=5 => 300, <=10 => 499, >10 or unlimited => 999
+    // Business rule: <=5 => 249, <=10 => 499, >10 or unlimited => 999
     if (serviceTierMax > 10 || serviceTierMax <= 0) return 999;
-    if (serviceTierMax <= 5) return 300;
+    if (serviceTierMax <= 5) return 249;
     return 499;
 }
 
