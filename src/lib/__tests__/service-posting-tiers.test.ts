@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
     formatServicePostingTierLabel,
     parseServicePostingTiers,
+    resolvePlanPriceForServiceTierMax,
     resolveServicePostingTierByPrice,
 } from '@/lib/service-posting-tiers';
 
@@ -24,6 +25,16 @@ describe('service-posting-tiers', () => {
         expect(resolveServicePostingTierByPrice(tiers, 499)?.max_services).toBe(10);
         expect(resolveServicePostingTierByPrice(tiers, 999)?.max_services).toBe(-1);
         expect(resolveServicePostingTierByPrice(tiers, 0)).toBeNull();
+    });
+
+    it('maps a paid tier max to its plan price and skips an unpaid provider', () => {
+        const tiers = parseServicePostingTiers(null);
+        expect(resolvePlanPriceForServiceTierMax(tiers, 0)).toBeNull();
+        expect(resolvePlanPriceForServiceTierMax(tiers, null)).toBeNull();
+        expect(resolvePlanPriceForServiceTierMax(tiers, 1)).toBe(99);
+        expect(resolvePlanPriceForServiceTierMax(tiers, 4)).toBe(249);
+        expect(resolvePlanPriceForServiceTierMax(tiers, 10)).toBe(499);
+        expect(resolvePlanPriceForServiceTierMax(tiers, -1)).toBe(999);
     });
 
     it('formats labels', () => {

@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import { requireAdminPermission } from '@/lib/admin-auth';
 import { analyzeProviderPayoutWallet } from '@/lib/provider-payout-analysis';
+import {
+    parseServicePostingTiers,
+    resolvePlanPriceForServiceTierMax,
+    type ServicePostingTier,
+} from '@/lib/service-posting-tiers';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 import { readAuthUserId } from '@/lib/wallet-transaction-user';
 
@@ -29,19 +34,15 @@ function parseServiceTierMax(provider: Record<string, unknown>): number | null {
     return null;
 }
 
-function resolvePlanMinimumFromServiceTierMax(serviceTierMax: number | null): number | null {
-    if (serviceTierMax === null) return null;
-    // Business rule: <=5 => 249, <=10 => 499, >10 or unlimited => 999
-    if (serviceTierMax > 10 || serviceTierMax <= 0) return 999;
-    if (serviceTierMax <= 5) return 249;
-    return 499;
-}
-
 function parseProviderPlanMinimumRetainedBalance(
     provider: Record<string, unknown>,
+    tiers: ServicePostingTier[],
     fallbackAmount: number | null
 ): number | null {
-    const derivedFromTierMax = resolvePlanMinimumFromServiceTierMax(parseServiceTierMax(provider));
+    const serviceTierMax = parseServiceTierMax(provider);
+    if (serviceTierMax === 0) return null;
+
+    const derivedFromTierMax = resolvePlanPriceForServiceTierMax(tiers, serviceTierMax);
     if (derivedFromTierMax !== null) return derivedFromTierMax;
 
     const candidates = [
@@ -119,7 +120,22 @@ export async function GET(request: Request) {
             latestTierPaymentAmount = parseAmount((tierPaymentResult.data as { amount?: string | number }).amount);
             if (latestTierPaymentAmount <= 0) latestTierPaymentAmount = null;
         }
-        const planMinimumRetainedBalance = parseProviderPlanMinimumRetainedBalance(provider, latestTierPaymentAmount);
+        const settingsResult = await supabaseAdmin
+            .from('app_settings')
+            .select('data')
+            .eq('id', 'constant')
+            .maybeSingle();
+        const settingsData = settingsResult.data?.data;
+        const constants =
+            settingsData && typeof settingsData === 'object' && !Array.isArray(settingsData)
+                ? (settingsData as Record<string, unknown>)
+                : {};
+        const tiers = parseServicePostingTiers(constants.service_posting_tiers);
+        const planMinimumRetainedBalance = parseProviderPlanMinimumRetainedBalance(
+            provider,
+            tiers,
+            latestTierPaymentAmount
+        );
 
         const [walletResult, bookingsResult] = await Promise.all([
             supabaseAdmin

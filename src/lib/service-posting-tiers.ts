@@ -38,6 +38,15 @@ export function parseServicePostingTiers(data: unknown): ServicePostingTier[] {
     return tiers.length > 0 ? tiers : [...DEFAULT_SERVICE_POSTING_TIERS];
 }
 
+export function resolvePlanPriceForServiceTierMax(
+    tiers: ServicePostingTier[],
+    serviceTierMax: number | null
+): number | null {
+    if (serviceTierMax === null || serviceTierMax === 0) return null;
+    const match = tiers.find((tier) => tier.max_services === serviceTierMax);
+    return match?.total_price ?? null;
+}
+
 export function resolveServicePostingTierByPrice(
     tiers: ServicePostingTier[],
     price: number
