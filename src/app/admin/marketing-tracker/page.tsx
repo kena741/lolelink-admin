@@ -32,6 +32,7 @@ import {
     resolveColumnWidthPx,
     slugifyColumnLabel,
     stripColumnKeyFromValues,
+    mergeSavedRowWithLocalValues,
 } from '@/lib/marketing-tracker';
 import { cn } from '@/lib/utils';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
@@ -164,6 +165,7 @@ interface MobileLeadCardsProps {
     onChange: (rowId: string, columnKey: string, value: MarketingTrackerCellValue) => void;
     onDeleteRow: (rowId: string) => void;
     onAddLead: () => void;
+    rowKey?: (rowId: string) => string;
 }
 
 function MobileLeadCards({
@@ -175,6 +177,7 @@ function MobileLeadCards({
     onChange,
     onDeleteRow,
     onAddLead,
+    rowKey = (rowId) => rowId,
 }: MobileLeadCardsProps) {
     const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
     const [seenExpandRowId, setSeenExpandRowId] = useState<string | null>(expandRowId);
@@ -216,13 +219,13 @@ function MobileLeadCards({
             ) : null}
 
             {rows.map((row) => {
-                const isExpanded = expandedRowId === row.id;
+                const isExpanded = rowKey(expandedRowId ?? '') === rowKey(row.id);
                 const title =
                     (titleKey ? cellDisplayValue(row.values[titleKey]) : '') || 'Untitled lead';
 
                 return (
                     <article
-                        key={row.id}
+                        key={rowKey(row.id)}
                         data-row-id={row.id}
                         className="overflow-hidden rounded-xl border border-border bg-card shadow-sm"
                     >
@@ -230,7 +233,9 @@ function MobileLeadCards({
                             <button
                                 type="button"
                                 onClick={() =>
-                                    setExpandedRowId((current) => (current === row.id ? null : row.id))
+                                    setExpandedRowId((current) =>
+                                        rowKey(current ?? '') === rowKey(row.id) ? null : row.id
+                                    )
                                 }
                                 className="min-w-0 flex-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                 aria-expanded={isExpanded}
@@ -254,7 +259,9 @@ function MobileLeadCards({
                             <button
                                 type="button"
                                 onClick={() =>
-                                    setExpandedRowId((current) => (current === row.id ? null : row.id))
+                                    setExpandedRowId((current) =>
+                                        rowKey(current ?? '') === rowKey(row.id) ? null : row.id
+                                    )
                                 }
                                 className="inline-flex h-9 shrink-0 items-center rounded-lg border border-indigo-200 bg-white px-3 text-xs font-semibold text-indigo-700 transition-colors hover:bg-indigo-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
                             >
@@ -281,7 +288,7 @@ function MobileLeadCards({
                                 ) : null}
                                 {columns.map((column, columnIndex) => (
                                     <div
-                                        key={`${row.id}-${column.id}`}
+                                        key={`${rowKey(row.id)}-${column.id}`}
                                         className="space-y-1.5"
                                         data-cell-key={column.key}
                                         data-first-cell={columnIndex === 0 ? 'true' : undefined}
@@ -600,6 +607,8 @@ export default function MarketingTrackerPage() {
     const saveTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
     const widthSaveTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
     const rowCreatePromises = useRef<Map<string, Promise<string>>>(new Map());
+    const resolvedRowIds = useRef<Map<string, string>>(new Map());
+    const rowClientKeys = useRef<Map<string, string>>(new Map());
     const sheetCreatePromises = useRef<Map<string, Promise<string>>>(new Map());
 
     const loadTracker = useCallback(async (sheetId?: string | null, options?: { initial?: boolean }) => {
@@ -648,6 +657,8 @@ export default function MarketingTrackerPage() {
 
     const resolveRowId = useCallback(async (rowId: string): Promise<string> => {
         if (!isLocalId(rowId)) return rowId;
+        const mapped = resolvedRowIds.current.get(rowId);
+        if (mapped) return mapped;
         const pending = rowCreatePromises.current.get(rowId);
         if (!pending) return rowId;
         return pending;
@@ -663,6 +674,13 @@ export default function MarketingTrackerPage() {
         if (!pendingFocusRowId.current) return;
         const rowId = pendingFocusRowId.current;
         const columnKey = pendingFocusColumnKey.current;
+        const rowRoot = document.querySelector<HTMLElement>(`[data-row-id="${rowId}"]`);
+        const active = document.activeElement;
+        if (rowRoot && active instanceof HTMLElement && rowRoot.contains(active)) {
+            pendingFocusRowId.current = null;
+            pendingFocusColumnKey.current = null;
+            return;
+        }
         const columnSelector = columnKey
             ? `[data-cell-key="${columnKey}"]`
             : '[data-first-cell="true"]';
@@ -695,6 +713,9 @@ export default function MarketingTrackerPage() {
         return [...filteredRows, phantomRow];
     }, [filteredRows, columns.length, query, activeSheetId, rows.length]);
 
+    const getRowClientKey = useCallback((rowId: string) => {
+        return rowClientKeys.current.get(rowId) ?? rowId;
+    }, []);
     const analytics = useMemo(() => computeSheetAnalytics(rows), [rows]);
     const activeSheetName = sheets.find((sheet) => sheet.id === activeSheetId)?.name ?? null;
     const metricsLoading = initialLoading || sheetLoading;
@@ -796,6 +817,7 @@ export default function MarketingTrackerPage() {
             const atStart = options?.atStart === true;
             const tempId = createLocalId();
             const now = new Date().toISOString();
+            rowClientKeys.current.set(tempId, tempId);
             let insertPosition = rows.length + 1;
             let insertIndex = rows.length;
 
@@ -873,10 +895,12 @@ export default function MarketingTrackerPage() {
                 }
 
                 setRows((current) =>
-                    [...current.map((row) => (row.id === tempId ? savedRow! : row))].sort(
-                        (left, right) => left.position - right.position
-                    )
+                    [...current.map((row) =>
+                        row.id === tempId ? mergeSavedRowWithLocalValues(savedRow, row) : row
+                    )].sort((left, right) => left.position - right.position)
                 );
+                resolvedRowIds.current.set(tempId, savedRow.id);
+                rowClientKeys.current.set(savedRow.id, rowClientKeys.current.get(tempId) ?? tempId);
                 if (pendingFocusRowId.current === tempId) {
                     pendingFocusRowId.current = savedRow.id;
                 }
@@ -1414,6 +1438,7 @@ export default function MarketingTrackerPage() {
                                 onChange={scheduleSave}
                                 onDeleteRow={requestDeleteRow}
                                 onAddLead={handleAddMobileLead}
+                                rowKey={getRowClientKey}
                             />
                         </div>
 
@@ -1491,7 +1516,7 @@ export default function MarketingTrackerPage() {
                                                     : String(dataRowIndex + 1);
 
                                             return (
-                                                <tr key={row.id} data-row-id={row.id} className="group">
+                                                <tr key={getRowClientKey(row.id)} data-row-id={row.id} className="group">
                                                     <td
                                                         className="sticky left-0 z-20 overflow-hidden border-b border-r border-border/60 bg-muted px-1 py-1 text-center text-xs tabular-nums text-muted-foreground group-hover:bg-muted"
                                                         style={{
@@ -1525,7 +1550,7 @@ export default function MarketingTrackerPage() {
                                                             resolveColumnWidthPx(column);
                                                         return (
                                                             <td
-                                                                key={`${row.id}-${column.id}`}
+                                                                key={`${getRowClientKey(row.id)}-${column.id}`}
                                                                 style={{
                                                                     width: widthPx,
                                                                     minWidth: widthPx,

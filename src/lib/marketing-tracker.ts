@@ -83,6 +83,16 @@ export function stripColumnKeyFromValues(
     return next;
 }
 
+export function mergeSavedRowWithLocalValues(
+    savedRow: MarketingTrackerRow,
+    localRow: MarketingTrackerRow
+): MarketingTrackerRow {
+    return {
+        ...savedRow,
+        values: { ...savedRow.values, ...localRow.values },
+    };
+}
+
 export function clampColumnWidthPx(width: number): number {
     return Math.min(MAX_COLUMN_WIDTH_PX, Math.max(MIN_COLUMN_WIDTH_PX, Math.round(width)));
 }

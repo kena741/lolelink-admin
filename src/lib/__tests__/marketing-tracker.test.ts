@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
     clampColumnWidthPx,
+    computeSheetAnalytics,
+    mergeSavedRowWithLocalValues,
     normalizeColumnType,
     resolveColumnWidthPx,
     slugifyColumnLabel,
     stripColumnKeyFromValues,
-    computeSheetAnalytics,
 } from '@/lib/marketing-tracker';
 
 describe('marketing-tracker helpers', () => {
@@ -22,6 +23,29 @@ describe('marketing-tracker helpers', () => {
 
     it('strips deleted column keys from row values', () => {
         expect(stripColumnKeyFromValues({ a: 'x', b: true }, 'a')).toEqual({ b: true });
+    });
+
+    it('keeps typed local values when a temp row is replaced by the saved row', () => {
+        const merged = mergeSavedRowWithLocalValues(
+            {
+                id: 'saved',
+                sheet_id: 's1',
+                position: 1,
+                values: { name: 'Mi' },
+                created_at: 'a',
+                updated_at: 'a',
+            },
+            {
+                id: 'temp',
+                sheet_id: 's1',
+                position: 1,
+                values: { name: 'Michael', phone: '09' },
+                created_at: 'a',
+                updated_at: 'a',
+            }
+        );
+        expect(merged.id).toBe('saved');
+        expect(merged.values).toEqual({ name: 'Michael', phone: '09' });
     });
 
     it('resolves and clamps column widths', () => {
