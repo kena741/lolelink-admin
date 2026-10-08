@@ -44,6 +44,7 @@ export default function CustomersPage() {
     const { customers, loading, error, convertingId, convertError } = useAppSelector((s) => s.customer);
     const [query, setQuery] = useState('');
     const [showArchived, setShowArchived] = useState(false);
+    const [qrOnly, setQrOnly] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const [confirmCustomerId, setConfirmCustomerId] = useState<string | null>(null);
     const [confirmJobRequestCount, setConfirmJobRequestCount] = useState(0);
@@ -62,7 +63,7 @@ export default function CustomersPage() {
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [query, showArchived]);
+    }, [query, showArchived, qrOnly]);
 
     const openConvertConfirm = useCallback(async (customerId: string) => {
         setConfirmCustomerId(customerId);
@@ -157,7 +158,7 @@ export default function CustomersPage() {
     const filtered = useMemo(() => {
         const visible = customers.filter((c) =>
             showArchived ? customerIsArchived(c) : !customerIsArchived(c)
-        );
+        ).filter((c) => !qrOnly || (c.signup_source ?? '').trim().toLowerCase() === 'qr');
         const sorted = [...visible].sort((a, b) => {
             const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
             const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
@@ -171,6 +172,7 @@ export default function CustomersPage() {
             const userId = (c.id ?? '').toLowerCase();
             const email = (c.email ?? '').toLowerCase();
             const phone = ((c.phoneNumber ?? c.mobile_number ?? c.phone) ?? '').toLowerCase();
+            const source = (c.signup_source ?? '').toLowerCase();
             const address = (() => {
                 const defaultAddress = c.default_address;
                 if (typeof defaultAddress === 'string') {
@@ -196,15 +198,17 @@ export default function CustomersPage() {
                 userId.includes(q) ||
                 email.includes(q) ||
                 phone.includes(q) ||
-                address.includes(q)
+                address.includes(q) ||
+                source.includes(q)
             );
         });
-    }, [customers, query, showArchived]);
+    }, [customers, query, showArchived, qrOnly]);
 
     function exportToXlsx() {
         const rows = filtered.map((c) => ({
             'Full Name': [c.first_name, c.last_name].filter(Boolean).join(' '),
             'Phone': c.phoneNumber ?? c.mobile_number ?? c.phone ?? '',
+            'Signup source': c.signup_source ?? '',
         }));
         const ws = XLSX.utils.json_to_sheet(rows);
         const wb = XLSX.utils.book_new();
@@ -247,6 +251,17 @@ export default function CustomersPage() {
                                     {showArchived ? 'Archived only' : 'Show archived'}
                                 </button>
                                 <button
+                                    type="button"
+                                    onClick={() => setQrOnly((v) => !v)}
+                                    className={`inline-flex h-10 items-center rounded-md border px-3 text-sm font-semibold transition-colors ${
+                                        qrOnly
+                                            ? 'border-sky-300 bg-sky-50 text-sky-800'
+                                            : 'border-gray-200 bg-white/80 text-gray-700 hover:bg-white'
+                                    }`}
+                                >
+                                    {qrOnly ? 'QR signups' : 'All sources'}
+                                </button>
+                                <button
                                     onClick={exportToXlsx}
                                     disabled={filtered.length === 0}
                                     className="inline-flex h-10 items-center gap-2 rounded-md border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
@@ -273,6 +288,7 @@ export default function CustomersPage() {
                                         <TableHead>Gender</TableHead>
                                         <TableHead>Wallet</TableHead>
                                         <TableHead>Status</TableHead>
+                                        <TableHead>Source</TableHead>
                                         <TableHead>Address</TableHead>
                                         <TableHead>Created</TableHead>
                                         <TableHead>Last Request</TableHead>
@@ -325,6 +341,15 @@ export default function CustomersPage() {
                                                 }`}>
                                                     {c.status || '—'}
                                                 </span>
+                                            </TableCell>
+                                            <TableCell className="text-gray-700">
+                                                {c.signup_source ? (
+                                                    <span className="inline-flex items-center rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold uppercase text-sky-800">
+                                                        {c.signup_source}
+                                                    </span>
+                                                ) : (
+                                                    '—'
+                                                )}
                                             </TableCell>
                                             <TableCell className="text-gray-700">
                                                 {(() => {

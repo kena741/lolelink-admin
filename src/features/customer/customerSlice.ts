@@ -37,6 +37,7 @@ export interface Customer {
     last_request_at?: string | null; // Computed field, not from DB
     archived_at?: string | null;
     admin_note?: string | null;
+    signup_source?: string | null;
 }
 
 interface CustomerListState {

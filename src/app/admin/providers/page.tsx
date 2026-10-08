@@ -178,11 +178,13 @@ const ProvidersPage = () => {
     type ServicesFilter = "all" | "with_services" | "no_services";
     type AccountFilter = "all" | "active" | "inactive";
     type TierFilter = "all" | "0" | "1" | "5" | "10" | "10_plus";
+    type SignupSourceFilter = "all" | "qr" | "none";
     const [archiveVisibility, setArchiveVisibility] = useState<ArchiveVisibility>("active_only");
     const [activationFilter, setActivationFilter] = useState<ActivationFilter>("all");
     const [servicesFilter, setServicesFilter] = useState<ServicesFilter>("all");
     const [accountFilter, setAccountFilter] = useState<AccountFilter>("all");
     const [tierFilter, setTierFilter] = useState<TierFilter>("all");
+    const [signupSourceFilter, setSignupSourceFilter] = useState<SignupSourceFilter>("all");
     const [actionBusyId, setActionBusyId] = useState<string | null>(null);
     const [actionError, setActionError] = useState<string | null>(null);
     const [pendingDeleteProviderId, setPendingDeleteProviderId] = useState<string | null>(null);
@@ -195,8 +197,9 @@ const ProvidersPage = () => {
         if (servicesFilter !== "all") n += 1;
         if (accountFilter !== "all") n += 1;
         if (tierFilter !== "all") n += 1;
+        if (signupSourceFilter !== "all") n += 1;
         return n;
-    }, [archiveVisibility, activationFilter, servicesFilter, accountFilter, tierFilter]);
+    }, [archiveVisibility, activationFilter, servicesFilter, accountFilter, tierFilter, signupSourceFilter]);
 
     const resetFilters = useCallback(() => {
         setArchiveVisibility("active_only");
@@ -204,6 +207,7 @@ const ProvidersPage = () => {
         setServicesFilter("all");
         setAccountFilter("all");
         setTierFilter("all");
+        setSignupSourceFilter("all");
     }, []);
 
     const toggleSort = (key: SortKey) => {
@@ -237,9 +241,12 @@ const ProvidersPage = () => {
             if (tierFilter === "5" && tier !== 5) return false;
             if (tierFilter === "10" && tier !== 10) return false;
             if (tierFilter === "10_plus" && tier <= 10) return false;
+            const source = (p.signupSource ?? "").trim().toLowerCase();
+            if (signupSourceFilter === "qr" && source !== "qr") return false;
+            if (signupSourceFilter === "none" && source) return false;
             return true;
         });
-    }, [providers, archiveVisibility, activationFilter, servicesFilter, accountFilter, tierFilter, serviceCounts]);
+    }, [providers, archiveVisibility, activationFilter, servicesFilter, accountFilter, tierFilter, signupSourceFilter, serviceCounts]);
 
     const sortedProviders = useMemo(() => {
         const arr = [...attributeFilteredProviders];
@@ -295,6 +302,7 @@ const ProvidersPage = () => {
             'Activation paid': providerActivationPaid(p) ? 'Yes' : 'No',
             'Service tier max': p.service_tier_max ?? 0,
             'Services': p.id ? (serviceCounts[p.id] ?? 0) : 0,
+            'Signup source': p.signupSource ?? '',
             'Archived': providerIsArchived(p) ? 'Yes' : 'No',
         }));
         const ws = XLSX.utils.json_to_sheet(rows);
@@ -639,7 +647,7 @@ const ProvidersPage = () => {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+                                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
                                         <SegmentGroup
                                             label="Archive"
                                             value={archiveVisibility}
@@ -691,6 +699,16 @@ const ProvidersPage = () => {
                                                 { value: "all", label: "All" },
                                                 { value: "active", label: "Active" },
                                                 { value: "inactive", label: "Inactive" },
+                                            ]}
+                                        />
+                                        <SegmentGroup
+                                            label="Signup source"
+                                            value={signupSourceFilter}
+                                            onChange={setSignupSourceFilter}
+                                            options={[
+                                                { value: "all", label: "All" },
+                                                { value: "qr", label: "QR" },
+                                                { value: "none", label: "None" },
                                             ]}
                                         />
                                 </div>
@@ -847,6 +865,11 @@ const ProvidersPage = () => {
                                                                     }
                                                                 />
                                                                 <ServiceTierBadge tierMax={p.service_tier_max} />
+                                                                {p.signupSource ? (
+                                                                    <span className="inline-flex h-5 items-center rounded-md bg-sky-100 px-1.5 text-[10px] font-semibold uppercase text-sky-800">
+                                                                        {p.signupSource}
+                                                                    </span>
+                                                                ) : null}
                                                             </div>
                                                         </div>
                                                     </div>
@@ -938,6 +961,7 @@ const ProvidersPage = () => {
                                                         <ChevronsUpDown className="h-4 w-4 opacity-60" />
                                                     </button>
                                                 </TableHead>
+                                                <TableHead className="font-semibold text-foreground">Source</TableHead>
                                                 <TableHead className="min-w-40 font-semibold text-foreground">Note</TableHead>
                                                 <TableHead className="text-right font-semibold text-foreground">Actions</TableHead>
                                             </TableRow>
@@ -1054,6 +1078,15 @@ const ProvidersPage = () => {
                                                                 <Calendar className="h-4 w-4 text-muted-foreground" />
                                                                 {p.createdAt ? new Date(p.createdAt).toLocaleDateString() : "—"}
                                                             </div>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {p.signupSource ? (
+                                                                <span className="inline-flex items-center rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold uppercase text-sky-800">
+                                                                    {p.signupSource}
+                                                                </span>
+                                                            ) : (
+                                                                "—"
+                                                            )}
                                                         </TableCell>
                                                         <TableCell onClick={(e) => e.stopPropagation()}>
                                                             {p.id ? (

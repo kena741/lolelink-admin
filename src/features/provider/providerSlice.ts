@@ -56,6 +56,7 @@ export interface Provider {
     company_license_url?: string | null;
     company_rejection_reason?: string | null;
     admin_note?: string | null;
+    signupSource?: string | null;
 }
 
 export interface ProviderState {

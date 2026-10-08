@@ -76,6 +76,7 @@ interface CustomerDetail {
     customer_addresses?: unknown;
     address?: string | null;
     admin_note?: string | null;
+    signup_source?: string | null;
 }
 
 interface CustomerStats {
@@ -507,6 +508,11 @@ export default function CustomerDetailPage() {
                                         Linked provider
                                     </span>
                                 ) : null}
+                                {customer.signup_source ? (
+                                    <span className="inline-flex items-center rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold uppercase text-sky-800">
+                                        Source: {customer.signup_source}
+                                    </span>
+                                ) : null}
                                 <AdminNoteField
                                     value={customer.admin_note}
                                     disabled={!canWriteCustomers}
@@ -793,6 +799,18 @@ export default function CustomerDetailPage() {
                                         <div>
                                             <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Promo code</p>
                                             <p className="mt-1 text-sm text-gray-900">{customer.promo_code || '—'}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Signup source</p>
+                                            <p className="mt-1 text-sm text-gray-900">
+                                                {customer.signup_source ? (
+                                                    <span className="inline-flex items-center rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold uppercase text-sky-800">
+                                                        {customer.signup_source}
+                                                    </span>
+                                                ) : (
+                                                    '—'
+                                                )}
+                                            </p>
                                         </div>
                                         <div>
                                             <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Last booking</p>

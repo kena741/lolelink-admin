@@ -526,6 +526,11 @@ export default function ProviderDetailPage() {
                                     {provider.activation_paid ? 'Activation Paid' : 'Activation Fee Pending'}
                                 </span>
                                 <ServiceTierBadge tierMax={provider.service_tier_max} />
+                                {provider.signupSource ? (
+                                    <span className="inline-flex items-center rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold uppercase text-sky-800">
+                                        Source: {provider.signupSource}
+                                    </span>
+                                ) : null}
                                 <AdminNoteField
                                     value={provider.admin_note}
                                     disabled={!canWriteProviders}

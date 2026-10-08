@@ -30,4 +30,5 @@ export interface CustomerSchema {
   provider_id?: string;
   address?: string;
   archived_at?: string | null;
+  signup_source?: string | null;
 }
