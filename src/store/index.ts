@@ -15,6 +15,7 @@ import handymanReducer from '../features/handyman/handymanSlice';
 import taxReducer from '../features/tax/taxSlice';
 import documentReducer from '../features/document/documentSlice';
 import bannerReducer from '../features/banner/bannerSlice';
+import blogReducer from '../features/blog/blogSlice';
 import couponReducer from '../features/coupon/couponSlice';
 import paymentsReducer from '../features/payments/paymentsSlice';
 import walletTransactionReducer from '../features/walletTransaction/walletTransactionSlice';
@@ -41,6 +42,7 @@ const store = configureStore({
         tax: taxReducer,
         document: documentReducer,
         banner: bannerReducer,
+        blog: blogReducer,
         coupon: couponReducer,
         payments: paymentsReducer,
         walletTransaction: walletTransactionReducer,
