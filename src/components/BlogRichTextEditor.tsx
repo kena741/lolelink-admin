@@ -81,11 +81,11 @@ export default function BlogRichTextEditor({ value, onChange, placeholder }: Pro
     };
 
     const btn =
-        'inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground';
+        'inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-500 transition hover:bg-gray-100 hover:text-gray-900';
 
     return (
-        <div className="overflow-hidden rounded-lg border border-input bg-card">
-            <div className="flex flex-wrap items-center gap-0.5 border-b border-border bg-muted/40 px-2 py-1.5">
+        <div className="overflow-hidden rounded-lg border border-gray-300 bg-white">
+            <div className="flex flex-wrap items-center gap-0.5 border-b border-gray-200 bg-gray-50 px-2 py-1.5">
                 <button type="button" className={btn} title="Bold" onMouseDown={(e) => { e.preventDefault(); exec('bold'); emit(); }}>
                     <Bold className="h-3.5 w-3.5" />
                 </button>
@@ -126,7 +126,7 @@ export default function BlogRichTextEditor({ value, onChange, placeholder }: Pro
                     <Redo2 className="h-3.5 w-3.5" />
                 </button>
                 {uploading ? (
-                    <span className="ml-2 text-xs text-muted-foreground">Uploading…</span>
+                    <span className="ml-2 text-xs text-gray-500">Uploading…</span>
                 ) : null}
             </div>
             <div
@@ -136,7 +136,7 @@ export default function BlogRichTextEditor({ value, onChange, placeholder }: Pro
                 aria-multiline
                 suppressContentEditableWarning
                 data-placeholder={placeholder || 'Write your post…'}
-                className="blog-admin-editor min-h-[280px] px-4 py-3 text-sm leading-relaxed text-foreground outline-none empty:before:pointer-events-none empty:before:text-muted-foreground empty:before:content-[attr(data-placeholder)]"
+                className="blog-admin-editor min-h-[220px] px-4 py-3 text-sm leading-relaxed text-gray-900 outline-none empty:before:pointer-events-none empty:before:text-gray-400 empty:before:content-[attr(data-placeholder)]"
                 onInput={emit}
                 onBlur={emit}
             />
