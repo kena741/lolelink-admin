@@ -32,6 +32,7 @@ import {
     Smartphone,
     Table2,
     X,
+    Newspaper,
 } from 'lucide-react';
 import { getSupabase } from '@/lib/supabaseClient';
 import { SupabaseEnvSwitcher, SupabaseStagingBanner } from '@/components/SupabaseEnvSwitcher';
@@ -65,6 +66,7 @@ const serviceManagementSubItems = [
     { href: '/admin/documents', label: 'Document types', icon: FileText },
     { href: '/admin/internal-documents', label: 'Internal documents', icon: FileText },
     { href: '/admin/banners', label: 'Banners', icon: FileImage },
+    { href: '/admin/blog', label: 'Blog', icon: Newspaper },
     { href: '/admin/coupon', label: 'Coupon', icon: Ticket },
     { href: '/admin/marketing-tracker', label: 'Marketing Tracker', icon: Table2 },
 ];
