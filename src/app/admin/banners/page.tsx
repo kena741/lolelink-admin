@@ -328,13 +328,14 @@ const BannersPage = () => {
                                                             <span className="text-sm text-gray-400">No image</span>
                                                         )}
                                                     </td>
-                                                    <td className="px-6 py-4 text-sm text-gray-600">
+                                                    <td className="max-w-[14rem] px-6 py-4 text-sm text-gray-600">
                                                         {banner.link ? (
                                                             <a
                                                                 href={banner.link}
                                                                 target="_blank"
                                                                 rel="noreferrer"
-                                                                className="break-all text-indigo-600 hover:text-indigo-900"
+                                                                title={banner.link}
+                                                                className="block truncate text-primary hover:underline"
                                                             >
                                                                 {banner.link}
                                                             </a>
