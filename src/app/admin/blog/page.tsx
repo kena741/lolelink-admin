@@ -4,7 +4,7 @@ import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import BlogRichTextEditor from '@/components/BlogRichTextEditor';
 import { StorageImage } from '@/components/StorageImage';
-import { RefreshCw, Plus, Edit, Trash2, X, Upload, ExternalLink } from 'lucide-react';
+import { RefreshCw, Plus, Edit, Trash2, X, Upload, ExternalLink, MessageSquare, Eye, Heart } from 'lucide-react';
 import {
     fetchBlogPosts,
     createBlogPost,
@@ -53,6 +53,17 @@ const BlogPage = () => {
     const [removingCover, setRemovingCover] = useState(false);
     const [togglingId, setTogglingId] = useState<string | null>(null);
     const [deletingId, setDeletingId] = useState<string | null>(null);
+    const [commentsPost, setCommentsPost] = useState<BlogPost | null>(null);
+    const [comments, setComments] = useState<Array<{
+        id: string;
+        full_name: string;
+        phone: string;
+        body: string;
+        status: string;
+        created_at: string;
+    }>>([]);
+    const [commentsLoading, setCommentsLoading] = useState(false);
+    const [commentBusyId, setCommentBusyId] = useState<string | null>(null);
     const [originalCover, setOriginalCover] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
 
@@ -221,6 +232,78 @@ const BlogPage = () => {
         }
     };
 
+    const openComments = async (post: BlogPost) => {
+        setCommentsPost(post);
+        setCommentsLoading(true);
+        setComments([]);
+        try {
+            const res = await fetch(`/api/blog-posts/${post.id}/comments`);
+            const payload = (await res.json()) as {
+                data?: Array<{
+                    id: string;
+                    full_name: string;
+                    phone: string;
+                    body: string;
+                    status: string;
+                    created_at: string;
+                }>;
+                error?: string;
+            };
+            if (!res.ok) throw new Error(payload.error || 'Failed to load comments');
+            setComments(payload.data ?? []);
+        } catch (err) {
+            console.error(err);
+            alert(err instanceof Error ? err.message : 'Failed to load comments');
+            setCommentsPost(null);
+        } finally {
+            setCommentsLoading(false);
+        }
+    };
+
+    const updateCommentStatus = async (commentId: string, status: 'approved' | 'hidden') => {
+        if (!commentsPost) return;
+        setCommentBusyId(commentId);
+        try {
+            const res = await fetch(`/api/blog-posts/${commentsPost.id}/comments`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ commentId, status }),
+            });
+            const payload = (await res.json()) as { data?: { id: string; status: string }; error?: string };
+            if (!res.ok) throw new Error(payload.error || 'Failed to update comment');
+            setComments((prev) =>
+                prev.map((c) => (c.id === commentId ? { ...c, status } : c))
+            );
+            dispatch(fetchBlogPosts());
+        } catch (err) {
+            console.error(err);
+            alert(err instanceof Error ? err.message : 'Failed to update comment');
+        } finally {
+            setCommentBusyId(null);
+        }
+    };
+
+    const deleteComment = async (commentId: string) => {
+        if (!commentsPost || !confirm('Delete this comment?')) return;
+        setCommentBusyId(commentId);
+        try {
+            const res = await fetch(`/api/blog-posts/${commentsPost.id}/comments`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ commentId }),
+            });
+            const payload = (await res.json()) as { ok?: boolean; error?: string };
+            if (!res.ok || !payload.ok) throw new Error(payload.error || 'Failed to delete comment');
+            setComments((prev) => prev.filter((c) => c.id !== commentId));
+            dispatch(fetchBlogPosts());
+        } catch (err) {
+            console.error(err);
+            alert(err instanceof Error ? err.message : 'Failed to delete comment');
+        } finally {
+            setCommentBusyId(null);
+        }
+    };
+
     const formatDate = (dateString?: string | null) => {
         if (!dateString) return '—';
         return new Date(dateString).toLocaleDateString('en-US', {
@@ -286,6 +369,15 @@ const BlogPage = () => {
                                         Status
                                     </th>
                                     <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                                        Views
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                                        Likes
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                                        Comments
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                                         Published
                                     </th>
                                     <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
@@ -296,13 +388,13 @@ const BlogPage = () => {
                             <tbody className="divide-y divide-gray-200 bg-white">
                                 {loading && posts.length === 0 ? (
                                     <tr>
-                                        <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                                        <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
                                             Loading posts...
                                         </td>
                                     </tr>
                                 ) : posts.length === 0 ? (
                                     <tr>
-                                        <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                                        <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
                                             No blog posts found
                                         </td>
                                     </tr>
@@ -360,11 +452,42 @@ const BlogPage = () => {
                                                     </span>
                                                 </div>
                                             </td>
+                                            <td className="whitespace-nowrap px-6 py-4 text-sm tabular-nums text-gray-600">
+                                                <span className="inline-flex items-center gap-1.5">
+                                                    <Eye className="h-3.5 w-3.5 text-gray-400" />
+                                                    {post.viewCount ?? 0}
+                                                </span>
+                                            </td>
+                                            <td className="whitespace-nowrap px-6 py-4 text-sm tabular-nums text-gray-600">
+                                                <span className="inline-flex items-center gap-1.5">
+                                                    <Heart className="h-3.5 w-3.5 text-gray-400" />
+                                                    {post.likeCount ?? 0}
+                                                </span>
+                                            </td>
+                                            <td className="whitespace-nowrap px-6 py-4 text-sm tabular-nums text-gray-600">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openComments(post)}
+                                                    className="inline-flex items-center gap-1.5 text-gray-700 hover:text-primary"
+                                                    title="View comments"
+                                                >
+                                                    <MessageSquare className="h-3.5 w-3.5 text-gray-400" />
+                                                    {post.commentCount ?? 0}
+                                                </button>
+                                            </td>
                                             <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
                                                 {formatDate(post.publishedAt)}
                                             </td>
                                             <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
                                                 <div className="flex items-center justify-end gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => openComments(post)}
+                                                        className="text-gray-500 hover:text-gray-800"
+                                                        title="Comments"
+                                                    >
+                                                        <MessageSquare className="h-4 w-4" />
+                                                    </button>
                                                     {post.status === 'published' && (
                                                         <a
                                                             href={`https://www.zemenservice.com/blog/${post.slug}`}
@@ -406,13 +529,117 @@ const BlogPage = () => {
                 </div>
             </div>
 
+            {commentsPost && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+                    <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg bg-white shadow-xl">
+                        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+                            <div className="min-w-0">
+                                <h2 className="text-lg font-bold text-gray-900">Comments</h2>
+                                <p className="truncate text-sm text-gray-500">{commentsPost.title}</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setCommentsPost(null);
+                                    setComments([]);
+                                }}
+                                className="text-gray-400 hover:text-gray-600"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto px-6 py-4">
+                            {commentsLoading ? (
+                                <p className="py-8 text-center text-sm text-gray-500">Loading comments…</p>
+                            ) : comments.length === 0 ? (
+                                <p className="py-8 text-center text-sm text-gray-500">No comments yet</p>
+                            ) : (
+                                <ul className="divide-y divide-gray-100">
+                                    {comments.map((comment) => (
+                                        <li key={comment.id} className="py-4">
+                                            <div className="flex flex-wrap items-start justify-between gap-2">
+                                                <div className="min-w-0">
+                                                    <p className="text-sm font-semibold text-gray-900">
+                                                        {comment.full_name}
+                                                    </p>
+                                                    <p className="mt-0.5 text-sm text-gray-600">
+                                                        {comment.phone}
+                                                    </p>
+                                                    <p className="mt-0.5 text-xs text-gray-400">
+                                                        {formatDate(comment.created_at)}
+                                                        {' · '}
+                                                        <span
+                                                            className={
+                                                                comment.status === 'approved'
+                                                                    ? 'text-emerald-600'
+                                                                    : comment.status === 'hidden'
+                                                                      ? 'text-amber-600'
+                                                                      : 'text-gray-500'
+                                                            }
+                                                        >
+                                                            {comment.status}
+                                                        </span>
+                                                    </p>
+                                                </div>
+                                                {canWriteCatalog ? (
+                                                    <div className="flex shrink-0 items-center gap-2">
+                                                        {comment.status !== 'hidden' ? (
+                                                            <button
+                                                                type="button"
+                                                                disabled={commentBusyId === comment.id}
+                                                                onClick={() => updateCommentStatus(comment.id, 'hidden')}
+                                                                className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                                                            >
+                                                                Hide
+                                                            </button>
+                                                        ) : (
+                                                            <button
+                                                                type="button"
+                                                                disabled={commentBusyId === comment.id}
+                                                                onClick={() => updateCommentStatus(comment.id, 'approved')}
+                                                                className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                                                            >
+                                                                Approve
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            type="button"
+                                                            disabled={commentBusyId === comment.id}
+                                                            onClick={() => deleteComment(comment.id)}
+                                                            className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
+                                                        >
+                                                            Delete
+                                                        </button>
+                                                    </div>
+                                                ) : null}
+                                            </div>
+                                            <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-gray-700">
+                                                {comment.body}
+                                            </p>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
                     <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white shadow-xl">
-                        <div className="sticky top-0 flex items-center justify-between border-b border-gray-200 bg-white p-6">
-                            <h2 className="text-xl font-bold text-gray-900">
-                                {editing ? 'Edit Post' : 'Add Post'}
-                            </h2>
+                        <div className="sticky top-0 z-30 flex items-center justify-between border-b border-gray-200 bg-white p-6">
+                            <div>
+                                <h2 className="text-xl font-bold text-gray-900">
+                                    {editing ? 'Edit Post' : 'Add Post'}
+                                </h2>
+                                {editing ? (
+                                    <p className="mt-1 text-xs text-gray-500">
+                                        {editing.viewCount ?? 0} views · {editing.likeCount ?? 0} likes ·{' '}
+                                        {editing.commentCount ?? 0} comments
+                                    </p>
+                                ) : null}
+                            </div>
                             <button
                                 type="button"
                                 onClick={handleCloseModal}

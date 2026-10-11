@@ -12,6 +12,9 @@ export interface BlogPost {
     authorName: string;
     status: BlogPostStatus;
     publishedAt: string | null;
+    viewCount: number;
+    likeCount: number;
+    commentCount: number;
     createdAt?: string;
     updatedAt?: string;
 }
@@ -38,6 +41,9 @@ type BlogPostRow = {
     author_name?: string | null;
     status?: string | null;
     published_at?: string | null;
+    view_count?: number | null;
+    like_count?: number | null;
+    blog_comment?: { count: number }[] | null;
     created_at?: string;
     updated_at?: string;
 };
@@ -53,6 +59,9 @@ const normalizeRows = (rows: BlogPostRow[] | null | undefined): BlogPost[] =>
         authorName: row.author_name ?? '',
         status: row.status === 'published' ? 'published' : 'draft',
         publishedAt: row.published_at ?? null,
+        viewCount: Number(row.view_count ?? 0),
+        likeCount: Number(row.like_count ?? 0),
+        commentCount: Number(row.blog_comment?.[0]?.count ?? 0),
         createdAt: row.created_at,
         updatedAt: row.updated_at,
     }));

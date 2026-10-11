@@ -16,8 +16,11 @@ type BlogPostRow = {
     author_name?: string | null;
     status?: string | null;
     published_at?: string | null;
+    view_count?: number | null;
+    like_count?: number | null;
     created_at?: string;
     updated_at?: string;
+    blog_comment?: { count: number }[] | null;
 };
 
 type BlogMutationBody = {
@@ -106,7 +109,7 @@ export async function GET(request: Request) {
     try {
         const { data, error } = await supabaseAdmin
             .from('blog_post')
-            .select('*')
+            .select('*, blog_comment(count)')
             .order('updated_at', { ascending: false });
         if (error) {
             return NextResponse.json({ error: error.message || 'Failed to fetch blog posts' }, { status: 500 });
