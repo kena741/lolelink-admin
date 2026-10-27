@@ -17,6 +17,8 @@ import {
     Eye,
     Search,
     RotateCcw,
+    ChevronLeft,
+    ChevronRight,
 } from 'lucide-react';
 import Link from 'next/link';
 import { StorageImage } from '@/components/StorageImage';
@@ -107,13 +109,80 @@ const VerifyDocumentsPage = () => {
         }
     }
 
-    async function openDocumentDetail(doc: typeof documents[0]) {
+    const reviewProviderId = selectedDocument?.providerId;
+    const providerReviewDocs = useMemo(() => {
+        if (!reviewProviderId) return [] as typeof documents;
+        return documents.filter((doc) => doc.providerId === reviewProviderId);
+    }, [documents, reviewProviderId]);
+
+    const selectedDocIndex = useMemo(() => {
+        if (!selectedDocument) return -1;
+        return providerReviewDocs.findIndex((doc) => doc.id === selectedDocument.id);
+    }, [providerReviewDocs, selectedDocument]);
+
+    async function openDocumentDetail(doc: typeof documents[0], options?: { keepPhone?: boolean }) {
         setSelectedDocument(doc);
+        setSelectedImage(null);
         setRejectionReason(getRejectMessage(doc.providerName));
-        setProviderPhone(null);
-        const phone = await fetchProviderPhone(doc.providerId);
-        setProviderPhone(phone);
+        if (!options?.keepPhone) {
+            setProviderPhone(null);
+            const phone = await fetchProviderPhone(doc.providerId);
+            setProviderPhone(phone);
+        }
     }
+
+    function goToProviderDoc(nextIndex: number) {
+        const next = providerReviewDocs[nextIndex];
+        if (!next) return;
+        void openDocumentDetail(next, { keepPhone: true });
+    }
+
+    function advanceAfterAction(currentId: string) {
+        const providerId = selectedDocument?.providerId;
+        if (!providerId) {
+            setSelectedDocument(null);
+            return;
+        }
+        const list = documents.filter((doc) => doc.providerId === providerId);
+        const idx = list.findIndex((doc) => doc.id === currentId);
+        const afterPending = list
+            .slice(idx + 1)
+            .find((doc) => doc.id !== currentId && doc.isVerify === null);
+        const beforePending = list
+            .slice(0, Math.max(idx, 0))
+            .find((doc) => doc.isVerify === null);
+        const fallback = list.find((doc) => doc.id !== currentId);
+        const next = afterPending ?? beforePending ?? fallback;
+        if (next) void openDocumentDetail(next, { keepPhone: true });
+        else setSelectedDocument(null);
+    }
+
+    useEffect(() => {
+        if (!selectedDocument) return;
+        const fresh = documents.find((doc) => doc.id === selectedDocument.id);
+        if (fresh && fresh !== selectedDocument) setSelectedDocument(fresh);
+    }, [documents, selectedDocument]);
+
+    useEffect(() => {
+        if (!selectedDocument || selectedDocIndex < 0) return;
+        function onKeyDown(event: KeyboardEvent) {
+            if (event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLInputElement) {
+                return;
+            }
+            if (event.key === 'ArrowLeft' && selectedDocIndex > 0) {
+                event.preventDefault();
+                goToProviderDoc(selectedDocIndex - 1);
+            } else if (
+                event.key === 'ArrowRight' &&
+                selectedDocIndex < providerReviewDocs.length - 1
+            ) {
+                event.preventDefault();
+                goToProviderDoc(selectedDocIndex + 1);
+            }
+        }
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [selectedDocument, selectedDocIndex, providerReviewDocs]);
 
     const handleVerify = async (id: string, docHint?: (typeof documents)[0]) => {
         if (!canVerifyProviders) return;
@@ -128,6 +197,7 @@ const VerifyDocumentsPage = () => {
                     docHint?.documentName ?? result.documentName
                 )
             );
+            advanceAfterAction(id);
         } catch (err) {
             console.error('Failed to verify document:', err);
         } finally {
@@ -159,6 +229,7 @@ const VerifyDocumentsPage = () => {
                 trimmedReason
             );
             setRejectionReason('');
+            advanceAfterAction(id);
             return true;
         } catch (err) {
             console.error('Failed to reject document:', err);
@@ -611,22 +682,69 @@ const VerifyDocumentsPage = () => {
                                 onClick={(e) => e.stopPropagation()}
                             >
                                 {/* Modal Header */}
-                                <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
-                                    <div>
-                                        <h2 className="text-xl font-bold text-gray-900">
-                                            {selectedDocument.documentName || 'Document Details'}
-                                        </h2>
-                                        <p className="text-sm text-gray-500 mt-1">Document Information</p>
+                                <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 z-10 space-y-3">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <h2 className="text-xl font-bold text-gray-900 truncate">
+                                                {selectedDocument.documentName || 'Document Details'}
+                                            </h2>
+                                            <p className="text-sm text-gray-500 mt-1 truncate">
+                                                {selectedDocument.providerName || 'Provider'} ·{' '}
+                                                {selectedDocIndex + 1} of {providerReviewDocs.length}
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                setSelectedDocument(null);
+                                                setSelectedImage(null);
+                                            }}
+                                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors shrink-0"
+                                        >
+                                            <XCircle className="h-5 w-5 text-gray-500" />
+                                        </button>
                                     </div>
-                                    <button
-                                        onClick={() => {
-                                            setSelectedDocument(null);
-                                            setSelectedImage(null);
-                                        }}
-                                        className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                                    >
-                                        <XCircle className="h-5 w-5 text-gray-500" />
-                                    </button>
+                                    {providerReviewDocs.length > 1 && (
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => goToProviderDoc(selectedDocIndex - 1)}
+                                                disabled={selectedDocIndex <= 0}
+                                                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                                                aria-label="Previous document"
+                                            >
+                                                <ChevronLeft className="h-5 w-5" />
+                                            </button>
+                                            <div className="flex flex-1 items-center justify-center gap-1.5 overflow-x-auto py-1">
+                                                {providerReviewDocs.map((doc, index) => (
+                                                    <button
+                                                        key={doc.id}
+                                                        type="button"
+                                                        onClick={() => goToProviderDoc(index)}
+                                                        title={doc.documentName || `Document ${index + 1}`}
+                                                        aria-label={`Go to ${doc.documentName || `document ${index + 1}`}`}
+                                                        className={`h-2.5 rounded-full transition-all ${
+                                                            index === selectedDocIndex
+                                                                ? 'w-6 bg-indigo-600'
+                                                                : doc.isVerify === true
+                                                                    ? 'w-2.5 bg-emerald-400 hover:bg-emerald-500'
+                                                                    : doc.isVerify === false
+                                                                        ? 'w-2.5 bg-red-400 hover:bg-red-500'
+                                                                        : 'w-2.5 bg-amber-400 hover:bg-amber-500'
+                                                        }`}
+                                                    />
+                                                ))}
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => goToProviderDoc(selectedDocIndex + 1)}
+                                                disabled={selectedDocIndex >= providerReviewDocs.length - 1}
+                                                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                                                aria-label="Next document"
+                                            >
+                                                <ChevronRight className="h-5 w-5" />
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Modal Content */}
@@ -806,8 +924,7 @@ const VerifyDocumentsPage = () => {
                                         <div className="flex items-center gap-3 pt-4 border-t border-gray-200">
                                             <button
                                                 onClick={() => {
-                                                    handleVerify(selectedDocument.id, selectedDocument);
-                                                    setSelectedDocument(null);
+                                                    void handleVerify(selectedDocument.id, selectedDocument);
                                                 }}
                                                 disabled={processingId === selectedDocument.id}
                                                 className="flex-1 px-4 py-2.5 rounded-lg bg-linear-to-r from-emerald-500 to-teal-600 text-white font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
@@ -816,9 +933,7 @@ const VerifyDocumentsPage = () => {
                                             </button>
                                             <button
                                                 onClick={() => {
-                                                    void handleReject(selectedDocument.id, selectedDocument).then((ok) => {
-                                                        if (ok) setSelectedDocument(null);
-                                                    });
+                                                    void handleReject(selectedDocument.id, selectedDocument);
                                                 }}
                                                 disabled={
                                                     processingId === selectedDocument.id ||
@@ -835,9 +950,7 @@ const VerifyDocumentsPage = () => {
                                         <div className="flex items-center gap-3 pt-4 border-t border-gray-200">
                                             <button
                                                 onClick={() => {
-                                                    void handleReject(selectedDocument.id, selectedDocument).then((ok) => {
-                                                        if (ok) setSelectedDocument(null);
-                                                    });
+                                                    void handleReject(selectedDocument.id, selectedDocument);
                                                 }}
                                                 disabled={
                                                     processingId === selectedDocument.id ||
@@ -856,8 +969,7 @@ const VerifyDocumentsPage = () => {
                                         <div className="flex items-center gap-3 pt-4 border-t border-gray-200">
                                             <button
                                                 onClick={() => {
-                                                    handleVerify(selectedDocument.id, selectedDocument);
-                                                    setSelectedDocument(null);
+                                                    void handleVerify(selectedDocument.id, selectedDocument);
                                                 }}
                                                 disabled={processingId === selectedDocument.id}
                                                 className="inline-flex flex-1 items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-linear-to-r from-emerald-500 to-teal-600 text-white font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
