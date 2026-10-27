@@ -58,7 +58,7 @@ function NavActionBadge({ count }: { count: number }) {
     const label = formatActionCount(count);
     if (!label) return null;
     return (
-        <span className="ml-auto inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-destructive px-1.5 py-0.5 text-[11px] font-semibold leading-none text-destructive-foreground tabular-nums">
+        <span className="ml-1.5 inline-flex min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-primary/15 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-primary tabular-nums">
             {label}
         </span>
     );
@@ -260,8 +260,10 @@ const Sidebar = () => {
                                                 }`}
                                             >
                                                 <Icon className={`h-4 w-4 ${active ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
-                                                <span>{label}</span>
-                                                <NavActionBadge count={actionCount} />
+                                                <span className="inline-flex items-center">
+                                                    {label}
+                                                    <NavActionBadge count={actionCount} />
+                                                </span>
                                             </Link>
                                         </li>
                                     );
@@ -294,8 +296,10 @@ const Sidebar = () => {
                                                 }`}
                                             >
                                                 <Icon className={`h-4 w-4 ${active ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
-                                                <span>{label}</span>
-                                                <NavActionBadge count={actionCount} />
+                                                <span className="inline-flex items-center">
+                                                    {label}
+                                                    <NavActionBadge count={actionCount} />
+                                                </span>
                                             </Link>
                                         </li>
                                     );
@@ -326,8 +330,10 @@ const Sidebar = () => {
                                                     }`}
                                                 >
                                                     <Icon className={`h-4 w-4 ${active ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
-                                                    <span>{label}</span>
-                                                    <NavActionBadge count={actionCount} />
+                                                    <span className="inline-flex items-center">
+                                                        {label}
+                                                        <NavActionBadge count={actionCount} />
+                                                    </span>
                                                 </Link>
                                             </li>
                                         );
@@ -409,8 +415,10 @@ const Sidebar = () => {
                                                 }`}
                                             >
                                                 <Icon className={`h-4 w-4 ${active ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
-                                                <span>{label}</span>
-                                                <NavActionBadge count={actionCount} />
+                                                <span className="inline-flex items-center">
+                                                    {label}
+                                                    <NavActionBadge count={actionCount} />
+                                                </span>
                                             </Link>
                                         </li>
                                     );
@@ -438,8 +446,10 @@ const Sidebar = () => {
                                     >
                                         <div className="flex min-w-0 flex-1 items-center gap-3">
                                             <DollarSign className={`h-4 w-4 ${isFinanceActive ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
-                                            <span>Finance</span>
-                                            <NavActionBadge count={financeActionCount} />
+                                            <span className="inline-flex items-center">
+                                                Finance
+                                                <NavActionBadge count={financeActionCount} />
+                                            </span>
                                         </div>
                                         {isFinanceOpen ? (
                                             <ChevronDown className="h-4 w-4 shrink-0 text-text-hint" />
@@ -464,8 +474,10 @@ const Sidebar = () => {
                                                             }`}
                                                         >
                                                             <Icon className={`h-3.5 w-3.5 ${active ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
-                                                            <span>{label}</span>
-                                                            <NavActionBadge count={actionCount} />
+                                                            <span className="inline-flex items-center">
+                                                                {label}
+                                                                <NavActionBadge count={actionCount} />
+                                                            </span>
                                                         </Link>
                                                     </li>
                                                 );
