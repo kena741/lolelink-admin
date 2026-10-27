@@ -39,6 +39,7 @@ import { SupabaseEnvSwitcher, SupabaseStagingBanner } from '@/components/Supabas
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { canAccessAdminRoute, useAdminPermissions } from '@/hooks/use-admin-permissions';
+import { formatActionCount, useNavActionCounts } from '@/hooks/use-nav-action-counts';
 import { useAdminNav } from '@/lib/admin-nav-context';
 
 function navClass(active: boolean) {
@@ -51,6 +52,16 @@ function iconClass(active: boolean) {
     return active
         ? 'text-primary'
         : 'text-text-hint group-hover:text-muted-foreground';
+}
+
+function NavActionBadge({ count }: { count: number }) {
+    const label = formatActionCount(count);
+    if (!label) return null;
+    return (
+        <span className="ml-auto inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-destructive px-1.5 py-0.5 text-[11px] font-semibold leading-none text-destructive-foreground tabular-nums">
+            {label}
+        </span>
+    );
 }
 
 // Provider Management Section
@@ -101,7 +112,9 @@ const Sidebar = () => {
     const pathname = usePathname();
     const { can } = useAdminPermissions();
     const { open, setOpen } = useAdminNav();
+    const { counts } = useNavActionCounts();
     const [theme, setTheme] = useState<'light' | 'dark'>('light');
+    const financeActionCount = counts['/admin/finance/payout-request'];
 
     const isCategoryActive = pathname?.startsWith('/admin/categories') || pathname?.startsWith('/admin/subcategories');
     const [isCategoryOpen, setIsCategoryOpen] = useState(isCategoryActive);
@@ -234,6 +247,8 @@ const Sidebar = () => {
                             <ul className="space-y-1">
                                 {visibleWorksItems.map(({ href, label, icon: Icon }) => {
                                     const active = pathname === href;
+                                    const actionCount =
+                                        href in counts ? counts[href as keyof typeof counts] : 0;
                                     return (
                                         <li key={href}>
                                             <Link
@@ -246,6 +261,7 @@ const Sidebar = () => {
                                             >
                                                 <Icon className={`h-4 w-4 ${active ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
                                                 <span>{label}</span>
+                                                <NavActionBadge count={actionCount} />
                                             </Link>
                                         </li>
                                     );
@@ -265,6 +281,8 @@ const Sidebar = () => {
                                     const active = href === '/admin/customers'
                                         ? pathname === '/admin/customers'
                                         : pathname === href;
+                                    const actionCount =
+                                        href in counts ? counts[href as keyof typeof counts] : 0;
                                     return (
                                         <li key={href}>
                                             <Link
@@ -277,6 +295,7 @@ const Sidebar = () => {
                                             >
                                                 <Icon className={`h-4 w-4 ${active ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
                                                 <span>{label}</span>
+                                                <NavActionBadge count={actionCount} />
                                             </Link>
                                         </li>
                                     );
@@ -294,6 +313,8 @@ const Sidebar = () => {
                                 <ul className="space-y-1">
                                     {visibleProviderItems.map(({ href, label, icon: Icon }) => {
                                         const active = pathname === href || (href === '/admin/providers' && pathname?.startsWith('/admin/providers/'));
+                                        const actionCount =
+                                            href in counts ? counts[href as keyof typeof counts] : 0;
                                         return (
                                             <li key={href}>
                                                 <Link
@@ -306,6 +327,7 @@ const Sidebar = () => {
                                                 >
                                                     <Icon className={`h-4 w-4 ${active ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
                                                     <span>{label}</span>
+                                                    <NavActionBadge count={actionCount} />
                                                 </Link>
                                             </li>
                                         );
@@ -374,6 +396,8 @@ const Sidebar = () => {
                                         (href === '/admin/internal-documents' && pathname?.startsWith('/admin/internal-documents')) ||
                                         (href === '/admin/banners' && pathname?.startsWith('/admin/banners')) ||
                                         (href === '/admin/marketing-tracker' && pathname?.startsWith('/admin/marketing-tracker'));
+                                    const actionCount =
+                                        href in counts ? counts[href as keyof typeof counts] : 0;
                                     return (
                                         <li key={href}>
                                             <Link
@@ -386,6 +410,7 @@ const Sidebar = () => {
                                             >
                                                 <Icon className={`h-4 w-4 ${active ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
                                                 <span>{label}</span>
+                                                <NavActionBadge count={actionCount} />
                                             </Link>
                                         </li>
                                     );
@@ -411,20 +436,23 @@ const Sidebar = () => {
                                                             : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
                                         }`}
                                     >
-                                        <div className="flex items-center gap-3">
+                                        <div className="flex min-w-0 flex-1 items-center gap-3">
                                             <DollarSign className={`h-4 w-4 ${isFinanceActive ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
                                             <span>Finance</span>
+                                            <NavActionBadge count={financeActionCount} />
                                         </div>
                                         {isFinanceOpen ? (
-                                            <ChevronDown className="h-4 w-4 text-text-hint" />
+                                            <ChevronDown className="h-4 w-4 shrink-0 text-text-hint" />
                                         ) : (
-                                            <ChevronRight className="h-4 w-4 text-text-hint" />
+                                            <ChevronRight className="h-4 w-4 shrink-0 text-text-hint" />
                                         )}
                                     </button>
                                     {isFinanceOpen && (
                                         <ul className="ml-4 mt-0.5 space-y-0.5 border-l border-sidebar-border pl-3">
                                             {visibleFinanceItems.map(({ href, label, icon: Icon }) => {
                                                 const active = pathname === href;
+                                                const actionCount =
+                                                    href in counts ? counts[href as keyof typeof counts] : 0;
                                                 return (
                                                     <li key={href}>
                                                         <Link
@@ -437,6 +465,7 @@ const Sidebar = () => {
                                                         >
                                                             <Icon className={`h-3.5 w-3.5 ${active ? 'text-primary' : 'text-text-hint group-hover:text-muted-foreground'}`} />
                                                             <span>{label}</span>
+                                                            <NavActionBadge count={actionCount} />
                                                         </Link>
                                                     </li>
                                                 );
