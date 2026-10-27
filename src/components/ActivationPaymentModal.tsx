@@ -21,12 +21,30 @@ interface ActivationPaymentModalProps {
     providerName: string;
 }
 
-type ModalView = 'main' | 'verify' | 'manual';
+type ModalView = 'main' | 'verify' | 'manual' | 'reconcile';
 
 interface DebugLog {
     time: string;
     action: string;
     response: unknown;
+}
+
+interface ReconcilePreview {
+    email_matches?: boolean;
+    tier_amount?: number;
+    service_tier_max?: number;
+    wallet_credit?: string;
+    payment?: {
+        tx_ref?: string;
+        reference?: string | null;
+        trans_id?: string | null;
+        amount?: number;
+        charge?: number;
+        email?: string | null;
+        status?: string;
+        created_at?: string | null;
+        source?: string;
+    };
 }
 
 export function ActivationPaymentModal({ open, onClose, providerId, providerName }: ActivationPaymentModalProps) {
@@ -47,6 +65,8 @@ export function ActivationPaymentModal({ open, onClose, providerId, providerName
     const [view, setView] = useState<ModalView>('main');
     const [txRef, setTxRef] = useState('');
     const [note, setNote] = useState('');
+    const [receiptRef, setReceiptRef] = useState('');
+    const [reconcilePreview, setReconcilePreview] = useState<ReconcilePreview | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -199,10 +219,85 @@ export function ActivationPaymentModal({ open, onClose, providerId, providerName
         }
     };
 
+    const handleReconcileLookup = async () => {
+        const ref = receiptRef.trim();
+        if (!ref) {
+            setError('Paste a Telebirr / Chapa receipt or transaction reference first');
+            return;
+        }
+        setLoading(true);
+        setError(null);
+        setSuccessMessage(null);
+        setReconcilePreview(null);
+        addDebugLog('reconcile lookup', { providerId, receiptRef: ref, status: 'calling...' });
+        try {
+            const rawResponse = await fetch('/api/provider/activate-payment/reconcile', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ providerId, receiptRef: ref, confirm: false }),
+            });
+            const rawData = (await rawResponse.json()) as ReconcilePreview & { error?: string; status?: string };
+            addDebugLog(`reconcile lookup (${rawResponse.status})`, rawData);
+            if (!rawResponse.ok) {
+                setError(rawData.error || `API returned ${rawResponse.status}`);
+                return;
+            }
+            setReconcilePreview(rawData);
+            if (rawData.email_matches === false) {
+                setError('Chapa payer email does not match this provider. Confirm you have the right receipt.');
+            }
+        } catch (err: unknown) {
+            addDebugLog('reconcile lookup ERROR', err);
+            setError(typeof err === 'string' ? err : 'Lookup failed');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleReconcileConfirm = async () => {
+        const ref = receiptRef.trim();
+        if (!ref || !reconcilePreview) return;
+        setLoading(true);
+        setError(null);
+        addDebugLog('reconcile confirm', { providerId, receiptRef: ref, status: 'calling...' });
+        try {
+            const rawResponse = await fetch('/api/provider/activate-payment/reconcile', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ providerId, receiptRef: ref, confirm: true }),
+            });
+            const rawData = (await rawResponse.json()) as ReconcilePreview & {
+                error?: string;
+                wallet_error?: string;
+                status?: string;
+            };
+            addDebugLog(`reconcile confirm (${rawResponse.status})`, rawData);
+            if (!rawResponse.ok) {
+                setError(rawData.error || `API returned ${rawResponse.status}`);
+                return;
+            }
+            if (rawData.wallet_error) {
+                setError(`Provider activated but wallet insert failed: ${rawData.wallet_error}`);
+                await dispatch(fetchProviderById(providerId)).unwrap();
+                return;
+            }
+            await dispatch(fetchProviderById(providerId)).unwrap();
+            setSuccessMessage('Activation reconciled from Chapa receipt. Provider is now active.');
+            setTimeout(() => resetAndClose(), 1500);
+        } catch (err: unknown) {
+            addDebugLog('reconcile confirm ERROR', err);
+            setError(typeof err === 'string' ? err : 'Confirm failed');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const resetAndClose = () => {
         setView('main');
         setTxRef('');
         setNote('');
+        setReceiptRef('');
+        setReconcilePreview(null);
         setError(null);
         setSuccessMessage(null);
         setSelectedPrice(defaultPrice);
@@ -221,6 +316,7 @@ export function ActivationPaymentModal({ open, onClose, providerId, providerName
                     {view === 'main' && 'Pay Activation Fee'}
                     {view === 'verify' && 'Verify Chapa Payment'}
                     {view === 'manual' && 'Mark Activation as Paid'}
+                    {view === 'reconcile' && 'Reconcile from Receipt'}
                 </DialogTitle>
             </DialogHeader>
             <DialogDescription>
@@ -232,6 +328,9 @@ export function ActivationPaymentModal({ open, onClose, providerId, providerName
                 )}
                 {view === 'manual' && (
                     <>Manually confirm that <span className="font-semibold text-card-foreground">{providerName}</span> has paid the activation fee.</>
+                )}
+                {view === 'reconcile' && (
+                    <>Paste Telebirr / Chapa receipt ref (e.g. <span className="font-mono">DJR2CU06OA</span>) to look up and activate <span className="font-semibold text-card-foreground">{providerName}</span>.</>
                 )}
             </DialogDescription>
 
@@ -286,14 +385,28 @@ export function ActivationPaymentModal({ open, onClose, providerId, providerName
                         {loading ? 'Initializing...' : `Pay ETB ${selectedPrice} via Chapa`}
                     </Button>
                     {canMarkPaidManually && (
-                        <Button
-                            variant="outline"
-                            onClick={() => { setError(null); setView('manual'); }}
-                            disabled={loading}
-                            className="w-full"
-                        >
-                            Mark as Paid Manually
-                        </Button>
+                        <>
+                            <Button
+                                variant="outline"
+                                onClick={() => {
+                                    setError(null);
+                                    setReconcilePreview(null);
+                                    setView('reconcile');
+                                }}
+                                disabled={loading}
+                                className="w-full"
+                            >
+                                Reconcile from Receipt
+                            </Button>
+                            <Button
+                                variant="outline"
+                                onClick={() => { setError(null); setView('manual'); }}
+                                disabled={loading}
+                                className="w-full"
+                            >
+                                Mark as Paid Manually
+                            </Button>
+                        </>
                     )}
                 </div>
             )}
@@ -339,6 +452,77 @@ export function ActivationPaymentModal({ open, onClose, providerId, providerName
                             disabled={loading}
                         />
                     </div>
+                </div>
+            )}
+
+            {view === 'reconcile' && (
+                <div className="mt-4 grid gap-3">
+                    <div className="grid gap-1.5">
+                        <Label htmlFor="activation-receipt-ref">Receipt / Chapa reference</Label>
+                        <Input
+                            id="activation-receipt-ref"
+                            value={receiptRef}
+                            onChange={(e) => {
+                                setReceiptRef(e.target.value);
+                                setReconcilePreview(null);
+                            }}
+                            placeholder="DJR2CU06OA or APhKG6Zij8GM or activation_…"
+                            disabled={loading}
+                        />
+                    </div>
+                    {reconcilePreview?.payment && (
+                        <div className="rounded-md border border-border bg-muted/40 p-3 text-sm space-y-1.5">
+                            <div className="flex justify-between gap-2">
+                                <span className="text-muted-foreground">Amount</span>
+                                <span className="font-medium">
+                                    ETB {reconcilePreview.payment.amount}
+                                    {typeof reconcilePreview.payment.charge === 'number'
+                                        ? ` (fee ${reconcilePreview.payment.charge})`
+                                        : ''}
+                                </span>
+                            </div>
+                            <div className="flex justify-between gap-2">
+                                <span className="text-muted-foreground">Wallet credit</span>
+                                <span className="font-medium">ETB {reconcilePreview.wallet_credit}</span>
+                            </div>
+                            <div className="flex justify-between gap-2">
+                                <span className="text-muted-foreground">Tier</span>
+                                <span className="font-medium">
+                                    ETB {reconcilePreview.tier_amount} · max {reconcilePreview.service_tier_max}
+                                </span>
+                            </div>
+                            <div className="flex justify-between gap-2">
+                                <span className="text-muted-foreground">Payer email</span>
+                                <span className="font-medium break-all">{reconcilePreview.payment.email || '—'}</span>
+                            </div>
+                            <div className="flex justify-between gap-2">
+                                <span className="text-muted-foreground">tx_ref</span>
+                                <span className="font-mono text-xs break-all">{reconcilePreview.payment.tx_ref}</span>
+                            </div>
+                            {(reconcilePreview.payment.trans_id || reconcilePreview.payment.reference) && (
+                                <div className="flex justify-between gap-2">
+                                    <span className="text-muted-foreground">Refs</span>
+                                    <span className="font-mono text-xs break-all text-right">
+                                        {[reconcilePreview.payment.trans_id, reconcilePreview.payment.reference]
+                                            .filter(Boolean)
+                                            .join(' · ')}
+                                    </span>
+                                </div>
+                            )}
+                            <div className="flex justify-between gap-2">
+                                <span className="text-muted-foreground">Email match</span>
+                                <span
+                                    className={
+                                        reconcilePreview.email_matches
+                                            ? 'font-semibold text-emerald-700'
+                                            : 'font-semibold text-red-700'
+                                    }
+                                >
+                                    {reconcilePreview.email_matches ? 'Yes' : 'No'}
+                                </span>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -390,6 +574,34 @@ export function ActivationPaymentModal({ open, onClose, providerId, providerName
                     <Button onClick={handleManualMark} disabled={loading}>
                         {loading ? 'Processing...' : `Confirm ETB ${selectedPrice}`}
                     </Button>
+                </DialogFooter>
+            )}
+
+            {view === 'reconcile' && (
+                <DialogFooter>
+                    <Button
+                        variant="ghost"
+                        onClick={() => {
+                            setError(null);
+                            setReconcilePreview(null);
+                            setView('main');
+                        }}
+                        disabled={loading}
+                    >
+                        Back
+                    </Button>
+                    {!reconcilePreview ? (
+                        <Button onClick={() => void handleReconcileLookup()} disabled={loading || !receiptRef.trim()}>
+                            {loading ? 'Looking up…' : 'Look up in Chapa'}
+                        </Button>
+                    ) : (
+                        <Button
+                            onClick={() => void handleReconcileConfirm()}
+                            disabled={loading || reconcilePreview.email_matches === false}
+                        >
+                            {loading ? 'Activating…' : 'Confirm & activate'}
+                        </Button>
+                    )}
                 </DialogFooter>
             )}
 

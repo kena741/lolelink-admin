@@ -138,10 +138,126 @@ function mapChapaBalanceRow(row: ChapaBalanceApiRow): ChapaEtbBalance | null {
 
 export interface ChapaVerifyTransaction {
     status?: string;
-    amount?: number;
-    charge?: number;
+    amount?: number | string;
+    charge?: number | string;
     tx_ref?: string;
     reference?: string;
+    email?: string;
+    created_at?: string;
+    first_name?: string;
+    last_name?: string;
+    phone_number?: string;
+    method?: string;
+}
+
+export interface ChapaResolvedPayment {
+    tx_ref: string;
+    reference: string | null;
+    trans_id: string | null;
+    amount: number;
+    charge: number;
+    email: string | null;
+    status: string;
+    created_at: string | null;
+    source: string;
+}
+
+function normalizeReceiptNeedle(value: string): string {
+    return value.trim().toLowerCase();
+}
+
+function listTxMatchesReceipt(tx: ChapaListTransaction, needle: string): boolean {
+    const refId = String(tx.ref_id ?? '').toLowerCase();
+    const transId = String(tx.trans_id ?? '').toLowerCase();
+    return Boolean(needle) && (refId === needle || transId === needle || refId.includes(needle) || transId.includes(needle));
+}
+
+function toResolvedFromVerify(
+    data: ChapaVerifyTransaction,
+    source: string,
+    fallbackTransId?: string | null
+): ChapaResolvedPayment {
+    return {
+        tx_ref: String(data.tx_ref || data.reference || '').trim(),
+        reference: data.reference ? String(data.reference) : null,
+        trans_id: fallbackTransId ? String(fallbackTransId) : null,
+        amount: Number(data.amount ?? 0),
+        charge: Number(data.charge ?? 0),
+        email: data.email ? String(data.email) : null,
+        status: String(data.status ?? ''),
+        created_at: data.created_at ? String(data.created_at) : null,
+        source,
+    };
+}
+
+/** Resolve Chapa payment by tx_ref, Chapa reference, or Telebirr/processor trans_id. */
+export async function resolveChapaPaymentByReceiptRef(
+    secretKey: string,
+    receiptRef: string,
+    options?: { maxPages?: number }
+): Promise<ChapaResolvedPayment | null> {
+    const raw = receiptRef.trim();
+    if (!raw) return null;
+    const needle = normalizeReceiptNeedle(raw);
+
+    const direct = await verifyChapaTransaction(secretKey, raw);
+    if (direct.ok) {
+        const resolved = toResolvedFromVerify(direct.data, `verify:${raw}`);
+        if (resolved.tx_ref) return resolved;
+    }
+
+    const maxPages = options?.maxPages ?? 25;
+    for (let page = 1; page <= maxPages; page++) {
+        const { transactions, pagination } = await fetchChapaTransactionsPage(secretKey, page);
+        const hit = transactions.find((tx) => listTxMatchesReceipt(tx, needle));
+        if (hit) {
+            const candidates = [
+                String(hit.ref_id || '').trim(),
+                // list rows often need verify via chapa ref_id; also try any known tx_ref patterns later
+            ].filter(Boolean);
+
+            for (const candidate of candidates) {
+                const verified = await verifyChapaTransaction(secretKey, candidate);
+                if (verified.ok) {
+                    const resolved = toResolvedFromVerify(
+                        verified.data,
+                        `list:page${page}:verify:${candidate}`,
+                        String(hit.trans_id || '') || null
+                    );
+                    if (!resolved.tx_ref) {
+                        resolved.tx_ref = String(verified.data.tx_ref || candidate).trim();
+                    }
+                    if (!resolved.reference) resolved.reference = String(hit.ref_id || '') || null;
+                    if (!resolved.trans_id) resolved.trans_id = String(hit.trans_id || '') || null;
+                    if (!resolved.email) resolved.email = hit.email ? String(hit.email) : null;
+                    if (!resolved.created_at) resolved.created_at = hit.created_at ? String(hit.created_at) : null;
+                    if (!Number.isFinite(resolved.amount) || resolved.amount <= 0) {
+                        resolved.amount = Number(hit.amount ?? 0);
+                        resolved.charge = Number(hit.charge ?? 0);
+                    }
+                    if (resolved.tx_ref) return resolved;
+                }
+            }
+
+            // Fallback: list row only (Telebirr receipt may verify only via ref_id above)
+            if (isChapaSuccessStatus(String(hit.status ?? ''))) {
+                return {
+                    tx_ref: String(hit.ref_id || hit.trans_id || raw).trim(),
+                    reference: hit.ref_id ? String(hit.ref_id) : null,
+                    trans_id: hit.trans_id ? String(hit.trans_id) : null,
+                    amount: Number(hit.amount ?? 0),
+                    charge: Number(hit.charge ?? 0),
+                    email: hit.email ? String(hit.email) : null,
+                    status: String(hit.status ?? 'success'),
+                    created_at: hit.created_at ? String(hit.created_at) : null,
+                    source: `list:page${page}:unverified`,
+                };
+            }
+        }
+        if (!pagination.next_page_url) break;
+    }
+
+    return null;
 }
 
 export async function verifyChapaTransaction(
