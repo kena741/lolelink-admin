@@ -38,6 +38,8 @@ function readMarketingSiteUrl(): string {
 }
 
 const nextConfig: NextConfig = {
+  output: "standalone",
+  outputFileTracingRoot: process.cwd(),
   ...(allowedDevOrigins?.length ? { allowedDevOrigins } : {}),
   async redirects() {
     if (process.env.NODE_ENV !== "production") {
