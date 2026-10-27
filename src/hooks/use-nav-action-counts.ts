@@ -12,6 +12,15 @@ const EMPTY: NavActionCounts = {
 };
 
 const REFRESH_MS = 60_000;
+const BUMP_EVENT = 'nav-action-count-bump';
+
+type BumpDetail = { href: keyof NavActionCounts; delta: number };
+
+/** Optimistic sidebar badge bump (e.g. pending verify docs). */
+export function bumpNavActionCount(href: keyof NavActionCounts, delta: number) {
+    if (typeof window === 'undefined' || delta === 0) return;
+    window.dispatchEvent(new CustomEvent<BumpDetail>(BUMP_EVENT, { detail: { href, delta } }));
+}
 
 export function useNavActionCounts(): {
     counts: NavActionCounts;
@@ -35,10 +44,20 @@ export function useNavActionCounts(): {
         refresh();
         const timer = window.setInterval(refresh, REFRESH_MS);
         const onFocus = () => refresh();
+        const onBump = (event: Event) => {
+            const detail = (event as CustomEvent<BumpDetail>).detail;
+            if (!detail?.href || !detail.delta) return;
+            setCounts((prev) => ({
+                ...prev,
+                [detail.href]: Math.max(0, (prev[detail.href] ?? 0) + detail.delta),
+            }));
+        };
         window.addEventListener('focus', onFocus);
+        window.addEventListener(BUMP_EVENT, onBump);
         return () => {
             window.clearInterval(timer);
             window.removeEventListener('focus', onFocus);
+            window.removeEventListener(BUMP_EVENT, onBump);
         };
     }, [refresh]);
 

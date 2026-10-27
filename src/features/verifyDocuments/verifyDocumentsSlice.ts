@@ -501,6 +501,33 @@ export const reapproveAllRejectedDocuments = createAsyncThunk<
     }
 );
 
+// ponytail: module map for optimistic rollback; per-request map if concurrent edits collide
+const optimisticPrevIsVerify: Record<string, boolean | null> = {};
+
+function setDocVerifyOptimistic(
+    state: VerifyDocumentState,
+    id: string,
+    next: boolean | null
+) {
+    const index = state.documents.findIndex((doc) => doc.id === id);
+    if (index === -1) return;
+    if (!(id in optimisticPrevIsVerify)) {
+        optimisticPrevIsVerify[id] = state.documents[index].isVerify;
+    }
+    state.documents[index].isVerify = next;
+}
+
+function revertDocVerifyOptimistic(state: VerifyDocumentState, id: string) {
+    if (!(id in optimisticPrevIsVerify)) return;
+    const index = state.documents.findIndex((doc) => doc.id === id);
+    if (index !== -1) state.documents[index].isVerify = optimisticPrevIsVerify[id];
+    delete optimisticPrevIsVerify[id];
+}
+
+function clearDocVerifyOptimistic(id: string) {
+    delete optimisticPrevIsVerify[id];
+}
+
 const verifyDocumentsSlice = createSlice({
     name: 'verifyDocuments',
     initialState,
@@ -519,68 +546,85 @@ const verifyDocumentsSlice = createSlice({
                 state.loading = false;
                 state.error = (action.payload as string) || 'Failed to fetch verify documents';
             })
-            .addCase(verifyDocument.pending, (state) => {
-                state.loading = true;
+            .addCase(verifyDocument.pending, (state, action) => {
                 state.error = null;
+                setDocVerifyOptimistic(state, action.meta.arg, true);
             })
             .addCase(verifyDocument.fulfilled, (state, action: PayloadAction<VerifyDocument>) => {
-                state.loading = false;
+                clearDocVerifyOptimistic(action.payload.id);
                 const index = state.documents.findIndex(doc => doc.id === action.payload.id);
                 if (index !== -1) {
-                    state.documents[index] = action.payload;
+                    // Keep list metadata the update row doesn't re-select.
+                    state.documents[index] = { ...state.documents[index], ...action.payload };
                 }
             })
             .addCase(verifyDocument.rejected, (state, action) => {
-                state.loading = false;
+                revertDocVerifyOptimistic(state, action.meta.arg);
                 state.error = (action.payload as string) || 'Failed to verify document';
             })
-            .addCase(rejectDocument.pending, (state) => {
-                state.loading = true;
+            .addCase(rejectDocument.pending, (state, action) => {
                 state.error = null;
+                setDocVerifyOptimistic(state, action.meta.arg.id, false);
             })
             .addCase(rejectDocument.fulfilled, (state, action: PayloadAction<VerifyDocument>) => {
-                state.loading = false;
+                clearDocVerifyOptimistic(action.payload.id);
                 const index = state.documents.findIndex(doc => doc.id === action.payload.id);
                 if (index !== -1) {
-                    state.documents[index] = action.payload;
+                    state.documents[index] = { ...state.documents[index], ...action.payload };
                 }
             })
             .addCase(rejectDocument.rejected, (state, action) => {
-                state.loading = false;
+                revertDocVerifyOptimistic(state, action.meta.arg.id);
                 state.error = (action.payload as string) || 'Failed to reject document';
             })
-            .addCase(approveAllDocuments.pending, (state) => {
-                state.loading = true;
+            .addCase(approveAllDocuments.pending, (state, action) => {
                 state.error = null;
+                const providerId = action.meta.arg;
+                state.documents.forEach((doc) => {
+                    if (doc.providerId === providerId && doc.isVerify === null) {
+                        setDocVerifyOptimistic(state, doc.id, true);
+                    }
+                });
             })
             .addCase(approveAllDocuments.fulfilled, (state, action: PayloadAction<VerifyDocument[]>) => {
-                state.loading = false;
                 action.payload.forEach((updatedDoc) => {
+                    clearDocVerifyOptimistic(updatedDoc.id);
                     const index = state.documents.findIndex(doc => doc.id === updatedDoc.id);
                     if (index !== -1) {
-                        state.documents[index] = updatedDoc;
+                        state.documents[index] = { ...state.documents[index], ...updatedDoc };
                     }
                 });
             })
             .addCase(approveAllDocuments.rejected, (state, action) => {
-                state.loading = false;
+                const providerId = action.meta.arg;
+                state.documents.forEach((doc) => {
+                    if (doc.providerId === providerId) revertDocVerifyOptimistic(state, doc.id);
+                });
                 state.error = (action.payload as string) || 'Failed to approve all documents';
             })
-            .addCase(reapproveAllRejectedDocuments.pending, (state) => {
-                state.loading = true;
+            .addCase(reapproveAllRejectedDocuments.pending, (state, action) => {
                 state.error = null;
+                const providerId = action.meta.arg;
+                state.documents.forEach((doc) => {
+                    if (doc.providerId === providerId && doc.isVerify === false) {
+                        setDocVerifyOptimistic(state, doc.id, true);
+                    }
+                });
             })
             .addCase(reapproveAllRejectedDocuments.fulfilled, (state, action: PayloadAction<VerifyDocument[]>) => {
-                state.loading = false;
                 action.payload.forEach((updatedDoc) => {
+                    clearDocVerifyOptimistic(updatedDoc.id);
                     const index = state.documents.findIndex((doc) => doc.id === updatedDoc.id);
                     if (index !== -1) {
-                        state.documents[index] = updatedDoc;
+                        state.documents[index] = { ...state.documents[index], ...updatedDoc };
                     }
                 });
             })
             .addCase(reapproveAllRejectedDocuments.rejected, (state, action) => {
-                state.loading = false;
+                const providerId = action.meta.arg;
+                state.documents.forEach((doc) => {
+                    if (doc.providerId === providerId) revertDocVerifyOptimistic(state, doc.id);
+                });
                 state.error = (action.payload as string) || 'Failed to re-approve rejected documents';
             });
     },

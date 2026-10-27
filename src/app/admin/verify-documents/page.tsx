@@ -1,10 +1,9 @@
 'use client';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import { 
     FileCheck, 
-    ArrowLeft, 
     RefreshCw, 
     CheckCircle2, 
     XCircle, 
@@ -35,6 +34,7 @@ import { sendSms, buildRecipient } from '@/lib/sms';
 import { cn } from '@/lib/utils';
 import { getDisplayImageUrl } from '@/lib/media-url';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
+import { bumpNavActionCount } from '@/hooks/use-nav-action-counts';
 import { markAdminListFetched, shouldRefetchAdminList } from '@/lib/admin-list-cache';
 
 type StatusFilter = 'all' | 'pending' | 'approved' | 'rejected';
@@ -50,8 +50,9 @@ const VerifyDocumentsPage = () => {
     const [providerPhone, setProviderPhone] = useState<string | null>(null);
     const [rejectionReason, setRejectionReason] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
-    const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+    const [statusFilter, setStatusFilter] = useState<StatusFilter>('pending');
     const [subCategoryFilter, setSubCategoryFilter] = useState<string>('all');
+    const phoneCacheRef = useRef<Record<string, string>>({});
 
     useEffect(() => {
         if (!shouldRefetchAdminList('verify-documents', { hasRows: documents.length > 0 })) return;
@@ -78,35 +79,45 @@ const VerifyDocumentsPage = () => {
     }
 
     async function fetchProviderPhone(providerId: string): Promise<string> {
+        const cached = phoneCacheRef.current[providerId];
+        if (cached !== undefined) return cached;
         try {
             const { data } = await getSupabase()
                 .from('provider')
-                .select('*')
+                .select('phoneNumber, countryCode')
                 .eq('id', providerId)
                 .single();
 
-            if (!data) return '';
-            const row = data as Record<string, unknown>;
-            const phone = (row.phoneNumber ?? row.phone ?? row.mobile_number ?? '') as string;
-            const code = (row.countryCode ?? row.country_code ?? '') as string;
-            return buildRecipient(phone, code);
+            if (!data) {
+                phoneCacheRef.current[providerId] = '';
+                return '';
+            }
+            const row = data as { phoneNumber?: string | null; countryCode?: string | null };
+            const phone = row.phoneNumber ?? '';
+            const code = row.countryCode ?? '';
+            const recipient = buildRecipient(phone, code);
+            phoneCacheRef.current[providerId] = recipient;
+            return recipient;
         } catch {
+            phoneCacheRef.current[providerId] = '';
             return '';
         }
     }
 
-    async function notifyProviderViaSms(providerId: string, message: string) {
-        try {
-            const recipient = await fetchProviderPhone(providerId);
-            if (recipient) {
-                const result = await sendSms(recipient, message);
-                if (!result.success) console.error('SMS failed:', result.error);
-            } else {
-                console.error('SMS skipped: no phone number for provider', providerId);
+    function notifyProviderViaSms(providerId: string, message: string) {
+        void (async () => {
+            try {
+                const recipient = await fetchProviderPhone(providerId);
+                if (recipient) {
+                    const result = await sendSms(recipient, message);
+                    if (!result.success) console.error('SMS failed:', result.error);
+                } else {
+                    console.error('SMS skipped: no phone number for provider', providerId);
+                }
+            } catch (err) {
+                console.error('SMS notification failed:', err);
             }
-        } catch (err) {
-            console.error('SMS notification failed:', err);
-        }
+        })();
     }
 
     const reviewProviderId = selectedDocument?.providerId;
@@ -186,11 +197,14 @@ const VerifyDocumentsPage = () => {
 
     const handleVerify = async (id: string, docHint?: (typeof documents)[0]) => {
         if (!canVerifyProviders) return;
+        const prior =
+            docHint?.isVerify ?? documents.find((doc) => doc.id === id)?.isVerify ?? null;
+        const leftPending = prior === null;
+        if (leftPending) bumpNavActionCount('/admin/verify-documents', -1);
         setProcessingId(id);
         try {
             const result = await dispatch(verifyDocument(id)).unwrap();
-            dispatch(fetchVerifyDocuments());
-            await notifyProviderViaSms(
+            notifyProviderViaSms(
                 result.providerId,
                 getApproveMessage(
                     docHint?.providerName ?? result.providerName,
@@ -199,6 +213,7 @@ const VerifyDocumentsPage = () => {
             );
             advanceAfterAction(id);
         } catch (err) {
+            if (leftPending) bumpNavActionCount('/admin/verify-documents', 1);
             console.error('Failed to verify document:', err);
         } finally {
             setProcessingId(null);
@@ -213,6 +228,10 @@ const VerifyDocumentsPage = () => {
         const trimmedReason = rejectionReason.trim();
         if (!trimmedReason) return false;
 
+        const prior =
+            docHint?.isVerify ?? documents.find((doc) => doc.id === id)?.isVerify ?? null;
+        const leftPending = prior === null;
+        if (leftPending) bumpNavActionCount('/admin/verify-documents', -1);
         setProcessingId(id);
         try {
             const result = await dispatch(
@@ -223,15 +242,12 @@ const VerifyDocumentsPage = () => {
                     documentName: docHint?.documentName,
                 })
             ).unwrap();
-            dispatch(fetchVerifyDocuments());
-            await notifyProviderViaSms(
-                result.providerId,
-                trimmedReason
-            );
+            notifyProviderViaSms(result.providerId, trimmedReason);
             setRejectionReason('');
             advanceAfterAction(id);
             return true;
         } catch (err) {
+            if (leftPending) bumpNavActionCount('/admin/verify-documents', 1);
             console.error('Failed to reject document:', err);
             return false;
         } finally {
@@ -241,12 +257,16 @@ const VerifyDocumentsPage = () => {
 
     const handleApproveAll = async (providerId: string, providerName?: string) => {
         if (!canVerifyProviders) return;
+        const pendingCount = documents.filter(
+            (doc) => doc.providerId === providerId && doc.isVerify === null
+        ).length;
+        if (pendingCount > 0) bumpNavActionCount('/admin/verify-documents', -pendingCount);
         setProcessingProviderId(providerId);
         try {
             await dispatch(approveAllDocuments(providerId)).unwrap();
-            dispatch(fetchVerifyDocuments());
-            await notifyProviderViaSms(providerId, getApproveAllMessage(providerName));
+            notifyProviderViaSms(providerId, getApproveAllMessage(providerName));
         } catch (err) {
+            if (pendingCount > 0) bumpNavActionCount('/admin/verify-documents', pendingCount);
             console.error('Failed to approve all documents:', err);
         } finally {
             setProcessingProviderId(null);
@@ -258,8 +278,7 @@ const VerifyDocumentsPage = () => {
         setProcessingProviderId(providerId);
         try {
             await dispatch(reapproveAllRejectedDocuments(providerId)).unwrap();
-            dispatch(fetchVerifyDocuments());
-            await notifyProviderViaSms(providerId, getApproveAllMessage(providerName));
+            notifyProviderViaSms(providerId, getApproveAllMessage(providerName));
         } catch (err) {
             console.error('Failed to re-approve rejected documents:', err);
         } finally {
@@ -335,7 +354,16 @@ const VerifyDocumentsPage = () => {
     const providerGroups = useMemo(() => Object.values(documentsByProvider), [documentsByProvider]);
 
     const hasActiveFilters =
-        searchQuery.trim().length > 0 || statusFilter !== 'all' || subCategoryFilter !== 'all';
+        searchQuery.trim().length > 0 || statusFilter !== 'pending' || subCategoryFilter !== 'all';
+
+    useEffect(() => {
+        if (selectedDocIndex < 0) return;
+        const next = providerReviewDocs[selectedDocIndex + 1];
+        const url = next ? getDisplayImageUrl(next.documentImage) : null;
+        if (!url || typeof window === 'undefined') return;
+        const img = new window.Image();
+        img.src = url;
+    }, [selectedDocIndex, providerReviewDocs]);
 
     const formatDate = (dateString?: string) => {
         if (!dateString) return '—';
@@ -467,7 +495,7 @@ const VerifyDocumentsPage = () => {
                                     type="button"
                                     onClick={() => {
                                         setSearchQuery('');
-                                        setStatusFilter('all');
+                                        setStatusFilter('pending');
                                         setSubCategoryFilter('all');
                                     }}
                                     className="h-9 rounded-lg px-3 text-sm font-semibold text-primary hover:bg-primary/10 lg:ml-auto"
@@ -478,7 +506,7 @@ const VerifyDocumentsPage = () => {
                         </div>
 
                         {/* Documents Grid */}
-                        {loading && (
+                        {loading && documents.length === 0 && (
                             <div className="mb-4 text-center py-12">
                                 <RefreshCw className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
                                 <p className="text-gray-600">Loading documents...</p>
@@ -491,7 +519,7 @@ const VerifyDocumentsPage = () => {
                             </div>
                         )}
 
-                        {!loading && !error && (
+                        {!(loading && documents.length === 0) && !error && (
                             <div className="space-y-6">
                                 {providerGroups.length === 0 ? (
                                     <div className="rounded-2xl bg-white/80 backdrop-blur-xl border border-white/20 p-12 text-center">
@@ -517,10 +545,10 @@ const VerifyDocumentsPage = () => {
                                         return (
                                             <div
                                                 key={group.providerId || 'unknown'}
-                                                className="rounded-2xl bg-white/80 backdrop-blur-xl border border-white/20 shadow-xl overflow-hidden"
+                                                className="overflow-hidden rounded-xl border border-border bg-background shadow-sm"
                                             >
                                                 {/* Provider Header */}
-                                                <div className="border-b border-border bg-muted/40 p-6">
+                                                <div className="border-b border-border bg-muted/30 p-4 sm:p-5">
                                                     <div className="flex items-center justify-between flex-wrap gap-4">
                                                         <div className="flex-1">
                                                             <div className="flex items-center gap-3 mb-2">
@@ -558,23 +586,33 @@ const VerifyDocumentsPage = () => {
                                                             </div>
                                                         </div>
                                                         <div className="flex flex-wrap items-center gap-2">
+                                                            {pendingDocs.length > 0 && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => void openDocumentDetail(pendingDocs[0])}
+                                                                    className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground hover:bg-muted transition-colors duration-150"
+                                                                >
+                                                                    <Eye className="h-4 w-4" />
+                                                                    Review ({pendingDocs.length})
+                                                                </button>
+                                                            )}
                                                             {canVerifyProviders && pendingDocs.length > 0 && (
                                                                 <button
                                                                     onClick={() => handleApproveAll(group.providerId, group.providerName)}
                                                                     disabled={isProcessingAll}
-                                                                    className="px-4 py-2 rounded-lg bg-linear-to-r from-emerald-500 to-teal-600 text-white text-sm font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                                                                    className="inline-flex h-9 items-center rounded-lg bg-emerald-600 px-3 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
                                                                 >
-                                                                    {isProcessingAll ? 'Processing...' : `Approve All (${pendingDocs.length})`}
+                                                                    {isProcessingAll ? 'Processing...' : `Approve all (${pendingDocs.length})`}
                                                                 </button>
                                                             )}
                                                             {canVerifyProviders && rejectedDocs.length > 0 && (
                                                                 <button
                                                                     onClick={() => handleReapproveAll(group.providerId, group.providerName)}
                                                                     disabled={isProcessingAll}
-                                                                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-emerald-300 bg-white text-emerald-700 text-sm font-semibold shadow-sm hover:bg-emerald-50 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                    className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-emerald-300 bg-white px-3 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
                                                                 >
                                                                     <RotateCcw className="h-4 w-4" />
-                                                                    {isProcessingAll ? 'Processing...' : `Re-approve Rejected (${rejectedDocs.length})`}
+                                                                    {isProcessingAll ? 'Processing...' : `Re-approve (${rejectedDocs.length})`}
                                                                 </button>
                                                             )}
                                                         </div>
@@ -612,7 +650,7 @@ const VerifyDocumentsPage = () => {
                                                                         <div
                                                                             key={doc.id}
                                                                             onClick={() => openDocumentDetail(doc)}
-                                                                            className="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-all group"
+                                                                            className="group flex cursor-pointer items-center justify-between rounded-lg border border-border p-3 transition-colors duration-150 hover:bg-muted/50"
                                                                         >
                                                                             <div className="flex items-center gap-3 flex-1 min-w-0">
                                                                                 <div
@@ -678,29 +716,61 @@ const VerifyDocumentsPage = () => {
                             }}
                         >
                             <div 
-                                className="relative bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+                                className="relative flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
                                 onClick={(e) => e.stopPropagation()}
                             >
-                                {/* Modal Header */}
-                                <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 z-10 space-y-3">
+                                <div className="shrink-0 border-b border-border bg-white px-4 py-3 sm:px-5 space-y-3">
                                     <div className="flex items-center justify-between gap-3">
                                         <div className="min-w-0">
-                                            <h2 className="text-xl font-bold text-gray-900 truncate">
-                                                {selectedDocument.documentName || 'Document Details'}
-                                            </h2>
-                                            <p className="text-sm text-gray-500 mt-1 truncate">
-                                                {selectedDocument.providerName || 'Provider'} ·{' '}
-                                                {selectedDocIndex + 1} of {providerReviewDocs.length}
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <h2 className="text-lg font-bold text-foreground truncate">
+                                                    {selectedDocument.documentName || 'Document'}
+                                                </h2>
+                                                <span
+                                                    className={cn(
+                                                        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold',
+                                                        selectedDocument.isVerify === true
+                                                            ? 'bg-emerald-100 text-emerald-800'
+                                                            : selectedDocument.isVerify === false
+                                                                ? 'bg-red-100 text-red-800'
+                                                                : 'bg-amber-100 text-amber-800'
+                                                    )}
+                                                >
+                                                    {selectedDocument.isVerify === true
+                                                        ? 'Approved'
+                                                        : selectedDocument.isVerify === false
+                                                            ? 'Rejected'
+                                                            : 'Pending'}
+                                                </span>
+                                            </div>
+                                            <p className="mt-0.5 truncate text-sm text-muted-foreground">
+                                                {selectedDocument.providerId ? (
+                                                    <Link
+                                                        href={`/admin/providers/${selectedDocument.providerId}`}
+                                                        className="font-medium text-foreground hover:text-primary"
+                                                    >
+                                                        {selectedDocument.providerName || 'Provider'}
+                                                    </Link>
+                                                ) : (
+                                                    selectedDocument.providerName || 'Provider'
+                                                )}
+                                                {' · '}
+                                                {selectedDocIndex + 1}/{providerReviewDocs.length}
+                                                {selectedDocument.createdAt
+                                                    ? ` · ${formatDate(selectedDocument.createdAt)}`
+                                                    : ''}
                                             </p>
                                         </div>
                                         <button
+                                            type="button"
                                             onClick={() => {
                                                 setSelectedDocument(null);
                                                 setSelectedImage(null);
                                             }}
-                                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors shrink-0"
+                                            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg hover:bg-muted transition-colors"
+                                            aria-label="Close"
                                         >
-                                            <XCircle className="h-5 w-5 text-gray-500" />
+                                            <XCircle className="h-5 w-5 text-muted-foreground" />
                                         </button>
                                     </div>
                                     {providerReviewDocs.length > 1 && (
@@ -709,7 +779,7 @@ const VerifyDocumentsPage = () => {
                                                 type="button"
                                                 onClick={() => goToProviderDoc(selectedDocIndex - 1)}
                                                 disabled={selectedDocIndex <= 0}
-                                                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                                                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
                                                 aria-label="Previous document"
                                             >
                                                 <ChevronLeft className="h-5 w-5" />
@@ -722,15 +792,16 @@ const VerifyDocumentsPage = () => {
                                                         onClick={() => goToProviderDoc(index)}
                                                         title={doc.documentName || `Document ${index + 1}`}
                                                         aria-label={`Go to ${doc.documentName || `document ${index + 1}`}`}
-                                                        className={`h-2.5 rounded-full transition-all ${
+                                                        className={cn(
+                                                            'h-2.5 rounded-full transition-all duration-150',
                                                             index === selectedDocIndex
-                                                                ? 'w-6 bg-indigo-600'
+                                                                ? 'w-6 bg-primary'
                                                                 : doc.isVerify === true
                                                                     ? 'w-2.5 bg-emerald-400 hover:bg-emerald-500'
                                                                     : doc.isVerify === false
                                                                         ? 'w-2.5 bg-red-400 hover:bg-red-500'
                                                                         : 'w-2.5 bg-amber-400 hover:bg-amber-500'
-                                                        }`}
+                                                        )}
                                                     />
                                                 ))}
                                             </div>
@@ -738,7 +809,7 @@ const VerifyDocumentsPage = () => {
                                                 type="button"
                                                 onClick={() => goToProviderDoc(selectedDocIndex + 1)}
                                                 disabled={selectedDocIndex >= providerReviewDocs.length - 1}
-                                                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                                                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
                                                 aria-label="Next document"
                                             >
                                                 <ChevronRight className="h-5 w-5" />
@@ -747,239 +818,150 @@ const VerifyDocumentsPage = () => {
                                     )}
                                 </div>
 
-                                {/* Modal Content */}
-                                <div className="p-6 space-y-6">
-                                    {/* Provider Info */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1 block">Provider</label>
-                                            <div className="flex items-center gap-2">
-                                                <User className="h-4 w-4 text-gray-400" />
-                                                {selectedDocument.providerId ? (
-                                                    <Link 
-                                                        href={`/admin/providers/${selectedDocument.providerId}`}
-                                                        className="font-medium text-gray-900 hover:text-indigo-600 transition-colors"
+                                <div className="min-h-0 flex-1 overflow-y-auto">
+                                    <div className="grid gap-0 lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.9fr)]">
+                                        <div className="bg-muted/30 p-4 sm:p-5">
+                                            {getDisplayImageUrl(selectedDocument.documentImage) ? (
+                                                <div className="relative overflow-hidden rounded-lg border border-border bg-background">
+                                                    <DocumentMediaPreview
+                                                        src={getDisplayImageUrl(selectedDocument.documentImage)!}
+                                                        alt={selectedDocument.documentName || 'Document'}
+                                                        imgClassName="max-h-[min(58vh,560px)]"
+                                                        onOpen={() => setSelectedImage(getDisplayImageUrl(selectedDocument.documentImage))}
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setSelectedImage(getDisplayImageUrl(selectedDocument.documentImage))}
+                                                        className="absolute top-3 right-3 inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-background/95 shadow-sm hover:bg-muted transition-colors"
+                                                        aria-label="Open fullscreen"
                                                     >
-                                                        {selectedDocument.providerName || 'Unknown Provider'}
-                                                    </Link>
-                                                ) : (
-                                                    <span className="font-medium text-gray-900">{selectedDocument.providerName || 'Unknown Provider'}</span>
-                                                )}
-                                            </div>
+                                                        <Eye className="h-5 w-5 text-foreground" />
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <div className="flex min-h-48 items-center justify-center rounded-lg border border-dashed border-border bg-background px-4 text-sm text-muted-foreground">
+                                                    No document preview available
+                                                </div>
+                                            )}
                                         </div>
-                                        {selectedDocument.providerEmail && (
-                                            <div>
-                                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1 block">Email</label>
-                                                <div className="flex items-center gap-2">
-                                                    <Mail className="h-4 w-4 text-gray-400" />
-                                                    <span className="text-gray-900">{selectedDocument.providerEmail}</span>
+
+                                        <div className="space-y-4 border-t border-border p-4 sm:p-5 lg:border-t-0 lg:border-l">
+                                            <div className="space-y-2 text-sm">
+                                                {selectedDocument.providerEmail && (
+                                                    <div className="flex items-start gap-2 text-muted-foreground">
+                                                        <Mail className="mt-0.5 h-4 w-4 shrink-0" />
+                                                        <span className="break-all text-foreground">{selectedDocument.providerEmail}</span>
+                                                    </div>
+                                                )}
+                                                <div className="flex items-start gap-2 text-muted-foreground">
+                                                    <Phone className="mt-0.5 h-4 w-4 shrink-0" />
+                                                    <span className="text-foreground">
+                                                        {providerPhone === null
+                                                            ? 'Loading phone…'
+                                                            : providerPhone || 'No phone on file'}
+                                                    </span>
                                                 </div>
                                             </div>
-                                        )}
-                                    </div>
 
-                                    {/* Document Info */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1 block">Document Name</label>
-                                            <div className="flex items-center gap-2">
-                                                <FileText className="h-4 w-4 text-gray-400" />
-                                                <span className="text-gray-900">{selectedDocument.documentName || 'Unknown Document'}</span>
-                                            </div>
-                                        </div>
-                                        {selectedDocument.documentId && (
-                                            <div>
-                                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1 block">Document ID</label>
-                                                <span className="text-gray-900 font-mono text-sm">{selectedDocument.documentId}</span>
-                                            </div>
-                                        )}
-                                    </div>
+                                            {selectedDocument.isVerify === true && (
+                                                <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                                                    Approved. You can still revoke and reject — provider gets the rejection SMS below.
+                                                </p>
+                                            )}
 
-                                    {/* Status and Date */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1 block">Status</label>
-                                            <span
-                                                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold ${
-                                                    selectedDocument.isVerify === true
-                                                        ? 'bg-emerald-100 text-emerald-700'
-                                                        : selectedDocument.isVerify === false
-                                                            ? 'bg-red-100 text-red-700'
-                                                            : 'bg-amber-100 text-amber-700'
-                                                }`}
-                                            >
-                                                {selectedDocument.isVerify === true ? (
-                                                    <>
-                                                        <CheckCircle2 className="h-4 w-4" />
-                                                        Approved
-                                                    </>
-                                                ) : selectedDocument.isVerify === false ? (
-                                                    <>
-                                                        <XCircle className="h-4 w-4" />
-                                                        Rejected
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <Clock className="h-4 w-4" />
-                                                        Pending
-                                                    </>
-                                                )}
-                                            </span>
-                                        </div>
-                                        {selectedDocument.createdAt && (
-                                            <div>
-                                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1 block">Submitted Date</label>
-                                                <span className="text-gray-900">{formatDate(selectedDocument.createdAt)}</span>
-                                            </div>
-                                        )}
-                                    </div>
+                                            {selectedDocument.isVerify === false && (
+                                                <p className="text-sm text-muted-foreground">
+                                                    Re-approve if this was rejected by mistake or the provider re-submitted.
+                                                </p>
+                                            )}
 
-                                    {/* Document Image */}
-                                    {getDisplayImageUrl(selectedDocument.documentImage) && (
-                                        <div>
-                                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 block">Document Image</label>
-                                            <div className="relative rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
-                                                <DocumentMediaPreview
-                                                    src={getDisplayImageUrl(selectedDocument.documentImage)!}
-                                                    alt={selectedDocument.documentName || 'Document'}
-                                                    onOpen={() => setSelectedImage(getDisplayImageUrl(selectedDocument.documentImage))}
-                                                />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setSelectedImage(getDisplayImageUrl(selectedDocument.documentImage))}
-                                                    className="absolute top-4 right-4 p-2 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg hover:bg-white transition-colors"
-                                                >
-                                                    <Eye className="h-5 w-5 text-gray-700" />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* SMS / actions copy */}
-                                    {(selectedDocument.isVerify === null || selectedDocument.isVerify === true) && (
-                                        <div className="space-y-3">
-                                            <div className="flex items-center gap-2 text-sm">
-                                                <Phone className="h-4 w-4 text-gray-400" />
-                                                <span className="font-medium text-gray-700">ስልክ:</span>
-                                                <span className="text-gray-700">
-                                                    {providerPhone === null
-                                                        ? 'Loading...'
-                                                        : providerPhone || 'ስልክ ቁጥር አልተገኘም'}
-                                                </span>
-                                            </div>
-                                            {selectedDocument.isVerify === null && (
-                                                <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 space-y-2">
-                                                    <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700">
-                                                        <MessageSquare className="h-4 w-4" />
-                                                        ሲጸድቅ የሚላከው SMS
-                                                    </div>
-                                                    <div className="rounded-md bg-white border border-emerald-100 px-3 py-2 text-sm text-gray-800">
+                                            {(selectedDocument.isVerify === null || selectedDocument.isVerify === false) && (
+                                                <details className="rounded-lg border border-border bg-muted/20">
+                                                    <summary className="cursor-pointer list-none px-3 py-2 text-sm font-semibold text-foreground marker:content-none flex items-center gap-2">
+                                                        <MessageSquare className="h-4 w-4 text-emerald-700" />
+                                                        Approve SMS preview
+                                                    </summary>
+                                                    <div className="border-t border-border px-3 py-2 text-sm text-foreground">
                                                         {getApproveMessage(selectedDocument.providerName, selectedDocument.documentName)}
                                                     </div>
+                                                </details>
+                                            )}
+
+                                            {(selectedDocument.isVerify === null || selectedDocument.isVerify === true) && (
+                                                <div className="space-y-2 rounded-lg border border-red-200 bg-red-50/40 p-3">
+                                                    <div className="flex items-center gap-2 text-sm font-semibold text-red-800">
+                                                        <MessageSquare className="h-4 w-4" />
+                                                        Rejection SMS
+                                                    </div>
+                                                    <textarea
+                                                        value={rejectionReason}
+                                                        onChange={(e) => setRejectionReason(e.target.value)}
+                                                        rows={4}
+                                                        placeholder="Edit rejection SMS sent to the provider."
+                                                        className="w-full rounded-md border border-red-100 bg-white px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-red-200"
+                                                    />
+                                                    <p className="text-xs text-red-700/80">
+                                                        Sent as SMS + push titled &quot;Document rejected&quot;.
+                                                    </p>
                                                 </div>
                                             )}
-                                            {selectedDocument.isVerify === true && (
-                                                <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-                                                    This document is approved. You can still revoke it and reject — the provider will get the rejection SMS/push below.
-                                                </p>
-                                            )}
-                                            <div className="rounded-lg border border-red-200 bg-red-50/50 p-4 space-y-2">
-                                                <div className="flex items-center gap-2 text-sm font-semibold text-red-700">
-                                                    <MessageSquare className="h-4 w-4" />
-                                                    Rejection message (SMS)
-                                                </div>
-                                                <textarea
-                                                    value={rejectionReason}
-                                                    onChange={(e) => setRejectionReason(e.target.value)}
-                                                    rows={5}
-                                                    placeholder="Edit the full rejection SMS sent to the provider."
-                                                    className="w-full rounded-md border border-red-100 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-red-200"
-                                                />
-                                                <p className="text-xs text-red-600/80">
-                                                    Provider gets this text as SMS, and a push titled &quot;Document rejected&quot; with the same body.
-                                                </p>
-                                            </div>
                                         </div>
-                                    )}
+                                    </div>
+                                </div>
 
-                                    {selectedDocument.isVerify === false && (
-                                        <div className="space-y-3">
-                                            <p className="text-sm text-gray-600">
-                                                Re-approve if this was rejected by mistake or the provider submitted an updated document.
-                                            </p>
-                                            <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 space-y-2">
-                                                <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700">
-                                                    <MessageSquare className="h-4 w-4" />
-                                                    ሲጸድቅ እንደገና የሚላከው SMS
-                                                </div>
-                                                <div className="rounded-md bg-white border border-emerald-100 px-3 py-2 text-sm text-gray-800">
-                                                    {getApproveMessage(selectedDocument.providerName, selectedDocument.documentName)}
-                                                </div>
+                                {canVerifyProviders && (
+                                    <div className="shrink-0 border-t border-border bg-white px-4 py-3 sm:px-5">
+                                        {selectedDocument.isVerify === null && (
+                                            <div className="flex flex-col-reverse gap-2 sm:flex-row">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void handleReject(selectedDocument.id, selectedDocument)}
+                                                    disabled={
+                                                        processingId === selectedDocument.id ||
+                                                        !rejectionReason.trim()
+                                                    }
+                                                    className="inline-flex h-11 flex-1 items-center justify-center rounded-lg border border-red-200 bg-white px-4 text-sm font-semibold text-red-700 hover:bg-red-50 transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50"
+                                                >
+                                                    Reject
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void handleVerify(selectedDocument.id, selectedDocument)}
+                                                    disabled={processingId === selectedDocument.id}
+                                                    className="inline-flex h-11 flex-1 items-center justify-center rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50"
+                                                >
+                                                    {processingId === selectedDocument.id ? 'Saving…' : 'Approve'}
+                                                </button>
                                             </div>
-                                        </div>
-                                    )}
-
-                                    {/* Actions */}
-                                    {canVerifyProviders && selectedDocument.isVerify === null && (
-                                        <div className="flex items-center gap-3 pt-4 border-t border-gray-200">
+                                        )}
+                                        {selectedDocument.isVerify === true && (
                                             <button
-                                                onClick={() => {
-                                                    void handleVerify(selectedDocument.id, selectedDocument);
-                                                }}
-                                                disabled={processingId === selectedDocument.id}
-                                                className="flex-1 px-4 py-2.5 rounded-lg bg-linear-to-r from-emerald-500 to-teal-600 text-white font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-                                            >
-                                                {processingId === selectedDocument.id ? 'Processing...' : 'Approve Document'}
-                                            </button>
-                                            <button
-                                                onClick={() => {
-                                                    void handleReject(selectedDocument.id, selectedDocument);
-                                                }}
+                                                type="button"
+                                                onClick={() => void handleReject(selectedDocument.id, selectedDocument)}
                                                 disabled={
                                                     processingId === selectedDocument.id ||
                                                     !rejectionReason.trim()
                                                 }
-                                                className="flex-1 px-4 py-2.5 rounded-lg bg-linear-to-r from-red-500 to-rose-600 text-white font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-                                            >
-                                                Reject Document
-                                            </button>
-                                        </div>
-                                    )}
-
-                                    {canVerifyProviders && selectedDocument.isVerify === true && (
-                                        <div className="flex items-center gap-3 pt-4 border-t border-gray-200">
-                                            <button
-                                                onClick={() => {
-                                                    void handleReject(selectedDocument.id, selectedDocument);
-                                                }}
-                                                disabled={
-                                                    processingId === selectedDocument.id ||
-                                                    !rejectionReason.trim()
-                                                }
-                                                className="flex-1 px-4 py-2.5 rounded-lg bg-linear-to-r from-red-500 to-rose-600 text-white font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                                                className="inline-flex h-11 w-full items-center justify-center rounded-lg bg-red-600 px-4 text-sm font-semibold text-white hover:bg-red-700 transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50"
                                             >
                                                 {processingId === selectedDocument.id
-                                                    ? 'Processing...'
+                                                    ? 'Saving…'
                                                     : 'Revoke approval & reject'}
                                             </button>
-                                        </div>
-                                    )}
-
-                                    {canVerifyProviders && selectedDocument.isVerify === false && (
-                                        <div className="flex items-center gap-3 pt-4 border-t border-gray-200">
+                                        )}
+                                        {selectedDocument.isVerify === false && (
                                             <button
-                                                onClick={() => {
-                                                    void handleVerify(selectedDocument.id, selectedDocument);
-                                                }}
+                                                type="button"
+                                                onClick={() => void handleVerify(selectedDocument.id, selectedDocument)}
                                                 disabled={processingId === selectedDocument.id}
-                                                className="inline-flex flex-1 items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-linear-to-r from-emerald-500 to-teal-600 text-white font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                                                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50"
                                             >
                                                 <RotateCcw className="h-4 w-4" />
-                                                {processingId === selectedDocument.id ? 'Processing...' : 'Re-approve Document'}
+                                                {processingId === selectedDocument.id ? 'Saving…' : 'Re-approve'}
                                             </button>
-                                        </div>
-                                    )}
-                                </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
