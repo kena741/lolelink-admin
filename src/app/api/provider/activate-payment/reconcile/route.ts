@@ -240,7 +240,6 @@ export async function POST(request: Request) {
             return NextResponse.json({
                 status: 'partial',
                 message: `Provider activated but wallet transaction failed: ${walletError.message}`,
-                provider_id: provider.id,
                 wallet_error: walletError.message,
                 ...preview,
             });
