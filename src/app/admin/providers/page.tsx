@@ -43,9 +43,11 @@ import {
     Filter,
     RotateCcw,
     X,
+    Plus,
 } from "lucide-react";
 import AdminPageHeader, { adminHeaderButtonClassName } from "@/components/AdminPageHeader";
 import { ActivationPaymentModal } from "@/components/ActivationPaymentModal";
+import { CreateAppUserModal } from "@/components/CreateAppUserModal";
 import { useAdminPermissions } from "@/hooks/use-admin-permissions";
 import { ServiceTierBadge } from "@/components/ServiceTierBadge";
 import { fetchSettings } from "@/features/settings/settingsSlice";
@@ -189,6 +191,7 @@ const ProvidersPage = () => {
     const [actionError, setActionError] = useState<string | null>(null);
     const [pendingDeleteProviderId, setPendingDeleteProviderId] = useState<string | null>(null);
     const [filtersPanelOpen, setFiltersPanelOpen] = useState(false);
+    const [createOpen, setCreateOpen] = useState(false);
 
     const nonDefaultFilterCount = useMemo(() => {
         let n = 0;
@@ -450,19 +453,32 @@ const ProvidersPage = () => {
                             title="Service Providers"
                             description="Manage and review all providers on the platform"
                             actions={
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        void Promise.all([
-                                            dispatch(fetchProviders()),
-                                            dispatch(fetchServiceCountsByProvider()),
-                                        ]).then(() => markAdminListFetched('providers'));
-                                    }}
-                                    className={adminHeaderButtonClassName()}
-                                >
-                                    <RefreshCw className="h-4 w-4" />
-                                    Refresh
-                                </button>
+                                <div className="flex items-center gap-2">
+                                    {canWriteProviders ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => setCreateOpen(true)}
+                                            className={adminHeaderButtonClassName()}
+                                            aria-label="Add provider"
+                                        >
+                                            <Plus className="h-4 w-4" />
+                                            Add
+                                        </button>
+                                    ) : null}
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            void Promise.all([
+                                                dispatch(fetchProviders()),
+                                                dispatch(fetchServiceCountsByProvider()),
+                                            ]).then(() => markAdminListFetched('providers'));
+                                        }}
+                                        className={adminHeaderButtonClassName()}
+                                    >
+                                        <RefreshCw className="h-4 w-4" />
+                                        Refresh
+                                    </button>
+                                </div>
                             }
                         />
                         <section className="mb-8 grid grid-cols-1 gap-4 min-w-0 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
@@ -1278,8 +1294,18 @@ const ProvidersPage = () => {
                             providerName={activationTarget.name}
                         />
                     )}
-                
-            
+
+                    <CreateAppUserModal
+                        open={createOpen}
+                        kind="provider"
+                        onClose={() => setCreateOpen(false)}
+                        onCreated={() => {
+                            void Promise.all([
+                                dispatch(fetchProviders()),
+                                dispatch(fetchServiceCountsByProvider()),
+                            ]).then(() => markAdminListFetched("providers"));
+                        }}
+                    />
         </>
     );
 };

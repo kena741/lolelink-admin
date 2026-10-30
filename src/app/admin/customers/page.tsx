@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { fetchAllCustomers, convertToProvider, resetConvertState, archiveCustomer, restoreCustomer, deleteCustomer, setCustomerAdminNote } from '@/features/customer/customerSlice';
-import { ChevronLeft, ChevronRight, Download, Users, ArrowRightLeft, CheckCircle2, Loader2, Archive, ArchiveRestore, Trash2, MoreVertical, ExternalLink } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Users, ArrowRightLeft, CheckCircle2, Loader2, Archive, ArchiveRestore, Trash2, MoreVertical, ExternalLink, Plus } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,7 +13,8 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import AdminPageHeader from '@/components/AdminPageHeader';
+import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
+import { CreateAppUserModal } from '@/components/CreateAppUserModal';
 import {
     AdminErrorAlert,
     AdminFilterPanel,
@@ -53,6 +54,7 @@ export default function CustomersPage() {
     const [actionBusyId, setActionBusyId] = useState<string | null>(null);
     const [actionError, setActionError] = useState<string | null>(null);
     const [pendingDeleteCustomerId, setPendingDeleteCustomerId] = useState<string | null>(null);
+    const [createOpen, setCreateOpen] = useState(false);
 
     useEffect(() => {
         if (!shouldRefetchAdminList('customers', { hasRows: customers.length > 0 })) return;
@@ -230,6 +232,19 @@ export default function CustomersPage() {
                         <AdminPageHeader
                             title="Customers"
                             description="Directory of customers and their recent activity"
+                            actions={
+                                canWriteCustomers ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => setCreateOpen(true)}
+                                        className={adminHeaderButtonClassName()}
+                                        aria-label="Add customer"
+                                    >
+                                        <Plus className="h-4 w-4" />
+                                        Add
+                                    </button>
+                                ) : null
+                            }
                         />
                         <AdminFilterPanel className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <AdminSearchInput
@@ -730,6 +745,19 @@ export default function CustomersPage() {
                             </div>
                         </div>
                     )}
+
+                    <CreateAppUserModal
+                        open={createOpen}
+                        kind="customer"
+                        onClose={() => setCreateOpen(false)}
+                        onCreated={() => {
+                            void dispatch(fetchAllCustomers()).then((action) => {
+                                if (fetchAllCustomers.fulfilled.match(action)) {
+                                    markAdminListFetched('customers');
+                                }
+                            });
+                        }}
+                    />
             </AdminShell>
         </>
     );
