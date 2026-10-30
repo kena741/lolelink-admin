@@ -33,9 +33,11 @@ import { SearchSelect, type SearchSelectOption } from '@/components/SearchSelect
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { getSupabase } from '@/lib/supabaseClient';
 import { formatDisplayPhone } from '@/lib/phone-display';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import { fetchAllCustomers, type Customer } from '@/features/customer/customerSlice';
+import { fetchProviderServices } from '@/features/provider/providerSlice';
 import { cn } from '@/lib/utils';
 
 interface ProviderBookingRow {
@@ -63,27 +65,6 @@ interface ProviderServiceHistoryProps {
     providerId: string;
 }
 
-interface ServiceOptionRow {
-    id: string;
-    serviceName?: string | null;
-    name?: string | null;
-    price?: string | number | null;
-    status?: boolean | null;
-    isArchived?: boolean | null;
-}
-
-interface CustomerOptionRow {
-    id: string;
-    firstName?: string | null;
-    lastName?: string | null;
-    first_name?: string | null;
-    last_name?: string | null;
-    email?: string | null;
-    phone?: string | null;
-    phoneNumber?: string | null;
-    mobile_number?: string | null;
-}
-
 function formatCurrency(value: number): string {
     return `ETB ${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
@@ -96,19 +77,22 @@ function todayInputValue(): string {
     return `${y}-${m}-${d}`;
 }
 
-function customerLabel(row: CustomerOptionRow): string {
-    const first = (row.firstName ?? row.first_name ?? '').trim();
-    const last = (row.lastName ?? row.last_name ?? '').trim();
-    return [first, last].filter(Boolean).join(' ').trim() || row.email?.trim() || row.id;
+function customerDisplayName(customer: Customer): string {
+    const first = (customer.first_name ?? '').trim();
+    const last = (customer.last_name ?? '').trim();
+    return [first, last].filter(Boolean).join(' ').trim() || customer.email?.trim() || 'Customer';
 }
 
-function customerPhone(row: CustomerOptionRow): string {
-    return formatDisplayPhone(row.phoneNumber ?? row.mobile_number ?? row.phone ?? '');
+function customerPhone(customer: Customer): string {
+    return formatDisplayPhone(customer.phoneNumber ?? customer.mobile_number ?? customer.phone ?? '');
 }
 
 export function ProviderServiceHistory({ providerId }: ProviderServiceHistoryProps) {
+    const dispatch = useAppDispatch();
     const { canWriteBookings } = useAdminPermissions();
     const formId = useId();
+    const { customers, loading: customersLoading } = useAppSelector((state) => state.customer);
+    const { services, servicesLoading } = useAppSelector((state) => state.provider);
 
     const [items, setItems] = useState<ProviderBookingRow[]>([]);
     const [stats, setStats] = useState<ServiceHistoryStats | null>(null);
@@ -122,10 +106,6 @@ export function ProviderServiceHistory({ providerId }: ProviderServiceHistoryPro
     const [bookingDate, setBookingDate] = useState(todayInputValue);
     const [amount, setAmount] = useState('');
     const [note, setNote] = useState('');
-    const [customerOptions, setCustomerOptions] = useState<SearchSelectOption[]>([]);
-    const [serviceOptions, setServiceOptions] = useState<SearchSelectOption[]>([]);
-    const [servicePriceById, setServicePriceById] = useState<Record<string, string>>({});
-    const [optionsLoading, setOptionsLoading] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [formError, setFormError] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -161,74 +141,62 @@ export function ProviderServiceHistory({ providerId }: ProviderServiceHistoryPro
         void loadHistory();
     }, [loadHistory]);
 
-    const loadComposerOptions = useCallback(async () => {
-        setOptionsLoading(true);
-        try {
-            const supabase = getSupabase();
-            const [customersRes, servicesRes] = await Promise.all([
-                supabase
-                    .from('customer')
-                    .select('id, firstName, lastName, first_name, last_name, email, phone, phoneNumber, mobile_number')
-                    .limit(800),
-                supabase
-                    .from('service')
-                    .select('id, serviceName, name, price, status, isArchived')
-                    .eq('provider_id', providerId)
-                    .neq('isArchived', true),
-            ]);
-
-            if (customersRes.error) throw new Error(customersRes.error.message);
-            if (servicesRes.error) throw new Error(servicesRes.error.message);
-
-            const customers = (customersRes.data ?? []) as CustomerOptionRow[];
-            setCustomerOptions(
-                customers.map((row) => {
-                    const phone = customerPhone(row);
-                    return {
-                        value: row.id,
-                        label: customerLabel(row),
-                        description: [phone, row.email].filter(Boolean).join(' · ') || undefined,
-                        searchText: [customerLabel(row), phone, row.email, row.id].filter(Boolean).join(' '),
-                    };
-                })
-            );
-
-            const services = ((servicesRes.data ?? []) as ServiceOptionRow[]).filter(
-                (row) => row.status !== false
-            );
-            const priceMap: Record<string, string> = {};
-            setServiceOptions(
-                services.map((row) => {
-                    const label = (row.serviceName ?? row.name ?? 'Service').trim() || 'Service';
-                    const price = Number(row.price ?? 0);
-                    const priceLabel = Number.isFinite(price)
-                        ? `ETB ${price.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
-                        : '';
-                    if (Number.isFinite(price) && price > 0) {
-                        priceMap[row.id] = String(price);
-                    }
-                    return {
-                        value: row.id,
-                        label,
-                        description: priceLabel || undefined,
-                        searchText: `${label} ${priceLabel} ${row.id}`,
-                    };
-                })
-            );
-            setServicePriceById(priceMap);
-        } catch (optionsError: unknown) {
-            setFormError(
-                optionsError instanceof Error ? optionsError.message : 'Failed to load customers and services'
-            );
-        } finally {
-            setOptionsLoading(false);
-        }
-    }, [providerId]);
-
     useEffect(() => {
         if (!composerOpen) return;
-        void loadComposerOptions();
-    }, [composerOpen, loadComposerOptions]);
+        void dispatch(fetchAllCustomers());
+        void dispatch(fetchProviderServices({ providerId, includeArchived: false }));
+    }, [composerOpen, dispatch, providerId]);
+
+    const customerOptions = useMemo<SearchSelectOption[]>(() => {
+        return customers
+            .filter((customer): customer is Customer & { id: string } => Boolean(customer.id) && !customer.archived_at)
+            .map((customer) => {
+                const name = customerDisplayName(customer);
+                const phone = customerPhone(customer);
+                return {
+                    value: customer.id,
+                    label: name,
+                    description: [phone, customer.email].filter(Boolean).join(' · ') || undefined,
+                    searchText: [name, phone, customer.email, customer.id].filter(Boolean).join(' '),
+                };
+            });
+    }, [customers]);
+
+    const servicePriceById = useMemo(() => {
+        const priceMap: Record<string, string> = {};
+        for (const service of services) {
+            if (service.provider_id && service.provider_id !== providerId) continue;
+            const price = Number(service.price ?? 0);
+            if (Number.isFinite(price) && price > 0) priceMap[service.id] = String(price);
+        }
+        return priceMap;
+    }, [services, providerId]);
+
+    const serviceOptions = useMemo<SearchSelectOption[]>(() => {
+        return services
+            .filter((service) => {
+                if (!service.id) return false;
+                if (service.provider_id && service.provider_id !== providerId) return false;
+                if (service.isArchived === true) return false;
+                if (service.status === false) return false;
+                return true;
+            })
+            .map((service) => {
+                const label = (service.serviceName ?? service.name ?? 'Service').trim() || 'Service';
+                const price = Number(service.price ?? 0);
+                const priceLabel = Number.isFinite(price) && price > 0
+                    ? `ETB ${price.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
+                    : '';
+                return {
+                    value: service.id,
+                    label,
+                    description: priceLabel || undefined,
+                    searchText: `${label} ${priceLabel} ${service.id}`,
+                };
+            });
+    }, [services, providerId]);
+
+    const optionsLoading = customersLoading || servicesLoading;
 
     useEffect(() => {
         if (!serviceId) return;
