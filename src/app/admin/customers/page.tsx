@@ -241,7 +241,7 @@ export default function CustomersPage() {
                                         aria-label="Add customer"
                                     >
                                         <Plus className="h-4 w-4" />
-                                        Add
+                                        Add customer
                                     </button>
                                 ) : null
                             }
@@ -254,6 +254,16 @@ export default function CustomersPage() {
                                 placeholder="Search name, email, phone, user ID, address..."
                             />
                             <div className="flex flex-wrap items-center gap-3">
+                                {canWriteCustomers ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => setCreateOpen(true)}
+                                        className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+                                    >
+                                        <Plus className="h-4 w-4" />
+                                        Add customer
+                                    </button>
+                                ) : null}
                                 <button
                                     type="button"
                                     onClick={() => setShowArchived((v) => !v)}

@@ -462,7 +462,7 @@ const ProvidersPage = () => {
                                             aria-label="Add provider"
                                         >
                                             <Plus className="h-4 w-4" />
-                                            Add
+                                            Add provider
                                         </button>
                                     ) : null}
                                     <button
@@ -545,6 +545,16 @@ const ProvidersPage = () => {
                                     ) : null}
                                 </div>
                                 <div className="flex flex-wrap items-center gap-3">
+                                    {canWriteProviders ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => setCreateOpen(true)}
+                                            className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                        >
+                                            <Plus className="h-4 w-4 shrink-0" />
+                                            Add provider
+                                        </button>
+                                    ) : null}
                                     <button
                                         type="button"
                                         onClick={() => setFiltersPanelOpen((open) => !open)}
