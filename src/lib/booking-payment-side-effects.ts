@@ -12,7 +12,7 @@ import { maybeCreditProviderAfterPaymentSettled } from '@/lib/booking-completion
 import { resolveCustomerAuthUserId } from '@/lib/wallet-transaction-user';
 import { walletTransactionProfileColumns } from '@/lib/wallet-transaction-profile';
 
-const SMS_UPSTREAM = 'https://betegna-ai.vercel.app/sms/send';
+import { sendSmsUpstream } from '@/lib/broadcast-notify';
 
 interface BookingRow {
     id: string;
@@ -435,19 +435,5 @@ export async function sendBookingProviderSms(
 
     const message = `New booking for ${params.serviceName} from ${params.customerName}. Please check your provider app.`;
 
-    try {
-        await fetch(SMS_UPSTREAM, {
-            method: 'POST',
-            headers: {
-                accept: 'application/json',
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                recipient,
-                message,
-                callback: '',
-            }),
-        });
-    } catch {
-    }
+    await sendSmsUpstream(recipient, message);
 }

@@ -1,4 +1,17 @@
-const SMS_UPSTREAM = 'https://betegna-ai.vercel.app/sms/send';
+const SMS_UPSTREAM =
+    (process.env.SMS_API_BASE_URL ?? 'https://betegna-ai.vercel.app').replace(/\/$/, '')
+    + '/sms/send';
+
+function smsUpstreamHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {
+        accept: 'application/json',
+        'Content-Type': 'application/json',
+    };
+    // Same gateway the rest of admin already uses; upstream now requires Bearer.
+    const apiKey = (process.env.SMS_API_KEY ?? '').trim();
+    if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+    return headers;
+}
 
 export type BroadcastChannel = 'push' | 'sms' | 'both';
 
@@ -88,10 +101,7 @@ export async function sendSmsUpstream(
     try {
         const upstream = await fetch(SMS_UPSTREAM, {
             method: 'POST',
-            headers: {
-                accept: 'application/json',
-                'Content-Type': 'application/json',
-            },
+            headers: smsUpstreamHeaders(),
             body: JSON.stringify({
                 recipient: trimmedRecipient,
                 message: trimmedMessage,
@@ -99,7 +109,19 @@ export async function sendSmsUpstream(
             }),
         });
         if (!upstream.ok) {
-            return { ok: false, error: `SMS upstream failed: ${upstream.status}` };
+            const detail = await upstream.text().catch(() => '');
+            if (upstream.status === 401 && !(process.env.SMS_API_KEY ?? '').trim()) {
+                return {
+                    ok: false,
+                    error: 'SMS upstream failed: 401 (set SMS_API_KEY on the server)',
+                };
+            }
+            return {
+                ok: false,
+                error: detail
+                    ? `SMS upstream failed: ${upstream.status} ${detail.slice(0, 120)}`
+                    : `SMS upstream failed: ${upstream.status}`,
+            };
         }
         return { ok: true };
     } catch (error: unknown) {

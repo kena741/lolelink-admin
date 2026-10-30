@@ -1,9 +1,4 @@
-const SMS_UPSTREAM = 'https://betegna-ai.vercel.app/sms/send';
-
-function getSmsEndpoint(): string {
-    if (typeof window !== 'undefined') return '/api/sms/send';
-    return SMS_UPSTREAM;
-}
+import { sendSmsUpstream } from '@/lib/broadcast-notify';
 
 export function buildRecipient(phone?: string | null, countryCode?: string | null): string {
     let p = (phone ?? '').toString().trim();
@@ -25,25 +20,35 @@ export async function sendSms(
 ): Promise<{ success: boolean; data?: Record<string, unknown>; error?: string }> {
     if (!recipient) return { success: false, error: 'No recipient provided' };
 
-    try {
-        const res = await fetch(getSmsEndpoint(), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ recipient, message, callback: '' }),
-        });
-
-        if (res.ok) {
-            try {
-                const data = await res.json();
-                return { success: true, data };
-            } catch {
-                return { success: true };
+    // Browser → same-origin admin proxy (shared upstream + SMS_API_KEY).
+    if (typeof window !== 'undefined') {
+        try {
+            const res = await fetch('/api/sms/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ recipient, message, callback: '' }),
+            });
+            if (res.ok) {
+                try {
+                    const data = await res.json();
+                    return { success: true, data };
+                } catch {
+                    return { success: true };
+                }
             }
+            const payload = (await res.json().catch(() => null)) as { error?: string } | null;
+            return {
+                success: false,
+                error: payload?.error || `SMS send failed: ${res.status}`,
+            };
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : 'SMS send failed';
+            return { success: false, error: msg };
         }
-
-        return { success: false, error: `SMS send failed: ${res.status}` };
-    } catch (e) {
-        const msg = e instanceof Error ? e.message : 'SMS send failed';
-        return { success: false, error: msg };
     }
+
+    const result = await sendSmsUpstream(recipient, message);
+    return result.ok
+        ? { success: true }
+        : { success: false, error: result.error };
 }
