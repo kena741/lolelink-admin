@@ -91,7 +91,7 @@ export async function POST(request: Request) {
         }
 
         const recipient = buildRecipient(phone, countryCode);
-        const smsMessage = `ሰላም ${firstName}! የዘመን አካውንትዎ ተከፍቷል። በስልክ ቁጥርዎ እና በዚህ ጊዜያዊ የይለፍ ቃል ይግቡ፡ ${password}`;
+        const smsMessage = `ሰላም ${firstName}! የ Zemen Service ካስተመር አካውንትዎ ተከፍቷል። በስልክ ቁጥርዎ እና በዚህ ጊዜያዊ የይለፍ ቃል ይግቡ፡ ${password}`;
         const smsResult = recipient
             ? await sendSmsUpstream(recipient, smsMessage)
             : { ok: false as const, error: 'Invalid phone number' };
