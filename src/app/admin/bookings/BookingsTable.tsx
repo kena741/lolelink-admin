@@ -35,6 +35,7 @@ import {
     AdminStatusBadge,
     AdminTableShell,
 } from '@/components/admin/data-table';
+import { AdminNoteField } from '@/components/AdminNoteField';
 import { cn } from '@/lib/utils';
 import { isRecurringBooking } from '@/lib/recurring-payments';
 
@@ -147,6 +148,7 @@ interface BookingsTableProps {
     onOpenIssues: (id: string) => void;
     onDelete: (id: string) => void;
     onDebug: (id: string) => void;
+    onSaveFollowUp?: (id: string, note: string) => Promise<void>;
 }
 
 export function BookingsTable({
@@ -159,6 +161,7 @@ export function BookingsTable({
     onOpenIssues,
     onDelete,
     onDebug,
+    onSaveFollowUp,
 }: BookingsTableProps) {
     if (loading && bookings.length === 0) {
         return (
@@ -194,6 +197,7 @@ export function BookingsTable({
                                 'Pay',
                                 'Job',
                                 'Payment',
+                                'Follow-up',
                                 'Flags',
                                 'Created',
                                 '',
@@ -331,6 +335,25 @@ export function BookingsTable({
                                             paymentStatus={booking.payment_status}
                                             paymentCompleted={booking.paymentCompleted}
                                         />
+                                    </td>
+                                    <td
+                                        className="px-3 py-3 align-middle"
+                                        onClick={(event) => event.stopPropagation()}
+                                    >
+                                        {onSaveFollowUp ? (
+                                            <AdminNoteField
+                                                display="text"
+                                                value={booking.admin_note ?? ''}
+                                                disabled={!canWriteBookings}
+                                                onSave={async (note) => {
+                                                    await onSaveFollowUp(booking.id, note);
+                                                }}
+                                            />
+                                        ) : (
+                                            <span className="max-w-40 truncate text-sm text-gray-500">
+                                                {booking.admin_note?.trim() || '—'}
+                                            </span>
+                                        )}
                                     </td>
                                     <td
                                         className="whitespace-nowrap px-3 py-3 align-middle"

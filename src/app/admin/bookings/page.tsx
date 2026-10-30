@@ -1,7 +1,7 @@
 "use client";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAppDispatch, useAppSelector } from "../../../store/hooks";
-import { fetchAllBookings, fetchBookingById, clearSingle, deleteBooking, verifyBookingPayment, updateBookingStatus, recollectBookingPayment, getBookingCustomerDisplayName, getBookingProviderDisplayName } from "../../../features/bookedService/bookedServiceSlice";
+import { fetchAllBookings, fetchBookingById, clearSingle, deleteBooking, verifyBookingPayment, updateBookingStatus, recollectBookingPayment, setBookingAdminNote, getBookingCustomerDisplayName, getBookingProviderDisplayName } from "../../../features/bookedService/bookedServiceSlice";
 import { Plus, RefreshCw, Search, X } from "lucide-react";
 import AdminPageHeader, { adminHeaderButtonClassName } from "@/components/AdminPageHeader";
 import {
@@ -555,6 +555,27 @@ const BookingsPage = () => {
         }
     };
 
+    const handleSaveFollowUp = async (id: string, note: string) => {
+        const response = await fetch(`/api/admin/bookings/${encodeURIComponent(id)}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ admin_note: note || null }),
+        });
+        const payload = (await response.json()) as {
+            error?: string;
+            data?: { admin_note?: string | null };
+        };
+        if (!response.ok) {
+            throw new Error(payload.error || 'Failed to save follow-up');
+        }
+        dispatch(
+            setBookingAdminNote({
+                id,
+                admin_note: payload.data?.admin_note ?? (note || null),
+            })
+        );
+    };
+
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase();
 
@@ -899,6 +920,7 @@ const BookingsPage = () => {
                             onOpenIssues={(id) => onOpenDetail(id, { focusIssues: true })}
                             onDelete={(id) => void handleDeleteBooking(id)}
                             onDebug={setDebugBookingId}
+                            onSaveFollowUp={canWriteBookings ? handleSaveFollowUp : undefined}
                         />
 
                         <AdminListPagination
@@ -925,6 +947,7 @@ const BookingsPage = () => {
                     recollectingPayment={recollectingPayment}
                     onUpdateStatus={canWriteBookings ? handleUpdateBookingStatus : undefined}
                     updatingStatus={updatingStatus}
+                    onSaveFollowUp={canWriteBookings ? handleSaveFollowUp : undefined}
                 />
                 {isLocalhost && (
                     <BookingDebugModal

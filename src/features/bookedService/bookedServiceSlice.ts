@@ -61,6 +61,7 @@ export interface BookedService {
     reason?: string | null;
     is_archived?: boolean | null;
     archive_note?: string | null;
+    admin_note?: string | null;
     currentPeriodStart?: string | null;
     currentPeriodEnd?: string | null;
     nextCycleDue?: boolean | null;
@@ -646,6 +647,18 @@ const bookedServiceSlice = createSlice({
         clearSingle(state) {
             state.single = null;
         },
+        setBookingAdminNote(
+            state,
+            action: PayloadAction<{ id: string; admin_note: string | null }>
+        ) {
+            const { id, admin_note } = action.payload;
+            state.items = state.items.map((item) =>
+                item.id === id ? { ...item, admin_note } : item
+            );
+            if (state.single?.id === id) {
+                state.single = { ...state.single, admin_note };
+            }
+        },
     },
     extraReducers: (builder) => {
         builder
@@ -729,5 +742,5 @@ const bookedServiceSlice = createSlice({
     },
 });
 
-export const { clearSingle } = bookedServiceSlice.actions;
+export const { clearSingle, setBookingAdminNote } = bookedServiceSlice.actions;
 export default bookedServiceSlice.reducer;

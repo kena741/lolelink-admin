@@ -30,6 +30,7 @@ import type {
     ServiceHistoryStats,
 } from '@/lib/provider-service-history';
 import { SearchSelect, type SearchSelectOption } from '@/components/SearchSelect';
+import { AdminNoteField } from '@/components/AdminNoteField';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -55,6 +56,7 @@ interface ProviderBookingRow {
     priorCompletedCount: number;
     isPastHire?: boolean;
     note?: string;
+    followUp?: string;
 }
 
 interface RepeatCustomerRow extends ServiceHistoryRepeatCustomer {
@@ -258,6 +260,7 @@ export function ProviderServiceHistory({ providerId }: ProviderServiceHistoryPro
                     bookingDate,
                     amount: amount.trim() || undefined,
                     note: note.trim() || undefined,
+                    admin_note: note.trim() || undefined,
                 }),
             });
             const payload = (await response.json()) as { error?: string; data?: { id: string } };
@@ -610,6 +613,7 @@ export function ProviderServiceHistory({ providerId }: ProviderServiceHistoryPro
                                 <th className="px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-500">Booking</th>
                                 <th className="px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-500">Payment</th>
                                 <th className="px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-500">History</th>
+                                <th className="px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-500">Follow-up</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
@@ -673,6 +677,43 @@ export function ProviderServiceHistory({ providerId }: ProviderServiceHistoryPro
                                                 <span className="text-xs text-gray-400">First hire</span>
                                             )}
                                         </div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <AdminNoteField
+                                            display="text"
+                                            value={item.followUp || ''}
+                                            disabled={!canWriteBookings}
+                                            onSave={async (followUp) => {
+                                                const response = await fetch(
+                                                    `/api/admin/providers/${providerId}/bookings`,
+                                                    {
+                                                        method: 'PATCH',
+                                                        headers: { 'Content-Type': 'application/json' },
+                                                        body: JSON.stringify({
+                                                            booking_id: item.id,
+                                                            admin_note: followUp || null,
+                                                        }),
+                                                    }
+                                                );
+                                                const payload = (await response.json()) as {
+                                                    error?: string;
+                                                    data?: { followUp?: string };
+                                                };
+                                                if (!response.ok) {
+                                                    throw new Error(payload.error || 'Failed to save follow-up');
+                                                }
+                                                setItems((prev) =>
+                                                    prev.map((row) =>
+                                                        row.id === item.id
+                                                            ? {
+                                                                  ...row,
+                                                                  followUp: payload.data?.followUp ?? followUp,
+                                                              }
+                                                            : row
+                                                    )
+                                                );
+                                            }}
+                                        />
                                     </td>
                                 </tr>
                             ))}

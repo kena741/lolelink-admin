@@ -37,6 +37,7 @@ export async function PATCH(request: Request, context: { params: Promise<RoutePa
 
         const body = (await request.json()) as {
             status?: string;
+            admin_note?: string | null;
             notifyProvider?: boolean;
             notifyCustomer?: boolean;
             /** When completing: waive platform fee (provider gets full service). */
@@ -44,6 +45,65 @@ export async function PATCH(request: Request, context: { params: Promise<RoutePa
             /** When completing: platform fee percent from gross. Default 10. */
             commission_percent?: number;
         };
+
+        // Follow-up note only (no status change).
+        if (
+            (typeof body.admin_note === 'string' || body.admin_note === null)
+            && !(body.status ?? '').trim()
+        ) {
+            const nextNote = body.admin_note === null ? null : body.admin_note.trim() || null;
+            const { data: existing, error: existingError } = await supabaseAdmin
+                .from('booked_service')
+                .select('id, admin_note')
+                .eq('id', id)
+                .maybeSingle();
+            if (existingError) {
+                const missingColumn = existingError.message.includes('admin_note');
+                return NextResponse.json(
+                    {
+                        error: missingColumn
+                            ? 'Follow-up notes need DB migration: run scripts/sql/add-booked-service-admin-note.sql'
+                            : existingError.message,
+                    },
+                    { status: missingColumn ? 503 : 500 }
+                );
+            }
+            if (!existing) {
+                return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
+            }
+
+            const { data: updated, error: updateError } = await supabaseAdmin
+                .from('booked_service')
+                .update({ admin_note: nextNote })
+                .eq('id', id)
+                .select('id, admin_note')
+                .single();
+            if (updateError) {
+                const missingColumn = updateError.message.includes('admin_note');
+                return NextResponse.json(
+                    {
+                        error: missingColumn
+                            ? 'Follow-up notes need DB migration: run scripts/sql/add-booked-service-admin-note.sql'
+                            : updateError.message,
+                    },
+                    { status: missingColumn ? 503 : 500 }
+                );
+            }
+
+            await logAdminActivity({
+                request,
+                action: 'booking.follow_up',
+                resource_type: 'booked_service',
+                resource_id: id,
+                summary: `Updated booking follow-up note`,
+                metadata: { admin_note: nextNote },
+            });
+
+            return NextResponse.json({
+                data: { id: updated.id, admin_note: updated.admin_note ?? null },
+            });
+        }
+
         const nextStatus = (body.status ?? '').trim();
         if (!isBookedServiceStatus(nextStatus)) {
             return NextResponse.json({ error: 'Invalid job status' }, { status: 400 });

@@ -66,6 +66,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetBody, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { BookingIssuesPanel } from './BookingIssuesPanel';
+import { AdminNoteField } from '@/components/AdminNoteField';
 import { cn } from '@/lib/utils';
 import { isRecurringBooking } from '@/lib/recurring-payments';
 
@@ -263,6 +264,7 @@ export function BookingDetailModal({
     recollectingPayment = false,
     onUpdateStatus,
     updatingStatus = false,
+    onSaveFollowUp,
 }: {
     open: boolean;
     booking: BookedService | null;
@@ -282,6 +284,7 @@ export function BookingDetailModal({
         options?: { applyCommission?: boolean; commissionPercent?: number }
     ) => Promise<void>;
     updatingStatus?: boolean;
+    onSaveFollowUp?: (id: string, note: string) => Promise<void>;
 }) {
     const [walletRows, setWalletRows] = useState<WalletLedgerRow[]>([]);
     const [walletLoading, setWalletLoading] = useState(false);
@@ -895,6 +898,23 @@ export function BookingDetailModal({
                                     {booking.reason ? (
                                         <MetaRow label="Rejection" value={booking.reason} />
                                     ) : null}
+                                    <MetaRow
+                                        label="Follow-up"
+                                        value={
+                                            onSaveFollowUp ? (
+                                                <AdminNoteField
+                                                    display="text"
+                                                    value={booking.admin_note ?? ''}
+                                                    disabled={!canDelete}
+                                                    onSave={async (note) => {
+                                                        await onSaveFollowUp(booking.id, note);
+                                                    }}
+                                                />
+                                            ) : (
+                                                booking.admin_note?.trim() || '—'
+                                            )
+                                        }
+                                    />
                                 </dl>
                             </Section>
                         </div>

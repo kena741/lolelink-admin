@@ -29,6 +29,7 @@ interface BookingRow {
     firstName?: string | null;
     lastName?: string | null;
     description?: string | null;
+    admin_note?: string | null;
 }
 
 interface CreatePastHireBody {
@@ -37,6 +38,12 @@ interface CreatePastHireBody {
     bookingDate?: string;
     amount?: number | string;
     note?: string;
+    admin_note?: string;
+}
+
+interface UpdateFollowUpBody {
+    booking_id?: string;
+    admin_note?: string | null;
 }
 
 function customerDisplayName(
@@ -80,15 +87,28 @@ export async function GET(
     try {
         const supabaseAdmin = getSupabaseAdminFromRequest(request);
 
-        const { data: bookings, error } = await supabaseAdmin
+        let bookingsQuery = await supabaseAdmin
             .from('booked_service')
             .select(
-                'id, serviceName, status, payment_status, paymentCompleted, totalAmount, price, createdAt, bookingDate, customer_id, firstName, lastName, description'
+                'id, serviceName, status, payment_status, paymentCompleted, totalAmount, price, createdAt, bookingDate, customer_id, firstName, lastName, description, admin_note'
             )
             .eq('provider_id', providerId)
             .or('is_archived.is.null,is_archived.eq.false')
             .order('createdAt', { ascending: false });
 
+        // ponytail: tolerate pre-migration DBs that lack admin_note
+        if (bookingsQuery.error?.message?.includes('admin_note')) {
+            bookingsQuery = await supabaseAdmin
+                .from('booked_service')
+                .select(
+                    'id, serviceName, status, payment_status, paymentCompleted, totalAmount, price, createdAt, bookingDate, customer_id, firstName, lastName, description'
+                )
+                .eq('provider_id', providerId)
+                .or('is_archived.is.null,is_archived.eq.false')
+                .order('createdAt', { ascending: false });
+        }
+
+        const { data: bookings, error } = bookingsQuery;
         if (error) {
             return NextResponse.json({ error: error.message }, { status: 500 });
         }
@@ -161,6 +181,7 @@ export async function GET(
                 priorCompletedCount: meta?.priorCompletedCount ?? 0,
                 isPastHire: isPastHireDescription(description),
                 note: description,
+                followUp: row.admin_note ?? '',
             };
         });
 
@@ -199,6 +220,8 @@ export async function POST(
         const customerId = (body.customer_id ?? '').trim();
         const serviceId = (body.service_id ?? '').trim();
         const note = typeof body.note === 'string' ? body.note : '';
+        const followUp =
+            typeof body.admin_note === 'string' ? body.admin_note.trim() : note.trim();
         const pastAt = resolvePastHireTimestamp(body.bookingDate ?? '');
 
         if (!customerId) return NextResponse.json({ error: 'customer_id is required' }, { status: 400 });
@@ -226,6 +249,7 @@ export async function POST(
         row.paymentType = 'admin';
         row.createdAt = pastAt;
         row.bookingDate = pastAt;
+        if (followUp) row.admin_note = followUp;
         delete row.payment_id;
 
         const { data: created, error: insertError } = await supabaseAdmin
@@ -289,6 +313,99 @@ export async function POST(
         });
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Failed to log past hire';
+        return NextResponse.json({ error: message }, { status: 500 });
+    }
+}
+
+/** Update follow-up note on a booking in this provider's history. */
+export async function PATCH(
+    request: Request,
+    context: { params: Promise<{ id: string }> }
+) {
+    const auth = await requireAdminPermission(request, 'bookings:write');
+    if (!auth.ok) {
+        return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
+    const { id } = await context.params;
+    const providerId = id.trim();
+    if (!providerId) {
+        return NextResponse.json({ error: 'Provider id is required' }, { status: 400 });
+    }
+
+    try {
+        const body = (await request.json()) as UpdateFollowUpBody;
+        const bookingId = (body.booking_id ?? '').trim();
+        if (!bookingId) {
+            return NextResponse.json({ error: 'booking_id is required' }, { status: 400 });
+        }
+        if (typeof body.admin_note !== 'string' && body.admin_note !== null) {
+            return NextResponse.json({ error: 'admin_note is required' }, { status: 400 });
+        }
+
+        const nextNote =
+            body.admin_note === null ? null : body.admin_note.trim() || null;
+
+        const supabaseAdmin = getSupabaseAdminFromRequest(request);
+        const { data: existing, error: existingError } = await supabaseAdmin
+            .from('booked_service')
+            .select('id, provider_id, admin_note')
+            .eq('id', bookingId)
+            .eq('provider_id', providerId)
+            .maybeSingle();
+
+        if (existingError) {
+            const missingColumn = existingError.message.includes('admin_note');
+            return NextResponse.json(
+                {
+                    error: missingColumn
+                        ? 'Follow-up notes need DB migration: run scripts/sql/add-booked-service-admin-note.sql'
+                        : existingError.message,
+                },
+                { status: missingColumn ? 503 : 500 }
+            );
+        }
+        if (!existing) {
+            return NextResponse.json({ error: 'Booking not found for this provider' }, { status: 404 });
+        }
+
+        const { data: updated, error: updateError } = await supabaseAdmin
+            .from('booked_service')
+            .update({ admin_note: nextNote })
+            .eq('id', bookingId)
+            .eq('provider_id', providerId)
+            .select('id, admin_note')
+            .single();
+
+        if (updateError) {
+            const missingColumn = updateError.message.includes('admin_note');
+            return NextResponse.json(
+                {
+                    error: missingColumn
+                        ? 'Follow-up notes need DB migration: run scripts/sql/add-booked-service-admin-note.sql'
+                        : updateError.message,
+                },
+                { status: missingColumn ? 503 : 500 }
+            );
+        }
+
+        await logAdminActivity({
+            request,
+            action: 'provider.hire_history.follow_up',
+            resource_type: 'booked_service',
+            resource_id: bookingId,
+            summary: `Updated hire follow-up for provider ${providerId}`,
+            metadata: { providerId, bookingId, admin_note: nextNote },
+        });
+
+        return NextResponse.json({
+            data: {
+                id: updated.id,
+                followUp: updated.admin_note ?? '',
+            },
+        });
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Failed to update follow-up';
         return NextResponse.json({ error: message }, { status: 500 });
     }
 }
