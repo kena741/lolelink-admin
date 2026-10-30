@@ -39,7 +39,6 @@ import { ProviderAddressPicker } from '@/components/ProviderAddressPicker';
 import { buildProviderUpdatesFromEditForm } from '@/lib/build-provider-updates';
 import { parseProviderLocation } from '@/lib/provider-location';
 import { StorageImage } from '@/components/StorageImage';
-import { DocumentMediaPreview } from '@/components/DocumentMediaPreview';
 import { ServiceTierBadge } from '@/components/ServiceTierBadge';
 import { AdminNoteField } from '@/components/AdminNoteField';
 import { formatDisplayPhone } from '@/lib/phone-display';
@@ -50,7 +49,9 @@ import {
     type AdminNotifyDraft,
 } from '@/lib/admin-notify';
 import { ProviderWalletHistory } from './ProviderWalletHistory';
+import { ProviderServiceHistory } from './ProviderServiceHistory';
 import { ProviderSharedDocuments } from '@/components/providers/ProviderSharedDocuments';
+import { ProviderVerificationUpload } from '@/components/providers/ProviderVerificationUpload';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 
 interface ProviderNotifyStatus {
@@ -71,7 +72,6 @@ export default function ProviderDetailPage() {
     const { selected: provider, selectedLoading, error, services, servicesLoading } = useAppSelector((s) => s.provider);
     const { loading: deleteLoading, error: deleteError } = useAppSelector((s: RootState) => s.deleteService ?? { loading: false, error: null, success: false });
 
-    const { documents } = useAppSelector((state) => state.verifyDocuments);
     const { requests: payoutRequests } = useAppSelector((state) => state.payout);
     const { handymen } = useAppSelector((state) => state.handyman);
     const { categories } = useAppSelector((state) => state.category);
@@ -94,7 +94,7 @@ export default function ProviderDetailPage() {
         isActive: true,
     });
     const [deletingHandymanId, setDeletingHandymanId] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<'services' | 'documents' | 'withdrawals' | 'wallet' | 'handyman' | 'notifications'>('services');
+    const [activeTab, setActiveTab] = useState<'services' | 'history' | 'documents' | 'withdrawals' | 'wallet' | 'handyman' | 'notifications'>('services');
     const [activationModalOpen, setActivationModalOpen] = useState(false);
     const [notifyDraft, setNotifyDraft] = useState<AdminNotifyDraft>(
         createAdminNotifyDraft(
@@ -133,7 +133,6 @@ export default function ProviderDetailPage() {
     }, [dispatch, id, showArchivedServices]);
 
     // Filter data for this provider
-    const providerDocuments = documents.filter(doc => doc.providerId === id);
     const providerWithdrawals = payoutRequests.filter(req => req.providerId === id);
     const providerHandymen = handymen.filter(h => h.providerId === id);
     
@@ -608,6 +607,17 @@ export default function ProviderDetailPage() {
                                             Services
                                         </button>
                                         <button
+                                            onClick={() => setActiveTab('history')}
+                                            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                                                activeTab === 'history'
+                                                    ? 'bg-indigo-500 text-white shadow-md'
+                                                    : 'text-gray-700 hover:bg-gray-100'
+                                            }`}
+                                        >
+                                            <Clock className="h-4 w-4" />
+                                            History
+                                        </button>
+                                        <button
                                             onClick={() => setActiveTab('documents')}
                                             className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
                                                 activeTab === 'documents'
@@ -871,53 +881,18 @@ export default function ProviderDetailPage() {
                                     )}
 
                                     {/* Documents Tab */}
+                                    {activeTab === 'history' && (
+                                        <ProviderServiceHistory providerId={id} />
+                                    )}
+
                                     {activeTab === 'documents' && (
                                     <section className="space-y-8">
                                         <ProviderSharedDocuments providerId={id} />
-                                        <div>
-                                        <h2 className="text-2xl font-semibold mb-4">Verification uploads</h2>
-                                        {providerDocuments.length === 0 ? (
-                                            <div className="rounded-lg border border-border bg-card p-6 text-text-secondary">No documents uploaded.</div>
-                                        ) : (
-                                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                                                {providerDocuments.map((doc) => {
-                                                    const imageUrl = getDisplayImageUrl(doc.documentImage);
-                                                    const status =
-                                                        doc.isVerify === true
-                                                            ? { label: 'Verified', className: 'bg-primary/10 text-primary' }
-                                                            : doc.isVerify === false
-                                                              ? { label: 'Rejected', className: 'bg-destructive/10 text-destructive' }
-                                                              : { label: 'Pending', className: 'bg-amber-100 text-amber-700' };
-
-                                                    return (
-                                                        <div key={doc.id} className="rounded-lg border border-border bg-card p-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-                                                            <div className="mb-2 flex items-start justify-between gap-2">
-                                                                <div className="flex min-w-0 items-center gap-2">
-                                                                    <FileText className="h-5 w-5 shrink-0 text-primary" />
-                                                                    <span className="truncate font-semibold text-text-primary">
-                                                                        {doc.documentName || 'Document'}
-                                                                    </span>
-                                                                </div>
-                                                                <span className={`shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${status.className}`}>
-                                                                    {status.label}
-                                                                </span>
-                                                            </div>
-                                                            {imageUrl ? (
-                                                                <DocumentMediaPreview
-                                                                    src={imageUrl}
-                                                                    alt={doc.documentName || 'Document'}
-                                                                    imgClassName="max-h-56"
-                                                                    onOpen={() => setSelectedDocument(imageUrl)}
-                                                                />
-                                                            ) : (
-                                                                <p className="mt-3 text-sm text-text-secondary">No image uploaded.</p>
-                                                            )}
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
-                                        </div>
+                                        <ProviderVerificationUpload
+                                            providerId={id}
+                                            providerUserId={provider?.user_id}
+                                            onPreview={(url) => setSelectedDocument(url)}
+                                        />
                                     </section>
                                     )}
 
