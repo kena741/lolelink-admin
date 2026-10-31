@@ -20,7 +20,7 @@ export async function sendSms(
 ): Promise<{ success: boolean; data?: Record<string, unknown>; error?: string }> {
     if (!recipient) return { success: false, error: 'No recipient provided' };
 
-    // Browser → same-origin admin proxy (shared upstream + SMS_API_KEY).
+    // Browser → same-origin admin proxy (forwards admin session Bearer upstream).
     if (typeof window !== 'undefined') {
         try {
             const res = await fetch('/api/sms/send', {

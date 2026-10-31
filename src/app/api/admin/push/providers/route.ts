@@ -7,6 +7,7 @@ import {
     formatBroadcastSmsMessage,
     parseBroadcastChannel,
     resolveBroadcastPhone,
+    bearerFromAdminRequest,
     sendSmsUpstream,
     wantsPush,
     wantsSms,
@@ -75,6 +76,7 @@ export async function POST(request: Request) {
     const smsMessage = formatBroadcastSmsMessage(parsed.input.title, parsed.input.body);
     const doPush = wantsPush(parsed.channel);
     const doSms = wantsSms(parsed.channel);
+    const bearer = doSms ? await bearerFromAdminRequest(request) : undefined;
 
     for (const row of rows) {
         const id = typeof row.id === 'string' ? row.id : '';
@@ -99,7 +101,7 @@ export async function POST(request: Request) {
                 sms.skipped += 1;
                 continue;
             }
-            const smsResult = await sendSmsUpstream(recipient, smsMessage);
+            const smsResult = await sendSmsUpstream(recipient, smsMessage, bearer);
             if (smsResult.ok) sms.sent += 1;
             else sms.failed += 1;
         }

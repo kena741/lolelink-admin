@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { logAdminActivity } from '@/lib/admin-activity-log';
 import { requireAdminPermission } from '@/lib/admin-auth';
-import { sendSmsUpstream } from '@/lib/broadcast-notify';
+import { bearerFromAdminRequest, sendSmsUpstream } from '@/lib/broadcast-notify';
 
 export const runtime = 'nodejs';
 
@@ -26,7 +26,8 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'recipient and message are required' }, { status: 400 });
 
         // ponytail: same shared upstream as create-user / push / booking SMS
-        const result = await sendSmsUpstream(recipient, message);
+        const bearer = await bearerFromAdminRequest(request);
+        const result = await sendSmsUpstream(recipient, message, bearer);
         if (!result.ok) {
             return NextResponse.json({ error: result.error }, { status: 502 });
         }

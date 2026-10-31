@@ -12,6 +12,7 @@ import { sendProviderPush } from '@/lib/push/sendProviderPush';
 import { sendCustomerPush } from '@/lib/push/sendCustomerPush';
 import type { PushDeliveryInput } from '@/lib/push/pushDelivery';
 import {
+    bearerFromAdminRequest,
     formatBroadcastSmsMessage,
     parseBroadcastChannel,
     resolveBroadcastPhone,
@@ -88,8 +89,9 @@ async function deliverProviderNotify(params: {
     providerId: string;
     channel: BroadcastChannel;
     input: PushDeliveryInput;
+    bearerToken?: string;
 }): Promise<{ ok: true; push?: unknown; sms?: unknown }> {
-    const { serviceClient, providerId, channel, input } = params;
+    const { serviceClient, providerId, channel, input, bearerToken } = params;
     const result: { ok: true; push?: unknown; sms?: unknown } = { ok: true };
 
     if (wantsPush(channel)) {
@@ -111,7 +113,8 @@ async function deliverProviderNotify(params: {
         } else {
             result.sms = await sendSmsUpstream(
                 phone.recipient,
-                formatBroadcastSmsMessage(input.title, input.body)
+                formatBroadcastSmsMessage(input.title, input.body),
+                bearerToken
             );
         }
     }
@@ -138,7 +141,7 @@ export async function POST(request: Request) {
     const channel = parseBroadcastChannel(body.channel) ?? 'push';
     const titleOverride = (body.title ?? '').trim();
     const bodyOverride = (body.body ?? '').trim();
-
+    const bearer = wantsSms(channel) ? await bearerFromAdminRequest(request) : undefined;
 
     try {
         if (audience === 'customer') {
@@ -171,7 +174,8 @@ export async function POST(request: Request) {
                 else {
                     result.sms = await sendSmsUpstream(
                         phone.recipient,
-                        formatBroadcastSmsMessage(input.title, input.body)
+                        formatBroadcastSmsMessage(input.title, input.body),
+                        bearer
                     );
                 }
             }
@@ -287,6 +291,7 @@ export async function POST(request: Request) {
             providerId,
             channel,
             input,
+            bearerToken: bearer,
         });
         return NextResponse.json(result);
     } catch (error: unknown) {

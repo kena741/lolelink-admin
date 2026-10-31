@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAdminPermission } from '@/lib/admin-auth';
 import { logAdminActivity } from '@/lib/admin-activity-log';
-import { sendSmsUpstream } from '@/lib/broadcast-notify';
+import { bearerFromAdminRequest, sendSmsUpstream } from '@/lib/broadcast-notify';
 import { buildRecipient } from '@/lib/sms';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 import { generateTempPassword } from '@/lib/temp-password';
@@ -132,8 +132,9 @@ export async function POST(request: Request) {
 
         const recipient = buildRecipient(phone, countryCode);
         const smsMessage = `ሰላም ${firstName}! የ Zemen Service አገልግሎት ሰጪ አካውንትዎ ተከፍቷል። በስልክ ቁጥርዎ እና በዚህ ጊዜያዊ የይለፍ ቃል ይግቡ፡ ${password}`;
+        const bearer = await bearerFromAdminRequest(request);
         const smsResult = recipient
-            ? await sendSmsUpstream(recipient, smsMessage)
+            ? await sendSmsUpstream(recipient, smsMessage, bearer)
             : { ok: false as const, error: 'Invalid phone number' };
 
         await logAdminActivity({

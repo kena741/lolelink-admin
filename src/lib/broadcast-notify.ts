@@ -2,14 +2,26 @@ const SMS_UPSTREAM =
     (process.env.SMS_API_BASE_URL ?? 'https://betegna-ai.vercel.app').replace(/\/$/, '')
     + '/sms/send';
 
-function smsUpstreamHeaders(): Record<string, string> {
+/** Admin session JWT (or Authorization header) — forwarded to SMS upstream as Bearer. */
+export async function bearerFromAdminRequest(request: Request): Promise<string | undefined> {
+    const header = request.headers.get('authorization');
+    if (header?.toLowerCase().startsWith('bearer ')) {
+        const token = header.slice(7).trim();
+        if (token) return token;
+    }
+    const { createSupabaseServerClientFromRequest } = await import('@/lib/supabase-server');
+    const supabase = await createSupabaseServerClientFromRequest(request);
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token;
+}
+
+function smsUpstreamHeaders(bearerToken?: string): Record<string, string> {
     const headers: Record<string, string> = {
         accept: 'application/json',
         'Content-Type': 'application/json',
     };
-    // Same gateway the rest of admin already uses; upstream now requires Bearer.
-    const apiKey = (process.env.SMS_API_KEY ?? '').trim();
-    if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+    const token = bearerToken?.trim();
+    if (token) headers.Authorization = `Bearer ${token}`;
     return headers;
 }
 
@@ -90,7 +102,8 @@ export function resolveBroadcastPhone(row: Record<string, unknown>): string {
 
 export async function sendSmsUpstream(
     recipient: string,
-    message: string
+    message: string,
+    bearerToken?: string
 ): Promise<{ ok: true } | { ok: false; error: string }> {
     const trimmedRecipient = recipient.trim();
     const trimmedMessage = message.trim();
@@ -101,7 +114,7 @@ export async function sendSmsUpstream(
     try {
         const upstream = await fetch(SMS_UPSTREAM, {
             method: 'POST',
-            headers: smsUpstreamHeaders(),
+            headers: smsUpstreamHeaders(bearerToken),
             body: JSON.stringify({
                 recipient: trimmedRecipient,
                 message: trimmedMessage,
@@ -110,12 +123,6 @@ export async function sendSmsUpstream(
         });
         if (!upstream.ok) {
             const detail = await upstream.text().catch(() => '');
-            if (upstream.status === 401 && !(process.env.SMS_API_KEY ?? '').trim()) {
-                return {
-                    ok: false,
-                    error: 'SMS upstream failed: 401 (set SMS_API_KEY on the server)',
-                };
-            }
             return {
                 ok: false,
                 error: detail
