@@ -30,6 +30,12 @@ import {
     isRecurringPricingType,
     normalizeBillingInterval,
 } from '@/lib/recurring-payments';
+import {
+    ADMIN_UNPAID_SERVICE_TAG,
+    isAdminUnpaidService,
+    providerWouldExceedServiceTier,
+    stripAdminUnpaidServiceTag,
+} from '@/lib/service-posting-tiers';
 import { Button } from '@/components/ui/button';
 import type { RootState } from '@/store/store';
 import { Input } from '@/components/ui/input';
@@ -145,6 +151,11 @@ export default function ProviderDetailPage() {
         .filter(req => req.paymentStatus === 'pending')
         .reduce((sum, req) => sum + (typeof req.amount === 'string' ? parseFloat(req.amount) || 0 : req.amount || 0), 0);
     const walletBalance = Number(provider?.walletAmount ?? 0);
+    const activeServiceCount = services.filter((s) => !s.isArchived).length;
+    const addServiceExceedsTier = providerWouldExceedServiceTier(
+        provider?.service_tier_max,
+        activeServiceCount
+    );
 
     const displayName = (() => {
         const first = provider?.firstName ?? provider?.first_name;
@@ -290,6 +301,10 @@ export default function ProviderDetailPage() {
         setAddVideo(undefined);
         dispatch(openAddServiceModal());
     };
+    const openAddServiceFromHistory = () => {
+        setActiveTab('services');
+        openAddService();
+    };
     const openEditService = (svcId: string) => {
         const svc = services.find(s => s.id === svcId);
         if (!svc) return;
@@ -415,7 +430,14 @@ export default function ProviderDetailPage() {
         };
 
         try {
-            await dispatch(addService({ service, imageFiles: addImages, videoFile: addVideo })).unwrap();
+            await dispatch(
+                addService({
+                    service,
+                    imageFiles: addImages,
+                    videoFile: addVideo,
+                    markAdminUnpaid: addServiceExceedsTier,
+                })
+            ).unwrap();
             await dispatch(fetchProviderServices({ providerId: id, includeArchived: showArchivedServices }));
             resetServiceForm();
             setAddImages([]);
@@ -732,6 +754,18 @@ export default function ProviderDetailPage() {
                                                 </div>
                                                 <p className="text-lg font-semibold text-foreground">No services found</p>
                                                 <p className="mt-1 text-sm text-muted-foreground">Add a service to get started.</p>
+                                                {canWriteServices ? (
+                                                    <Button className="mt-4" onClick={openAddService}>
+                                                        Add service
+                                                    </Button>
+                                                ) : null}
+                                                {addServiceExceedsTier ? (
+                                                    <p className="mx-auto mt-3 max-w-sm text-xs text-amber-800">
+                                                        Provider tier allows {provider?.service_tier_max ?? 0} service
+                                                        {(provider?.service_tier_max ?? 0) === 1 ? '' : 's'}. New services
+                                                        will be tagged “{ADMIN_UNPAID_SERVICE_TAG}”.
+                                                    </p>
+                                                ) : null}
                                             </div>
                                         ) : (
                                             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -801,6 +835,14 @@ export default function ProviderDetailPage() {
                                                                                     Archived
                                                                                 </span>
                                                                             ) : null}
+                                                                            {isAdminUnpaidService(s.description) ? (
+                                                                                <span
+                                                                                    className="inline-flex items-center rounded-md bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-900"
+                                                                                    title={ADMIN_UNPAID_SERVICE_TAG}
+                                                                                >
+                                                                                    {ADMIN_UNPAID_SERVICE_TAG}
+                                                                                </span>
+                                                                            ) : null}
                                                                         </div>
                                                                     </div>
                                                                     <div className="flex shrink-0 gap-1">
@@ -832,9 +874,9 @@ export default function ProviderDetailPage() {
                                                                         ) : null}
                                                                     </div>
                                                                 </div>
-                                                                {s.description ? (
+                                                                {stripAdminUnpaidServiceTag(s.description) ? (
                                                                     <p className="line-clamp-2 text-sm text-muted-foreground">
-                                                                        {s.description}
+                                                                        {stripAdminUnpaidServiceTag(s.description)}
                                                                     </p>
                                                                 ) : null}
                                                                 <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
@@ -882,7 +924,11 @@ export default function ProviderDetailPage() {
 
                                     {/* Documents Tab */}
                                     {activeTab === 'history' && (
-                                        <ProviderServiceHistory providerId={id} />
+                                        <ProviderServiceHistory
+                                            providerId={id}
+                                            canWriteServices={canWriteServices}
+                                            onAddService={canWriteServices ? openAddServiceFromHistory : undefined}
+                                        />
                                     )}
 
                                     {activeTab === 'documents' && (
@@ -1178,6 +1224,13 @@ export default function ProviderDetailPage() {
                             >
                                 <DialogHeader className="mb-0 shrink-0 border-b border-subtle px-6 py-4">
                                     <DialogTitle>Add Service</DialogTitle>
+                                    {addServiceExceedsTier ? (
+                                        <DialogDescription className="text-amber-800">
+                                            Provider paid tier allows {provider?.service_tier_max ?? 0} service
+                                            {(provider?.service_tier_max ?? 0) === 1 ? '' : 's'} ({activeServiceCount} active).
+                                            This service will be tagged “{ADMIN_UNPAID_SERVICE_TAG}”.
+                                        </DialogDescription>
+                                    ) : null}
                                 </DialogHeader>
                                 <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
                                 <div className="grid gap-4">

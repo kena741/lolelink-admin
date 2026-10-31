@@ -1,6 +1,7 @@
 import { createSlice as createModalSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { getSupabase } from '@/lib/supabaseClient';
 import { validateServiceDiscount } from '@/lib/service-discount';
+import { withAdminUnpaidServiceTag } from '@/lib/service-posting-tiers';
 import { uploadFilesToSupabase } from '@/lib/upload';
 import { logClientAdminActivity } from '@/lib/record-admin-activity';
 
@@ -50,7 +51,13 @@ export interface AddServiceModel {
 export const addService = createAsyncThunk(
   'service/addService',
   async (
-    args: { service: AddServiceModel; imageFiles?: File[]; videoFile?: File },
+    args: {
+      service: AddServiceModel;
+      imageFiles?: File[];
+      videoFile?: File;
+      /** Provider is over paid tier — tag as admin-added without payment. */
+      markAdminUnpaid?: boolean;
+    },
     thunkAPI
   ) => {
     try {
@@ -98,8 +105,12 @@ export const addService = createAsyncThunk(
         const uploaded = await uploadFilesToSupabase([args.videoFile], `public/${args.service.provider_id}/videos`);
         videoUrl = uploaded[0] || null;
       }
+      const description = args.markAdminUnpaid
+        ? withAdminUnpaidServiceTag(args.service.description)
+        : args.service.description;
       const serviceToSave = {
         ...args.service,
+        description,
         discount: discountResult.value,
         serviceImage: imageUrls,
         video: videoUrl,
@@ -115,7 +126,11 @@ export const addService = createAsyncThunk(
         resource_type: 'service',
         resource_id: row.id,
         summary: `Created service ${row.serviceName || serviceToSave.serviceName}`,
-        metadata: { provider_id: serviceToSave.provider_id, categoryId: serviceToSave.categoryId },
+        metadata: {
+          provider_id: serviceToSave.provider_id,
+          categoryId: serviceToSave.categoryId,
+          admin_unpaid: !!args.markAdminUnpaid,
+        },
       });
       if (!logged) {
         return thunkAPI.rejectWithValue('Service created, but failed to write admin activity log');

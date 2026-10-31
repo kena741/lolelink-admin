@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+    ADMIN_UNPAID_SERVICE_TAG,
     formatServicePostingTierLabel,
+    isAdminUnpaidService,
     parseServicePostingTiers,
+    providerWouldExceedServiceTier,
     resolvePlanPriceForServiceTierMax,
     resolveServicePostingTierByPrice,
+    stripAdminUnpaidServiceTag,
+    withAdminUnpaidServiceTag,
 } from '@/lib/service-posting-tiers';
 
 describe('service-posting-tiers', () => {
@@ -40,5 +45,19 @@ describe('service-posting-tiers', () => {
     it('formats labels', () => {
         expect(formatServicePostingTierLabel({ total_price: 99, max_services: 1 })).toContain('1 service');
         expect(formatServicePostingTierLabel({ total_price: 999, max_services: -1 })).toContain('Unlimited');
+    });
+
+    it('flags next service when over paid tier', () => {
+        expect(providerWouldExceedServiceTier(0, 0)).toBe(true);
+        expect(providerWouldExceedServiceTier(1, 0)).toBe(false);
+        expect(providerWouldExceedServiceTier(1, 1)).toBe(true);
+        expect(providerWouldExceedServiceTier(-1, 99)).toBe(false);
+    });
+
+    it('tags and strips admin-unpaid service descriptions', () => {
+        const tagged = withAdminUnpaidServiceTag('Deep clean');
+        expect(isAdminUnpaidService(tagged)).toBe(true);
+        expect(tagged).toContain(ADMIN_UNPAID_SERVICE_TAG);
+        expect(stripAdminUnpaidServiceTag(tagged)).toBe('Deep clean');
     });
 });

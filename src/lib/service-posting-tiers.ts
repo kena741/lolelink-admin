@@ -71,3 +71,44 @@ export function formatServicePostingTierLabel(tier: ServicePostingTier): string 
                 : `Up to ${tier.max_services} services`;
     return `ETB ${tier.total_price.toLocaleString('en-US')} · ${services}`;
 }
+
+/** Visible admin tag when a service is posted past the provider's paid tier. */
+export const ADMIN_UNPAID_SERVICE_TAG = 'added by admin without provider paying';
+export const ADMIN_UNPAID_SERVICE_PREFIX = '[Admin unpaid]';
+
+/** True when the next service would exceed `service_tier_max` (−1 = unlimited). */
+export function providerWouldExceedServiceTier(
+    serviceTierMax: number | null | undefined,
+    activeServiceCount: number
+): boolean {
+    const max = serviceTierMax ?? 0;
+    if (max < 0) return false;
+    return activeServiceCount >= max;
+}
+
+export function isAdminUnpaidService(description: string | null | undefined): boolean {
+    const text = (description ?? '').trim();
+    return (
+        text.startsWith(ADMIN_UNPAID_SERVICE_PREFIX)
+        || text.includes(ADMIN_UNPAID_SERVICE_TAG)
+    );
+}
+
+export function withAdminUnpaidServiceTag(description: string): string {
+    const trimmed = description.trim();
+    if (isAdminUnpaidService(trimmed)) return trimmed;
+    return trimmed
+        ? `${ADMIN_UNPAID_SERVICE_PREFIX} ${ADMIN_UNPAID_SERVICE_TAG} — ${trimmed}`
+        : `${ADMIN_UNPAID_SERVICE_PREFIX} ${ADMIN_UNPAID_SERVICE_TAG}`;
+}
+
+export function stripAdminUnpaidServiceTag(description: string | null | undefined): string {
+    let text = (description ?? '').trim();
+    if (text.startsWith(ADMIN_UNPAID_SERVICE_PREFIX)) {
+        text = text.slice(ADMIN_UNPAID_SERVICE_PREFIX.length).trim();
+    }
+    if (text.startsWith(ADMIN_UNPAID_SERVICE_TAG)) {
+        text = text.slice(ADMIN_UNPAID_SERVICE_TAG.length).replace(/^\s*[—\-]\s*/, '').trim();
+    }
+    return text;
+}

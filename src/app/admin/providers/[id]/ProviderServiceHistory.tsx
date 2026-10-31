@@ -29,6 +29,10 @@ import type {
     ServiceHistoryRepeatCustomer,
     ServiceHistoryStats,
 } from '@/lib/provider-service-history';
+import {
+    ADMIN_UNPAID_SERVICE_TAG,
+    isAdminUnpaidService,
+} from '@/lib/service-posting-tiers';
 import { SearchSelect, type SearchSelectOption } from '@/components/SearchSelect';
 import { AdminNoteField } from '@/components/AdminNoteField';
 import { Button } from '@/components/ui/button';
@@ -65,6 +69,8 @@ interface RepeatCustomerRow extends ServiceHistoryRepeatCustomer {
 
 interface ProviderServiceHistoryProps {
     providerId: string;
+    canWriteServices?: boolean;
+    onAddService?: () => void;
 }
 
 function formatCurrency(value: number): string {
@@ -89,7 +95,11 @@ function customerPhone(customer: Customer): string {
     return formatDisplayPhone(customer.phoneNumber ?? customer.mobile_number ?? customer.phone ?? '');
 }
 
-export function ProviderServiceHistory({ providerId }: ProviderServiceHistoryProps) {
+export function ProviderServiceHistory({
+    providerId,
+    canWriteServices = false,
+    onAddService,
+}: ProviderServiceHistoryProps) {
     const dispatch = useAppDispatch();
     const { canWriteBookings } = useAdminPermissions();
     const formId = useId();
@@ -189,11 +199,15 @@ export function ProviderServiceHistory({ providerId }: ProviderServiceHistoryPro
                 const priceLabel = Number.isFinite(price) && price > 0
                     ? `ETB ${price.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
                     : '';
+                const unpaid = isAdminUnpaidService(service.description)
+                    ? ADMIN_UNPAID_SERVICE_TAG
+                    : '';
+                const description = [priceLabel, unpaid].filter(Boolean).join(' · ') || undefined;
                 return {
                     value: service.id,
                     label,
-                    description: priceLabel || undefined,
-                    searchText: `${label} ${priceLabel} ${service.id}`,
+                    description,
+                    searchText: `${label} ${priceLabel} ${unpaid} ${service.id}`,
                 };
             });
     }, [services, providerId]);
@@ -400,6 +414,17 @@ export function ProviderServiceHistory({ providerId }: ProviderServiceHistoryPro
                                     loading={optionsLoading}
                                     loadingMessage="Loading services…"
                                 />
+                                {canWriteServices && onAddService && serviceOptions.length === 0 && !optionsLoading ? (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={onAddService}
+                                        className="mt-2 h-8 gap-1.5 bg-white text-xs"
+                                    >
+                                        <Plus className="h-3.5 w-3.5" />
+                                        Add service
+                                    </Button>
+                                ) : null}
                             </div>
                             <div>
                                 <Label htmlFor={`${formId}-date`}>Work date</Label>
