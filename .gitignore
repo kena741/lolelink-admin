@@ -24,6 +24,10 @@
 .venv-favicon/
 .venv/
 
+# generated reports (keep folder)
+/reports/*
+!/reports/.gitkeep
+
 # misc
 .DS_Store
 *.pem

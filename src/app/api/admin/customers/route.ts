@@ -32,30 +32,58 @@ export async function POST(request: Request) {
         const password = (body.password ?? '').trim() || generateTempPassword();
 
         if (!firstName) return NextResponse.json({ error: 'first_name is required' }, { status: 400 });
-        if (!email) return NextResponse.json({ error: 'email is required' }, { status: 400 });
         if (!phone) return NextResponse.json({ error: 'phone is required to send login SMS' }, { status: 400 });
         if (password.length < 6) {
             return NextResponse.json({ error: 'password must be at least 6 characters' }, { status: 400 });
         }
 
-        const { data: existingCustomer } = await admin
-            .from('customer')
-            .select('id')
-            .ilike('email', email)
-            .maybeSingle();
-        if (existingCustomer) {
-            return NextResponse.json({ error: 'A customer with this email already exists' }, { status: 409 });
+        const recipient = buildRecipient(phone, countryCode);
+        if (!recipient) {
+            return NextResponse.json({ error: 'Invalid phone number' }, { status: 400 });
         }
 
-        const { data: createdUser, error: createUserError } = await admin.auth.admin.createUser({
-            email,
-            password,
-            email_confirm: true,
-            user_metadata: {
-                full_name: [firstName, lastName].filter(Boolean).join(' '),
-                role: 'customer',
-            },
-        });
+        if (email) {
+            const { data: existingCustomer } = await admin
+                .from('customer')
+                .select('id')
+                .ilike('email', email)
+                .maybeSingle();
+            if (existingCustomer) {
+                return NextResponse.json({ error: 'A customer with this email already exists' }, { status: 409 });
+            }
+        } else {
+            const { data: existingByPhone } = await admin
+                .from('customer')
+                .select('id')
+                .eq('phone', phone)
+                .maybeSingle();
+            if (existingByPhone) {
+                return NextResponse.json({ error: 'A customer with this phone already exists' }, { status: 409 });
+            }
+        }
+
+        // ponytail: auth needs email or phone; skip inventing fake emails when phone works
+        const { data: createdUser, error: createUserError } = await admin.auth.admin.createUser(
+            email
+                ? {
+                      email,
+                      password,
+                      email_confirm: true,
+                      user_metadata: {
+                          full_name: [firstName, lastName].filter(Boolean).join(' '),
+                          role: 'customer',
+                      },
+                  }
+                : {
+                      phone: recipient,
+                      password,
+                      phone_confirm: true,
+                      user_metadata: {
+                          full_name: [firstName, lastName].filter(Boolean).join(' '),
+                          role: 'customer',
+                      },
+                  }
+        );
 
         if (createUserError || !createdUser.user) {
             return NextResponse.json(
@@ -65,6 +93,7 @@ export async function POST(request: Request) {
         }
 
         const userId = createdUser.user.id;
+        // customer table columns: phone (not mobile_number / phoneNumber)
         const { data: customerRow, error: customerError } = await admin
             .from('customer')
             .insert({
@@ -72,14 +101,13 @@ export async function POST(request: Request) {
                 user_id: userId,
                 first_name: firstName,
                 last_name: lastName || null,
-                email,
-                mobile_number: phone || null,
-                phoneNumber: phone || null,
+                email: email || null,
+                phone: phone || null,
                 country_code: countryCode,
                 wallet_amount: 0,
                 signup_source: 'admin',
             })
-            .select('id, user_id, first_name, last_name, email, mobile_number, phoneNumber, country_code, created_at')
+            .select('id, user_id, first_name, last_name, email, phone, country_code, created_at')
             .single();
 
         if (customerError || !customerRow) {
@@ -90,23 +118,22 @@ export async function POST(request: Request) {
             );
         }
 
-        const recipient = buildRecipient(phone, countryCode);
         const smsMessage = `ሰላም ${firstName}! የ Zemen Service አገልግሎት ፈላጊ አካውንትዎ ተከፍቷል። በስልክ ቁጥርዎ እና በዚህ ጊዜያዊ የይለፍ ቃል ይግቡ፡ ${password}`;
         const bearer = await bearerFromAdminRequest(request);
-        const smsResult = recipient
-            ? await sendSmsUpstream(recipient, smsMessage, bearer)
-            : { ok: false as const, error: 'Invalid phone number' };
+        const smsResult = await sendSmsUpstream(recipient, smsMessage, bearer);
 
+        const identity = email || recipient;
         await logAdminActivity({
             request,
             action: 'create',
             resource_type: 'customer',
             resource_id: customerRow.id,
-            summary: `Created customer ${firstName} ${lastName} (${email}) from admin`,
+            summary: `Created customer ${firstName} ${lastName} (${identity}) from admin`,
             metadata: {
                 signup_source: 'admin',
                 sms_sent: smsResult.ok,
                 sms_error: smsResult.ok ? null : smsResult.error,
+                email_set: Boolean(email),
             },
         });
 
@@ -115,7 +142,7 @@ export async function POST(request: Request) {
             temporaryPassword: password,
             sms: smsResult.ok
                 ? { sent: true, recipient }
-                : { sent: false, error: smsResult.error, recipient: recipient || null },
+                : { sent: false, error: smsResult.error, recipient },
         });
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unexpected error';

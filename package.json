@@ -20,7 +20,8 @@
     "notify-rejected-national-id": "tsx scripts/notify-rejected-national-id-sms.ts",
     "reconcile-converted-wallet-credits": "tsx scripts/reconcile-converted-wallet-credits.ts",
     "cleanup-storage-orphans": "tsx scripts/cleanup-storage-orphans.ts",
-    "archive-open-bookings": "tsx scripts/archive-open-bookings.ts"
+    "archive-open-bookings": "tsx scripts/archive-open-bookings.ts",
+    "report:provider-distribution": "tsx scripts/provider-distribution-report.ts"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",

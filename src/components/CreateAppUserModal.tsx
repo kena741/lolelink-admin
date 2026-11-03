@@ -21,7 +21,6 @@ interface FormState {
     last_name: string;
     email: string;
     phone: string;
-    country_code: string;
     password: string;
 }
 
@@ -30,9 +29,11 @@ const emptyForm: FormState = {
     last_name: '',
     email: '',
     phone: '',
-    country_code: '+251',
     password: '',
 };
+
+/** Ethiopia-only marketplace — dialing code is fixed. */
+const ETHIOPIA_COUNTRY_CODE = '+251';
 
 function clientTempPassword(length = 10): string {
     const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
@@ -85,9 +86,9 @@ export function CreateAppUserModal({ open, kind, onClose, onCreated }: CreateApp
                 body: JSON.stringify({
                     first_name: form.first_name.trim(),
                     last_name: form.last_name.trim(),
-                    email: form.email.trim(),
+                    email: form.email.trim() || undefined,
                     phone: form.phone.trim() || undefined,
-                    country_code: form.country_code.trim() || '+251',
+                    country_code: ETHIOPIA_COUNTRY_CODE,
                     password: form.password.trim() || undefined,
                 }),
             });
@@ -166,37 +167,28 @@ export function CreateAppUserModal({ open, kind, onClose, onCreated }: CreateApp
                             </div>
                         </div>
                         <div className="grid gap-1.5">
-                            <Label htmlFor="create-user-email">Email</Label>
+                            <Label htmlFor="create-user-email">
+                                Email{kind === 'customer' ? ' (optional)' : ''}
+                            </Label>
                             <Input
                                 id="create-user-email"
                                 type="email"
                                 value={form.email}
                                 onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
-                                required
+                                required={kind !== 'customer'}
                                 disabled={saving}
                             />
                         </div>
-                        <div className="grid gap-3 sm:grid-cols-[120px_1fr]">
-                            <div className="grid gap-1.5">
-                                <Label htmlFor="create-user-code">Code</Label>
-                                <Input
-                                    id="create-user-code"
-                                    value={form.country_code}
-                                    onChange={(e) => setForm((prev) => ({ ...prev, country_code: e.target.value }))}
-                                    disabled={saving}
-                                />
-                            </div>
-                            <div className="grid gap-1.5">
-                                <Label htmlFor="create-user-phone">Phone</Label>
-                                <Input
-                                    id="create-user-phone"
-                                    value={form.phone}
-                                    onChange={(e) => setForm((prev) => ({ ...prev, phone: e.target.value }))}
-                                    placeholder="9xxxxxxxx"
-                                    required
-                                    disabled={saving}
-                                />
-                            </div>
+                        <div className="grid gap-1.5">
+                            <Label htmlFor="create-user-phone">Phone</Label>
+                            <Input
+                                id="create-user-phone"
+                                value={form.phone}
+                                onChange={(e) => setForm((prev) => ({ ...prev, phone: e.target.value }))}
+                                placeholder="9xxxxxxxx"
+                                required
+                                disabled={saving}
+                            />
                         </div>
                         <div className="grid gap-1.5">
                             <Label htmlFor="create-user-password">Temporary password</Label>
