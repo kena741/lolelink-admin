@@ -81,8 +81,14 @@ export function DialogTitle({ children }: { children: React.ReactNode }) {
   return <h3 className="text-base font-semibold text-card-foreground">{children}</h3>;
 }
 
-export function DialogDescription({ children }: { children: React.ReactNode }) {
-  return <p className="text-sm text-muted-foreground">{children}</p>;
+export function DialogDescription({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return <p className={cn("text-sm text-muted-foreground", className)}>{children}</p>;
 }
 
 export function DialogBody({

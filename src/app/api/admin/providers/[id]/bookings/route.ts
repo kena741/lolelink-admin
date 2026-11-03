@@ -87,7 +87,7 @@ export async function GET(
     try {
         const supabaseAdmin = getSupabaseAdminFromRequest(request);
 
-        let bookingsQuery = await supabaseAdmin
+        let bookingsQuery: { data: unknown; error: { message?: string } | null } = await supabaseAdmin
             .from('booked_service')
             .select(
                 'id, serviceName, status, payment_status, paymentCompleted, totalAmount, price, createdAt, bookingDate, customer_id, firstName, lastName, description, admin_note'
