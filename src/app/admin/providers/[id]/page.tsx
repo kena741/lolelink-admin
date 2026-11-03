@@ -22,7 +22,7 @@ import {
 import { fetchHandymen, updateHandyman, deleteHandyman, type Handyman } from '@/features/handyman/handymanSlice';
 import { fetchCategories } from '@/features/category/categorySlice';
 import { fetchSubCategories } from '@/features/subcategory/subcategorySlice';
-import { Pencil, Trash2, FileText, DollarSign, Wrench, Clock, Briefcase, History, CreditCard, Megaphone, Wallet } from 'lucide-react';
+import { Pencil, Trash2, FileText, DollarSign, Wrench, Clock, Briefcase, History, CreditCard, Megaphone, Wallet, Landmark } from 'lucide-react';
 import { ActivationPaymentModal } from '@/components/ActivationPaymentModal';
 import { fetchSettings, DEFAULT_RECURRING_PAYMENT_SETTINGS, type RecurringBillingCycle } from '@/features/settings/settingsSlice';
 import {
@@ -55,6 +55,7 @@ import {
     type AdminNotifyDraft,
 } from '@/lib/admin-notify';
 import { ProviderWalletHistory } from './ProviderWalletHistory';
+import { ProviderBankInfo } from './ProviderBankInfo';
 import { ProviderServiceHistory } from './ProviderServiceHistory';
 import { ProviderSharedDocuments } from '@/components/providers/ProviderSharedDocuments';
 import { ProviderVerificationUpload } from '@/components/providers/ProviderVerificationUpload';
@@ -71,8 +72,9 @@ interface ProviderNotifyStatus {
 export default function ProviderDetailPage() {
     const params = useParams();
     const id = (params?.id as string) || '';
-    const { canWriteProviders, canWriteServices, canWriteNotifications, can } = useAdminPermissions();
+    const { canWriteProviders, canWriteServices, canWriteNotifications, canWriteFinance, can } = useAdminPermissions();
     const canFinanceRead = can('finance:read');
+    const canEditBank = canWriteProviders || canWriteFinance;
 
     const dispatch = useAppDispatch();
     const { selected: provider, selectedLoading, error, services, servicesLoading } = useAppSelector((s) => s.provider);
@@ -100,7 +102,7 @@ export default function ProviderDetailPage() {
         isActive: true,
     });
     const [deletingHandymanId, setDeletingHandymanId] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<'services' | 'history' | 'documents' | 'withdrawals' | 'wallet' | 'handyman' | 'notifications'>('services');
+    const [activeTab, setActiveTab] = useState<'services' | 'history' | 'documents' | 'bank' | 'withdrawals' | 'wallet' | 'handyman' | 'notifications'>('services');
     const [activationModalOpen, setActivationModalOpen] = useState(false);
     const [notifyDraft, setNotifyDraft] = useState<AdminNotifyDraft>(
         createAdminNotifyDraft(
@@ -650,6 +652,17 @@ export default function ProviderDetailPage() {
                                             <FileText className="h-4 w-4" />
                                             Documents
                                         </button>
+                                        <button
+                                            onClick={() => setActiveTab('bank')}
+                                            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                                                activeTab === 'bank'
+                                                    ? 'bg-indigo-500 text-white shadow-md'
+                                                    : 'text-gray-700 hover:bg-gray-100'
+                                            }`}
+                                        >
+                                            <Landmark className="h-4 w-4" />
+                                            Bank
+                                        </button>
                                         {canFinanceRead ? (
                                         <button
                                             onClick={() => setActiveTab('withdrawals')}
@@ -940,6 +953,10 @@ export default function ProviderDetailPage() {
                                             onPreview={(url) => setSelectedDocument(url)}
                                         />
                                     </section>
+                                    )}
+
+                                    {activeTab === 'bank' && (
+                                        <ProviderBankInfo providerId={id} canEdit={canEditBank} />
                                     )}
 
                                     {/* Withdrawals Tab */}
