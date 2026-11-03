@@ -29,7 +29,7 @@ async function fetchAllRows(
         const to = from + pageSize - 1;
         const { data, error } = await supabase.from(table).select(select).range(from, to);
         if (error) throw new Error(`${table}: ${error.message}`);
-        const batch = (data ?? []) as Record<string, unknown>[];
+        const batch = (data ?? []) as unknown as Record<string, unknown>[];
         rows.push(...batch);
         if (batch.length < pageSize) break;
     }
