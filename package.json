@@ -21,7 +21,8 @@
     "reconcile-converted-wallet-credits": "tsx scripts/reconcile-converted-wallet-credits.ts",
     "cleanup-storage-orphans": "tsx scripts/cleanup-storage-orphans.ts",
     "archive-open-bookings": "tsx scripts/archive-open-bookings.ts",
-    "report:provider-distribution": "tsx scripts/provider-distribution-report.ts"
+    "report:provider-distribution": "tsx scripts/provider-distribution-report.ts",
+    "repair:admin-customers-phone-login": "tsx scripts/repair-admin-customers-phone-login.ts"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",

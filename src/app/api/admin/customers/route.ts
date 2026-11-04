@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAdminPermission } from '@/lib/admin-auth';
 import { logAdminActivity } from '@/lib/admin-activity-log';
 import { bearerFromAdminRequest, sendSmsUpstream } from '@/lib/broadcast-notify';
+import { resolveCustomerLoginEmail } from '@/lib/customer-phone-login';
 import { buildRecipient } from '@/lib/sms';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 import { generateTempPassword } from '@/lib/temp-password';
@@ -26,64 +27,56 @@ export async function POST(request: Request) {
         const body = (await request.json()) as CreateCustomerBody;
         const firstName = (body.first_name ?? '').trim();
         const lastName = (body.last_name ?? '').trim();
-        const email = (body.email ?? '').trim().toLowerCase();
-        const phone = (body.phone ?? '').trim();
+        const providedEmail = (body.email ?? '').trim().toLowerCase();
+        const phoneRaw = (body.phone ?? '').trim();
         const countryCode = (body.country_code ?? '+251').trim() || '+251';
         const password = (body.password ?? '').trim() || generateTempPassword();
 
         if (!firstName) return NextResponse.json({ error: 'first_name is required' }, { status: 400 });
-        if (!phone) return NextResponse.json({ error: 'phone is required to send login SMS' }, { status: 400 });
+        if (!phoneRaw) return NextResponse.json({ error: 'phone is required to send login SMS' }, { status: 400 });
         if (password.length < 6) {
             return NextResponse.json({ error: 'password must be at least 6 characters' }, { status: 400 });
         }
 
-        const recipient = buildRecipient(phone, countryCode);
+        const resolved = resolveCustomerLoginEmail(providedEmail, phoneRaw);
+        if (!resolved) {
+            return NextResponse.json({ error: 'Invalid Ethiopian phone number' }, { status: 400 });
+        }
+        const { localPhone, email } = resolved;
+
+        const recipient = buildRecipient(localPhone, countryCode);
         if (!recipient) {
             return NextResponse.json({ error: 'Invalid phone number' }, { status: 400 });
         }
 
-        if (email) {
-            const { data: existingCustomer } = await admin
-                .from('customer')
-                .select('id')
-                .ilike('email', email)
-                .maybeSingle();
-            if (existingCustomer) {
-                return NextResponse.json({ error: 'A customer with this email already exists' }, { status: 409 });
-            }
-        } else {
-            const { data: existingByPhone } = await admin
-                .from('customer')
-                .select('id')
-                .eq('phone', phone)
-                .maybeSingle();
-            if (existingByPhone) {
-                return NextResponse.json({ error: 'A customer with this phone already exists' }, { status: 409 });
-            }
+        const { data: existingByEmail } = await admin
+            .from('customer')
+            .select('id')
+            .ilike('email', email)
+            .maybeSingle();
+        if (existingByEmail) {
+            return NextResponse.json({ error: 'A customer with this email already exists' }, { status: 409 });
+        }
+        const { data: existingByPhone } = await admin
+            .from('customer')
+            .select('id')
+            .or(`phone.eq.${localPhone},phone.eq.0${localPhone}`)
+            .maybeSingle();
+        if (existingByPhone) {
+            return NextResponse.json({ error: 'A customer with this phone already exists' }, { status: 409 });
         }
 
-        // ponytail: auth needs email or phone; skip inventing fake emails when phone works
-        const { data: createdUser, error: createUserError } = await admin.auth.admin.createUser(
-            email
-                ? {
-                      email,
-                      password,
-                      email_confirm: true,
-                      user_metadata: {
-                          full_name: [firstName, lastName].filter(Boolean).join(' '),
-                          role: 'customer',
-                      },
-                  }
-                : {
-                      phone: recipient,
-                      password,
-                      phone_confirm: true,
-                      user_metadata: {
-                          full_name: [firstName, lastName].filter(Boolean).join(' '),
-                          role: 'customer',
-                      },
-                  }
-        );
+        const { data: createdUser, error: createUserError } = await admin.auth.admin.createUser({
+            email,
+            password,
+            email_confirm: true,
+            phone: recipient.replace(/^\+/, ''),
+            phone_confirm: true,
+            user_metadata: {
+                full_name: [firstName, lastName].filter(Boolean).join(' '),
+                role: 'customer',
+            },
+        });
 
         if (createUserError || !createdUser.user) {
             return NextResponse.json(
@@ -101,9 +94,10 @@ export async function POST(request: Request) {
                 user_id: userId,
                 first_name: firstName,
                 last_name: lastName || null,
-                email: email || null,
-                phone: phone || null,
+                email,
+                phone: localPhone,
                 country_code: countryCode,
+                login_type: 'email',
                 wallet_amount: 0,
                 signup_source: 'admin',
             })
