@@ -485,35 +485,25 @@ const SubCategoriesPage = () => {
                             </div>
 
                             <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-                                <div className="flex items-start justify-between gap-3">
-                                    <div>
-                                        <p className="text-sm font-semibold text-gray-900">Free listing</p>
-                                        <p className="mt-1 text-xs leading-relaxed text-gray-600">
-                                            When on, providers can add this service type without a paid listing
-                                            plan. Paid types still need an active plan.
-                                        </p>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        role="switch"
-                                        aria-checked={formData.isFree}
-                                        onClick={() =>
-                                            setFormData({ ...formData, isFree: !formData.isFree })
+                                <label className="flex items-start gap-3 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        className="mt-1 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                        checked={formData.isFree}
+                                        onChange={(e) =>
+                                            setFormData({ ...formData, isFree: e.target.checked })
                                         }
-                                        className={`relative h-7 w-12 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 ${
-                                            formData.isFree ? 'bg-emerald-500' : 'bg-gray-300'
-                                        }`}
-                                    >
-                                        <span
-                                            className={`absolute top-0.5 left-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform ${
-                                                formData.isFree ? 'translate-x-5' : 'translate-x-0'
-                                            }`}
-                                        />
-                                    </button>
-                                </div>
-                                <p className="mt-2 text-xs font-medium text-gray-700">
-                                    Currently: {formData.isFree ? 'Free' : 'Paid'}
-                                </p>
+                                    />
+                                    <span>
+                                        <span className="block text-sm font-semibold text-gray-900">
+                                            Free subcategory (no plan required)
+                                        </span>
+                                        <span className="mt-1 block text-xs leading-relaxed text-gray-600">
+                                            Checked = providers can list this type for free. Unchecked = needs an
+                                            active paid plan.
+                                        </span>
+                                    </span>
+                                </label>
                             </div>
 
                             <div>

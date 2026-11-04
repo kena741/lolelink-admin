@@ -4,7 +4,7 @@ import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import { RefreshCw } from 'lucide-react';
 import { fetchServices, approveFeatureRequestById, rejectFeatureRequestById, unfeatureServiceById } from '@/features/service/approveServicesSlice';
-import { deleteService as deleteServiceThunk } from '@/features/service/deleteServiceSlice';
+import { deleteService as deleteServiceThunk, unarchiveService as unarchiveServiceThunk } from '@/features/service/deleteServiceSlice';
 import { markAdminListFetched } from '@/lib/admin-list-cache';
 import type { RootState } from '@/store/store';
 import ServiceCard from '@/components/ServiceCard';
@@ -77,6 +77,17 @@ export default function ApproveServicesPage() {
             console.error('Archive pending service failed', e);
         } finally {
             setDeleteId(null);
+        }
+    };
+
+    const handleUnarchiveService = async (serviceId: string) => {
+        if (!canWriteServices) return;
+        try {
+            await dispatch(unarchiveServiceThunk(serviceId)).unwrap();
+            await dispatch(fetchServices({ includeArchived: showArchivedServices }));
+        } catch (e) {
+            console.error('Unarchive service failed', e);
+            window.alert(e instanceof Error ? e.message : 'Failed to unarchive service');
         }
     };
 
@@ -205,6 +216,7 @@ export default function ApproveServicesPage() {
                                                 onView={onView}
                                                 isActionLoading={loading || deleteLoading}
                                                 onDelete={canWriteServices ? (serviceId) => setDeleteId(serviceId) : undefined}
+                                                onUnarchive={canWriteServices ? handleUnarchiveService : undefined}
                                             />
                                         );
                                     })}
@@ -226,7 +238,15 @@ export default function ApproveServicesPage() {
                                                 mapServiceRowToEditServiceModel(svc as unknown as Record<string, unknown>)
                                             ));
                                         };
-                                        return <ServiceCard key={srv.id ?? JSON.stringify(srv)} service={srv} onView={onView} />;
+                                        return (
+                                            <ServiceCard
+                                                key={srv.id ?? JSON.stringify(srv)}
+                                                service={srv}
+                                                onView={onView}
+                                                isActionLoading={loading || deleteLoading}
+                                                onUnarchive={canWriteServices ? handleUnarchiveService : undefined}
+                                            />
+                                        );
                                     })}
                                 </div>
                             )}

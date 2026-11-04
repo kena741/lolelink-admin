@@ -78,7 +78,8 @@ export interface RecurringPaymentSettings {
 
 export const DEFAULT_RECURRING_PAYMENT_SETTINGS: RecurringPaymentSettings = {
     enabled: true,
-    available_cycles: ['WEEK', 'MONTH', 'QUARTER', 'YEAR'],
+    // Include MINUTE/HOUR so admin can approve test/debug recurring rates when settings omit them.
+    available_cycles: ['MINUTE', 'HOUR', 'WEEK', 'MONTH', 'QUARTER', 'YEAR'],
     payment_window_days: 3,
 };
 

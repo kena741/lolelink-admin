@@ -1,5 +1,5 @@
 import React from "react";
-import { Check, Eye, Trash2, X } from "lucide-react";
+import { ArchiveRestore, Check, Eye, Trash2, X } from "lucide-react";
 import ServiceCarousel from "./ServiceCarousel";
 import type { ServiceModel } from "@/features/service/editServiceSlice";
 import { formatAdminDateTimeUtc } from "@/lib/admin-datetime";
@@ -12,6 +12,7 @@ export interface ServiceCardProps {
     onRejectFeature?: (serviceId: string) => void | Promise<void>;
     onRemoveFeatured?: (serviceId: string) => void | Promise<void>;
     onDelete?: (serviceId: string) => void | Promise<void>;
+    onUnarchive?: (serviceId: string) => void | Promise<void>;
 }
 
 function formatMoney(value: string | number | null | undefined): string {
@@ -29,6 +30,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({
     onRejectFeature,
     onRemoveFeatured,
     onDelete,
+    onUnarchive,
 }) => {
     const videoRef = React.useRef<HTMLVideoElement | null>(null);
     const playHoverPreview = async () => {
@@ -238,6 +240,17 @@ const ServiceCard: React.FC<ServiceCardProps> = ({
                     >
                         <Trash2 className="h-4 w-4" aria-hidden />
                         Archive
+                    </button>
+                ) : null}
+                {onUnarchive && service.isArchived ? (
+                    <button
+                        type="button"
+                        disabled={isActionLoading}
+                        onClick={() => onUnarchive(service.id)}
+                        className={`${actionButtonClass} border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100`}
+                    >
+                        <ArchiveRestore className="h-4 w-4" aria-hidden />
+                        Unarchive
                     </button>
                 ) : null}
                 <button

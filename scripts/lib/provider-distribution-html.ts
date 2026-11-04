@@ -1,4 +1,9 @@
-import type { NamedCount, NamedMoney, ProviderDistributionReport } from '../../src/lib/provider-distribution';
+import {
+    PLACE_CENTERS,
+    type NamedCount,
+    type NamedMoney,
+    type ProviderDistributionReport,
+} from '../../src/lib/provider-distribution';
 
 function esc(value: string | number | null | undefined): string {
     return String(value ?? '')
@@ -6,6 +11,42 @@ function esc(value: string | number | null | undefined): string {
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
+}
+
+/** Extra hubs for map pins (not necessarily used in nearest-place resolution). */
+const MAP_EXTRA_PLACES: Array<{ name: string; lat: number; lng: number }> = [
+    { name: 'Addis Ababa', lat: 9.019, lng: 38.752 },
+    { name: 'Bishoftu', lat: 8.752, lng: 38.978 },
+];
+
+type MapPoint = { name: string; count: number; lat: number; lng: number };
+
+function resolvePlaceCoords(key: string): { lat: number; lng: number } | null {
+    const hubs = [...PLACE_CENTERS, ...MAP_EXTRA_PLACES];
+    const exact = hubs.find((p) => p.name === key);
+    if (exact) return { lat: exact.lat, lng: exact.lng };
+
+    const near = key.match(/^Near\s+(-?\d+(?:\.\d+)?)°,\s*(-?\d+(?:\.\d+)?)°$/i);
+    if (near) {
+        const lat = Number(near[1]);
+        const lng = Number(near[2]);
+        if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
+    }
+
+    // Named street in Addis without a dedicated hub → city center
+    if (/addis\s*ababa/i.test(key)) {
+        const central = hubs.find((p) => p.name === 'Addis Ababa (central)');
+        if (central) return { lat: central.lat, lng: central.lng };
+    }
+    return null;
+}
+
+function mapPoints(rows: NamedCount[]): MapPoint[] {
+    return rows.flatMap((row) => {
+        const coords = resolvePlaceCoords(row.key);
+        if (!coords) return [];
+        return [{ name: row.key, count: row.count, lat: coords.lat, lng: coords.lng }];
+    });
 }
 
 function money(n: number | null | undefined): string {
@@ -66,6 +107,12 @@ export function renderProviderDistributionHtml(report: ProviderDistributionRepor
     const locSvcMax = maxCount(report.location.withServices.topAreas);
     const priceMax = maxCount(report.listPrices.buckets);
     const revAreaMax = maxMoney(report.bookingRevenue.byArea);
+    const mapAll = mapPoints(report.location.all.topAreas);
+    const mapSvc = mapPoints(report.location.withServices.topAreas);
+    const mapAllJson = JSON.stringify(mapAll).replace(/</g, '\\u003c');
+    const mapSvcJson = JSON.stringify(mapSvc).replace(/</g, '\\u003c');
+    const mapUnmappedAll = report.location.all.topAreas.length - mapAll.length;
+    const mapUnmappedSvc = report.location.withServices.topAreas.length - mapSvc.length;
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -284,6 +331,33 @@ export function renderProviderDistributionHtml(report: ProviderDistributionRepor
   tbody tr:hover { background: var(--primary-soft); }
   td:nth-child(n+2) { font-family: var(--mono); font-variant-numeric: tabular-nums; }
   .stack { display: grid; gap: 14px; }
+  .map-panel { margin-bottom: 18px; }
+  .map-toolbar {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    margin-bottom: 10px;
+  }
+  .map-toolbar .sub { margin: 0; flex: 1; min-width: 12rem; }
+  .map-toggle {
+    display: inline-flex; border: 1px solid var(--line); border-radius: 999px;
+    overflow: hidden; background: #edf3ef;
+  }
+  .map-toggle button {
+    border: 0; background: transparent; color: var(--muted);
+    font: inherit; font-size: 0.75rem; font-weight: 600;
+    padding: 6px 12px; cursor: pointer;
+  }
+  .map-toggle button[aria-pressed="true"] {
+    background: var(--primary); color: #fff;
+  }
+  #loc-map {
+    height: min(52vh, 480px);
+    min-height: 280px;
+    width: 100%;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    z-index: 1;
+  }
+  .leaflet-container { font: inherit; }
   footer.page-foot {
     margin-top: 28px;
     padding-top: 14px;
@@ -296,11 +370,13 @@ export function renderProviderDistributionHtml(report: ProviderDistributionRepor
     body { background: #fff; }
     .topnav { position: static; backdrop-filter: none; }
     section.block { box-shadow: none; break-inside: avoid; }
+    #loc-map { height: 360px; break-inside: avoid; }
   }
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@450;550;650;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
 </head>
 <body>
   <div class="shell">
@@ -344,6 +420,17 @@ export function renderProviderDistributionHtml(report: ProviderDistributionRepor
     <section class="block" id="location">
       <h2><span class="section-num">2</span>Location</h2>
       <p class="callout">Separate view for providers who already have at least one active service — that is your real marketplace supply map.</p>
+      <div class="panel map-panel">
+        <h3>Geographic distribution</h3>
+        <div class="map-toolbar">
+          <div class="map-toggle" role="group" aria-label="Map dataset">
+            <button type="button" id="map-btn-all" aria-pressed="true">All providers</button>
+            <button type="button" id="map-btn-svc" aria-pressed="false">With services</button>
+          </div>
+          <p class="sub" id="map-hint">Bubble size ∝ provider count. ${esc(mapAll.length)} places plotted${mapUnmappedAll > 0 ? ` · ${esc(mapUnmappedAll)} unmapped` : ''}.</p>
+        </div>
+        <div id="loc-map" role="img" aria-label="Map of provider locations"></div>
+      </div>
       <div class="split">
         <div class="panel">
           <h3>All providers (${esc(report.location.all.providerCount)})</h3>
@@ -460,6 +547,73 @@ export function renderProviderDistributionHtml(report: ProviderDistributionRepor
       <span>${esc(day)} · open in a browser · File → Print if you need a PDF</span>
     </footer>
   </div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script>
+(function () {
+  var datasets = {
+    all: ${mapAllJson},
+    svc: ${mapSvcJson}
+  };
+  var hints = {
+    all: ${JSON.stringify(`Bubble size ∝ provider count. ${mapAll.length} places plotted${mapUnmappedAll > 0 ? ` · ${mapUnmappedAll} unmapped` : ''}.`)},
+    svc: ${JSON.stringify(`Bubble size ∝ provider count. ${mapSvc.length} places plotted${mapUnmappedSvc > 0 ? ` · ${mapUnmappedSvc} unmapped` : ''}.`)}
+  };
+  var mapEl = document.getElementById('loc-map');
+  if (!mapEl || typeof L === 'undefined') return;
+
+  var map = L.map(mapEl, { scrollWheelZoom: false });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+    attribution: '&copy; OpenStreetMap'
+  }).addTo(map);
+
+  var layer = L.layerGroup().addTo(map);
+  var btnAll = document.getElementById('map-btn-all');
+  var btnSvc = document.getElementById('map-btn-svc');
+  var hintEl = document.getElementById('map-hint');
+
+  // Keep bubbles small — most pins sit inside Addis and used to obliterate each other.
+  function radiusFor(count, maxCount) {
+    var t = Math.sqrt(count / Math.max(1, maxCount));
+    return 4 + t * 10;
+  }
+
+  function render(mode) {
+    var points = datasets[mode] || [];
+    layer.clearLayers();
+    if (hintEl) hintEl.textContent = hints[mode] || '';
+    if (btnAll) btnAll.setAttribute('aria-pressed', mode === 'all' ? 'true' : 'false');
+    if (btnSvc) btnSvc.setAttribute('aria-pressed', mode === 'svc' ? 'true' : 'false');
+    if (!points.length) {
+      map.setView([9.02, 38.75], 6);
+      return;
+    }
+    var maxCount = 1;
+    for (var i = 0; i < points.length; i++) maxCount = Math.max(maxCount, points[i].count);
+    var bounds = [];
+    for (var j = 0; j < points.length; j++) {
+      var p = points[j];
+      var circle = L.circleMarker([p.lat, p.lng], {
+        radius: radiusFor(p.count, maxCount),
+        color: '#015c2d',
+        weight: 1,
+        fillColor: mode === 'svc' ? '#0f766e' : '#027a3b',
+        fillOpacity: 0.42
+      });
+      circle.bindPopup('<strong>' + p.name + '</strong><br>' + p.count + ' provider' + (p.count === 1 ? '' : 's'));
+      circle.bindTooltip(p.name + ' · ' + p.count, { direction: 'top', opacity: 0.95 });
+      circle.addTo(layer);
+      bounds.push([p.lat, p.lng]);
+    }
+    map.fitBounds(bounds, { padding: [40, 40], maxZoom: 13 });
+  }
+
+  if (btnAll) btnAll.addEventListener('click', function () { render('all'); });
+  if (btnSvc) btnSvc.addEventListener('click', function () { render('svc'); });
+  render('all');
+  setTimeout(function () { map.invalidateSize(); }, 80);
+})();
+</script>
 </body>
 </html>`;
 }

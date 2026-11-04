@@ -8,7 +8,7 @@ import { fetchProviderById, fetchProviderServices, clearSelected, clearServices,
 import { addService, openAddServiceModal, closeAddServiceModal } from '@/features/service/addServiceSlice';
 import { mapServiceRowToEditServiceModel, openEditModal } from '@/features/service/editServiceSlice';
 import EditServiceModal from './EditServiceModal';
-import { deleteService as deleteServiceThunk } from '@/features/service/deleteServiceSlice';
+import { deleteService as deleteServiceThunk, unarchiveService as unarchiveServiceThunk } from '@/features/service/deleteServiceSlice';
 import { approveServicesByProvider } from '@/features/service/approveServicesSlice';
 import { fetchVerifyDocuments } from '@/features/verifyDocuments/verifyDocumentsSlice';
 import { fetchPayoutRequests } from '@/features/payout/payoutSlice';
@@ -22,7 +22,7 @@ import {
 import { fetchHandymen, updateHandyman, deleteHandyman, type Handyman } from '@/features/handyman/handymanSlice';
 import { fetchCategories } from '@/features/category/categorySlice';
 import { fetchSubCategories } from '@/features/subcategory/subcategorySlice';
-import { Pencil, Trash2, FileText, DollarSign, Wrench, Clock, Briefcase, History, CreditCard, Megaphone, Wallet, Landmark } from 'lucide-react';
+import { Pencil, Trash2, FileText, DollarSign, Wrench, Clock, Briefcase, History, CreditCard, Megaphone, Wallet, Landmark, ArchiveRestore } from 'lucide-react';
 import { ActivationPaymentModal } from '@/components/ActivationPaymentModal';
 import { fetchSettings, DEFAULT_RECURRING_PAYMENT_SETTINGS, type RecurringBillingCycle } from '@/features/settings/settingsSlice';
 import {
@@ -464,6 +464,7 @@ export default function ProviderDetailPage() {
 
     // Delete confirm modal state and handler
     const [deleteId, setDeleteId] = useState<string | null>(null);
+    const [unarchivingId, setUnarchivingId] = useState<string | null>(null);
     const confirmDelete = async () => {
         if (!deleteId || !id) return;
         try {
@@ -473,6 +474,19 @@ export default function ProviderDetailPage() {
             console.error('Archive failed', e);
         } finally {
             setDeleteId(null);
+        }
+    };
+    const handleUnarchiveService = async (serviceId: string) => {
+        if (!id || !canWriteServices) return;
+        setUnarchivingId(serviceId);
+        try {
+            await dispatch(unarchiveServiceThunk(serviceId)).unwrap();
+            await dispatch(fetchProviderServices({ providerId: id, includeArchived: showArchivedServices }));
+        } catch (e) {
+            console.error('Unarchive failed', e);
+            window.alert(e instanceof Error ? e.message : 'Failed to unarchive service');
+        } finally {
+            setUnarchivingId(null);
         }
     };
 
@@ -882,7 +896,19 @@ export default function ProviderDetailPage() {
                                                                                     >
                                                                                         <Trash2 className="h-4 w-4" />
                                                                                     </Button>
-                                                                                ) : null}
+                                                                                ) : (
+                                                                                    <Button
+                                                                                        size="icon"
+                                                                                        variant="ghost"
+                                                                                        className="h-9 w-9 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
+                                                                                        aria-label="Unarchive service"
+                                                                                        title="Unarchive service"
+                                                                                        disabled={unarchivingId === s.id}
+                                                                                        onClick={() => void handleUnarchiveService(s.id)}
+                                                                                    >
+                                                                                        <ArchiveRestore className="h-4 w-4" />
+                                                                                    </Button>
+                                                                                )}
                                                                             </>
                                                                         ) : null}
                                                                     </div>

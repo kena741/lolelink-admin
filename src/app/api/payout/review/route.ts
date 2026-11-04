@@ -43,7 +43,7 @@ export async function POST(request: Request) {
 
         const { data: existing, error: existingError } = await supabaseAdmin
             .from('withdrawal_history')
-            .select('id, providerId, amount, paymentStatus')
+            .select('id, providerId, amount, paymentStatus, note')
             .eq('id', withdrawalId)
             .maybeSingle();
 
@@ -73,6 +73,7 @@ export async function POST(request: Request) {
             paymentStatus: string;
             adminNote?: string;
             rejectionReason?: string;
+            note?: string;
         } = {
             paymentStatus: action === 'approve' ? 'approved' : 'rejected',
         };
@@ -87,6 +88,11 @@ export async function POST(request: Request) {
                 return NextResponse.json({ error: 'rejectionReason is required' }, { status: 400 });
             }
             updateData.rejectionReason = rejectionReason;
+            // Mobile shows `${note}` — null interpolates as the literal "null".
+            const existingNote = ((existing as { note?: string | null }).note ?? '').trim();
+            if (!existingNote) {
+                updateData.note = 'Withdrawal';
+            }
         }
 
         // Status already verified as pending above. Update by id only so casing /

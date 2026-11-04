@@ -65,6 +65,57 @@ export const deleteService = createAsyncThunk<string, string, { rejectValue: str
     }
 );
 
+/** Restore soft-archived service to the primary list (active + visible). */
+export const unarchiveService = createAsyncThunk<string, string, { rejectValue: string }>(
+    'service/unarchiveService',
+    async (serviceId, thunkAPI) => {
+        try {
+            const { data: found, error: fetchError } = await getSupabase()
+                .from('service')
+                .select('id, serviceName, isArchived')
+                .eq('id', serviceId)
+                .single();
+
+            if (fetchError || !found) {
+                return thunkAPI.rejectWithValue(fetchError?.message || 'Service not found.');
+            }
+
+            if (found.isArchived !== true) {
+                return serviceId;
+            }
+
+            const { error: restoreError } = await getSupabase()
+                .from('service')
+                .update({
+                    isArchived: false,
+                    status: true,
+                    active: true,
+                })
+                .eq('id', serviceId);
+
+            if (restoreError) {
+                return thunkAPI.rejectWithValue(restoreError.message || 'Unarchive failed');
+            }
+
+            const serviceName = typeof found.serviceName === 'string' ? found.serviceName : serviceId;
+            const logged = await logClientAdminActivity({
+                action: 'update',
+                resource_type: 'service',
+                resource_id: serviceId,
+                summary: `Unarchived service ${serviceName}`,
+            });
+            if (!logged) {
+                return thunkAPI.rejectWithValue('Service unarchived, but failed to write admin activity log');
+            }
+
+            return serviceId;
+        } catch (error) {
+            const msg = error instanceof Error ? error.message : 'Unexpected error';
+            return thunkAPI.rejectWithValue(msg);
+        }
+    }
+);
+
 const deleteServiceSlice = createSlice({
     name: 'deleteService',
     initialState,
@@ -90,6 +141,21 @@ const deleteServiceSlice = createSlice({
             .addCase(deleteService.rejected, (state, action) => {
                 state.loading = false;
                 state.error = (action.payload as string) || 'Failed to archive service';
+                state.success = false;
+            })
+            .addCase(unarchiveService.pending, (state) => {
+                state.loading = true;
+                state.error = null;
+                state.success = false;
+            })
+            .addCase(unarchiveService.fulfilled, (state) => {
+                state.loading = false;
+                state.error = null;
+                state.success = true;
+            })
+            .addCase(unarchiveService.rejected, (state, action) => {
+                state.loading = false;
+                state.error = (action.payload as string) || 'Failed to unarchive service';
                 state.success = false;
             });
     },
