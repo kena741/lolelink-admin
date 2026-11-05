@@ -36,6 +36,14 @@ import {
 } from '@/lib/marketing-tracker';
 import { cn } from '@/lib/utils';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
+import {
+    MobileAddLeadFlow,
+    MobileAddLeadModePicker,
+    readMobileAddLeadMode,
+    suggestBusinessTypes,
+    writeMobileAddLeadMode,
+    type MobileAddLeadMode,
+} from './mobile-add-lead';
 
 const gridIconButtonClassName =
     'inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
@@ -584,6 +592,9 @@ export default function MarketingTrackerPage() {
     const [sheets, setSheets] = useState<MarketingTrackerSheet[]>([]);
     const [activeSheetId, setActiveSheetId] = useState<string | null>(null);
     const [mobileExpandRowId, setMobileExpandRowId] = useState<string | null>(null);
+    const [mobileAddMode, setMobileAddMode] = useState<MobileAddLeadMode>('classic');
+    const [mobileAddFlowOpen, setMobileAddFlowOpen] = useState(false);
+    const [mobileAddModeReady, setMobileAddModeReady] = useState(false);
     const [columns, setColumns] = useState<MarketingTrackerColumn[]>([]);
     const [rows, setRows] = useState<MarketingTrackerRow[]>([]);
     const [initialLoading, setInitialLoading] = useState(true);
@@ -988,12 +999,40 @@ export default function MarketingTrackerPage() {
         [applyRowCellSave, insertRowAfter, rows]
     );
 
+    useEffect(() => {
+        setMobileAddMode(readMobileAddLeadMode());
+        setMobileAddModeReady(true);
+    }, []);
+
+    function handleMobileAddModeChange(mode: MobileAddLeadMode) {
+        setMobileAddMode(mode);
+        writeMobileAddLeadMode(mode);
+    }
+
     function handleAddMobileLead() {
         if (!canWriteCatalog || columns.length === 0) return;
+        if (mobileAddMode !== 'classic') {
+            setMobileAddFlowOpen(true);
+            return;
+        }
         const newId = insertRowAfter(null, undefined, undefined, { atStart: true });
         if (!newId) return;
         setMobileExpandRowId(newId);
     }
+
+    function handleCreateMobileLeadFromFlow(
+        values: Record<string, MarketingTrackerCellValue>,
+        options?: { expandAfter?: boolean }
+    ) {
+        if (!canWriteCatalog || columns.length === 0) return;
+        const newId = insertRowAfter(null, values, undefined, { atStart: true });
+        if (!newId) return;
+        if (options?.expandAfter) {
+            setMobileExpandRowId(newId);
+        }
+    }
+
+    const mobileTypeSuggestions = useMemo(() => suggestBusinessTypes(rows), [rows]);
 
     async function handleDeleteRow(rowId: string) {
         if (!canWriteCatalog) return;
@@ -1397,35 +1436,54 @@ export default function MarketingTrackerPage() {
                 ) : (
                     <>
                         {canWriteCatalog ? (
-                            <div className="mb-3 flex items-center gap-2 md:hidden">
-                                <Button
-                                    type="button"
-                                    className="h-11 flex-[1.4]"
-                                    disabled={columns.length === 0}
-                                    onClick={handleAddMobileLead}
-                                >
-                                    <Plus className="mr-1.5 h-4 w-4" />
-                                    Add lead
-                                </Button>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    className="h-11 flex-1"
-                                    onClick={() => setAddColumnOpen(true)}
-                                >
-                                    <Plus className="mr-1.5 h-4 w-4" />
-                                    Column
-                                </Button>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    className="h-11 flex-1"
-                                    onClick={() => setAddSheetOpen(true)}
-                                >
-                                    <Plus className="mr-1.5 h-4 w-4" />
-                                    Sheet
-                                </Button>
+                            <div className="mb-3 space-y-3 md:hidden">
+                                {mobileAddModeReady ? (
+                                    <MobileAddLeadModePicker
+                                        mode={mobileAddMode}
+                                        onChange={handleMobileAddModeChange}
+                                    />
+                                ) : null}
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        type="button"
+                                        className="h-11 flex-[1.4]"
+                                        disabled={columns.length === 0}
+                                        onClick={handleAddMobileLead}
+                                    >
+                                        <Plus className="mr-1.5 h-4 w-4" />
+                                        Add lead
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="h-11 flex-1"
+                                        onClick={() => setAddColumnOpen(true)}
+                                    >
+                                        <Plus className="mr-1.5 h-4 w-4" />
+                                        Column
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="h-11 flex-1"
+                                        onClick={() => setAddSheetOpen(true)}
+                                    >
+                                        <Plus className="mr-1.5 h-4 w-4" />
+                                        Sheet
+                                    </Button>
+                                </div>
                             </div>
+                        ) : null}
+
+                        {canWriteCatalog && mobileAddMode !== 'classic' ? (
+                            <MobileAddLeadFlow
+                                mode={mobileAddMode}
+                                open={mobileAddFlowOpen}
+                                onClose={() => setMobileAddFlowOpen(false)}
+                                columns={columns}
+                                typeSuggestions={mobileTypeSuggestions}
+                                onCreate={handleCreateMobileLeadFromFlow}
+                            />
                         ) : null}
 
                         <div className={cn(sheetLoading && 'pointer-events-none opacity-60')}>
