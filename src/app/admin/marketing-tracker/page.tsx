@@ -37,10 +37,9 @@ import {
 import { cn } from '@/lib/utils';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 import {
-    MobileAddLeadFlow,
     MobileAddLeadModePicker,
+    MobileColdCallLeadFlow,
     readMobileAddLeadMode,
-    suggestBusinessTypes,
     writeMobileAddLeadMode,
     type MobileAddLeadMode,
 } from './mobile-add-lead';
@@ -592,7 +591,7 @@ export default function MarketingTrackerPage() {
     const [sheets, setSheets] = useState<MarketingTrackerSheet[]>([]);
     const [activeSheetId, setActiveSheetId] = useState<string | null>(null);
     const [mobileExpandRowId, setMobileExpandRowId] = useState<string | null>(null);
-    const [mobileAddMode, setMobileAddMode] = useState<MobileAddLeadMode>('classic');
+    const [mobileAddMode, setMobileAddMode] = useState<MobileAddLeadMode>('cold_call');
     const [mobileAddFlowOpen, setMobileAddFlowOpen] = useState(false);
     const [mobileAddModeReady, setMobileAddModeReady] = useState(false);
     const [columns, setColumns] = useState<MarketingTrackerColumn[]>([]);
@@ -1011,7 +1010,7 @@ export default function MarketingTrackerPage() {
 
     function handleAddMobileLead() {
         if (!canWriteCatalog || columns.length === 0) return;
-        if (mobileAddMode !== 'classic') {
+        if (mobileAddMode === 'cold_call') {
             setMobileAddFlowOpen(true);
             return;
         }
@@ -1020,19 +1019,10 @@ export default function MarketingTrackerPage() {
         setMobileExpandRowId(newId);
     }
 
-    function handleCreateMobileLeadFromFlow(
-        values: Record<string, MarketingTrackerCellValue>,
-        options?: { expandAfter?: boolean }
-    ) {
+    function handleCreateColdCallLead(values: Record<string, MarketingTrackerCellValue>) {
         if (!canWriteCatalog || columns.length === 0) return;
-        const newId = insertRowAfter(null, values, undefined, { atStart: true });
-        if (!newId) return;
-        if (options?.expandAfter) {
-            setMobileExpandRowId(newId);
-        }
+        insertRowAfter(null, values, undefined, { atStart: true });
     }
-
-    const mobileTypeSuggestions = useMemo(() => suggestBusinessTypes(rows), [rows]);
 
     async function handleDeleteRow(rowId: string) {
         if (!canWriteCatalog) return;
@@ -1475,14 +1465,13 @@ export default function MarketingTrackerPage() {
                             </div>
                         ) : null}
 
-                        {canWriteCatalog && mobileAddMode !== 'classic' ? (
-                            <MobileAddLeadFlow
-                                mode={mobileAddMode}
+                        {canWriteCatalog && mobileAddMode === 'cold_call' ? (
+                            <MobileColdCallLeadFlow
                                 open={mobileAddFlowOpen}
                                 onClose={() => setMobileAddFlowOpen(false)}
                                 columns={columns}
-                                typeSuggestions={mobileTypeSuggestions}
-                                onCreate={handleCreateMobileLeadFromFlow}
+                                rows={rows}
+                                onCreate={handleCreateColdCallLead}
                             />
                         ) : null}
 
