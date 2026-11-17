@@ -47,16 +47,34 @@ function JobStatusBadge({ status }: { status?: string }) {
     );
 }
 
+function paymentAmountsFromBooking(booking: BookedService) {
+    return {
+        paymentCompleted: booking.paymentCompleted,
+        payment_status: booking.payment_status,
+        totalAmount: booking.totalAmount,
+        subTotal: booking.subTotal,
+        price: booking.price,
+        quantity: booking.quantity,
+        status: booking.status,
+        nextCycleDue: booking.nextCycleDue,
+        currentPeriodStart: booking.currentPeriodStart,
+        currentPeriodEnd: booking.currentPeriodEnd,
+    };
+}
+
 function PaymentStatusBadge({
     paymentStatus,
     paymentCompleted,
+    booking,
 }: {
     paymentStatus?: string | null;
     paymentCompleted?: boolean | null;
+    booking: BookedService;
 }) {
+    const amounts = paymentAmountsFromBooking(booking);
     return (
-        <AdminStatusBadge tone={getBookingPaymentStatusTone(paymentStatus, paymentCompleted)}>
-            {formatBookingPaymentStatusLabel(paymentStatus, paymentCompleted)}
+        <AdminStatusBadge tone={getBookingPaymentStatusTone(paymentStatus, paymentCompleted, amounts)}>
+            {formatBookingPaymentStatusLabel(paymentStatus, paymentCompleted, amounts)}
         </AdminStatusBadge>
     );
 }
@@ -334,6 +352,7 @@ export function BookingsTable({
                                         <PaymentStatusBadge
                                             paymentStatus={booking.payment_status}
                                             paymentCompleted={booking.paymentCompleted}
+                                            booking={booking}
                                         />
                                     </td>
                                     <td

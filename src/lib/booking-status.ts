@@ -1,3 +1,9 @@
+import {
+    paidPercentage,
+    resolveBookingPaymentSettlement,
+    type BookingPaymentAmounts,
+} from '@/lib/booking-payment-progress';
+
 export type BookedServiceStatus =
     | 'pending'
     | 'accepted'
@@ -18,6 +24,8 @@ export type BookingPaymentStatus =
     | 'payment_cancelled';
 
 export type BookingPaymentMode = 'pay_later' | 'chapa' | 'wallet' | 'mark_paid';
+
+export type { BookingPaymentAmounts };
 
 export const BOOKING_STATUS = {
     AWAITING_PROVIDER: 'pending',
@@ -79,12 +87,34 @@ export function formatBookingJobStatusLabel(status: string | null | undefined): 
 
 export function formatBookingPaymentStatusLabel(
     paymentStatus: string | null | undefined,
-    paymentCompleted?: boolean | null
+    paymentCompleted?: boolean | null,
+    amounts?: BookingPaymentAmounts | null
 ): string {
-    if (paymentCompleted === true || paymentStatus === BOOKING_PAYMENT_STATUS.COMPLETED) {
+    if (amounts) {
+        const settlement = resolveBookingPaymentSettlement({
+            ...amounts,
+            paymentCompleted: paymentCompleted ?? amounts.paymentCompleted,
+            payment_status: paymentStatus ?? amounts.payment_status,
+        });
+        if (settlement === 'partial') {
+            const pct = paidPercentage({
+                ...amounts,
+                paymentCompleted: true,
+                payment_status: paymentStatus ?? amounts.payment_status,
+            });
+            return `Partially paid (${pct}%)`;
+        }
+        if (settlement === 'paid') {
+            return BOOKING_PAYMENT_STATUS_LABELS.payment_completed;
+        }
+    } else if (
+        paymentCompleted === true ||
+        paymentStatus === BOOKING_PAYMENT_STATUS.COMPLETED
+    ) {
+        // Without amounts we cannot detect partial — keep legacy "Paid".
         return BOOKING_PAYMENT_STATUS_LABELS.payment_completed;
     }
-    if (!paymentStatus) return 'Unknown';
+    if (!paymentStatus) return paymentCompleted === false ? 'Unpaid' : 'Unknown';
     if (paymentStatus in BOOKING_PAYMENT_STATUS_LABELS) {
         return BOOKING_PAYMENT_STATUS_LABELS[paymentStatus as BookingPaymentStatus];
     }

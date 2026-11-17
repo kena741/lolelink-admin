@@ -463,9 +463,39 @@ export function BookingDetailModal({
                   label: 'Payment',
                   value: (
                       <AdminStatusBadge
-                          tone={getBookingPaymentStatusTone(booking.payment_status, booking.paymentCompleted)}
-                      >
-                          {formatBookingPaymentStatusLabel(booking.payment_status, booking.paymentCompleted)}
+                          tone={getBookingPaymentStatusTone(
+                              booking.payment_status,
+                              booking.paymentCompleted,
+                              {
+                                  paymentCompleted: booking.paymentCompleted,
+                                  payment_status: booking.payment_status,
+                                  totalAmount: booking.totalAmount,
+                                  subTotal: booking.subTotal,
+                                  price: booking.price,
+                                  quantity: booking.quantity,
+                                  status: booking.status,
+                                  nextCycleDue: booking.nextCycleDue,
+                                  currentPeriodStart: booking.currentPeriodStart,
+                                  currentPeriodEnd: booking.currentPeriodEnd,
+                              }
+                          )}
+                        >
+                          {formatBookingPaymentStatusLabel(
+                              booking.payment_status,
+                              booking.paymentCompleted,
+                              {
+                                  paymentCompleted: booking.paymentCompleted,
+                                  payment_status: booking.payment_status,
+                                  totalAmount: booking.totalAmount,
+                                  subTotal: booking.subTotal,
+                                  price: booking.price,
+                                  quantity: booking.quantity,
+                                  status: booking.status,
+                                  nextCycleDue: booking.nextCycleDue,
+                                  currentPeriodStart: booking.currentPeriodStart,
+                                  currentPeriodEnd: booking.currentPeriodEnd,
+                              }
+                          )}
                       </AdminStatusBadge>
                   ),
               },
@@ -745,7 +775,19 @@ export function BookingDetailModal({
                                         label="Status"
                                         value={formatBookingPaymentStatusLabel(
                                             booking.payment_status,
-                                            booking.paymentCompleted
+                                            booking.paymentCompleted,
+                                            {
+                                                paymentCompleted: booking.paymentCompleted,
+                                                payment_status: booking.payment_status,
+                                                totalAmount: booking.totalAmount,
+                                                subTotal: booking.subTotal,
+                                                price: booking.price,
+                                                quantity: booking.quantity,
+                                                status: booking.status,
+                                                nextCycleDue: booking.nextCycleDue,
+                                                currentPeriodStart: booking.currentPeriodStart,
+                                                currentPeriodEnd: booking.currentPeriodEnd,
+                                            }
                                         )}
                                     />
                                     <MetaRow

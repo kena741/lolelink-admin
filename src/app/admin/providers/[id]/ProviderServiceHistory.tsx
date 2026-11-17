@@ -51,6 +51,9 @@ interface ProviderBookingRow {
     status: string;
     paymentStatus: string;
     paymentCompleted: boolean;
+    totalAmount?: string | number | null;
+    subTotal?: string | number | null;
+    price?: string | number | null;
     amount: string;
     createdAt: string;
     bookingDate: string;
@@ -677,12 +680,28 @@ export function ProviderServiceHistory({
                                         <AdminStatusBadge
                                             tone={getBookingPaymentStatusTone(
                                                 item.paymentStatus,
-                                                item.paymentCompleted
+                                                item.paymentCompleted,
+                                                {
+                                                    paymentCompleted: item.paymentCompleted,
+                                                    payment_status: item.paymentStatus,
+                                                    totalAmount: item.totalAmount ?? item.amount,
+                                                    subTotal: item.subTotal,
+                                                    price: item.price,
+                                                    status: item.status,
+                                                }
                                             )}
                                         >
                                             {formatBookingPaymentStatusLabel(
                                                 item.paymentStatus,
-                                                item.paymentCompleted
+                                                item.paymentCompleted,
+                                                {
+                                                    paymentCompleted: item.paymentCompleted,
+                                                    payment_status: item.paymentStatus,
+                                                    totalAmount: item.totalAmount ?? item.amount,
+                                                    subTotal: item.subTotal,
+                                                    price: item.price,
+                                                    status: item.status,
+                                                }
                                             )}
                                         </AdminStatusBadge>
                                     </td>

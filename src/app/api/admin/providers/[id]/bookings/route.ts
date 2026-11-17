@@ -22,6 +22,7 @@ interface BookingRow {
     payment_status?: string | null;
     paymentCompleted?: boolean | null;
     totalAmount?: string | number | null;
+    subTotal?: string | number | null;
     price?: string | number | null;
     createdAt?: string | null;
     bookingDate?: string | null;
@@ -90,7 +91,7 @@ export async function GET(
         let bookingsQuery: { data: unknown; error: { message?: string } | null } = await supabaseAdmin
             .from('booked_service')
             .select(
-                'id, serviceName, status, payment_status, paymentCompleted, totalAmount, price, createdAt, bookingDate, customer_id, firstName, lastName, description, admin_note'
+                'id, serviceName, status, payment_status, paymentCompleted, totalAmount, subTotal, price, createdAt, bookingDate, customer_id, firstName, lastName, description, admin_note'
             )
             .eq('provider_id', providerId)
             .or('is_archived.is.null,is_archived.eq.false')
@@ -101,7 +102,7 @@ export async function GET(
             bookingsQuery = await supabaseAdmin
                 .from('booked_service')
                 .select(
-                    'id, serviceName, status, payment_status, paymentCompleted, totalAmount, price, createdAt, bookingDate, customer_id, firstName, lastName, description'
+                    'id, serviceName, status, payment_status, paymentCompleted, totalAmount, subTotal, price, createdAt, bookingDate, customer_id, firstName, lastName, description'
                 )
                 .eq('provider_id', providerId)
                 .or('is_archived.is.null,is_archived.eq.false')
@@ -172,6 +173,9 @@ export async function GET(
                 status: row.status ?? '',
                 paymentStatus: row.payment_status ?? '',
                 paymentCompleted: row.paymentCompleted === true,
+                totalAmount: row.totalAmount ?? null,
+                subTotal: row.subTotal ?? null,
+                price: row.price ?? null,
                 amount: (meta?.amount ?? 0).toFixed(2),
                 createdAt: row.createdAt ?? row.bookingDate ?? '',
                 bookingDate: row.bookingDate ?? '',

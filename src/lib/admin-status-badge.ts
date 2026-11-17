@@ -1,3 +1,7 @@
+import {
+    resolveBookingPaymentSettlement,
+    type BookingPaymentAmounts,
+} from '@/lib/booking-payment-progress';
 import { resolveBookingPaymentStatus } from '@/lib/booking-status';
 
 export type AdminStatusTone =
@@ -51,8 +55,19 @@ export function getBookingJobStatusTone(status?: string): AdminStatusTone {
 
 export function getBookingPaymentStatusTone(
     paymentStatus: string | null | undefined,
-    paymentCompleted: boolean | null | undefined
+    paymentCompleted: boolean | null | undefined,
+    amounts?: BookingPaymentAmounts | null
 ): AdminStatusTone {
+    if (amounts) {
+        const settlement = resolveBookingPaymentSettlement({
+            ...amounts,
+            paymentCompleted: paymentCompleted ?? amounts.paymentCompleted,
+            payment_status: paymentStatus ?? amounts.payment_status,
+        });
+        if (settlement === 'partial') return 'warning';
+        if (settlement === 'paid') return 'success';
+        if (settlement === 'unpaid') return 'warning';
+    }
     switch (resolveBookingPaymentStatus(paymentStatus, paymentCompleted)) {
         case 'payment_completed':
             return 'success';
