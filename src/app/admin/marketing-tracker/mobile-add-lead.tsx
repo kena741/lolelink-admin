@@ -10,6 +10,7 @@ import type {
     MarketingTrackerColumn,
     MarketingTrackerRow,
 } from '@/lib/marketing-tracker';
+import { draftHasUnsavedValues } from '@/lib/marketing-tracker';
 import { cn } from '@/lib/utils';
 
 export type MobileAddLeadMode = 'classic' | 'cold_call';
@@ -24,8 +25,22 @@ export const MOBILE_ADD_LEAD_MODE_OPTIONS: Array<{
 ];
 
 const STORAGE_KEY = 'marketing-tracker-mobile-add-mode';
+const DRAFT_STORAGE_PREFIX = 'marketing-tracker-cold-draft:';
 
 type DraftValues = Record<string, MarketingTrackerCellValue>;
+
+function isFilled(value: MarketingTrackerCellValue | undefined): boolean {
+    return !(value === null || value === undefined || value === '');
+}
+
+function compact(values: DraftValues): DraftValues {
+    const next: DraftValues = {};
+    for (const [key, value] of Object.entries(values)) {
+        if (!isFilled(value) && value !== false) continue;
+        next[key] = value;
+    }
+    return next;
+}
 
 export function readMobileAddLeadMode(): MobileAddLeadMode {
     if (typeof window === 'undefined') return 'cold_call';
@@ -44,6 +59,45 @@ export function readMobileAddLeadMode(): MobileAddLeadMode {
 export function writeMobileAddLeadMode(mode: MobileAddLeadMode): void {
     try {
         window.localStorage.setItem(STORAGE_KEY, mode);
+    } catch {
+        // ignore
+    }
+}
+
+function draftStorageKey(sheetId: string): string {
+    return `${DRAFT_STORAGE_PREFIX}${sheetId}`;
+}
+
+export function readColdCallDraft(sheetId: string | null | undefined): DraftValues {
+    if (typeof window === 'undefined' || !sheetId) return {};
+    try {
+        const raw = window.localStorage.getItem(draftStorageKey(sheetId));
+        if (!raw) return {};
+        const parsed = JSON.parse(raw) as DraftValues;
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+        return {};
+    }
+}
+
+export function writeColdCallDraft(sheetId: string | null | undefined, values: DraftValues): void {
+    if (typeof window === 'undefined' || !sheetId) return;
+    try {
+        const compactValues = compact(values);
+        if (!draftHasUnsavedValues(compactValues)) {
+            window.localStorage.removeItem(draftStorageKey(sheetId));
+            return;
+        }
+        window.localStorage.setItem(draftStorageKey(sheetId), JSON.stringify(compactValues));
+    } catch {
+        // ignore
+    }
+}
+
+export function clearColdCallDraft(sheetId: string | null | undefined): void {
+    if (typeof window === 'undefined' || !sheetId) return;
+    try {
+        window.localStorage.removeItem(draftStorageKey(sheetId));
     } catch {
         // ignore
     }
@@ -94,19 +148,6 @@ function suggestValues(rows: MarketingTrackerRow[], columnKey: string, limit = 8
         if (values.length >= limit) break;
     }
     return values;
-}
-
-function isFilled(value: MarketingTrackerCellValue | undefined): boolean {
-    return !(value === null || value === undefined || value === '');
-}
-
-function compact(values: DraftValues): DraftValues {
-    const next: DraftValues = {};
-    for (const [key, value] of Object.entries(values)) {
-        if (!isFilled(value) && value !== false) continue;
-        next[key] = value;
-    }
-    return next;
 }
 
 function digitsOnly(phone: string): string {
@@ -309,16 +350,20 @@ function ColumnEditor({
 /** Cold-call sheet: every column except the last two on this sheet. */
 export function MobileColdCallLeadFlow({
     open,
+    sheetId,
     onClose,
     columns,
     rows,
     onCreate,
+    onDirtyChange,
 }: {
     open: boolean;
+    sheetId: string | null;
     onClose: () => void;
     columns: MarketingTrackerColumn[];
     rows: MarketingTrackerRow[];
-    onCreate: (values: Record<string, MarketingTrackerCellValue>) => void;
+    onCreate: (values: Record<string, MarketingTrackerCellValue>) => Promise<string>;
+    onDirtyChange?: (dirty: boolean) => void;
 }) {
     const fields = useMemo(() => coldCallColumns(columns), [columns]);
     const phoneColumn = useMemo(
@@ -336,6 +381,8 @@ export function MobileColdCallLeadFlow({
 
     const [draft, setDraft] = useState<DraftValues>({});
     const [mounted, setMounted] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [saveError, setSaveError] = useState<string | null>(null);
 
     useEffect(() => {
         setMounted(true);
@@ -343,17 +390,41 @@ export function MobileColdCallLeadFlow({
 
     useEffect(() => {
         if (!open) return;
-        // Pre-fill only when those columns are part of the form (not in the skipped last two).
-        const seed: DraftValues = {};
+        const stored = readColdCallDraft(sheetId);
+        const seed: DraftValues = { ...stored };
         const fieldKeys = new Set(fields.map((column) => column.key));
-        if (contactDate && fieldKeys.has(contactDate.key)) {
+        if (contactDate && fieldKeys.has(contactDate.key) && !isFilled(seed[contactDate.key])) {
             seed[contactDate.key] = todayDate();
         }
-        if (contacted && fieldKeys.has(contacted.key)) {
+        if (contacted && fieldKeys.has(contacted.key) && seed[contacted.key] !== false) {
             seed[contacted.key] = true;
         }
         setDraft(seed);
-    }, [open, columns, fields, contactDate, contacted]);
+        setSaveError(null);
+    }, [open, sheetId, columns, fields, contactDate, contacted]);
+
+    const phoneValue =
+        phoneColumn && typeof draft[phoneColumn.key] === 'string' ? String(draft[phoneColumn.key]) : '';
+    const today = todayDate();
+    // Ignore auto-seeded contact date / contacted so empty open isn't "dirty".
+    const dirty = fields.some((column) => {
+        const value = draft[column.key];
+        if (contactDate && column.key === contactDate.key && value === today) return false;
+        if (contacted && column.key === contacted.key && value === true) return false;
+        return isFilled(value) || value === false;
+    });
+    const canSave = dirty;
+    const wa = phoneValue ? whatsappHref(phoneValue) : null;
+    const skipped = Math.max(0, orderedColumns(columns).length - fields.length);
+
+    useEffect(() => {
+        if (!open) {
+            onDirtyChange?.(false);
+            return;
+        }
+        onDirtyChange?.(dirty);
+        writeColdCallDraft(sheetId, draft);
+    }, [open, dirty, draft, sheetId, onDirtyChange]);
 
     useEffect(() => {
         if (!open) return;
@@ -364,23 +435,53 @@ export function MobileColdCallLeadFlow({
         };
     }, [open]);
 
-    const phoneValue =
-        phoneColumn && typeof draft[phoneColumn.key] === 'string' ? String(draft[phoneColumn.key]) : '';
-    const canSave = fields.some((column) => isFilled(draft[column.key]));
-    const wa = phoneValue ? whatsappHref(phoneValue) : null;
-    const skipped = Math.max(0, orderedColumns(columns).length - fields.length);
-
-    function save() {
-        if (!canSave) return;
+    function buildValues(): DraftValues {
         const values: DraftValues = { ...draft };
-        // keep contact defaults even if those cols are in the skipped last-two
         if (contactDate && !isFilled(values[contactDate.key])) {
             values[contactDate.key] = todayDate();
         }
         if (contacted && values[contacted.key] !== false) {
             values[contacted.key] = true;
         }
-        onCreate(compact(values));
+        return compact(values);
+    }
+
+    async function persistToDb(): Promise<boolean> {
+        if (!canSave || saving) return false;
+        setSaving(true);
+        setSaveError(null);
+        try {
+            await onCreate(buildValues());
+            clearColdCallDraft(sheetId);
+            setDraft({});
+            onDirtyChange?.(false);
+            return true;
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Failed to save lead';
+            setSaveError(message);
+            return false;
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    async function saveAndClose() {
+        const ok = await persistToDb();
+        if (ok) onClose();
+    }
+
+    async function saveThen(action: () => void) {
+        const ok = await persistToDb();
+        if (!ok) return;
+        onClose();
+        action();
+    }
+
+    function requestClose() {
+        if (saving) return;
+        if (dirty && !window.confirm('You have unsaved lead info. Leave without saving to the database?')) {
+            return;
+        }
         onClose();
     }
 
@@ -388,7 +489,12 @@ export function MobileColdCallLeadFlow({
 
     return (
         <div className="fixed inset-0 z-[100] md:hidden">
-            <button type="button" className="absolute inset-0 bg-black/40" aria-label="Close" onClick={onClose} />
+            <button
+                type="button"
+                className="absolute inset-0 bg-black/40"
+                aria-label="Close"
+                onClick={requestClose}
+            />
             <div
                 className="absolute inset-x-0 bottom-0 flex max-h-[92dvh] flex-col rounded-t-2xl border border-border bg-card shadow-2xl"
                 role="dialog"
@@ -406,8 +512,9 @@ export function MobileColdCallLeadFlow({
                     </div>
                     <button
                         type="button"
-                        onClick={onClose}
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        onClick={requestClose}
+                        disabled={saving}
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                         aria-label="Close"
                     >
                         <X className="h-4 w-4" />
@@ -437,36 +544,54 @@ export function MobileColdCallLeadFlow({
                                             type="button"
                                             variant="outline"
                                             className="h-12"
-                                            disabled={digitsOnly(phoneValue).length < 8}
+                                            disabled={saving || digitsOnly(phoneValue).length < 8}
                                             onClick={() => {
-                                                window.location.href = `tel:${phoneValue.trim()}`;
+                                                void saveThen(() => {
+                                                    window.location.href = `tel:${phoneValue.trim()}`;
+                                                });
                                             }}
                                         >
                                             <Phone className="mr-2 h-4 w-4" />
-                                            Call
+                                            {saving ? 'Saving…' : 'Call'}
                                         </Button>
                                         <Button
                                             type="button"
                                             variant="outline"
                                             className="h-12"
-                                            disabled={!wa}
+                                            disabled={saving || !wa}
                                             onClick={() => {
-                                                if (wa) window.open(wa, '_blank', 'noopener,noreferrer');
+                                                if (!wa) return;
+                                                void saveThen(() => {
+                                                    window.open(wa, '_blank', 'noopener,noreferrer');
+                                                });
                                             }}
                                         >
                                             <MessageCircle className="mr-2 h-4 w-4" />
-                                            WhatsApp
+                                            {saving ? 'Saving…' : 'WhatsApp'}
                                         </Button>
                                     </div>
                                 ) : null}
                             </React.Fragment>
                         ))
                     )}
+                    {saveError ? <p className="text-sm text-destructive">{saveError}</p> : null}
+                    {dirty ? (
+                        <p className="text-[11px] text-amber-700">
+                            Not saved to database yet — Call/WhatsApp will save first.
+                        </p>
+                    ) : null}
                 </div>
 
                 <div className="border-t border-border p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-                    <Button type="button" className="h-12 w-full text-base" disabled={!canSave} onClick={save}>
-                        Save lead
+                    <Button
+                        type="button"
+                        className="h-12 w-full text-base"
+                        disabled={!canSave || saving}
+                        onClick={() => {
+                            void saveAndClose();
+                        }}
+                    >
+                        {saving ? 'Saving…' : 'Save lead'}
                     </Button>
                 </div>
             </div>

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+    cellSaveTimerKey,
     clampColumnWidthPx,
     computeSheetAnalytics,
+    draftHasUnsavedValues,
     mergeSavedRowWithLocalValues,
     normalizeColumnType,
     resolveColumnWidthPx,
@@ -23,6 +25,14 @@ describe('marketing-tracker helpers', () => {
 
     it('strips deleted column keys from row values', () => {
         expect(stripColumnKeyFromValues({ a: 'x', b: true }, 'a')).toEqual({ b: true });
+    });
+
+    it('builds cell save timer keys and detects unsaved draft values', () => {
+        expect(cellSaveTimerKey('r1', 'phone')).toBe('r1:phone');
+        expect(draftHasUnsavedValues({})).toBe(false);
+        expect(draftHasUnsavedValues({ note: '' })).toBe(false);
+        expect(draftHasUnsavedValues({ note: 'hi' })).toBe(true);
+        expect(draftHasUnsavedValues({ contacted: false })).toBe(true);
     });
 
     it('keeps typed local values when a temp row is replaced by the saved row', () => {

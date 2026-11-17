@@ -22,6 +22,7 @@ import type {
     MarketingTrackerSheet,
 } from '@/lib/marketing-tracker';
 import {
+    cellSaveTimerKey,
     clampColumnWidthPx,
     computeSheetAnalytics,
     createLocalId,
@@ -615,11 +616,27 @@ export default function MarketingTrackerPage() {
     const pendingFocusColumnKey = useRef<string | null>(null);
     const phantomPromotedRowId = useRef<string | null>(null);
     const saveTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+    const pendingCellSaves = useRef<
+        Map<string, { rowId: string; columnKey: string; value: MarketingTrackerCellValue }>
+    >(new Map());
+    const rowPatchChains = useRef<Map<string, Promise<void>>>(new Map());
+    const inflightCellSaves = useRef(0);
+    const [unsavedCount, setUnsavedCount] = useState(0);
     const widthSaveTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
     const rowCreatePromises = useRef<Map<string, Promise<string>>>(new Map());
     const resolvedRowIds = useRef<Map<string, string>>(new Map());
     const rowClientKeys = useRef<Map<string, string>>(new Map());
     const sheetCreatePromises = useRef<Map<string, Promise<string>>>(new Map());
+    const coldCallDirtyRef = useRef(false);
+
+    const refreshUnsavedCount = useCallback(() => {
+        setUnsavedCount(
+            pendingCellSaves.current.size +
+                inflightCellSaves.current +
+                rowCreatePromises.current.size +
+                (coldCallDirtyRef.current ? 1 : 0)
+        );
+    }, []);
 
     const loadTracker = useCallback(async (sheetId?: string | null, options?: { initial?: boolean }) => {
         const isInitial = options?.initial ?? false;
@@ -674,11 +691,111 @@ export default function MarketingTrackerPage() {
         return pending;
     }, []);
 
-    function handleSelectSheet(sheetId: string) {
+    const patchCell = useCallback(
+        async (rowId: string, columnKey: string, value: MarketingTrackerCellValue) => {
+            if (!canWriteCatalog) return;
+            const resolvedRowId = await resolveRowId(rowId);
+            const prev = rowPatchChains.current.get(resolvedRowId) ?? Promise.resolve();
+            const run = prev
+                .catch(() => undefined)
+                .then(async () => {
+                    inflightCellSaves.current += 1;
+                    refreshUnsavedCount();
+                    try {
+                        const response = await fetch(
+                            `/api/admin/marketing-tracker/rows/${resolvedRowId}`,
+                            {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ values: { [columnKey]: value } }),
+                            }
+                        );
+                        const payload = (await response.json()) as {
+                            row?: MarketingTrackerRow;
+                            error?: string;
+                        };
+                        if (!response.ok) throw new Error(payload.error || 'Failed to save cell');
+                        if (payload.row) {
+                            setRows((current) =>
+                                current.map((row) => {
+                                    if (row.id !== rowId && row.id !== resolvedRowId) return row;
+                                    return {
+                                        ...payload.row!,
+                                        values: { ...payload.row!.values, ...row.values },
+                                    };
+                                })
+                            );
+                        }
+                    } finally {
+                        inflightCellSaves.current = Math.max(0, inflightCellSaves.current - 1);
+                        refreshUnsavedCount();
+                    }
+                });
+            rowPatchChains.current.set(resolvedRowId, run);
+            await run;
+        },
+        [canWriteCatalog, refreshUnsavedCount, resolveRowId]
+    );
+
+    const flushPendingSaves = useCallback(async () => {
+        const pending = [...pendingCellSaves.current.values()];
+        for (const timer of saveTimers.current.values()) clearTimeout(timer);
+        saveTimers.current.clear();
+        pendingCellSaves.current.clear();
+        refreshUnsavedCount();
+
+        await Promise.all(
+            pending.map(({ rowId, columnKey, value }) =>
+                patchCell(rowId, columnKey, value).catch((saveError: unknown) => {
+                    const message =
+                        saveError instanceof Error ? saveError.message : 'Failed to save cell';
+                    setError(message);
+                })
+            )
+        );
+
+        const creates = [...rowCreatePromises.current.values()];
+        if (creates.length > 0) {
+            await Promise.allSettled(creates);
+        }
+        refreshUnsavedCount();
+    }, [patchCell, refreshUnsavedCount]);
+
+    async function handleSelectSheet(sheetId: string) {
         if (sheetId === activeSheetId || isLocalId(sheetId)) return;
+        if (unsavedCount > 0) {
+            await flushPendingSaves();
+            if (
+                coldCallDirtyRef.current &&
+                !window.confirm('Cold call draft is not saved to the database. Switch sheet anyway?')
+            ) {
+                return;
+            }
+        }
         setQuery('');
         void loadTracker(sheetId);
     }
+
+    useEffect(() => {
+        const onBeforeUnload = (event: BeforeUnloadEvent) => {
+            if (unsavedCount <= 0) return;
+            void flushPendingSaves();
+            event.preventDefault();
+            event.returnValue = '';
+        };
+        const onHidden = () => {
+            if (unsavedCount > 0) void flushPendingSaves();
+        };
+        window.addEventListener('beforeunload', onBeforeUnload);
+        window.addEventListener('pagehide', onHidden);
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') onHidden();
+        });
+        return () => {
+            window.removeEventListener('beforeunload', onBeforeUnload);
+            window.removeEventListener('pagehide', onHidden);
+        };
+    }, [flushPendingSaves, unsavedCount]);
 
     useEffect(() => {
         if (!pendingFocusRowId.current) return;
@@ -785,32 +902,6 @@ export default function MarketingTrackerPage() {
             );
         },
         [canWriteCatalog, saveColumnWidth]
-    );
-
-    const patchCell = useCallback(
-        async (rowId: string, columnKey: string, value: MarketingTrackerCellValue) => {
-            if (!canWriteCatalog) return;
-            const resolvedRowId = await resolveRowId(rowId);
-            const response = await fetch(`/api/admin/marketing-tracker/rows/${resolvedRowId}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ values: { [columnKey]: value } }),
-            });
-            const payload = (await response.json()) as { row?: MarketingTrackerRow; error?: string };
-            if (!response.ok) throw new Error(payload.error || 'Failed to save cell');
-            if (payload.row) {
-                setRows((current) =>
-                    current.map((row) => {
-                        if (row.id !== rowId && row.id !== resolvedRowId) return row;
-                        return {
-                            ...payload.row!,
-                            values: { ...payload.row!.values, ...row.values },
-                        };
-                    })
-                );
-            }
-        },
-        [canWriteCatalog, resolveRowId]
     );
 
     const insertRowAfter = useCallback(
@@ -954,22 +1045,28 @@ export default function MarketingTrackerPage() {
                 )
             );
 
-            const timerKey = `${rowId}:${columnKey}`;
+            const timerKey = cellSaveTimerKey(rowId, columnKey);
+            pendingCellSaves.current.set(timerKey, { rowId, columnKey, value });
+            refreshUnsavedCount();
+
             const existing = saveTimers.current.get(timerKey);
             if (existing) clearTimeout(existing);
 
             saveTimers.current.set(
                 timerKey,
                 setTimeout(() => {
+                    pendingCellSaves.current.delete(timerKey);
+                    saveTimers.current.delete(timerKey);
+                    refreshUnsavedCount();
                     void patchCell(rowId, columnKey, value).catch((saveError: unknown) => {
-                        const message = saveError instanceof Error ? saveError.message : 'Failed to save cell';
+                        const message =
+                            saveError instanceof Error ? saveError.message : 'Failed to save cell';
                         setError(message);
                     });
-                    saveTimers.current.delete(timerKey);
                 }, 400)
             );
         },
-        [canWriteCatalog, patchCell]
+        [canWriteCatalog, patchCell, refreshUnsavedCount]
     );
 
     const scheduleSave = useCallback(
@@ -1019,10 +1116,38 @@ export default function MarketingTrackerPage() {
         setMobileExpandRowId(newId);
     }
 
-    function handleCreateColdCallLead(values: Record<string, MarketingTrackerCellValue>) {
-        if (!canWriteCatalog || columns.length === 0) return;
-        insertRowAfter(null, values, undefined, { atStart: true });
+    function handleCreateColdCallLead(
+        values: Record<string, MarketingTrackerCellValue>
+    ): Promise<string> {
+        if (!canWriteCatalog || columns.length === 0) {
+            return Promise.reject(new Error('Cannot save lead'));
+        }
+        const tempId = insertRowAfter(null, values, undefined, { atStart: true });
+        const pending = rowCreatePromises.current.get(tempId);
+        if (!pending) return Promise.reject(new Error('Failed to start save'));
+        refreshUnsavedCount();
+        return pending.then(
+            (id) => {
+                rowCreatePromises.current.delete(tempId);
+                coldCallDirtyRef.current = false;
+                refreshUnsavedCount();
+                return id;
+            },
+            (err: unknown) => {
+                rowCreatePromises.current.delete(tempId);
+                refreshUnsavedCount();
+                throw err;
+            }
+        );
     }
+
+    const handleColdCallDirtyChange = useCallback(
+        (dirty: boolean) => {
+            coldCallDirtyRef.current = dirty;
+            refreshUnsavedCount();
+        },
+        [refreshUnsavedCount]
+    );
 
     async function handleDeleteRow(rowId: string) {
         if (!canWriteCatalog) return;
@@ -1418,6 +1543,11 @@ export default function MarketingTrackerPage() {
                 </div>
 
                 {error ? <AdminErrorAlert message={error} /> : null}
+                {unsavedCount > 0 ? (
+                    <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                        Saving… don’t leave this page yet ({unsavedCount} pending).
+                    </div>
+                ) : null}
 
                 {initialLoading ? (
                     <div className="flex items-center justify-center rounded-xl border border-border bg-card p-8">
@@ -1468,10 +1598,12 @@ export default function MarketingTrackerPage() {
                         {canWriteCatalog && mobileAddMode === 'cold_call' ? (
                             <MobileColdCallLeadFlow
                                 open={mobileAddFlowOpen}
+                                sheetId={activeSheetId}
                                 onClose={() => setMobileAddFlowOpen(false)}
                                 columns={columns}
                                 rows={rows}
                                 onCreate={handleCreateColdCallLead}
+                                onDirtyChange={handleColdCallDirtyChange}
                             />
                         ) : null}
 

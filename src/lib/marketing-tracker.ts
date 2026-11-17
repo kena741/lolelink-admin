@@ -191,3 +191,19 @@ export const PHANTOM_ROW_ID = 'phantom-row';
 export function isPhantomRowId(id: string): boolean {
     return id === PHANTOM_ROW_ID;
 }
+
+export function cellSaveTimerKey(rowId: string, columnKey: string): string {
+    return `${rowId}:${columnKey}`;
+}
+
+/** True when a cold-call / cell draft still has something that should hit the DB. */
+export function draftHasUnsavedValues(
+    values: Record<string, MarketingTrackerCellValue>
+): boolean {
+    for (const value of Object.values(values)) {
+        if (value === false) return true;
+        if (value === null || value === undefined || value === '') continue;
+        return true;
+    }
+    return false;
+}

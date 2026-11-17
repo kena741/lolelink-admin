@@ -10,6 +10,35 @@ interface PatchRowBody {
     values?: Record<string, MarketingTrackerCellValue>;
 }
 
+async function mergeRowValuesFallback(
+    supabaseAdmin: ReturnType<typeof getSupabaseAdminFromRequest>,
+    id: string,
+    patchValues: Record<string, MarketingTrackerCellValue>
+): Promise<{ row: MarketingTrackerRow | null; error: string | null; notFound?: boolean }> {
+    const { data: existing, error: existingError } = await supabaseAdmin
+        .from('marketing_tracker_row')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+    if (existingError) return { row: null, error: existingError.message };
+    if (!existing) return { row: null, error: null, notFound: true };
+
+    const current = existing as MarketingTrackerRow;
+    const { data: updated, error: updateError } = await supabaseAdmin
+        .from('marketing_tracker_row')
+        .update({
+            values: { ...current.values, ...patchValues },
+            updated_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .select('*')
+        .single();
+
+    if (updateError) return { row: null, error: updateError.message };
+    return { row: updated as MarketingTrackerRow, error: null };
+}
+
 export async function PATCH(
     request: Request,
     context: { params: Promise<{ id: string }> }
@@ -28,31 +57,40 @@ export async function PATCH(
     }
 
     const supabaseAdmin = getSupabaseAdminFromRequest(request);
-    const { data: existing, error: existingError } = await supabaseAdmin
-        .from('marketing_tracker_row')
-        .select('*')
-        .eq('id', id)
-        .maybeSingle();
 
-    if (existingError) return NextResponse.json({ error: existingError.message }, { status: 500 });
-    if (!existing) return NextResponse.json({ error: 'Row not found' }, { status: 404 });
+    // Prefer atomic jsonb || merge when the migration is applied.
+    const { data: updated, error: updateError } = await supabaseAdmin.rpc(
+        'merge_marketing_tracker_row_values',
+        { p_id: id, p_patch: patchValues }
+    );
 
-    const current = existing as MarketingTrackerRow;
-    const nextValues = { ...current.values, ...patchValues };
+    if (!updateError && updated) {
+        return NextResponse.json({ row: updated as MarketingTrackerRow });
+    }
 
-    const { data: updated, error: updateError } = await supabaseAdmin
-        .from('marketing_tracker_row')
-        .update({
-            values: nextValues,
-            updated_at: new Date().toISOString(),
-        })
-        .eq('id', id)
-        .select('*')
-        .single();
+    const rpcMissing =
+        !!updateError &&
+        /Could not find the function|function .* does not exist|schema cache/i.test(
+            updateError.message
+        );
 
-    if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
+    if (rpcMissing) {
+        // ponytail: fallback until 20261117120000_marketing_tracker_merge_values is applied
+        const fallback = await mergeRowValuesFallback(supabaseAdmin, id, patchValues);
+        if (fallback.notFound) return NextResponse.json({ error: 'Row not found' }, { status: 404 });
+        if (fallback.error) return NextResponse.json({ error: fallback.error }, { status: 500 });
+        return NextResponse.json({ row: fallback.row });
+    }
 
-    return NextResponse.json({ row: updated as MarketingTrackerRow });
+    if (updateError) {
+        const message = updateError.message || '';
+        if (/not found|Row not found/i.test(message)) {
+            return NextResponse.json({ error: 'Row not found' }, { status: 404 });
+        }
+        return NextResponse.json({ error: message }, { status: 500 });
+    }
+
+    return NextResponse.json({ error: 'Row not found' }, { status: 404 });
 }
 
 export async function DELETE(
