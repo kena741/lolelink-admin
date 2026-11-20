@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { fetchAllCustomers, convertToProvider, resetConvertState, archiveCustomer, restoreCustomer, deleteCustomer, setCustomerAdminNote } from '@/features/customer/customerSlice';
-import { ChevronLeft, ChevronRight, Download, Users, ArrowRightLeft, CheckCircle2, Loader2, Archive, ArchiveRestore, Trash2, MoreVertical, ExternalLink, Plus, KeyRound } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, Download, Users, ArrowRightLeft, CheckCircle2, Loader2, Archive, ArchiveRestore, Trash2, MoreVertical, ExternalLink, Plus, KeyRound, Filter, RotateCcw, X } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import {
@@ -19,7 +19,6 @@ import { BulkLeadCustomersModal } from '@/components/BulkLeadCustomersModal';
 import { RegisterCustomerAuthModal } from '@/components/RegisterCustomerAuthModal';
 import {
     AdminErrorAlert,
-    AdminFilterPanel,
     AdminLoadingRow,
     AdminSearchInput,
     AdminShell,
@@ -31,6 +30,7 @@ import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 import { markAdminListFetched, shouldRefetchAdminList } from '@/lib/admin-list-cache';
+import { cn } from '@/lib/utils';
 
 import {
     customerIsArchived,
@@ -41,14 +41,67 @@ import { formatDisplayPhone } from '@/lib/phone-display';
 
 const PAGE_SIZE = 20;
 
+type ArchiveVisibility = 'active_only' | 'all' | 'archived_only';
+type AccountFilter = 'all' | 'registered' | 'lead';
+type SourceFilter = 'all' | 'qr' | 'admin' | 'none';
+
+interface SegmentOption<V extends string> {
+    value: V;
+    label: string;
+}
+
+interface SegmentGroupProps<V extends string> {
+    label: string;
+    value: V;
+    options: SegmentOption<V>[];
+    onChange: (next: V) => void;
+}
+
+function SegmentGroup<V extends string>({ label, value, options, onChange }: SegmentGroupProps<V>) {
+    return (
+        <div className="flex min-w-0 flex-col gap-1.5">
+            <span className="text-[11px] font-medium text-muted-foreground">{label}</span>
+            <div
+                className="inline-flex max-w-full flex-nowrap overflow-x-auto rounded-lg border border-border bg-muted/50 p-0.5"
+                role="radiogroup"
+                aria-label={label}
+            >
+                {options.map((opt) => {
+                    const selected = value === opt.value;
+                    return (
+                        <button
+                            key={opt.value}
+                            type="button"
+                            role="radio"
+                            aria-checked={selected}
+                            onClick={() => onChange(opt.value)}
+                            className={cn(
+                                'inline-flex h-7 shrink-0 items-center justify-center rounded-md px-2 text-xs font-medium transition-colors duration-150',
+                                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
+                                selected
+                                    ? 'bg-card text-foreground shadow-[0_1px_2px_rgba(0,0,0,0.06)]'
+                                    : 'text-muted-foreground hover:text-foreground'
+                            )}
+                        >
+                            {opt.label}
+                        </button>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
 export default function CustomersPage() {
     const dispatch = useAppDispatch();
     const router = useRouter();
     const { canWriteCustomers } = useAdminPermissions();
     const { customers, loading, error, convertingId, convertError } = useAppSelector((s) => s.customer);
     const [query, setQuery] = useState('');
-    const [showArchived, setShowArchived] = useState(false);
-    const [qrOnly, setQrOnly] = useState(false);
+    const [archiveVisibility, setArchiveVisibility] = useState<ArchiveVisibility>('active_only');
+    const [accountFilter, setAccountFilter] = useState<AccountFilter>('all');
+    const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
+    const [filtersPanelOpen, setFiltersPanelOpen] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const [confirmCustomerId, setConfirmCustomerId] = useState<string | null>(null);
     const [confirmJobRequestCount, setConfirmJobRequestCount] = useState(0);
@@ -70,7 +123,21 @@ export default function CustomersPage() {
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [query, showArchived, qrOnly]);
+    }, [query, archiveVisibility, accountFilter, sourceFilter]);
+
+    const nonDefaultFilterCount = useMemo(() => {
+        let n = 0;
+        if (archiveVisibility !== 'active_only') n += 1;
+        if (accountFilter !== 'all') n += 1;
+        if (sourceFilter !== 'all') n += 1;
+        return n;
+    }, [archiveVisibility, accountFilter, sourceFilter]);
+
+    function resetFilters() {
+        setArchiveVisibility('active_only');
+        setAccountFilter('all');
+        setSourceFilter('all');
+    }
 
     const openConvertConfirm = useCallback(async (customerId: string) => {
         setConfirmCustomerId(customerId);
@@ -162,11 +229,27 @@ export default function CustomersPage() {
         }
     }, [dispatch, pendingDeleteCustomerId]);
 
+    const attributeFiltered = useMemo(() => {
+        return customers.filter((c) => {
+            const archived = customerIsArchived(c);
+            if (archiveVisibility === 'active_only' && archived) return false;
+            if (archiveVisibility === 'archived_only' && !archived) return false;
+
+            const registered = customerIsRegistered(c);
+            if (accountFilter === 'registered' && !registered) return false;
+            if (accountFilter === 'lead' && registered) return false;
+
+            const source = (c.signup_source ?? '').trim().toLowerCase();
+            if (sourceFilter === 'qr' && source !== 'qr') return false;
+            if (sourceFilter === 'admin' && source !== 'admin') return false;
+            if (sourceFilter === 'none' && source) return false;
+
+            return true;
+        });
+    }, [customers, archiveVisibility, accountFilter, sourceFilter]);
+
     const filtered = useMemo(() => {
-        const visible = customers.filter((c) =>
-            showArchived ? customerIsArchived(c) : !customerIsArchived(c)
-        ).filter((c) => !qrOnly || (c.signup_source ?? '').trim().toLowerCase() === 'qr');
-        const sorted = [...visible].sort((a, b) => {
+        const sorted = [...attributeFiltered].sort((a, b) => {
             const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
             const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
             return bTime - aTime;
@@ -180,6 +263,7 @@ export default function CustomersPage() {
             const email = (c.email ?? '').toLowerCase();
             const phone = ((c.phoneNumber ?? c.mobile_number ?? c.phone) ?? '').toLowerCase();
             const source = (c.signup_source ?? '').toLowerCase();
+            const note = (c.admin_note ?? '').toLowerCase();
             const address = (() => {
                 const defaultAddress = c.default_address;
                 if (typeof defaultAddress === 'string') {
@@ -206,10 +290,11 @@ export default function CustomersPage() {
                 email.includes(q) ||
                 phone.includes(q) ||
                 address.includes(q) ||
-                source.includes(q)
+                source.includes(q) ||
+                note.includes(q)
             );
         });
-    }, [customers, query, showArchived, qrOnly]);
+    }, [attributeFiltered, query]);
 
     function exportToXlsx() {
         const rows = filtered.map((c) => ({
@@ -252,66 +337,196 @@ export default function CustomersPage() {
                                 ) : null
                             }
                         />
-                        <AdminFilterPanel className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <AdminSearchInput
-                                className="w-full sm:w-96"
-                                value={query}
-                                onChange={setQuery}
-                                placeholder="Search name, email, phone, user ID, address..."
-                            />
-                            <div className="flex flex-wrap items-center gap-3">
-                                {canWriteCustomers ? (
-                                    <>
-                                        <button
-                                            type="button"
-                                            onClick={() => setCreateOpen(true)}
-                                            className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
-                                        >
-                                            <Plus className="h-4 w-4" />
-                                            Add customer
-                                        </button>
+                        <div className="mb-6 flex flex-col gap-4">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                <AdminSearchInput
+                                    className="w-full max-w-md flex-1"
+                                    value={query}
+                                    onChange={setQuery}
+                                    placeholder="Search name, email, phone, note, address…"
+                                />
+                                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                                    {canWriteCustomers ? (
                                         <button
                                             type="button"
                                             onClick={() => setLeadsOpen(true)}
-                                            className="inline-flex h-10 items-center gap-2 rounded-md border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+                                            className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-card px-4 text-sm font-semibold text-foreground shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                                         >
-                                            <Plus className="h-4 w-4" />
+                                            <Plus className="h-4 w-4 shrink-0" />
                                             Add leads
                                         </button>
-                                    </>
-                                ) : null}
-                                <button
-                                    type="button"
-                                    onClick={() => setShowArchived((v) => !v)}
-                                    className={`inline-flex h-10 items-center rounded-md border px-3 text-sm font-semibold transition-colors ${
-                                        showArchived
-                                            ? 'border-indigo-300 bg-indigo-50 text-indigo-800'
-                                            : 'border-gray-200 bg-white/80 text-gray-700 hover:bg-white'
-                                    }`}
-                                >
-                                    {showArchived ? 'Archived only' : 'Show archived'}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setQrOnly((v) => !v)}
-                                    className={`inline-flex h-10 items-center rounded-md border px-3 text-sm font-semibold transition-colors ${
-                                        qrOnly
-                                            ? 'border-sky-300 bg-sky-50 text-sky-800'
-                                            : 'border-gray-200 bg-white/80 text-gray-700 hover:bg-white'
-                                    }`}
-                                >
-                                    {qrOnly ? 'QR signups' : 'All sources'}
-                                </button>
-                                <button
-                                    onClick={exportToXlsx}
-                                    disabled={filtered.length === 0}
-                                    className="inline-flex h-10 items-center gap-2 rounded-md border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-                                >
-                                    <Download className="h-4 w-4" />
-                                    Export XLSX
-                                </button>
+                                    ) : null}
+                                    <button
+                                        type="button"
+                                        onClick={() => setFiltersPanelOpen((open) => !open)}
+                                        aria-expanded={filtersPanelOpen}
+                                        aria-controls="customers-filters-panel"
+                                        id="customers-filters-trigger"
+                                        className={cn(
+                                            'inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm font-semibold transition-colors duration-150',
+                                            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                                            filtersPanelOpen
+                                                ? 'border-primary bg-primary text-primary-foreground'
+                                                : 'border-border bg-card text-foreground hover:bg-muted'
+                                        )}
+                                    >
+                                        <Filter className="h-4 w-4 shrink-0" />
+                                        <span>Filters</span>
+                                        {nonDefaultFilterCount > 0 ? (
+                                            <span
+                                                className={cn(
+                                                    'inline-flex min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-bold tabular-nums',
+                                                    filtersPanelOpen
+                                                        ? 'bg-primary-foreground/20'
+                                                        : 'bg-primary/10 text-primary'
+                                                )}
+                                            >
+                                                {nonDefaultFilterCount}
+                                            </span>
+                                        ) : null}
+                                        <ChevronDown
+                                            className={cn(
+                                                'h-4 w-4 shrink-0 transition-transform duration-200',
+                                                filtersPanelOpen && 'rotate-180'
+                                            )}
+                                            aria-hidden
+                                        />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={exportToXlsx}
+                                        disabled={filtered.length === 0}
+                                        className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-card px-4 text-sm font-semibold text-foreground shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
+                                    >
+                                        <Download className="h-4 w-4 shrink-0" />
+                                        Export
+                                    </button>
+                                </div>
                             </div>
-                        </AdminFilterPanel>
+
+                            {filtersPanelOpen ? (
+                                <div
+                                    id="customers-filters-panel"
+                                    role="region"
+                                    aria-labelledby="customers-filters-trigger"
+                                    className="rounded-xl border border-border bg-card px-4 py-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)] sm:px-5"
+                                >
+                                    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                                        <div className="flex min-w-0 flex-wrap items-center gap-2">
+                                            <h2 className="text-sm font-semibold text-foreground">Filters</h2>
+                                            {nonDefaultFilterCount > 0 ? (
+                                                <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium tabular-nums text-muted-foreground">
+                                                    {nonDefaultFilterCount} active
+                                                </span>
+                                            ) : null}
+                                            <span className="text-xs text-muted-foreground">
+                                                {filtered.length}
+                                                {query.trim()
+                                                    ? ` match · ${attributeFiltered.length} before search`
+                                                    : ' customers'}
+                                            </span>
+                                        </div>
+                                        <div className="flex shrink-0 items-center gap-1.5">
+                                            <button
+                                                type="button"
+                                                onClick={resetFilters}
+                                                disabled={nonDefaultFilterCount === 0}
+                                                className={cn(
+                                                    'inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors duration-150',
+                                                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                                                    nonDefaultFilterCount > 0
+                                                        ? 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                                                        : 'cursor-not-allowed text-muted-foreground/50'
+                                                )}
+                                            >
+                                                <RotateCcw className="h-3.5 w-3.5 shrink-0" />
+                                                Reset
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setFiltersPanelOpen(false)}
+                                                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                                aria-label="Close filters"
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                                        <SegmentGroup
+                                            label="Archive"
+                                            value={archiveVisibility}
+                                            onChange={setArchiveVisibility}
+                                            options={[
+                                                { value: 'active_only', label: 'Active' },
+                                                { value: 'all', label: 'All' },
+                                                { value: 'archived_only', label: 'Archived' },
+                                            ]}
+                                        />
+                                        <SegmentGroup
+                                            label="Account"
+                                            value={accountFilter}
+                                            onChange={setAccountFilter}
+                                            options={[
+                                                { value: 'all', label: 'All' },
+                                                { value: 'registered', label: 'Registered' },
+                                                { value: 'lead', label: 'Lead' },
+                                            ]}
+                                        />
+                                        <SegmentGroup
+                                            label="Signup source"
+                                            value={sourceFilter}
+                                            onChange={setSourceFilter}
+                                            options={[
+                                                { value: 'all', label: 'All' },
+                                                { value: 'qr', label: 'QR' },
+                                                { value: 'admin', label: 'Admin' },
+                                                { value: 'none', label: 'None' },
+                                            ]}
+                                        />
+                                    </div>
+                                </div>
+                            ) : null}
+
+                            {!filtersPanelOpen && (nonDefaultFilterCount > 0 || query.trim()) ? (
+                                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                                    <span className="font-medium tabular-nums text-foreground">
+                                        {filtered.length} result{filtered.length === 1 ? '' : 's'}
+                                    </span>
+                                    {archiveVisibility !== 'active_only' ? (
+                                        <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 font-medium text-foreground">
+                                            Archive: {archiveVisibility === 'all' ? 'All' : 'Archived'}
+                                        </span>
+                                    ) : null}
+                                    {accountFilter !== 'all' ? (
+                                        <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 font-medium text-foreground">
+                                            {accountFilter === 'registered' ? 'Registered' : 'Lead'}
+                                        </span>
+                                    ) : null}
+                                    {sourceFilter !== 'all' ? (
+                                        <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 font-medium text-foreground">
+                                            Source: {sourceFilter === 'none' ? 'None' : sourceFilter.toUpperCase()}
+                                        </span>
+                                    ) : null}
+                                    {query.trim() ? (
+                                        <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 font-medium text-foreground">
+                                            “{query.trim()}”
+                                        </span>
+                                    ) : null}
+                                    {nonDefaultFilterCount > 0 ? (
+                                        <button
+                                            type="button"
+                                            onClick={resetFilters}
+                                            className="inline-flex h-7 items-center gap-1 rounded-md px-2 font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                        >
+                                            <RotateCcw className="h-3 w-3" />
+                                            Reset filters
+                                        </button>
+                                    ) : null}
+                                </div>
+                            ) : null}
+                        </div>
 
                         {actionError ? <AdminErrorAlert message={actionError} /> : null}
 

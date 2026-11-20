@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Search } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export const adminPageMainClassName =
@@ -86,15 +86,30 @@ interface AdminSearchInputProps {
 }
 
 export function AdminSearchInput({ value, onChange, placeholder, className }: AdminSearchInputProps) {
+    const hasValue = value.trim().length > 0;
     return (
         <div className={cn('relative', className)}>
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
                 value={value}
                 onChange={(event) => onChange(event.target.value)}
                 placeholder={placeholder}
-                className="h-10 w-full rounded-md border border-gray-200 bg-white py-2 pl-10 pr-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                className={cn(
+                    'h-10 w-full rounded-md border border-border bg-card py-2 pl-10 text-sm text-foreground shadow-[0_1px_3px_rgba(0,0,0,0.06)] placeholder:text-muted-foreground transition-colors',
+                    'focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/30',
+                    hasValue ? 'pr-10' : 'pr-3'
+                )}
             />
+            {hasValue ? (
+                <button
+                    type="button"
+                    aria-label="Clear search"
+                    onClick={() => onChange('')}
+                    className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                    <X className="h-4 w-4" />
+                </button>
+            ) : null}
         </div>
     );
 }
