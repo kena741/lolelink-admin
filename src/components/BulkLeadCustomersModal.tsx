@@ -1,12 +1,20 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
-import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+    Dialog,
+    DialogBody,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import {
     CUSTOMER_LEAD_PASTE_TEMPLATE,
     parseCustomerLeadPaste,
+    type ParsedCustomerLead,
 } from '@/lib/customer-lead-paste';
 
 interface BulkLeadCustomersModalProps {
@@ -15,11 +23,38 @@ interface BulkLeadCustomersModalProps {
     onCreated: (result: { createdCount: number; failedCount: number }) => void;
 }
 
+function PreviewRow({ label, value }: { label: string; value: string | null | undefined }) {
+    const text = value?.trim();
+    if (!text) return null;
+    return (
+        <div className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-2 text-sm leading-snug">
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd className="min-w-0 break-words text-card-foreground">{text}</dd>
+        </div>
+    );
+}
+
+function LeadPreviewCard({ lead }: { lead: ParsedCustomerLead }) {
+    const fullName = [lead.first_name, lead.last_name].filter(Boolean).join(' ');
+    return (
+        <li className="rounded-md border border-border bg-card px-3 py-2.5">
+            <p className="text-sm font-semibold text-card-foreground">{fullName || '—'}</p>
+            <dl className="mt-1.5 space-y-1">
+                <PreviewRow label="Phone" value={lead.phone} />
+                <PreviewRow label="Source" value={lead.signup_source} />
+                <PreviewRow label="Location" value={lead.address} />
+                <PreviewRow label="Note" value={lead.admin_note} />
+            </dl>
+        </li>
+    );
+}
+
 export function BulkLeadCustomersModal({ open, onClose, onCreated }: BulkLeadCustomersModalProps) {
     const [text, setText] = useState(CUSTOMER_LEAD_PASTE_TEMPLATE);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [resultNote, setResultNote] = useState<string | null>(null);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     useEffect(() => {
         if (!open) return;
@@ -27,13 +62,43 @@ export function BulkLeadCustomersModal({ open, onClose, onCreated }: BulkLeadCus
         setError(null);
         setResultNote(null);
         setSaving(false);
+        const id = window.setTimeout(() => {
+            const el = textareaRef.current;
+            if (!el) return;
+            el.focus();
+            el.setSelectionRange(el.value.length, el.value.length);
+        }, 0);
+        return () => window.clearTimeout(id);
     }, [open]);
 
     const parsed = useMemo(() => parseCustomerLeadPaste(text), [text]);
+    const readyCount = parsed.leads.length;
+    const invalidCount = parsed.errors.length;
 
     function close() {
         if (saving) return;
         onClose();
+    }
+
+    function appendBlock() {
+        setText((prev) => {
+            const base = prev.trimEnd();
+            const next = base.length === 0 ? CUSTOMER_LEAD_PASTE_TEMPLATE : `${base}\n\n${CUSTOMER_LEAD_PASTE_TEMPLATE}`;
+            return next;
+        });
+        window.setTimeout(() => {
+            const el = textareaRef.current;
+            if (!el) return;
+            el.focus();
+            el.setSelectionRange(el.value.length, el.value.length);
+        }, 0);
+    }
+
+    function resetTemplate() {
+        setText(CUSTOMER_LEAD_PASTE_TEMPLATE);
+        setError(null);
+        setResultNote(null);
+        window.setTimeout(() => textareaRef.current?.focus(), 0);
     }
 
     async function handleSave() {
@@ -91,94 +156,128 @@ export function BulkLeadCustomersModal({ open, onClose, onCreated }: BulkLeadCus
         }
     }
 
+    const saveLabel =
+        saving
+            ? 'Saving…'
+            : readyCount === 0
+              ? 'Save leads'
+              : `Save ${readyCount} lead${readyCount === 1 ? '' : 's'}`;
+
     return (
-        <Dialog open={open} onClose={close} scrollable className="max-w-3xl">
-            <DialogHeader>
-                <DialogTitle>Add leads</DialogTitle>
-            </DialogHeader>
-            <DialogDescription>
-                Paste one or more lead blocks. Each block becomes a customer row without login/SMS
-                (not registered until they sign up). Separate blocks with a blank line.
-            </DialogDescription>
-
-            <div className="mt-4 min-h-0 space-y-3 overflow-y-auto pr-1">
-                <div className="grid gap-1.5">
-                    <Label htmlFor="bulk-lead-paste">Lead paste</Label>
-                    <textarea
-                        id="bulk-lead-paste"
-                        value={text}
-                        onChange={(event) => setText(event.target.value)}
-                        disabled={saving}
-                        rows={14}
-                        className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 font-mono text-sm text-gray-900 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                        spellCheck={false}
-                    />
+        <Dialog open={open} onClose={close} scrollable className="max-w-4xl p-0">
+            <DialogHeader className="border-b border-border px-5 pb-3 pt-4">
+                <div>
+                    <DialogTitle>Add leads</DialogTitle>
+                    <DialogDescription className="mt-1">
+                        Paste one or more blocks below. Blank line between leads. No login or SMS —
+                        they stay unregistered until signup.
+                    </DialogDescription>
                 </div>
+            </DialogHeader>
 
-                <div className="rounded-md border border-gray-200 bg-gray-50/80 p-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                        Preview · {parsed.leads.length} ready
-                        {parsed.errors.length ? ` · ${parsed.errors.length} invalid` : ''}
-                    </p>
-                    {parsed.leads.length > 0 ? (
-                        <ul className="mt-2 space-y-2 text-sm text-gray-800">
-                            {parsed.leads.map((lead, index) => (
-                                <li
-                                    key={`${lead.phone}-${index}`}
-                                    className="rounded border border-gray-200 bg-white px-3 py-2"
+            <DialogBody className="flex min-h-0 flex-col px-5 py-4">
+                <div className="grid min-h-0 flex-1 gap-4 md:grid-cols-2 md:gap-5">
+                    <div className="flex min-h-0 flex-col gap-2">
+                        <div className="flex items-center justify-between gap-2">
+                            <Label htmlFor="bulk-lead-paste">Paste</Label>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={resetTemplate}
+                                    disabled={saving}
+                                    className="text-xs font-medium text-muted-foreground transition-colors hover:text-card-foreground disabled:opacity-50"
                                 >
-                                    <span className="font-semibold">
-                                        {[lead.first_name, lead.last_name].filter(Boolean).join(' ')}
+                                    Reset
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={appendBlock}
+                                    disabled={saving}
+                                    className="text-xs font-medium text-primary transition-colors hover:text-primary/80 disabled:opacity-50"
+                                >
+                                    + Another block
+                                </button>
+                            </div>
+                        </div>
+                        <textarea
+                            ref={textareaRef}
+                            id="bulk-lead-paste"
+                            value={text}
+                            onChange={(event) => setText(event.target.value)}
+                            disabled={saving}
+                            spellCheck={false}
+                            placeholder={`Full name:\nPhone:\nSource/inquiry channel:\nLocation:\nDescription:`}
+                            className="min-h-[240px] w-full flex-1 resize-y rounded-md border border-border bg-card px-3 py-2.5 font-mono text-[13px] leading-relaxed text-card-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 md:min-h-0"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            Fields: Full name · Phone · Source/inquiry channel · Location · Description
+                        </p>
+                    </div>
+
+                    <div className="flex min-h-0 flex-col gap-2">
+                        <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-medium text-card-foreground">Preview</p>
+                            <p className="text-xs text-muted-foreground">
+                                <span className="font-medium text-emerald-700">{readyCount} ready</span>
+                                {invalidCount > 0 ? (
+                                    <span className="font-medium text-amber-700">
+                                        {' '}
+                                        · {invalidCount} invalid
                                     </span>
-                                    <span className="text-gray-500"> · {lead.phone}</span>
-                                    {lead.signup_source ? (
-                                        <span className="text-gray-500"> · {lead.signup_source}</span>
-                                    ) : null}
-                                    {lead.address ? (
-                                        <span className="text-gray-500"> · {lead.address}</span>
-                                    ) : null}
-                                    {lead.admin_note ? (
-                                        <p className="mt-1 text-xs text-gray-600 whitespace-pre-wrap">
-                                            {lead.admin_note}
-                                        </p>
-                                    ) : null}
-                                </li>
-                            ))}
-                        </ul>
-                    ) : (
-                        <p className="mt-2 text-sm text-gray-600">No valid blocks yet.</p>
-                    )}
-                    {parsed.errors.length > 0 ? (
-                        <ul className="mt-2 space-y-1 text-xs text-amber-800">
-                            {parsed.errors.map((err) => (
-                                <li key={`err-${err.index}`}>
-                                    Block {err.index + 1}: {err.message}
-                                </li>
-                            ))}
-                        </ul>
-                    ) : null}
+                                ) : null}
+                            </p>
+                        </div>
+
+                        <div className="min-h-[200px] flex-1 overflow-y-auto rounded-md border border-border bg-muted/40 p-2.5 md:min-h-0">
+                            {readyCount > 0 ? (
+                                <ul className="space-y-2">
+                                    {parsed.leads.map((lead, index) => (
+                                        <LeadPreviewCard key={`${lead.phone}-${index}`} lead={lead} />
+                                    ))}
+                                </ul>
+                            ) : (
+                                <div className="flex h-full min-h-[160px] items-center justify-center px-4 text-center">
+                                    <p className="text-sm text-muted-foreground">
+                                        Fill at least Full name and Phone. Preview updates as you type.
+                                    </p>
+                                </div>
+                            )}
+
+                            {invalidCount > 0 ? (
+                                <ul className="mt-2 space-y-1 border-t border-border pt-2 text-xs text-amber-800">
+                                    {parsed.errors.map((err) => (
+                                        <li key={`err-${err.index}`}>
+                                            Block {err.index + 1}: {err.message}
+                                        </li>
+                                    ))}
+                                </ul>
+                            ) : null}
+                        </div>
+                    </div>
                 </div>
 
                 {error ? (
-                    <div className="rounded-md bg-red-50 p-3 text-sm text-red-600">{error}</div>
+                    <div className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600" role="alert">
+                        {error}
+                    </div>
                 ) : null}
                 {resultNote ? (
-                    <div className="rounded-md bg-emerald-50 p-3 text-sm text-emerald-900">
+                    <div className="mt-3 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
                         {resultNote}
                     </div>
                 ) : null}
-            </div>
+            </DialogBody>
 
-            <DialogFooter>
+            <DialogFooter className="border-t border-border px-5 py-3">
                 <Button type="button" variant="ghost" onClick={close} disabled={saving}>
                     {resultNote ? 'Close' : 'Cancel'}
                 </Button>
                 <Button
                     type="button"
                     onClick={() => void handleSave()}
-                    disabled={saving || parsed.leads.length === 0}
+                    disabled={saving || readyCount === 0}
                 >
-                    {saving ? 'Saving…' : `Save ${parsed.leads.length || ''} lead${parsed.leads.length === 1 ? '' : 's'}`.trim()}
+                    {saveLabel}
                 </Button>
             </DialogFooter>
         </Dialog>
