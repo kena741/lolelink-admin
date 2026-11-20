@@ -707,7 +707,11 @@ export function BookingDetailModal({
                                 extra={
                                     <MetaRow
                                         label="Assignment"
-                                        value={booking.providerMySelf ? 'Provider (self)' : 'Other handyman'}
+                                        value={
+                                            booking.providerMySelf === false
+                                                ? 'Other handyman'
+                                                : 'Myself'
+                                        }
                                     />
                                 }
                             />

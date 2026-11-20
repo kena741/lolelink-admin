@@ -262,7 +262,7 @@ export async function GET(
                 providerName: providerDisplayName(providerId, providerNameById),
                 handymanId: handymanId || null,
                 handymanName: handymanId ? handymanNameById[handymanId] ?? null : null,
-                providerMySelf: row.providerMySelf !== false && !handymanId,
+                providerMySelf: !handymanId,
                 hiredBefore: meta?.hiredBefore === true,
                 priorCompletedCount: meta?.priorCompletedCount ?? 0,
                 isPastHire: isPastHireDescription(description),
@@ -581,7 +581,7 @@ export async function PATCH(
                 followUp: updated.admin_note ?? '',
                 handymanId: handymanId || null,
                 handymanName: handymanId ? handymanNameById[handymanId] ?? null : null,
-                providerMySelf: updated.providerMySelf !== false && !handymanId,
+                providerMySelf: !handymanId,
             },
         });
     } catch (error: unknown) {

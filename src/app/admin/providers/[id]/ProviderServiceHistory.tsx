@@ -88,9 +88,9 @@ function handymanOptionsForProvider(
 ): SearchSelectOption[] {
     const self: SearchSelectOption = {
         value: '',
-        label: 'Provider (self)',
-        description: 'No individual worker',
-        searchText: 'provider self none',
+        label: 'Myself',
+        description: 'Provider does the job',
+        searchText: 'myself provider self none',
     };
     const workers = handymen
         .filter((h) => h.id && h.providerId === forProviderId)
@@ -585,7 +585,7 @@ export function ProviderServiceHistory({
                                         }
                                     }}
                                     options={composerHandymanOptions}
-                                    placeholder="Provider self or pick worker"
+                                    placeholder="Myself (default) or pick worker"
                                     searchPlaceholder="Search workers…"
                                     emptyMessage="No workers for this provider"
                                     loading={handymenLoading}
@@ -852,7 +852,7 @@ export function ProviderServiceHistory({
                                                     handymen,
                                                     providerId
                                                 )}
-                                                placeholder="Provider (self)"
+                                                placeholder="Myself"
                                                 searchPlaceholder="Search workers…"
                                                 emptyMessage="No workers"
                                                 loading={
@@ -869,9 +869,7 @@ export function ProviderServiceHistory({
                                                 {item.handymanName || 'Handyman'}
                                             </Link>
                                         ) : (
-                                            <span className="text-sm text-gray-500">
-                                                Provider (self)
-                                            </span>
+                                            <span className="text-sm text-gray-500">Myself</span>
                                         )}
                                     </td>
                                     <td className="px-4 py-3 text-sm font-medium text-gray-900">

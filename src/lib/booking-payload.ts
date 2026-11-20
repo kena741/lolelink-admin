@@ -292,6 +292,9 @@ export async function buildBookingPayload(
         paymentCompleted: input.paymentMode === 'mark_paid',
         payment_status: paymentCompleted ? BOOKING_PAYMENT_STATUS.COMPLETED : BOOKING_PAYMENT_STATUS.PENDING,
         paymentType,
+        // ponytail: no handyman_id on create ⇒ myself; assign path flips this
+        providerMySelf: true,
+        handyman_id: null,
         postJobPayment: false,
         extraChargeGst,
         adminCommission,

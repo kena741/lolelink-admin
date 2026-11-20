@@ -76,9 +76,9 @@ function handymanOptionsForProvider(
 ): SearchSelectOption[] {
     const self: SearchSelectOption = {
         value: '',
-        label: 'Provider (self)',
-        description: 'No individual worker',
-        searchText: 'provider self none',
+        label: 'Myself',
+        description: 'Provider does the job',
+        searchText: 'myself provider self none',
     };
     const workers = handymen
         .filter((h) => h.id && h.providerId === forProviderId)
@@ -537,7 +537,7 @@ export function CustomerServiceHistory({ customerId }: CustomerServiceHistoryPro
                                     }}
                                     options={composerHandymanOptions}
                                     placeholder={
-                                        providerId ? 'Provider self or pick worker' : 'Pick a provider first'
+                                        providerId ? 'Myself (default) or pick worker' : 'Pick a provider first'
                                     }
                                     searchPlaceholder="Search workers…"
                                     emptyMessage="No workers for this provider"
@@ -826,7 +826,7 @@ export function CustomerServiceHistory({ customerId }: CustomerServiceHistoryPro
                                                         handymen,
                                                         item.providerId
                                                     )}
-                                                    placeholder="Provider (self)"
+                                                    placeholder="Myself"
                                                     searchPlaceholder="Search workers…"
                                                     emptyMessage="No workers"
                                                     loading={
@@ -843,9 +843,7 @@ export function CustomerServiceHistory({ customerId }: CustomerServiceHistoryPro
                                                     {item.handymanName || 'Handyman'}
                                                 </Link>
                                             ) : (
-                                                <span className="text-sm text-gray-500">
-                                                    Provider (self)
-                                                </span>
+                                                <span className="text-sm text-gray-500">Myself</span>
                                             )}
                                         </td>
                                         <td className="px-4 py-3 text-sm font-medium text-gray-900">
