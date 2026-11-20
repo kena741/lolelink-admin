@@ -504,7 +504,8 @@ export async function PATCH(
         const patch: Record<string, unknown> = {};
         let nextNote: string | null | undefined;
         if (hasNote) {
-            nextNote = body.admin_note === null ? null : body.admin_note.trim() || null;
+            nextNote =
+                typeof body.admin_note === 'string' ? body.admin_note.trim() || null : null;
             patch.admin_note = nextNote;
         }
 
