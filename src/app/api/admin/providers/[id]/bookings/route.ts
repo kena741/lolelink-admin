@@ -31,6 +31,8 @@ interface BookingRow {
     lastName?: string | null;
     description?: string | null;
     admin_note?: string | null;
+    handyman_id?: string | null;
+    providerMySelf?: boolean | null;
 }
 
 interface CreatePastHireBody {
@@ -40,11 +42,60 @@ interface CreatePastHireBody {
     amount?: number | string;
     note?: string;
     admin_note?: string;
+    handyman_id?: string | null;
 }
 
-interface UpdateFollowUpBody {
+interface UpdateBookingBody {
     booking_id?: string;
     admin_note?: string | null;
+    handyman_id?: string | null;
+}
+
+const HANDYMAN_NAME_SELECT = 'id, provider_id, firstName, lastName, phoneNumber';
+
+function readHandymanDisplayName(row: Record<string, unknown>): string {
+    const first = typeof row.firstName === 'string' ? row.firstName.trim() : '';
+    const last = typeof row.lastName === 'string' ? row.lastName.trim() : '';
+    const full = [first, last].filter(Boolean).join(' ').trim();
+    if (full) return full;
+    if (typeof row.phoneNumber === 'string' && row.phoneNumber.trim()) return row.phoneNumber.trim();
+    return '';
+}
+
+async function loadHandymanNames(
+    supabaseAdmin: ReturnType<typeof getSupabaseAdminFromRequest>,
+    handymanIds: string[]
+): Promise<Record<string, string>> {
+    const byId: Record<string, string> = {};
+    if (handymanIds.length === 0) return byId;
+    const { data } = await supabaseAdmin
+        .from('handyman')
+        .select(HANDYMAN_NAME_SELECT)
+        .in('id', handymanIds);
+    for (const row of (data ?? []) as Record<string, unknown>[]) {
+        const id = typeof row.id === 'string' ? row.id : '';
+        if (!id) continue;
+        const label = readHandymanDisplayName(row);
+        if (label) byId[id] = label;
+    }
+    return byId;
+}
+
+async function assertHandymanBelongsToProvider(
+    supabaseAdmin: ReturnType<typeof getSupabaseAdminFromRequest>,
+    handymanId: string,
+    providerId: string
+): Promise<string | null> {
+    const { data, error } = await supabaseAdmin
+        .from('handyman')
+        .select('id, provider_id')
+        .eq('id', handymanId)
+        .maybeSingle();
+    if (error) return error.message;
+    if (!data) return 'Handyman not found';
+    const owner = typeof data.provider_id === 'string' ? data.provider_id.trim() : '';
+    if (owner !== providerId) return 'Handyman does not belong to this provider';
+    return null;
 }
 
 function customerDisplayName(
@@ -91,18 +142,22 @@ export async function GET(
         let bookingsQuery: { data: unknown; error: { message?: string } | null } = await supabaseAdmin
             .from('booked_service')
             .select(
-                'id, serviceName, status, payment_status, paymentCompleted, totalAmount, subTotal, price, createdAt, bookingDate, customer_id, firstName, lastName, description, admin_note'
+                'id, serviceName, status, payment_status, paymentCompleted, totalAmount, subTotal, price, createdAt, bookingDate, customer_id, firstName, lastName, description, admin_note, handyman_id, providerMySelf'
             )
             .eq('provider_id', providerId)
             .or('is_archived.is.null,is_archived.eq.false')
             .order('createdAt', { ascending: false });
 
-        // ponytail: tolerate pre-migration DBs that lack admin_note
-        if (bookingsQuery.error?.message?.includes('admin_note')) {
+        // ponytail: tolerate DBs missing newer columns
+        if (
+            bookingsQuery.error?.message?.includes('admin_note') ||
+            bookingsQuery.error?.message?.includes('handyman_id') ||
+            bookingsQuery.error?.message?.includes('providerMySelf')
+        ) {
             bookingsQuery = await supabaseAdmin
                 .from('booked_service')
                 .select(
-                    'id, serviceName, status, payment_status, paymentCompleted, totalAmount, subTotal, price, createdAt, bookingDate, customer_id, firstName, lastName, description'
+                    'id, serviceName, status, payment_status, paymentCompleted, totalAmount, subTotal, price, createdAt, bookingDate, customer_id, firstName, lastName, description, admin_note'
                 )
                 .eq('provider_id', providerId)
                 .or('is_archived.is.null,is_archived.eq.false')
@@ -120,6 +175,11 @@ export async function GET(
                 rows
                     .map((row) => (row.customer_id ?? '').trim())
                     .filter(Boolean)
+            ),
+        ];
+        const handymanIds = [
+            ...new Set(
+                rows.map((row) => (row.handyman_id ?? '').trim()).filter(Boolean)
             ),
         ];
 
@@ -149,6 +209,7 @@ export async function GET(
                     || customerId;
             }
         }
+        const handymanNameById = await loadHandymanNames(supabaseAdmin, handymanIds);
 
         const annotated = annotateHiredBefore(
             rows.map((row) => ({
@@ -166,6 +227,7 @@ export async function GET(
         const data = rows.map((row) => {
             const meta = annotatedById.get(row.id);
             const customerId = (row.customer_id ?? '').trim();
+            const handymanId = (row.handyman_id ?? '').trim();
             const description = row.description ?? '';
             return {
                 id: row.id,
@@ -181,6 +243,9 @@ export async function GET(
                 bookingDate: row.bookingDate ?? '',
                 customerId,
                 customerName: customerDisplayName(row, customerNameById),
+                handymanId: handymanId || null,
+                handymanName: handymanId ? handymanNameById[handymanId] ?? null : null,
+                providerMySelf: row.providerMySelf !== false && !handymanId,
                 hiredBefore: meta?.hiredBefore === true,
                 priorCompletedCount: meta?.priorCompletedCount ?? 0,
                 isPastHire: isPastHireDescription(description),
@@ -223,6 +288,8 @@ export async function POST(
         const body = (await request.json()) as CreatePastHireBody;
         const customerId = (body.customer_id ?? '').trim();
         const serviceId = (body.service_id ?? '').trim();
+        const handymanId =
+            typeof body.handyman_id === 'string' ? body.handyman_id.trim() : '';
         const note = typeof body.note === 'string' ? body.note : '';
         const followUp =
             typeof body.admin_note === 'string' ? body.admin_note.trim() : note.trim();
@@ -236,6 +303,17 @@ export async function POST(
         }
 
         const supabaseAdmin = getSupabaseAdminFromRequest(request);
+
+        if (handymanId) {
+            const handymanError = await assertHandymanBelongsToProvider(
+                supabaseAdmin,
+                handymanId,
+                providerId
+            );
+            if (handymanError) {
+                return NextResponse.json({ error: handymanError }, { status: 400 });
+            }
+        }
 
         const { row, totalAmountNumber } = await buildBookingPayload(supabaseAdmin, {
             customerId,
@@ -254,6 +332,8 @@ export async function POST(
         row.createdAt = pastAt;
         row.bookingDate = pastAt;
         if (followUp) row.admin_note = followUp;
+        row.handyman_id = handymanId || null;
+        row.providerMySelf = !handymanId;
         delete row.payment_id;
 
         const { data: created, error: insertError } = await supabaseAdmin
@@ -304,6 +384,7 @@ export async function POST(
                 providerId,
                 customerId,
                 serviceId,
+                handymanId: handymanId || null,
                 amount: totalAmountNumber,
                 bookingDate: pastAt,
             },
@@ -321,7 +402,7 @@ export async function POST(
     }
 }
 
-/** Update follow-up note on a booking in this provider's history. */
+/** Update follow-up note and/or handyman on a booking in this provider's history. */
 export async function PATCH(
     request: Request,
     context: { params: Promise<{ id: string }> }
@@ -338,32 +419,38 @@ export async function PATCH(
     }
 
     try {
-        const body = (await request.json()) as UpdateFollowUpBody;
+        const body = (await request.json()) as UpdateBookingBody;
         const bookingId = (body.booking_id ?? '').trim();
         if (!bookingId) {
             return NextResponse.json({ error: 'booking_id is required' }, { status: 400 });
         }
-        if (typeof body.admin_note !== 'string' && body.admin_note !== null) {
-            return NextResponse.json({ error: 'admin_note is required' }, { status: 400 });
-        }
 
-        const nextNote =
-            body.admin_note === null ? null : body.admin_note.trim() || null;
+        const hasNote = typeof body.admin_note === 'string' || body.admin_note === null;
+        const hasHandyman = Object.prototype.hasOwnProperty.call(body, 'handyman_id');
+        if (!hasNote && !hasHandyman) {
+            return NextResponse.json(
+                { error: 'admin_note or handyman_id is required' },
+                { status: 400 }
+            );
+        }
 
         const supabaseAdmin = getSupabaseAdminFromRequest(request);
         const { data: existing, error: existingError } = await supabaseAdmin
             .from('booked_service')
-            .select('id, provider_id, admin_note')
+            .select('id, provider_id, admin_note, handyman_id, providerMySelf')
             .eq('id', bookingId)
             .eq('provider_id', providerId)
             .maybeSingle();
 
         if (existingError) {
-            const missingColumn = existingError.message.includes('admin_note');
+            const missingColumn =
+                existingError.message.includes('admin_note') ||
+                existingError.message.includes('handyman_id') ||
+                existingError.message.includes('providerMySelf');
             return NextResponse.json(
                 {
                     error: missingColumn
-                        ? 'Follow-up notes need DB migration: run scripts/sql/add-booked-service-admin-note.sql'
+                        ? 'Booking update needs DB columns admin_note / handyman_id / providerMySelf'
                         : existingError.message,
                 },
                 { status: missingColumn ? 503 : 500 }
@@ -373,43 +460,88 @@ export async function PATCH(
             return NextResponse.json({ error: 'Booking not found for this provider' }, { status: 404 });
         }
 
+        const patch: Record<string, unknown> = {};
+        let nextNote: string | null | undefined;
+        if (hasNote) {
+            nextNote = body.admin_note === null ? null : body.admin_note.trim() || null;
+            patch.admin_note = nextNote;
+        }
+
+        let nextHandymanId: string | null | undefined;
+        if (hasHandyman) {
+            nextHandymanId =
+                body.handyman_id === null || body.handyman_id === undefined
+                    ? null
+                    : String(body.handyman_id).trim() || null;
+            if (nextHandymanId) {
+                const handymanError = await assertHandymanBelongsToProvider(
+                    supabaseAdmin,
+                    nextHandymanId,
+                    providerId
+                );
+                if (handymanError) {
+                    return NextResponse.json({ error: handymanError }, { status: 400 });
+                }
+            }
+            patch.handyman_id = nextHandymanId;
+            patch.providerMySelf = !nextHandymanId;
+        }
+
         const { data: updated, error: updateError } = await supabaseAdmin
             .from('booked_service')
-            .update({ admin_note: nextNote })
+            .update(patch)
             .eq('id', bookingId)
             .eq('provider_id', providerId)
-            .select('id, admin_note')
+            .select('id, admin_note, handyman_id, providerMySelf')
             .single();
 
         if (updateError) {
-            const missingColumn = updateError.message.includes('admin_note');
+            const missingColumn =
+                updateError.message.includes('admin_note') ||
+                updateError.message.includes('handyman_id') ||
+                updateError.message.includes('providerMySelf');
             return NextResponse.json(
                 {
                     error: missingColumn
-                        ? 'Follow-up notes need DB migration: run scripts/sql/add-booked-service-admin-note.sql'
+                        ? 'Booking update needs DB columns admin_note / handyman_id / providerMySelf'
                         : updateError.message,
                 },
                 { status: missingColumn ? 503 : 500 }
             );
         }
 
+        const handymanNameById = await loadHandymanNames(
+            supabaseAdmin,
+            updated.handyman_id ? [String(updated.handyman_id)] : []
+        );
+
         await logAdminActivity({
             request,
-            action: 'provider.hire_history.follow_up',
+            action: 'provider.hire_history.update',
             resource_type: 'booked_service',
             resource_id: bookingId,
-            summary: `Updated hire follow-up for provider ${providerId}`,
-            metadata: { providerId, bookingId, admin_note: nextNote },
+            summary: `Updated hire history for provider ${providerId}`,
+            metadata: {
+                providerId,
+                bookingId,
+                admin_note: nextNote,
+                handyman_id: nextHandymanId,
+            },
         });
 
+        const handymanId =
+            typeof updated.handyman_id === 'string' ? updated.handyman_id.trim() : '';
         return NextResponse.json({
             data: {
                 id: updated.id,
                 followUp: updated.admin_note ?? '',
+                handymanId: handymanId || null,
+                handymanName: handymanId ? handymanNameById[handymanId] ?? null : null,
+                providerMySelf: updated.providerMySelf !== false && !handymanId,
             },
         });
     } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : 'Failed to update follow-up';
+        const message = error instanceof Error ? error.message : 'Failed to update booking';
         return NextResponse.json({ error: message }, { status: 500 });
     }
 }

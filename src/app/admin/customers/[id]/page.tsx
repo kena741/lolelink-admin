@@ -12,6 +12,7 @@ import {
     ClipboardList,
     Coins,
     ExternalLink,
+    History,
     KeyRound,
     Loader2,
     Pencil,
@@ -39,6 +40,7 @@ import {
     restoreCustomer,
 } from '@/features/customer/customerSlice';
 import { CustomerWalletHistory } from './CustomerWalletHistory';
+import { CustomerServiceHistory } from './CustomerServiceHistory';
 import { AdminNoteField } from '@/components/AdminNoteField';
 import { RegisterCustomerAuthModal } from '@/components/RegisterCustomerAuthModal';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
@@ -89,18 +91,6 @@ interface CustomerStats {
     lastBookingAt: string | null;
 }
 
-interface CustomerBookingRow {
-    id: string;
-    serviceName: string;
-    status: string;
-    paymentStatus: string;
-    paymentCompleted: boolean;
-    amount: string;
-    createdAt: string;
-    providerId: string;
-    providerName: string;
-}
-
 interface CustomerJobRequestRow {
     id: string;
     createdAt: string;
@@ -114,7 +104,7 @@ interface CustomerJobRequestRow {
     bidCount: number;
 }
 
-type CustomerTab = 'bookings' | 'wallet' | 'job_requests' | 'profile' | 'notifications';
+type CustomerTab = 'history' | 'wallet' | 'job_requests' | 'profile' | 'notifications';
 
 function formatCurrency(value: number): string {
     return `ETB ${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -146,12 +136,11 @@ export default function CustomerDetailPage() {
 
     const [customer, setCustomer] = useState<CustomerDetail | null>(null);
     const [stats, setStats] = useState<CustomerStats | null>(null);
-    const [bookings, setBookings] = useState<CustomerBookingRow[]>([]);
     const [jobRequests, setJobRequests] = useState<CustomerJobRequestRow[]>([]);
     const [loading, setLoading] = useState(true);
     const [tabLoading, setTabLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<CustomerTab>('bookings');
+    const [activeTab, setActiveTab] = useState<CustomerTab>('history');
     const [actionBusy, setActionBusy] = useState(false);
     const [actionError, setActionError] = useState<string | null>(null);
     const [confirmConvert, setConfirmConvert] = useState(false);
@@ -201,21 +190,6 @@ export default function CustomerDetailPage() {
         }
     }, [customerId]);
 
-    const loadBookings = useCallback(async () => {
-        if (!customerId) return;
-        setTabLoading(true);
-        try {
-            const response = await fetch(`/api/admin/customers/${customerId}/bookings`);
-            const payload = (await response.json()) as { data?: CustomerBookingRow[]; error?: string };
-            if (!response.ok) throw new Error(payload.error || 'Failed to load bookings');
-            setBookings(payload.data ?? []);
-        } catch {
-            setBookings([]);
-        } finally {
-            setTabLoading(false);
-        }
-    }, [customerId]);
-
     const loadJobRequests = useCallback(async () => {
         if (!customerId) return;
         setTabLoading(true);
@@ -237,9 +211,8 @@ export default function CustomerDetailPage() {
 
     useEffect(() => {
         if (!customerId) return;
-        if (activeTab === 'bookings') void loadBookings();
         if (activeTab === 'job_requests') void loadJobRequests();
-    }, [activeTab, customerId, loadBookings, loadJobRequests]);
+    }, [activeTab, customerId, loadJobRequests]);
 
     const displayName = getCustomerDisplayName(customer);
     const phone = getCustomerPhone(customer as Record<string, unknown> | null);
@@ -617,7 +590,7 @@ export default function CustomerDetailPage() {
 
                             <div className="mb-6 flex items-center gap-2 rounded-lg border border-gray-200 bg-white p-1 shadow">
                                 {([
-                                    ['bookings', 'Bookings', Briefcase],
+                                    ['history', 'History', History],
                                     ...(canFinanceRead ? [['wallet', 'Wallet', Wallet] as const] : []),
                                     ['job_requests', 'Job requests', ClipboardList],
                                     ['profile', 'Profile', UserRound],
@@ -639,68 +612,7 @@ export default function CustomerDetailPage() {
                                 ))}
                             </div>
 
-                            {activeTab === 'bookings' ? (
-                                <section className="rounded-lg border border-gray-200 bg-white shadow-sm">
-                                    {tabLoading ? (
-                                        <div className="flex items-center gap-3 px-4 py-8 text-gray-600">
-                                            <Loader2 className="h-5 w-5 animate-spin" />
-                                            Loading bookings…
-                                        </div>
-                                    ) : bookings.length === 0 ? (
-                                        <div className="px-6 py-8 text-center text-gray-500">No bookings for this customer.</div>
-                                    ) : (
-                                        <div className="overflow-x-auto">
-                                            <table className="w-full border-collapse text-left">
-                                                <thead className="border-b border-gray-200 bg-gray-50">
-                                                    <tr>
-                                                        <th className="px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-500">Date</th>
-                                                        <th className="px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-500">Service</th>
-                                                        <th className="px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-500">Provider</th>
-                                                        <th className="px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-500">Amount</th>
-                                                        <th className="px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-500">Booking</th>
-                                                        <th className="px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-500">Payment</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-gray-100">
-                                                    {bookings.map((booking) => (
-                                                        <tr key={booking.id} className="hover:bg-gray-50/80">
-                                                            <td className="whitespace-nowrap px-4 py-3 text-xs text-gray-600">
-                                                                {formatAdminDateTimeUtc(booking.createdAt)}
-                                                            </td>
-                                                            <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                                                                {booking.serviceName || '—'}
-                                                            </td>
-                                                            <td className="px-4 py-3 text-sm text-gray-700">
-                                                                {booking.providerId ? (
-                                                                    <Link
-                                                                        href={`/admin/providers/${booking.providerId}`}
-                                                                        className="text-indigo-600 hover:text-indigo-800"
-                                                                    >
-                                                                        {booking.providerName || 'Provider'}
-                                                                    </Link>
-                                                                ) : (
-                                                                    '—'
-                                                                )}
-                                                            </td>
-                                                            <td className="px-4 py-3 text-sm font-semibold text-gray-900">
-                                                                {formatBookingAmount(booking.amount)}
-                                                            </td>
-                                                            <td className="px-4 py-3">
-                                                                <AdminStatusBadge tone="neutral">{booking.status || '—'}</AdminStatusBadge>
-                                                            </td>
-                                                            <td className="px-4 py-3">
-                                                                <AdminStatusBadge tone={booking.paymentCompleted ? 'success' : 'warning'}>
-                                                                    {booking.paymentStatus || (booking.paymentCompleted ? 'paid' : 'pending')}
-                                                                </AdminStatusBadge>
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    )}
-                                </section>
-                            ) : null}
+                            {activeTab === 'history' ? <CustomerServiceHistory customerId={customerId} /> : null}
 
                             {activeTab === 'wallet' && canFinanceRead ? (
                                 <CustomerWalletHistory

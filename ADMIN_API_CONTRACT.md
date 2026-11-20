@@ -818,17 +818,17 @@
 - **Expected Response**: `{ data: provider }`
 - **Side Effects**: Migrates identity; deletes customer after cleanup; activity log; rollback provider on failure
 
-### Admin Operation: `Customers - List bookings`
+### Admin Operation: `Customers - Service history (synced with provider)`
 - **Call Type**: `REST HTTP`
-- **Target Route / Resource**: `GET /api/admin/customers/[id]/bookings`
-- **Required Admin Permission**: `customers:read`
-- **Source Code Location**: `src/app/api/admin/customers/[id]/bookings/route.ts:24-102`
-- **UI Screen / Component**: `/admin/customers/[id]`
-- **HTTP Method / SQL Action**: `SELECT` bookings + provider enrich
-- **Request Parameters / Payload**: path `id`
-- **Filters & Clauses Applied**: `customer_id`; not archived; ORDER `createdAt` DESC
-- **Expected Response**: `{ data: Array<{ id, serviceName, status, paymentStatus, paymentCompleted, amount, createdAt, providerId, providerName }> }`
-- **Side Effects**: None
+- **Target Route / Resource**: `GET|POST|PATCH /api/admin/customers/[id]/bookings` → `booked_service`
+- **Required Admin Permission**: read `customers:read`; write `bookings:write`
+- **Source Code Location**: `src/app/api/admin/customers/[id]/bookings/route.ts`; UI `CustomerServiceHistory.tsx`
+- **UI Screen / Component**: `/admin/customers/[id]` → **History** tab
+- **HTTP Method / SQL Action**: `SELECT` by `customer_id` (+ `admin_note`/`description`); `POST` past hire (same payload builder as provider); `PATCH` `admin_note` follow-up
+- **Request Parameters / Payload**: GET path `id`; POST `{ provider_id; service_id; bookingDate; amount?; note? }`; PATCH `{ booking_id; admin_note }`
+- **Filters & Clauses Applied**: not archived; hired-before annotated by provider peer; past hire uses `[Past hire]` description prefix
+- **Expected Response**: GET `{ data; stats; repeatProviders }`; POST `{ data: { id; amount } }`; PATCH `{ data: { id; followUp } }`
+- **Side Effects**: Same `booked_service` rows + `admin_note` as provider History — edits visible on both sides; activity log `customer.past_hire.create` / `customer.hire_history.follow_up`
 
 ### Admin Operation: `Customers - List job requests (per customer)`
 - **Call Type**: `REST HTTP`

@@ -43,6 +43,11 @@ import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { fetchAllCustomers, type Customer } from '@/features/customer/customerSlice';
 import { fetchProviderServices } from '@/features/provider/providerSlice';
+import {
+    createHandyman,
+    fetchHandymen,
+    type Handyman,
+} from '@/features/handyman/handymanSlice';
 import { cn } from '@/lib/utils';
 
 interface ProviderBookingRow {
@@ -59,11 +64,46 @@ interface ProviderBookingRow {
     bookingDate: string;
     customerId: string;
     customerName: string;
+    handymanId?: string | null;
+    handymanName?: string | null;
+    providerMySelf?: boolean;
     hiredBefore: boolean;
     priorCompletedCount: number;
     isPastHire?: boolean;
     note?: string;
     followUp?: string;
+}
+
+function handymanLabel(handyman: Handyman): string {
+    return (
+        [handyman.firstName, handyman.lastName].filter(Boolean).join(' ').trim() ||
+        handyman.phoneNumber?.trim() ||
+        'Handyman'
+    );
+}
+
+function handymanOptionsForProvider(
+    handymen: Handyman[],
+    forProviderId: string
+): SearchSelectOption[] {
+    const self: SearchSelectOption = {
+        value: '',
+        label: 'Provider (self)',
+        description: 'No individual worker',
+        searchText: 'provider self none',
+    };
+    const workers = handymen
+        .filter((h) => h.id && h.providerId === forProviderId)
+        .map((h) => {
+            const label = handymanLabel(h);
+            return {
+                value: h.id,
+                label,
+                description: h.phoneNumber || undefined,
+                searchText: [label, h.phoneNumber, h.id].filter(Boolean).join(' '),
+            };
+        });
+    return [self, ...workers];
 }
 
 interface RepeatCustomerRow extends ServiceHistoryRepeatCustomer {
@@ -108,6 +148,7 @@ export function ProviderServiceHistory({
     const formId = useId();
     const { customers, loading: customersLoading } = useAppSelector((state) => state.customer);
     const { services, servicesLoading } = useAppSelector((state) => state.provider);
+    const { handymen, loading: handymenLoading } = useAppSelector((state) => state.handyman);
 
     const [items, setItems] = useState<ProviderBookingRow[]>([]);
     const [stats, setStats] = useState<ServiceHistoryStats | null>(null);
@@ -118,12 +159,16 @@ export function ProviderServiceHistory({
     const [composerOpen, setComposerOpen] = useState(false);
     const [customerId, setCustomerId] = useState('');
     const [serviceId, setServiceId] = useState('');
+    const [handymanId, setHandymanId] = useState('');
+    const [newWorkerName, setNewWorkerName] = useState('');
+    const [newWorkerPhone, setNewWorkerPhone] = useState('');
     const [bookingDate, setBookingDate] = useState(todayInputValue);
     const [amount, setAmount] = useState('');
     const [note, setNote] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [formError, setFormError] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
+    const [assigningBookingId, setAssigningBookingId] = useState<string | null>(null);
 
     const loadHistory = useCallback(async () => {
         setLoading(true);
@@ -155,6 +200,10 @@ export function ProviderServiceHistory({
     useEffect(() => {
         void loadHistory();
     }, [loadHistory]);
+
+    useEffect(() => {
+        void dispatch(fetchHandymen());
+    }, [dispatch]);
 
     useEffect(() => {
         if (!composerOpen) return;
@@ -215,7 +264,12 @@ export function ProviderServiceHistory({
             });
     }, [services, providerId]);
 
-    const optionsLoading = customersLoading || servicesLoading;
+    const optionsLoading = customersLoading || servicesLoading || handymenLoading;
+
+    const composerHandymanOptions = useMemo(
+        () => handymanOptionsForProvider(handymen, providerId),
+        [handymen, providerId]
+    );
 
     useEffect(() => {
         if (!serviceId) return;
@@ -243,10 +297,71 @@ export function ProviderServiceHistory({
     function resetComposer() {
         setCustomerId('');
         setServiceId('');
+        setHandymanId('');
+        setNewWorkerName('');
+        setNewWorkerPhone('');
         setBookingDate(todayInputValue());
         setAmount('');
         setNote('');
         setFormError(null);
+    }
+
+    async function resolveHandymanIdForSubmit(): Promise<string | null> {
+        if (handymanId) return handymanId;
+        const name = newWorkerName.trim();
+        const phone = newWorkerPhone.trim();
+        if (!name && !phone) return null;
+        if (!name || !phone) {
+            throw new Error('New worker needs both name and phone');
+        }
+        const created = await dispatch(
+            createHandyman({
+                firstName: name,
+                phoneNumber: phone,
+                providerId,
+                active: true,
+                isActive: true,
+            })
+        ).unwrap();
+        await dispatch(fetchHandymen());
+        return created.id;
+    }
+
+    async function assignHandyman(bookingId: string, nextHandymanId: string) {
+        setAssigningBookingId(bookingId);
+        try {
+            const response = await fetch(`/api/admin/providers/${providerId}/bookings`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    booking_id: bookingId,
+                    handyman_id: nextHandymanId || null,
+                }),
+            });
+            const payload = (await response.json()) as {
+                error?: string;
+                data?: {
+                    handymanId?: string | null;
+                    handymanName?: string | null;
+                    providerMySelf?: boolean;
+                };
+            };
+            if (!response.ok) throw new Error(payload.error || 'Failed to assign handyman');
+            setItems((prev) =>
+                prev.map((row) =>
+                    row.id === bookingId
+                        ? {
+                              ...row,
+                              handymanId: payload.data?.handymanId ?? null,
+                              handymanName: payload.data?.handymanName ?? null,
+                              providerMySelf: payload.data?.providerMySelf ?? !nextHandymanId,
+                          }
+                        : row
+                )
+            );
+        } finally {
+            setAssigningBookingId(null);
+        }
     }
 
     function openComposer() {
@@ -268,6 +383,7 @@ export function ProviderServiceHistory({
         setFormError(null);
         setSuccessMessage(null);
         try {
+            const resolvedHandymanId = await resolveHandymanIdForSubmit();
             const response = await fetch(`/api/admin/providers/${providerId}/bookings`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -278,6 +394,7 @@ export function ProviderServiceHistory({
                     amount: amount.trim() || undefined,
                     note: note.trim() || undefined,
                     admin_note: note.trim() || undefined,
+                    handyman_id: resolvedHandymanId,
                 }),
             });
             const payload = (await response.json()) as { error?: string; data?: { id: string } };
@@ -455,6 +572,54 @@ export function ProviderServiceHistory({
                                     className="mt-1.5 bg-white"
                                 />
                             </div>
+                            <div className="sm:col-span-2">
+                                <SearchSelect
+                                    id={`${formId}-handyman`}
+                                    label="Handyman (optional)"
+                                    value={handymanId}
+                                    onChange={(value) => {
+                                        setHandymanId(value);
+                                        if (value) {
+                                            setNewWorkerName('');
+                                            setNewWorkerPhone('');
+                                        }
+                                    }}
+                                    options={composerHandymanOptions}
+                                    placeholder="Provider self or pick worker"
+                                    searchPlaceholder="Search workers…"
+                                    emptyMessage="No workers for this provider"
+                                    loading={handymenLoading}
+                                    loadingMessage="Loading workers…"
+                                />
+                            </div>
+                            {!handymanId ? (
+                                <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2">
+                                    <div>
+                                        <Label htmlFor={`${formId}-new-worker-name`}>
+                                            Or add new worker name
+                                        </Label>
+                                        <Input
+                                            id={`${formId}-new-worker-name`}
+                                            value={newWorkerName}
+                                            onChange={(event) => setNewWorkerName(event.target.value)}
+                                            placeholder="First name"
+                                            className="mt-1.5 bg-white"
+                                        />
+                                    </div>
+                                    <div>
+                                        <Label htmlFor={`${formId}-new-worker-phone`}>
+                                            New worker phone
+                                        </Label>
+                                        <Input
+                                            id={`${formId}-new-worker-phone`}
+                                            value={newWorkerPhone}
+                                            onChange={(event) => setNewWorkerPhone(event.target.value)}
+                                            placeholder="09…"
+                                            className="mt-1.5 bg-white"
+                                        />
+                                    </div>
+                                </div>
+                            ) : null}
                             <div className="sm:col-span-2">
                                 <Label htmlFor={`${formId}-note`}>Note (optional)</Label>
                                 <textarea
@@ -636,6 +801,7 @@ export function ProviderServiceHistory({
                             <tr>
                                 <th className="px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-500">Date</th>
                                 <th className="px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-500">Customer</th>
+                                <th className="px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-500">Handyman</th>
                                 <th className="px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-500">Service</th>
                                 <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-gray-500">Amount</th>
                                 <th className="px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-500">Booking</th>
@@ -663,6 +829,49 @@ export function ProviderServiceHistory({
                                             </Link>
                                         ) : (
                                             item.customerName || '—'
+                                        )}
+                                    </td>
+                                    <td className="min-w-[180px] px-4 py-3">
+                                        {canWriteBookings ? (
+                                            <SearchSelect
+                                                id={`${formId}-assign-${item.id}`}
+                                                label="Worker"
+                                                value={item.handymanId || ''}
+                                                onChange={(value) => {
+                                                    void assignHandyman(item.id, value).catch(
+                                                        (assignError: unknown) => {
+                                                            setError(
+                                                                assignError instanceof Error
+                                                                    ? assignError.message
+                                                                    : 'Failed to assign handyman'
+                                                            );
+                                                        }
+                                                    );
+                                                }}
+                                                options={handymanOptionsForProvider(
+                                                    handymen,
+                                                    providerId
+                                                )}
+                                                placeholder="Provider (self)"
+                                                searchPlaceholder="Search workers…"
+                                                emptyMessage="No workers"
+                                                loading={
+                                                    handymenLoading ||
+                                                    assigningBookingId === item.id
+                                                }
+                                                disabled={assigningBookingId === item.id}
+                                            />
+                                        ) : item.handymanId ? (
+                                            <Link
+                                                href="/admin/handyman"
+                                                className="text-sm font-medium text-indigo-600 hover:text-indigo-800"
+                                            >
+                                                {item.handymanName || 'Handyman'}
+                                            </Link>
+                                        ) : (
+                                            <span className="text-sm text-gray-500">
+                                                Provider (self)
+                                            </span>
                                         )}
                                     </td>
                                     <td className="px-4 py-3 text-sm font-medium text-gray-900">
