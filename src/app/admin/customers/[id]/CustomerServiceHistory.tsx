@@ -39,6 +39,7 @@ import {
     providerDisplayName,
     providerIdFromWorkerValue,
 } from '@/lib/booking-worker-options';
+import { isRecurringPricingType } from '@/lib/recurring-payments';
 import { cn } from '@/lib/utils';
 
 interface CustomerBookingRow {
@@ -227,6 +228,8 @@ export function CustomerServiceHistory({ customerId }: CustomerServiceHistoryPro
 
     const selectedProvider = providerOptions.find((o) => o.value === providerId);
     const selectedService = serviceOptions.find((o) => o.value === serviceId);
+    const selectedServiceRow = services.find((s) => s.id === serviceId);
+    const selectedServiceIsRecurring = isRecurringPricingType(selectedServiceRow?.pricing_type);
     const optionsLoading = providersLoading || servicesLoading || handymenLoading;
     const canSubmit =
         canWriteBookings &&
@@ -380,11 +383,16 @@ export function CustomerServiceHistory({ customerId }: CustomerServiceHistoryPro
                     handyman_id: resolvedHandymanId,
                 }),
             });
-            const payload = (await response.json()) as { error?: string };
+            const payload = (await response.json()) as {
+                error?: string;
+                data?: { recurring?: boolean };
+            };
             if (!response.ok) throw new Error(payload.error || 'Failed to log past hire');
 
             setSuccessMessage(
-                `Logged past hire · ${selectedProvider?.label || 'Provider'} · ${selectedService?.label || 'service'}`
+                payload.data?.recurring
+                    ? `Logged recurring past hire · this period paid · ${selectedProvider?.label || 'Provider'} · ${selectedService?.label || 'service'}`
+                    : `Logged past hire · ${selectedProvider?.label || 'Provider'} · ${selectedService?.label || 'service'}`
             );
             closeComposer();
             await loadHistory();
@@ -560,8 +568,11 @@ export function CustomerServiceHistory({ customerId }: CustomerServiceHistoryPro
                                     }
                                     searchPlaceholder="Search providers…"
                                     emptyMessage="No matches"
-                                    loading={Boolean(providerId) && handymenLoading}
-                                    loadingMessage="Loading workers…"
+                                    loading={
+                                        Boolean(providerId) &&
+                                        (handymenLoading || providersLoading)
+                                    }
+                                    loadingMessage="Loading providers…"
                                     disabled={!providerId}
                                 />
                             </div>
@@ -609,7 +620,18 @@ export function CustomerServiceHistory({ customerId }: CustomerServiceHistoryPro
 
                         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-indigo-100 pt-4">
                             <p className="text-xs text-gray-600">
-                                Saves as <span className="font-semibold text-gray-800">completed</span>
+                                {selectedServiceIsRecurring ? (
+                                    <>
+                                        Recurring · saves as{' '}
+                                        <span className="font-semibold text-gray-800">this period paid</span>
+                                        {' '}(job stays active)
+                                    </>
+                                ) : (
+                                    <>
+                                        Saves as{' '}
+                                        <span className="font-semibold text-gray-800">completed</span>
+                                    </>
+                                )}
                                 {selectedProvider && selectedService
                                     ? ` · ${selectedProvider.label} → ${selectedService.label}`
                                     : null}
@@ -853,8 +875,10 @@ export function CustomerServiceHistory({ customerId }: CustomerServiceHistoryPro
                                                     emptyMessage="No matches"
                                                     loading={
                                                         handymenLoading ||
+                                                        providersLoading ||
                                                         assigningBookingId === item.id
                                                     }
+                                                    loadingMessage="Loading providers…"
                                                     disabled={assigningBookingId === item.id}
                                                 />
                                             ) : item.handymanId ? (

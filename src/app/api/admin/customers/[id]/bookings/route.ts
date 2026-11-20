@@ -11,6 +11,7 @@ import {
     isPastHireDescription,
     summarizeServiceHistory,
 } from '@/lib/provider-service-history';
+import { applyPastHireStatusFields } from '@/lib/recurring-payments';
 import { getSupabaseAdminFromRequest } from '@/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
@@ -364,12 +365,8 @@ export async function POST(
             unitPrice: body.amount,
         });
 
-        row.status = 'completed';
-        row.paymentCompleted = true;
         row.payment_status = BOOKING_PAYMENT_STATUS.COMPLETED;
-        row.paymentType = 'admin';
-        row.createdAt = pastAt;
-        row.bookingDate = pastAt;
+        const { recurring } = applyPastHireStatusFields(row, pastAt);
         if (followUp) row.admin_note = followUp;
         // ponytail: optional worker on agency past-hire; null = provider self
         row.handyman_id = handymanId || null;
@@ -427,6 +424,7 @@ export async function POST(
                 handymanId: handymanId || null,
                 amount: totalAmountNumber,
                 bookingDate: pastAt,
+                recurring,
             },
         });
 
@@ -434,6 +432,7 @@ export async function POST(
             data: {
                 id: bookingId,
                 amount: totalAmountNumber,
+                recurring,
             },
         });
     } catch (error: unknown) {

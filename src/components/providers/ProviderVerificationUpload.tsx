@@ -18,11 +18,6 @@ interface ProviderVerificationUploadProps {
     onPreview?: (url: string) => void;
 }
 
-function isSignupIdentityDocument(name: string): boolean {
-    const lower = name.toLowerCase();
-    return lower.includes('national') && lower.includes('id');
-}
-
 function documentSortRank(name: string): number {
     const lower = name.toLowerCase();
     if (lower.includes('front')) return 0;
@@ -50,10 +45,8 @@ export function ProviderVerificationUpload({
         if (catalog.length === 0) void dispatch(fetchDocuments());
     }, [catalog.length, dispatch]);
 
-    const identityDocs = useMemo(() => {
-        const active = catalog.filter((doc) => doc.active !== false && doc.id && doc.name);
-        const identity = active.filter((doc) => isSignupIdentityDocument(doc.name || ''));
-        const list = (identity.length > 0 ? identity : active).slice();
+    const documentOptions = useMemo(() => {
+        const list = catalog.filter((doc) => doc.active !== false && doc.id && doc.name).slice();
         list.sort((a, b) => {
             const rank = documentSortRank(a.name || '') - documentSortRank(b.name || '');
             return rank !== 0 ? rank : (a.name || '').localeCompare(b.name || '');
@@ -62,8 +55,8 @@ export function ProviderVerificationUpload({
     }, [catalog]);
 
     useEffect(() => {
-        if (!documentId && identityDocs[0]?.id) setDocumentId(identityDocs[0].id);
-    }, [documentId, identityDocs]);
+        if (!documentId && documentOptions[0]?.id) setDocumentId(documentOptions[0].id);
+    }, [documentId, documentOptions]);
 
     const providerDocuments = useMemo(
         () => verifyDocs.filter((doc) => doc.providerId === providerId),
@@ -120,7 +113,7 @@ export function ProviderVerificationUpload({
                 <div>
                     <h2 className="text-2xl font-semibold text-text-primary">Verification uploads</h2>
                     <p className="mt-1 text-sm text-text-secondary">
-                        Upload identity docs the same way as the provider app (pending until approved).
+                        Upload verification docs the same way as the provider app (pending until approved).
                     </p>
                 </div>
             </div>
@@ -134,13 +127,13 @@ export function ProviderVerificationUpload({
                                 id="verify-doc-type"
                                 value={documentId}
                                 onChange={(e) => setDocumentId(e.target.value)}
-                                disabled={uploading || catalogLoading || identityDocs.length === 0}
+                                disabled={uploading || catalogLoading || documentOptions.length === 0}
                                 className="h-10 rounded-md border border-border bg-background px-3 text-sm"
                             >
-                                {identityDocs.length === 0 ? (
+                                {documentOptions.length === 0 ? (
                                     <option value="">No documents configured</option>
                                 ) : (
-                                    identityDocs.map((doc) => (
+                                    documentOptions.map((doc) => (
                                         <option key={doc.id} value={doc.id}>
                                             {doc.name}
                                         </option>

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, ChevronDown, Search, X } from 'lucide-react';
+import { Check, ChevronDown, Loader2, Search, X } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 
@@ -90,7 +90,7 @@ export function SearchSelect({
         });
     }, [options, query, value]);
 
-    const isDisabled = disabled || loading;
+    const isDisabled = disabled;
 
     useLayoutEffect(() => {
         if (!open) {
@@ -168,6 +168,7 @@ export function SearchSelect({
     }, [activeIndex, open]);
 
     function handleSelect(nextValue: string) {
+        if (loading) return;
         onChange(nextValue);
         setOpen(false);
     }
@@ -208,6 +209,7 @@ export function SearchSelect({
         }
         if (event.key === 'Enter') {
             event.preventDefault();
+            if (loading) return;
             const option = filteredOptions[activeIndex];
             if (option) handleSelect(option.value);
         }
@@ -248,11 +250,17 @@ export function SearchSelect({
 
                       <ul
                           role="listbox"
+                          aria-busy={loading}
                           aria-label={label || 'Options'}
                           className="overflow-y-auto overscroll-contain py-1"
                           style={{ maxHeight: LIST_MAX_HEIGHT }}
                       >
-                          {filteredOptions.length === 0 ? (
+                          {loading ? (
+                              <li className="flex min-h-[120px] flex-col items-center justify-center gap-2 px-4 text-sm text-gray-500">
+                                  <Loader2 className="h-5 w-5 animate-spin text-indigo-600" />
+                                  <span>{loadingMessage}</span>
+                              </li>
+                          ) : filteredOptions.length === 0 ? (
                               <li className="flex min-h-[120px] items-center justify-center px-4 text-center text-sm text-gray-500">
                                   {emptyMessage}
                               </li>
@@ -303,9 +311,11 @@ export function SearchSelect({
 
                       <div className="flex shrink-0 items-center justify-between gap-2 border-t border-gray-100 bg-gray-50/80 px-3 py-1.5 text-[11px] text-gray-500">
                           <span>
-                              {!query.trim() && options.some((o) => o.showWhenEmpty === false)
-                                  ? `${filteredOptions.length} showing · type to search providers`
-                                  : `${filteredOptions.length} of ${options.length}`}
+                              {loading
+                                  ? 'Loading…'
+                                  : !query.trim() && options.some((o) => o.showWhenEmpty === false)
+                                    ? `${filteredOptions.length} showing · type to search providers`
+                                    : `${filteredOptions.length} of ${options.length}`}
                           </span>
                           <span className="hidden sm:inline">↑↓ · Enter · Esc</span>
                       </div>
@@ -346,10 +356,13 @@ export function SearchSelect({
                 )}
             >
                 <span className={cn('truncate', !selectedOption && 'text-muted-foreground')}>
-                    {loading ? loadingMessage : selectedOption ? selectedOption.label : placeholder}
+                    {selectedOption ? selectedOption.label : placeholder}
                 </span>
                 <span className="ml-2 flex items-center gap-1">
-                    {selectedOption && !isDisabled && (
+                    {loading ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-indigo-600" />
+                    ) : null}
+                    {selectedOption && !isDisabled && !loading ? (
                         <button
                             type="button"
                             onClick={handleClear}
@@ -358,7 +371,7 @@ export function SearchSelect({
                         >
                             <X className="h-3.5 w-3.5" />
                         </button>
-                    )}
+                    ) : null}
                     <ChevronDown
                         className={cn(
                             'h-4 w-4 text-muted-foreground transition-transform',
