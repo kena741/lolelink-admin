@@ -10,6 +10,7 @@ import {
     resolveServiceName,
     resolveServiceUnitPrice,
 } from '@/lib/booking-pricing';
+import { bookingAutoArchiveFields } from '@/lib/booking-auto-archive';
 import { resolveInitialBookingStatus, BOOKING_PAYMENT_STATUS, type BookingPaymentMode } from '@/lib/booking-status';
 import { readAuthUserId } from '@/lib/wallet-transaction-user';
 
@@ -262,6 +263,10 @@ export async function buildBookingPayload(
                     ? 'chapa'
                     : '';
 
+    const firstName = readField(customer as unknown as Record<string, unknown>, ['firstName', 'first_name']);
+    const lastName = readField(customer as unknown as Record<string, unknown>, ['lastName', 'last_name']);
+    const email = readField(customer as unknown as Record<string, unknown>, ['email']);
+
     const row: Record<string, unknown> = {
         id: bookingId,
         customer_id: input.customerId,
@@ -269,9 +274,9 @@ export async function buildBookingPayload(
         customer_user_id: customerAuthUserId,
         provider_user_id: providerAuthUserId,
         service_id: input.serviceId,
-        firstName: readField(customer as unknown as Record<string, unknown>, ['firstName', 'first_name']),
-        lastName: readField(customer as unknown as Record<string, unknown>, ['lastName', 'last_name']),
-        email: readField(customer as unknown as Record<string, unknown>, ['email']),
+        firstName,
+        lastName,
+        email,
         countryCode: readField(customer as unknown as Record<string, unknown>, ['countryCode', 'country_code']) || '+251',
         phoneNumber: readField(customer as unknown as Record<string, unknown>, ['phoneNumber', 'mobile_number', 'phone']),
         serviceName: resolveServiceName(service),
@@ -294,6 +299,13 @@ export async function buildBookingPayload(
         serviceDetails: service,
         createdAt: now,
         taxList: [],
+        ...bookingAutoArchiveFields({
+            customer_id: input.customerId,
+            provider_id: input.providerId,
+            email,
+            firstName,
+            lastName,
+        }),
     };
 
     if (bookingAddress) {

@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import { CreateAppUserModal } from '@/components/CreateAppUserModal';
+import { BulkLeadCustomersModal } from '@/components/BulkLeadCustomersModal';
 import {
     AdminErrorAlert,
     AdminFilterPanel,
@@ -55,6 +56,7 @@ export default function CustomersPage() {
     const [actionError, setActionError] = useState<string | null>(null);
     const [pendingDeleteCustomerId, setPendingDeleteCustomerId] = useState<string | null>(null);
     const [createOpen, setCreateOpen] = useState(false);
+    const [leadsOpen, setLeadsOpen] = useState(false);
 
     useEffect(() => {
         if (!shouldRefetchAdminList('customers', { hasRows: customers.length > 0 })) return;
@@ -255,14 +257,24 @@ export default function CustomersPage() {
                             />
                             <div className="flex flex-wrap items-center gap-3">
                                 {canWriteCustomers ? (
-                                    <button
-                                        type="button"
-                                        onClick={() => setCreateOpen(true)}
-                                        className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
-                                    >
-                                        <Plus className="h-4 w-4" />
-                                        Add customer
-                                    </button>
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={() => setCreateOpen(true)}
+                                            className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+                                        >
+                                            <Plus className="h-4 w-4" />
+                                            Add customer
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setLeadsOpen(true)}
+                                            className="inline-flex h-10 items-center gap-2 rounded-md border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+                                        >
+                                            <Plus className="h-4 w-4" />
+                                            Add leads
+                                        </button>
+                                    </>
                                 ) : null}
                                 <button
                                     type="button"
@@ -760,6 +772,17 @@ export default function CustomersPage() {
                         open={createOpen}
                         kind="customer"
                         onClose={() => setCreateOpen(false)}
+                        onCreated={() => {
+                            void dispatch(fetchAllCustomers()).then((action) => {
+                                if (fetchAllCustomers.fulfilled.match(action)) {
+                                    markAdminListFetched('customers');
+                                }
+                            });
+                        }}
+                    />
+                    <BulkLeadCustomersModal
+                        open={leadsOpen}
+                        onClose={() => setLeadsOpen(false)}
                         onCreated={() => {
                             void dispatch(fetchAllCustomers()).then((action) => {
                                 if (fetchAllCustomers.fulfilled.match(action)) {

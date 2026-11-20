@@ -708,6 +708,18 @@
 - **Expected Response**: `{ data: customerRow; temporaryPassword; sms }`
 - **Side Effects**: Auth user; SMS; activity log; Auth delete on profile fail
 
+### Admin Operation: `Customers - Bulk create leads (no Auth)`
+- **Call Type**: `REST HTTP`
+- **Target Route / Resource**: `POST /api/admin/customers/bulk-leads` → `customer`
+- **Required Admin Permission**: `customers:write`
+- **Source Code Location**: `src/app/api/admin/customers/bulk-leads/route.ts`; `BulkLeadCustomersModal.tsx`; parser `src/lib/customer-lead-paste.ts`
+- **UI Screen / Component**: `/admin/customers` → **Add leads** (separate from Add customer)
+- **HTTP Method / SQL Action**: `INSERT customer` (no Auth, no SMS)
+- **Request Parameters / Payload**: `{ leads: Array<{ first_name; last_name?; phone; signup_source?; address?; admin_note? }> }` (max 100)
+- **Filters & Clauses Applied**: Ethiopian phone normalize; phone uniqueness; `user_id: null`; `wallet_amount: 0`; full name split = first token → `first_name`, remainder → `last_name`
+- **Expected Response**: `{ created: Customer[]; failed: Array<{ index; phone?; error }>; ok: boolean }`
+- **Side Effects**: activity log `customers.bulk_leads_create` when any created; partial success allowed
+
 ### Admin Operation: `Customers - Create via Edge Function (legacy)`
 - **Call Type**: `Edge Function`
 - **Target Route / Resource**: `{edgeBase}/add_customer`
