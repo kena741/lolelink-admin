@@ -52,12 +52,12 @@ export function customerObligationAmount(input: BookingPaymentAmounts): number {
 }
 
 export function remainingServiceBalance(input: BookingPaymentAmounts): number {
-    if (isRecurringBooking(input)) return 0;
     if (input.paymentCompleted !== true) return 0;
     const status = String(input.status ?? '')
         .trim()
         .toLowerCase();
-    if (TERMINAL_JOB.has(status)) return 0;
+    // ponytail: terminal one-time jobs are settled; recurring can still be partial within the period
+    if (TERMINAL_JOB.has(status) && !isRecurringBooking(input)) return 0;
     const full = customerObligationAmount(input);
     const paid = asBookingMoney(input.totalAmount);
     if (full <= 0) return 0;

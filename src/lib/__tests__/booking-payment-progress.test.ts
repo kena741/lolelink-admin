@@ -47,4 +47,24 @@ describe('booking payment progress', () => {
         expect(resolveBookingPaymentSettlement(row)).toBe('paid');
         expect(formatBookingPaymentStatusLabel('payment_completed', true, row)).toBe('Paid');
     });
+
+    it('labels recurring period down payment as partial', () => {
+        const row = {
+            paymentCompleted: true,
+            payment_status: 'payment_completed',
+            totalAmount: 6000,
+            subTotal: 12000,
+            price: 12000,
+            status: 'accepted',
+            currentPeriodStart: '2026-11-15T12:00:00.000Z',
+            currentPeriodEnd: '2026-12-15T12:00:00.000Z',
+        };
+        expect(paidPercentage(row)).toBe(50);
+        expect(remainingServiceBalance(row)).toBe(6000);
+        expect(resolveBookingPaymentSettlement(row)).toBe('partial');
+        expect(formatBookingPaymentStatusLabel('payment_completed', true, row)).toBe(
+            'Partially paid (50%)'
+        );
+    });
 });
+
