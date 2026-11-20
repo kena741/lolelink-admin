@@ -303,10 +303,9 @@ export function SearchSelect({
 
                       <div className="flex shrink-0 items-center justify-between gap-2 border-t border-gray-100 bg-gray-50/80 px-3 py-1.5 text-[11px] text-gray-500">
                           <span>
-                              {filteredOptions.length}
                               {!query.trim() && options.some((o) => o.showWhenEmpty === false)
-                                  ? ` showing · type to search all ${options.length}`
-                                  : ` of ${options.length}`}
+                                  ? `${filteredOptions.length} showing · type to search providers`
+                                  : `${filteredOptions.length} of ${options.length}`}
                           </span>
                           <span className="hidden sm:inline">↑↓ · Enter · Esc</span>
                       </div>

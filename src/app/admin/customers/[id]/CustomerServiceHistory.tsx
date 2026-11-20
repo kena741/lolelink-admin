@@ -31,11 +31,14 @@ import { Label } from '@/components/ui/label';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { fetchProviders, fetchProviderServices } from '@/features/provider/providerSlice';
+import { createHandyman, fetchHandymen } from '@/features/handyman/handymanSlice';
+import type { Provider } from '@/features/provider/providerSlice';
 import {
-    createHandyman,
-    fetchHandymen,
-    type Handyman,
-} from '@/features/handyman/handymanSlice';
+    buildBookingWorkerOptions,
+    isProviderAsWorkerValue,
+    providerDisplayName,
+    providerIdFromWorkerValue,
+} from '@/lib/booking-worker-options';
 import { cn } from '@/lib/utils';
 
 interface CustomerBookingRow {
@@ -62,53 +65,8 @@ interface CustomerBookingRow {
     followUp?: string;
 }
 
-function handymanLabel(handyman: Handyman): string {
-    return (
-        [handyman.firstName, handyman.lastName].filter(Boolean).join(' ').trim() ||
-        handyman.phoneNumber?.trim() ||
-        'Handyman'
-    );
-}
-
-function handymanOptions(
-    handymen: Handyman[],
-    forProviderId?: string,
-    providerNameById: Record<string, string> = {}
-): SearchSelectOption[] {
-    const self: SearchSelectOption = {
-        value: '',
-        label: 'Myself',
-        description: 'Provider does the job',
-        searchText: 'myself provider self none',
-    };
-    const workers = handymen
-        .filter((h): h is Handyman & { id: string } => Boolean(h.id))
-        .slice()
-        .sort((a, b) => {
-            const aOn = forProviderId && a.providerId === forProviderId ? 1 : 0;
-            const bOn = forProviderId && b.providerId === forProviderId ? 1 : 0;
-            if (bOn !== aOn) return bOn - aOn;
-            return handymanLabel(a).localeCompare(handymanLabel(b));
-        })
-        .map((h) => {
-            const label = handymanLabel(h);
-            const onTeam = Boolean(forProviderId && h.providerId === forProviderId);
-            const providerName = h.providerId
-                ? providerNameById[h.providerId] || 'Unknown provider'
-                : 'Unassigned';
-            const teamNote = onTeam ? `${providerName} · this job` : providerName;
-            return {
-                value: h.id,
-                label,
-                description: [h.phoneNumber, teamNote].filter(Boolean).join(' · ') || undefined,
-                searchText: [label, h.phoneNumber, h.id, providerName, teamNote]
-                    .filter(Boolean)
-                    .join(' '),
-                // ponytail: empty list = this provider's team; type to reach other providers
-                showWhenEmpty: !forProviderId || onTeam,
-            };
-        });
-    return [self, ...workers];
+function providerPhone(provider: Provider): string {
+    return (provider.phoneNumber ?? provider.phone ?? '').trim();
 }
 
 interface RepeatProviderRow {
@@ -262,24 +220,9 @@ export function CustomerServiceHistory({ customerId }: CustomerServiceHistoryPro
             });
     }, [services, providerId]);
 
-    const providerNameById = useMemo(() => {
-        const map: Record<string, string> = {};
-        for (const p of providers) {
-            if (!p.id) continue;
-            map[p.id] =
-                [p.firstName ?? p.first_name, p.lastName ?? p.last_name]
-                    .filter(Boolean)
-                    .join(' ')
-                    .trim() ||
-                p.name ||
-                'Provider';
-        }
-        return map;
-    }, [providers]);
-
     const composerHandymanOptions = useMemo(
-        () => handymanOptions(handymen, providerId, providerNameById),
-        [handymen, providerId, providerNameById]
+        () => buildBookingWorkerOptions(handymen, providers, providerId),
+        [handymen, providers, providerId]
     );
 
     const selectedProvider = providerOptions.find((o) => o.value === providerId);
@@ -312,8 +255,54 @@ export function CustomerServiceHistory({ customerId }: CustomerServiceHistoryPro
         setFormError(null);
     }
 
+    async function ensureHandymanFromProvider(
+        targetProviderId: string,
+        sourceProviderId: string
+    ): Promise<string> {
+        const source = providers.find((p) => p.id === sourceProviderId);
+        if (!source) throw new Error('Provider not found');
+        const phone = providerPhone(source);
+        const fullName = providerDisplayName(source);
+        if (phone) {
+            const existing = handymen.find(
+                (h) =>
+                    h.providerId === targetProviderId &&
+                    (h.phoneNumber ?? '').trim() === phone
+            );
+            if (existing?.id) return existing.id;
+        }
+        const parts = fullName.split(/\s+/).filter(Boolean);
+        const created = await dispatch(
+            createHandyman({
+                firstName: parts[0] || fullName,
+                lastName: parts.slice(1).join(' ') || undefined,
+                phoneNumber: phone || undefined,
+                email: source.email,
+                providerId: targetProviderId,
+                active: true,
+                isActive: true,
+            })
+        ).unwrap();
+        await dispatch(fetchHandymen());
+        return created.id;
+    }
+
+    async function resolveWorkerSelection(
+        rawValue: string,
+        targetProviderId: string
+    ): Promise<string | null> {
+        if (!rawValue) return null;
+        if (isProviderAsWorkerValue(rawValue)) {
+            return ensureHandymanFromProvider(
+                targetProviderId,
+                providerIdFromWorkerValue(rawValue)
+            );
+        }
+        return rawValue;
+    }
+
     async function resolveHandymanIdForSubmit(): Promise<string | null> {
-        if (handymanId) return handymanId;
+        if (handymanId) return resolveWorkerSelection(handymanId, providerId);
         const name = newWorkerName.trim();
         const phone = newWorkerPhone.trim();
         if (!name && !phone) return null;
@@ -333,15 +322,16 @@ export function CustomerServiceHistory({ customerId }: CustomerServiceHistoryPro
         return created.id;
     }
 
-    async function assignHandyman(bookingId: string, nextHandymanId: string) {
+    async function assignHandyman(bookingId: string, nextValue: string, targetProviderId: string) {
         setAssigningBookingId(bookingId);
         try {
+            const nextHandymanId = await resolveWorkerSelection(nextValue, targetProviderId);
             const response = await fetch(`/api/admin/customers/${customerId}/bookings`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     booking_id: bookingId,
-                    handyman_id: nextHandymanId || null,
+                    handyman_id: nextHandymanId,
                 }),
             });
             const payload = (await response.json()) as {
@@ -568,8 +558,8 @@ export function CustomerServiceHistory({ customerId }: CustomerServiceHistoryPro
                                     placeholder={
                                         providerId ? 'Myself (default) or pick worker' : 'Pick a provider first'
                                     }
-                                    searchPlaceholder="Search workers or providers…"
-                                    emptyMessage="No workers found"
+                                    searchPlaceholder="Search providers…"
+                                    emptyMessage="No matches"
                                     loading={Boolean(providerId) && handymenLoading}
                                     loadingMessage="Loading workers…"
                                     disabled={!providerId}
@@ -841,24 +831,26 @@ export function CustomerServiceHistory({ customerId }: CustomerServiceHistoryPro
                                                     label="Worker"
                                                     value={item.handymanId || ''}
                                                     onChange={(value) => {
-                                                        void assignHandyman(item.id, value).catch(
-                                                            (assignError: unknown) => {
-                                                                setError(
-                                                                    assignError instanceof Error
-                                                                        ? assignError.message
-                                                                        : 'Failed to assign handyman'
-                                                                );
-                                                            }
-                                                        );
+                                                        void assignHandyman(
+                                                            item.id,
+                                                            value,
+                                                            item.providerId
+                                                        ).catch((assignError: unknown) => {
+                                                            setError(
+                                                                assignError instanceof Error
+                                                                    ? assignError.message
+                                                                    : 'Failed to assign handyman'
+                                                            );
+                                                        });
                                                     }}
-                                                    options={handymanOptions(
+                                                    options={buildBookingWorkerOptions(
                                                         handymen,
-                                                        item.providerId,
-                                                        providerNameById
+                                                        providers,
+                                                        item.providerId
                                                     )}
                                                     placeholder="Myself"
-                                                    searchPlaceholder="Search workers or providers…"
-                                                    emptyMessage="No workers"
+                                                    searchPlaceholder="Search providers…"
+                                                    emptyMessage="No matches"
                                                     loading={
                                                         handymenLoading ||
                                                         assigningBookingId === item.id
