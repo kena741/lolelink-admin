@@ -108,7 +108,8 @@ async function loadHandymanNames(
     return byId;
 }
 
-async function assertHandymanBelongsToProvider(
+/** Any worker can be assigned; link them onto this provider's handyman list if needed. */
+async function ensureHandymanLinkedToProvider(
     supabaseAdmin: ReturnType<typeof getSupabaseAdminFromRequest>,
     handymanId: string,
     providerId: string
@@ -121,8 +122,12 @@ async function assertHandymanBelongsToProvider(
     if (error) return error.message;
     if (!data) return 'Handyman not found';
     const owner = typeof data.provider_id === 'string' ? data.provider_id.trim() : '';
-    if (owner !== providerId) return 'Handyman does not belong to this provider';
-    return null;
+    if (owner === providerId) return null;
+    const { error: updateError } = await supabaseAdmin
+        .from('handyman')
+        .update({ provider_id: providerId })
+        .eq('id', handymanId);
+    return updateError?.message ?? null;
 }
 
 async function loadProviderNames(
@@ -339,7 +344,7 @@ export async function POST(
         }
 
         if (handymanId) {
-            const handymanError = await assertHandymanBelongsToProvider(
+            const handymanError = await ensureHandymanLinkedToProvider(
                 supabaseAdmin,
                 handymanId,
                 providerId
@@ -518,7 +523,7 @@ export async function PATCH(
                         { status: 400 }
                     );
                 }
-                const handymanError = await assertHandymanBelongsToProvider(
+                const handymanError = await ensureHandymanLinkedToProvider(
                     supabaseAdmin,
                     nextHandymanId,
                     providerId

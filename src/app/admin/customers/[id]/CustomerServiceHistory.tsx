@@ -70,9 +70,10 @@ function handymanLabel(handyman: Handyman): string {
     );
 }
 
-function handymanOptionsForProvider(
+function handymanOptions(
     handymen: Handyman[],
-    forProviderId: string
+    forProviderId?: string,
+    providerNameById: Record<string, string> = {}
 ): SearchSelectOption[] {
     const self: SearchSelectOption = {
         value: '',
@@ -81,14 +82,30 @@ function handymanOptionsForProvider(
         searchText: 'myself provider self none',
     };
     const workers = handymen
-        .filter((h) => h.id && h.providerId === forProviderId)
+        .filter((h): h is Handyman & { id: string } => Boolean(h.id))
+        .slice()
+        .sort((a, b) => {
+            const aOn = forProviderId && a.providerId === forProviderId ? 1 : 0;
+            const bOn = forProviderId && b.providerId === forProviderId ? 1 : 0;
+            if (bOn !== aOn) return bOn - aOn;
+            return handymanLabel(a).localeCompare(handymanLabel(b));
+        })
         .map((h) => {
             const label = handymanLabel(h);
+            const onTeam = Boolean(forProviderId && h.providerId === forProviderId);
+            const providerName = h.providerId
+                ? providerNameById[h.providerId] || 'Unknown provider'
+                : 'Unassigned';
+            const teamNote = onTeam ? `${providerName} · this job` : providerName;
             return {
                 value: h.id,
                 label,
-                description: h.phoneNumber || undefined,
-                searchText: [label, h.phoneNumber, h.id].filter(Boolean).join(' '),
+                description: [h.phoneNumber, teamNote].filter(Boolean).join(' · ') || undefined,
+                searchText: [label, h.phoneNumber, h.id, providerName, teamNote]
+                    .filter(Boolean)
+                    .join(' '),
+                // ponytail: empty list = this provider's team; type to reach other providers
+                showWhenEmpty: !forProviderId || onTeam,
             };
         });
     return [self, ...workers];
@@ -180,12 +197,8 @@ export function CustomerServiceHistory({ customerId }: CustomerServiceHistoryPro
 
     useEffect(() => {
         void dispatch(fetchHandymen());
-    }, [dispatch]);
-
-    useEffect(() => {
-        if (!composerOpen) return;
         void dispatch(fetchProviders());
-    }, [composerOpen, dispatch]);
+    }, [dispatch]);
 
     useEffect(() => {
         if (!composerOpen || !providerId) return;
@@ -249,9 +262,24 @@ export function CustomerServiceHistory({ customerId }: CustomerServiceHistoryPro
             });
     }, [services, providerId]);
 
+    const providerNameById = useMemo(() => {
+        const map: Record<string, string> = {};
+        for (const p of providers) {
+            if (!p.id) continue;
+            map[p.id] =
+                [p.firstName ?? p.first_name, p.lastName ?? p.last_name]
+                    .filter(Boolean)
+                    .join(' ')
+                    .trim() ||
+                p.name ||
+                'Provider';
+        }
+        return map;
+    }, [providers]);
+
     const composerHandymanOptions = useMemo(
-        () => handymanOptionsForProvider(handymen, providerId),
-        [handymen, providerId]
+        () => handymanOptions(handymen, providerId, providerNameById),
+        [handymen, providerId, providerNameById]
     );
 
     const selectedProvider = providerOptions.find((o) => o.value === providerId);
@@ -337,6 +365,7 @@ export function CustomerServiceHistory({ customerId }: CustomerServiceHistoryPro
                         : row
                 )
             );
+            if (nextHandymanId) void dispatch(fetchHandymen());
         } finally {
             setAssigningBookingId(null);
         }
@@ -539,8 +568,8 @@ export function CustomerServiceHistory({ customerId }: CustomerServiceHistoryPro
                                     placeholder={
                                         providerId ? 'Myself (default) or pick worker' : 'Pick a provider first'
                                     }
-                                    searchPlaceholder="Search workers…"
-                                    emptyMessage="No workers for this provider"
+                                    searchPlaceholder="Search workers or providers…"
+                                    emptyMessage="No workers found"
                                     loading={Boolean(providerId) && handymenLoading}
                                     loadingMessage="Loading workers…"
                                     disabled={!providerId}
@@ -822,12 +851,13 @@ export function CustomerServiceHistory({ customerId }: CustomerServiceHistoryPro
                                                             }
                                                         );
                                                     }}
-                                                    options={handymanOptionsForProvider(
+                                                    options={handymanOptions(
                                                         handymen,
-                                                        item.providerId
+                                                        item.providerId,
+                                                        providerNameById
                                                     )}
                                                     placeholder="Myself"
-                                                    searchPlaceholder="Search workers…"
+                                                    searchPlaceholder="Search workers or providers…"
                                                     emptyMessage="No workers"
                                                     loading={
                                                         handymenLoading ||

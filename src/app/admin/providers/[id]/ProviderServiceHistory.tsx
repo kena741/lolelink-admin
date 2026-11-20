@@ -42,7 +42,7 @@ import { formatDisplayPhone } from '@/lib/phone-display';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { fetchAllCustomers, type Customer } from '@/features/customer/customerSlice';
-import { fetchProviderServices } from '@/features/provider/providerSlice';
+import { fetchProviders, fetchProviderServices } from '@/features/provider/providerSlice';
 import {
     createHandyman,
     fetchHandymen,
@@ -82,9 +82,10 @@ function handymanLabel(handyman: Handyman): string {
     );
 }
 
-function handymanOptionsForProvider(
+function handymanOptions(
     handymen: Handyman[],
-    forProviderId: string
+    forProviderId?: string,
+    providerNameById: Record<string, string> = {}
 ): SearchSelectOption[] {
     const self: SearchSelectOption = {
         value: '',
@@ -93,14 +94,29 @@ function handymanOptionsForProvider(
         searchText: 'myself provider self none',
     };
     const workers = handymen
-        .filter((h) => h.id && h.providerId === forProviderId)
+        .filter((h): h is Handyman & { id: string } => Boolean(h.id))
+        .slice()
+        .sort((a, b) => {
+            const aOn = forProviderId && a.providerId === forProviderId ? 1 : 0;
+            const bOn = forProviderId && b.providerId === forProviderId ? 1 : 0;
+            if (bOn !== aOn) return bOn - aOn;
+            return handymanLabel(a).localeCompare(handymanLabel(b));
+        })
         .map((h) => {
             const label = handymanLabel(h);
+            const onTeam = Boolean(forProviderId && h.providerId === forProviderId);
+            const providerName = h.providerId
+                ? providerNameById[h.providerId] || 'Unknown provider'
+                : 'Unassigned';
+            const teamNote = onTeam ? `${providerName} · this job` : providerName;
             return {
                 value: h.id,
                 label,
-                description: h.phoneNumber || undefined,
-                searchText: [label, h.phoneNumber, h.id].filter(Boolean).join(' '),
+                description: [h.phoneNumber, teamNote].filter(Boolean).join(' · ') || undefined,
+                searchText: [label, h.phoneNumber, h.id, providerName, teamNote]
+                    .filter(Boolean)
+                    .join(' '),
+                showWhenEmpty: !forProviderId || onTeam,
             };
         });
     return [self, ...workers];
@@ -147,7 +163,7 @@ export function ProviderServiceHistory({
     const { canWriteBookings } = useAdminPermissions();
     const formId = useId();
     const { customers, loading: customersLoading } = useAppSelector((state) => state.customer);
-    const { services, servicesLoading } = useAppSelector((state) => state.provider);
+    const { providers, services, servicesLoading } = useAppSelector((state) => state.provider);
     const { handymen, loading: handymenLoading } = useAppSelector((state) => state.handyman);
 
     const [items, setItems] = useState<ProviderBookingRow[]>([]);
@@ -203,6 +219,7 @@ export function ProviderServiceHistory({
 
     useEffect(() => {
         void dispatch(fetchHandymen());
+        void dispatch(fetchProviders());
     }, [dispatch]);
 
     useEffect(() => {
@@ -266,9 +283,24 @@ export function ProviderServiceHistory({
 
     const optionsLoading = customersLoading || servicesLoading || handymenLoading;
 
+    const providerNameById = useMemo(() => {
+        const map: Record<string, string> = {};
+        for (const p of providers) {
+            if (!p.id) continue;
+            map[p.id] =
+                [p.firstName ?? p.first_name, p.lastName ?? p.last_name]
+                    .filter(Boolean)
+                    .join(' ')
+                    .trim() ||
+                p.name ||
+                'Provider';
+        }
+        return map;
+    }, [providers]);
+
     const composerHandymanOptions = useMemo(
-        () => handymanOptionsForProvider(handymen, providerId),
-        [handymen, providerId]
+        () => handymanOptions(handymen, providerId, providerNameById),
+        [handymen, providerId, providerNameById]
     );
 
     useEffect(() => {
@@ -359,6 +391,7 @@ export function ProviderServiceHistory({
                         : row
                 )
             );
+            if (nextHandymanId) void dispatch(fetchHandymen());
         } finally {
             setAssigningBookingId(null);
         }
@@ -586,8 +619,8 @@ export function ProviderServiceHistory({
                                     }}
                                     options={composerHandymanOptions}
                                     placeholder="Myself (default) or pick worker"
-                                    searchPlaceholder="Search workers…"
-                                    emptyMessage="No workers for this provider"
+                                    searchPlaceholder="Search workers or providers…"
+                                    emptyMessage="No workers found"
                                     loading={handymenLoading}
                                     loadingMessage="Loading workers…"
                                 />
@@ -848,12 +881,13 @@ export function ProviderServiceHistory({
                                                         }
                                                     );
                                                 }}
-                                                options={handymanOptionsForProvider(
+                                                options={handymanOptions(
                                                     handymen,
-                                                    providerId
+                                                    providerId,
+                                                    providerNameById
                                                 )}
                                                 placeholder="Myself"
-                                                searchPlaceholder="Search workers…"
+                                                searchPlaceholder="Search workers or providers…"
                                                 emptyMessage="No workers"
                                                 loading={
                                                     handymenLoading ||
