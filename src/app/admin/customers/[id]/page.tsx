@@ -12,6 +12,7 @@ import {
     ClipboardList,
     Coins,
     ExternalLink,
+    KeyRound,
     Loader2,
     Pencil,
     Trash2,
@@ -25,6 +26,7 @@ import { formatAdminDateTimeUtc } from '@/lib/admin-datetime';
 import { formatBookingAmount } from '@/lib/booking-display';
 import {
     customerIsArchived,
+    customerIsRegistered,
     formatCustomerAddress,
     getCustomerDisplayName,
     getCustomerPhone,
@@ -38,6 +40,7 @@ import {
 } from '@/features/customer/customerSlice';
 import { CustomerWalletHistory } from './CustomerWalletHistory';
 import { AdminNoteField } from '@/components/AdminNoteField';
+import { RegisterCustomerAuthModal } from '@/components/RegisterCustomerAuthModal';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 import { AdminNotifyComposer } from '@/components/admin/AdminNotifyComposer';
 import {
@@ -153,6 +156,7 @@ export default function CustomerDetailPage() {
     const [actionError, setActionError] = useState<string | null>(null);
     const [confirmConvert, setConfirmConvert] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
+    const [registerOpen, setRegisterOpen] = useState(false);
     const [convertedProviderId, setConvertedProviderId] = useState<string | null>(null);
     const [editingJobRequest, setEditingJobRequest] = useState<CustomerJobRequestRow | null>(null);
     const [editJobForm, setEditJobForm] = useState({ title: '', description: '', price: '' });
@@ -239,6 +243,7 @@ export default function CustomerDetailPage() {
 
     const displayName = getCustomerDisplayName(customer);
     const phone = getCustomerPhone(customer as Record<string, unknown> | null);
+    const registered = customerIsRegistered(customer);
     const address = formatCustomerAddress(customer);
     const archived = customerIsArchived(customer);
     const walletBalance = Number(customer?.wallet_amount ?? 0);
@@ -447,6 +452,17 @@ export default function CustomerDetailPage() {
                                 actions={
                                     canWriteCustomers ? (
                                         <div className="flex flex-wrap items-center gap-2">
+                                            {!registered ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setRegisterOpen(true)}
+                                                    disabled={actionBusy}
+                                                    className={adminHeaderButtonClassName()}
+                                                >
+                                                    <KeyRound className="h-4 w-4" />
+                                                    Register &amp; send SMS
+                                                </button>
+                                            ) : null}
                                             {customer.provider_id ? (
                                                 <Link
                                                     href={`/admin/providers/${customer.provider_id}`}
@@ -455,7 +471,7 @@ export default function CustomerDetailPage() {
                                                     <ExternalLink className="h-4 w-4" />
                                                     Open provider
                                                 </Link>
-                                            ) : (
+                                            ) : registered ? (
                                                 <button
                                                     type="button"
                                                     onClick={() => setConfirmConvert(true)}
@@ -465,7 +481,7 @@ export default function CustomerDetailPage() {
                                                     <ArrowRightLeft className="h-4 w-4" />
                                                     Convert to provider
                                                 </button>
-                                            )}
+                                            ) : null}
                                             <button
                                                 type="button"
                                                 onClick={() => void handleArchiveToggle()}
@@ -501,6 +517,15 @@ export default function CustomerDetailPage() {
                                 ) : (
                                     <span className="inline-flex items-center rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
                                         Active
+                                    </span>
+                                )}
+                                {registered ? (
+                                    <span className="inline-flex items-center rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
+                                        Registered
+                                    </span>
+                                ) : (
+                                    <span className="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">
+                                        Lead · not registered
                                     </span>
                                 )}
                                 {customer.provider_id ? (
@@ -1089,6 +1114,18 @@ export default function CustomerDetailPage() {
                         </div>
                     </div>
                 </div>
+            ) : null}
+
+            {customerId && customer ? (
+                <RegisterCustomerAuthModal
+                    open={registerOpen}
+                    customerId={customerId}
+                    customerName={displayName}
+                    onClose={() => setRegisterOpen(false)}
+                    onRegistered={({ userId }) => {
+                        setCustomer((prev) => (prev ? { ...prev, user_id: userId, login_type: 'email' } : prev));
+                    }}
+                />
             ) : null}
         </>
     );

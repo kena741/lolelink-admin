@@ -38,6 +38,7 @@ export interface Customer {
     archived_at?: string | null;
     admin_note?: string | null;
     signup_source?: string | null;
+    user_id?: string | null;
 }
 
 interface CustomerListState {

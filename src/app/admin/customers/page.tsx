@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { fetchAllCustomers, convertToProvider, resetConvertState, archiveCustomer, restoreCustomer, deleteCustomer, setCustomerAdminNote } from '@/features/customer/customerSlice';
-import { ChevronLeft, ChevronRight, Download, Users, ArrowRightLeft, CheckCircle2, Loader2, Archive, ArchiveRestore, Trash2, MoreVertical, ExternalLink, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Users, ArrowRightLeft, CheckCircle2, Loader2, Archive, ArchiveRestore, Trash2, MoreVertical, ExternalLink, Plus, KeyRound } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,6 +16,7 @@ import {
 import AdminPageHeader, { adminHeaderButtonClassName } from '@/components/AdminPageHeader';
 import { CreateAppUserModal } from '@/components/CreateAppUserModal';
 import { BulkLeadCustomersModal } from '@/components/BulkLeadCustomersModal';
+import { RegisterCustomerAuthModal } from '@/components/RegisterCustomerAuthModal';
 import {
     AdminErrorAlert,
     AdminFilterPanel,
@@ -33,6 +34,7 @@ import { markAdminListFetched, shouldRefetchAdminList } from '@/lib/admin-list-c
 
 import {
     customerIsArchived,
+    customerIsRegistered,
     getCustomerDisplayName,
 } from '@/lib/customer-display';
 import { formatDisplayPhone } from '@/lib/phone-display';
@@ -57,6 +59,7 @@ export default function CustomersPage() {
     const [pendingDeleteCustomerId, setPendingDeleteCustomerId] = useState<string | null>(null);
     const [createOpen, setCreateOpen] = useState(false);
     const [leadsOpen, setLeadsOpen] = useState(false);
+    const [registerCustomerId, setRegisterCustomerId] = useState<string | null>(null);
 
     useEffect(() => {
         if (!shouldRefetchAdminList('customers', { hasRows: customers.length > 0 })) return;
@@ -212,6 +215,7 @@ export default function CustomersPage() {
         const rows = filtered.map((c) => ({
             'Full Name': [c.first_name, c.last_name].filter(Boolean).join(' '),
             'Phone': c.phoneNumber ?? c.mobile_number ?? c.phone ?? '',
+            Account: customerIsRegistered(c) ? 'Registered' : 'Lead',
             'Signup source': c.signup_source ?? '',
         }));
         const ws = XLSX.utils.json_to_sheet(rows);
@@ -325,6 +329,7 @@ export default function CustomersPage() {
                                         <TableHead>Gender</TableHead>
                                         <TableHead>Wallet</TableHead>
                                         <TableHead>Status</TableHead>
+                                        <TableHead>Account</TableHead>
                                         <TableHead>Source</TableHead>
                                         <TableHead>Address</TableHead>
                                         <TableHead>Created</TableHead>
@@ -336,6 +341,7 @@ export default function CustomersPage() {
                                 <TableBody>
                                     {paginated.map((c, idx) => {
                                         const archived = customerIsArchived(c);
+                                        const registered = customerIsRegistered(c);
                                         const rowBusy = actionBusyId === c.id;
                                         return (
                                         <TableRow
@@ -378,6 +384,17 @@ export default function CustomersPage() {
                                                 }`}>
                                                     {c.status || '—'}
                                                 </span>
+                                            </TableCell>
+                                            <TableCell className="text-gray-700">
+                                                {registered ? (
+                                                    <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
+                                                        Registered
+                                                    </span>
+                                                ) : (
+                                                    <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                                                        Lead
+                                                    </span>
+                                                )}
                                             </TableCell>
                                             <TableCell className="text-gray-700">
                                                 {c.signup_source ? (
@@ -484,6 +501,20 @@ export default function CustomersPage() {
                                                                     </Link>
                                                                 </DropdownMenuItem>
                                                             ) : null}
+                                                            {!registered && c.id && canWriteCustomers ? (
+                                                                <DropdownMenuItem
+                                                                    disabled={rowBusy}
+                                                                    onSelect={() => {
+                                                                        if (!c.id) return;
+                                                                        setRegisterCustomerId(c.id);
+                                                                    }}
+                                                                >
+                                                                    <span className="flex items-center gap-2">
+                                                                        <KeyRound className="h-4 w-4 shrink-0" />
+                                                                        Register &amp; send SMS
+                                                                    </span>
+                                                                </DropdownMenuItem>
+                                                            ) : null}
                                                             {c.provider_id ? (
                                                                 <DropdownMenuItem asChild>
                                                                     <Link
@@ -494,7 +525,7 @@ export default function CustomersPage() {
                                                                         Open provider
                                                                     </Link>
                                                                 </DropdownMenuItem>
-                                                            ) : c.id && canWriteCustomers ? (
+                                                            ) : registered && c.id && canWriteCustomers ? (
                                                                 <DropdownMenuItem
                                                                     disabled={convertingId === c.id || rowBusy}
                                                                     onSelect={() => {
@@ -567,7 +598,7 @@ export default function CustomersPage() {
                                     })}
                                     {filtered.length === 0 && !loading && (
                                         <TableRow>
-                                            <TableCell className="px-4 py-12 text-center text-gray-500" colSpan={11}>
+                                            <TableCell className="px-4 py-12 text-center text-gray-500" colSpan={14}>
                                                 <div className="flex flex-col items-center gap-3">
                                                     <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
                                                         <Users className="h-8 w-8 text-gray-400" />
@@ -791,6 +822,25 @@ export default function CustomersPage() {
                             });
                         }}
                     />
+                    {registerCustomerId ? (
+                        <RegisterCustomerAuthModal
+                            open
+                            customerId={registerCustomerId}
+                            customerName={
+                                getCustomerDisplayName(
+                                    customers.find((c) => c.id === registerCustomerId) ?? null
+                                ) || 'this customer'
+                            }
+                            onClose={() => setRegisterCustomerId(null)}
+                            onRegistered={() => {
+                                void dispatch(fetchAllCustomers()).then((action) => {
+                                    if (fetchAllCustomers.fulfilled.match(action)) {
+                                        markAdminListFetched('customers');
+                                    }
+                                });
+                            }}
+                        />
+                    ) : null}
             </AdminShell>
         </>
     );

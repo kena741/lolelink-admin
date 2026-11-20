@@ -720,6 +720,18 @@
 - **Expected Response**: `{ created: Customer[]; failed: Array<{ index; phone?; error }>; ok: boolean }`
 - **Side Effects**: activity log `customers.bulk_leads_create` when any created; partial success allowed
 
+### Admin Operation: `Customers - Register lead (Auth + SMS)`
+- **Call Type**: `REST HTTP`
+- **Target Route / Resource**: `POST /api/admin/customers/[id]/register` → Auth + `customer`
+- **Required Admin Permission**: `customers:write`
+- **Source Code Location**: `src/app/api/admin/customers/[id]/register/route.ts`; `RegisterCustomerAuthModal.tsx`
+- **UI Screen / Component**: `/admin/customers` row actions; `/admin/customers/[id]` header **Register & send SMS**
+- **HTTP Method / SQL Action**: `auth.admin.createUser`; `UPDATE customer` (`user_id`, `email`, `login_type`)
+- **Request Parameters / Payload**: `{ password? }` (optional; server generates temp password if omitted)
+- **Filters & Clauses Applied**: customer must exist with `user_id` null; Ethiopian phone required; keeps `customer.id` stable
+- **Expected Response**: `{ data: customerRow; temporaryPassword; sms }`
+- **Side Effects**: Auth user; SMS (same Amharic template as create customer); activity log `customers.register`; Auth delete if profile update fails
+
 ### Admin Operation: `Customers - Create via Edge Function (legacy)`
 - **Call Type**: `Edge Function`
 - **Target Route / Resource**: `{edgeBase}/add_customer`

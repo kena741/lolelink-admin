@@ -85,3 +85,12 @@ export function customerIsArchived(customer: {
     const value = customer?.archived_at ?? customer?.archivedAt;
     return typeof value === 'string' && value.length > 0;
 }
+
+/** Lead rows have no Auth user (`user_id` null). Registered customers can sign in. */
+export function customerIsRegistered(customer: {
+    user_id?: string | null;
+    userId?: string | null;
+} | null | undefined): boolean {
+    const value = customer?.user_id ?? customer?.userId;
+    return typeof value === 'string' && value.trim().length > 0;
+}

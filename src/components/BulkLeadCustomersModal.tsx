@@ -165,27 +165,27 @@ export function BulkLeadCustomersModal({ open, onClose, onCreated }: BulkLeadCus
 
     return (
         <Dialog open={open} onClose={close} scrollable className="max-w-4xl p-0">
-            <DialogHeader className="border-b border-border px-5 pb-3 pt-4">
-                <div>
+            <DialogHeader className="shrink-0 border-b border-border px-4 pb-3 pt-[max(1rem,env(safe-area-inset-top))] sm:px-5 sm:pt-4">
+                <div className="min-w-0">
                     <DialogTitle>Add leads</DialogTitle>
-                    <DialogDescription className="mt-1">
+                    <DialogDescription className="mt-1 text-pretty">
                         Paste one or more blocks below. Blank line between leads. No login or SMS —
                         they stay unregistered until signup.
                     </DialogDescription>
                 </div>
             </DialogHeader>
 
-            <DialogBody className="flex min-h-0 flex-col px-5 py-4">
+            <DialogBody className="flex min-h-0 flex-col px-4 py-3 sm:px-5 sm:py-4">
                 <div className="grid min-h-0 flex-1 gap-4 md:grid-cols-2 md:gap-5">
                     <div className="flex min-h-0 flex-col gap-2">
-                        <div className="flex items-center justify-between gap-2">
+                        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
                             <Label htmlFor="bulk-lead-paste">Paste</Label>
-                            <div className="flex items-center gap-2">
+                            <div className="flex shrink-0 items-center gap-3">
                                 <button
                                     type="button"
                                     onClick={resetTemplate}
                                     disabled={saving}
-                                    className="text-xs font-medium text-muted-foreground transition-colors hover:text-card-foreground disabled:opacity-50"
+                                    className="min-h-10 text-xs font-medium text-muted-foreground transition-colors hover:text-card-foreground disabled:opacity-50 sm:min-h-0"
                                 >
                                     Reset
                                 </button>
@@ -193,7 +193,7 @@ export function BulkLeadCustomersModal({ open, onClose, onCreated }: BulkLeadCus
                                     type="button"
                                     onClick={appendBlock}
                                     disabled={saving}
-                                    className="text-xs font-medium text-primary transition-colors hover:text-primary/80 disabled:opacity-50"
+                                    className="min-h-10 text-xs font-medium text-primary transition-colors hover:text-primary/80 disabled:opacity-50 sm:min-h-0"
                                 >
                                     + Another block
                                 </button>
@@ -207,14 +207,14 @@ export function BulkLeadCustomersModal({ open, onClose, onCreated }: BulkLeadCus
                             disabled={saving}
                             spellCheck={false}
                             placeholder={`Full name:\nPhone:\nSource/inquiry channel:\nLocation:\nDescription:`}
-                            className="min-h-[240px] w-full flex-1 resize-y rounded-md border border-border bg-card px-3 py-2.5 font-mono text-[13px] leading-relaxed text-card-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 md:min-h-0"
+                            className="min-h-[160px] w-full flex-1 resize-y rounded-md border border-border bg-card px-3 py-2.5 font-mono text-base leading-relaxed text-card-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 sm:min-h-[200px] md:min-h-0 md:text-[13px]"
                         />
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-xs text-muted-foreground text-pretty">
                             Fields: Full name · Phone · Source/inquiry channel · Location · Description
                         </p>
                     </div>
 
-                    <div className="flex min-h-0 flex-col gap-2">
+                    <div className="flex min-h-0 flex-col gap-2 md:min-h-0">
                         <div className="flex items-center justify-between gap-2">
                             <p className="text-sm font-medium text-card-foreground">Preview</p>
                             <p className="text-xs text-muted-foreground">
@@ -228,7 +228,7 @@ export function BulkLeadCustomersModal({ open, onClose, onCreated }: BulkLeadCus
                             </p>
                         </div>
 
-                        <div className="min-h-[200px] flex-1 overflow-y-auto rounded-md border border-border bg-muted/40 p-2.5 md:min-h-0">
+                        <div className="max-h-[min(40vh,280px)] min-h-[120px] overflow-y-auto rounded-md border border-border bg-muted/40 p-2.5 md:max-h-none md:min-h-0 md:flex-1">
                             {readyCount > 0 ? (
                                 <ul className="space-y-2">
                                     {parsed.leads.map((lead, index) => (
@@ -236,7 +236,7 @@ export function BulkLeadCustomersModal({ open, onClose, onCreated }: BulkLeadCus
                                     ))}
                                 </ul>
                             ) : (
-                                <div className="flex h-full min-h-[160px] items-center justify-center px-4 text-center">
+                                <div className="flex h-full min-h-[100px] items-center justify-center px-4 py-6 text-center md:min-h-[160px]">
                                     <p className="text-sm text-muted-foreground">
                                         Fill at least Full name and Phone. Preview updates as you type.
                                     </p>
@@ -268,14 +268,21 @@ export function BulkLeadCustomersModal({ open, onClose, onCreated }: BulkLeadCus
                 ) : null}
             </DialogBody>
 
-            <DialogFooter className="border-t border-border px-5 py-3">
-                <Button type="button" variant="ghost" onClick={close} disabled={saving}>
+            <DialogFooter className="shrink-0 border-t border-border px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5">
+                <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={close}
+                    disabled={saving}
+                    className="h-11 w-full sm:h-10 sm:w-auto"
+                >
                     {resultNote ? 'Close' : 'Cancel'}
                 </Button>
                 <Button
                     type="button"
                     onClick={() => void handleSave()}
                     disabled={saving || readyCount === 0}
+                    className="h-11 w-full sm:h-10 sm:w-auto"
                 >
                     {saveLabel}
                 </Button>

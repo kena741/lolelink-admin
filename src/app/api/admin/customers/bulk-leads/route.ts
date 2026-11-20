@@ -43,7 +43,8 @@ export async function POST(request: Request) {
         for (let index = 0; index < leads.length; index += 1) {
             const lead = leads[index];
             const firstName = (lead.first_name ?? '').trim();
-            const lastName = (lead.last_name ?? '').trim() || null;
+            // customer.last_name is NOT NULL — single-token full names use ''
+            const lastName = (lead.last_name ?? '').trim();
             const phoneRaw = (lead.phone ?? '').trim();
             const signupSource = (lead.signup_source ?? '').trim() || null;
             const address = (lead.address ?? '').trim() || null;

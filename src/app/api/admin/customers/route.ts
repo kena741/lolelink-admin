@@ -93,7 +93,8 @@ export async function POST(request: Request) {
                 id: userId,
                 user_id: userId,
                 first_name: firstName,
-                last_name: lastName || null,
+                // customer.last_name is NOT NULL
+                last_name: lastName || '',
                 email,
                 phone: localPhone,
                 country_code: countryCode,

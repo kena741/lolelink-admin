@@ -4,8 +4,6 @@ import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 
 const SCROLLABLE_DIALOG_STYLE: React.CSSProperties = {
-  height: "85vh",
-  maxHeight: "85vh",
   display: "grid",
   gridTemplateRows: "auto minmax(0, 1fr) auto",
   overflow: "hidden",
@@ -44,11 +42,18 @@ export function Dialog({
   const dialog = (
     <div className="fixed inset-0 z-[100]">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="absolute inset-0 flex items-center justify-center p-4">
+      <div
+        className={cn(
+          "absolute inset-0 flex justify-center",
+          scrollable ? "items-stretch sm:items-center sm:p-4" : "items-center p-3 sm:p-4"
+        )}
+      >
         <div
           className={cn(
-            "w-full rounded-xl border border-border bg-card shadow-lg",
-            scrollable ? "max-w-2xl" : "max-w-lg p-4",
+            "w-full border border-border bg-card shadow-lg",
+            scrollable
+              ? "h-[100dvh] max-h-[100dvh] max-w-2xl rounded-none sm:h-[85vh] sm:max-h-[85vh] sm:rounded-xl"
+              : "max-w-lg rounded-xl p-4",
             className
           )}
           style={scrollable ? SCROLLABLE_DIALOG_STYLE : undefined}
@@ -116,7 +121,12 @@ export function DialogFooter({
   className?: string;
 }) {
   return (
-    <div className={cn("flex items-center justify-end gap-2", className)}>
+    <div
+      className={cn(
+        "flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end",
+        className
+      )}
+    >
       {children}
     </div>
   );
