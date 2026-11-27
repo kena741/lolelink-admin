@@ -77,6 +77,12 @@ function providerAccountActive(p: Provider): boolean {
     return p.active !== false;
 }
 
+function providerTypeKey(p: Provider): "company" | "individual" {
+    return (p.provider_type ?? "").trim().toLowerCase() === "company"
+        ? "company"
+        : "individual";
+}
+
 function ProviderActivationStatus({
     provider,
     onPay,
@@ -181,12 +187,14 @@ const ProvidersPage = () => {
     type AccountFilter = "all" | "active" | "inactive";
     type TierFilter = "all" | "0" | "1" | "5" | "10" | "10_plus";
     type SignupSourceFilter = "all" | "qr" | "none";
+    type ProviderTypeFilter = "all" | "company" | "individual";
     const [archiveVisibility, setArchiveVisibility] = useState<ArchiveVisibility>("active_only");
     const [activationFilter, setActivationFilter] = useState<ActivationFilter>("all");
     const [servicesFilter, setServicesFilter] = useState<ServicesFilter>("all");
     const [accountFilter, setAccountFilter] = useState<AccountFilter>("all");
     const [tierFilter, setTierFilter] = useState<TierFilter>("all");
     const [signupSourceFilter, setSignupSourceFilter] = useState<SignupSourceFilter>("all");
+    const [providerTypeFilter, setProviderTypeFilter] = useState<ProviderTypeFilter>("all");
     const [actionBusyId, setActionBusyId] = useState<string | null>(null);
     const [actionError, setActionError] = useState<string | null>(null);
     const [pendingDeleteProviderId, setPendingDeleteProviderId] = useState<string | null>(null);
@@ -201,8 +209,17 @@ const ProvidersPage = () => {
         if (accountFilter !== "all") n += 1;
         if (tierFilter !== "all") n += 1;
         if (signupSourceFilter !== "all") n += 1;
+        if (providerTypeFilter !== "all") n += 1;
         return n;
-    }, [archiveVisibility, activationFilter, servicesFilter, accountFilter, tierFilter, signupSourceFilter]);
+    }, [
+        archiveVisibility,
+        activationFilter,
+        servicesFilter,
+        accountFilter,
+        tierFilter,
+        signupSourceFilter,
+        providerTypeFilter,
+    ]);
 
     const resetFilters = useCallback(() => {
         setArchiveVisibility("active_only");
@@ -211,6 +228,7 @@ const ProvidersPage = () => {
         setAccountFilter("all");
         setTierFilter("all");
         setSignupSourceFilter("all");
+        setProviderTypeFilter("all");
     }, []);
 
     const toggleSort = (key: SortKey) => {
@@ -247,9 +265,22 @@ const ProvidersPage = () => {
             const source = (p.signupSource ?? "").trim().toLowerCase();
             if (signupSourceFilter === "qr" && source !== "qr") return false;
             if (signupSourceFilter === "none" && source) return false;
+            if (providerTypeFilter !== "all" && providerTypeKey(p) !== providerTypeFilter) {
+                return false;
+            }
             return true;
         });
-    }, [providers, archiveVisibility, activationFilter, servicesFilter, accountFilter, tierFilter, signupSourceFilter, serviceCounts]);
+    }, [
+        providers,
+        archiveVisibility,
+        activationFilter,
+        servicesFilter,
+        accountFilter,
+        tierFilter,
+        signupSourceFilter,
+        providerTypeFilter,
+        serviceCounts,
+    ]);
 
     const sortedProviders = useMemo(() => {
         const arr = [...attributeFilteredProviders];
@@ -286,14 +317,23 @@ const ProvidersPage = () => {
     }, [attributeFilteredProviders, sortBy, sortDir, serviceCounts]);
 
     const filtered = useMemo(() => {
-        if (!query.trim()) return sortedProviders;
-        const q = query.toLowerCase();
+        const tokens = query
+            .toLowerCase()
+            .split(/\s+/)
+            .map((t) => t.trim())
+            .filter(Boolean);
+        if (tokens.length === 0) return sortedProviders;
         return sortedProviders.filter((p) => {
-            const name = getName(p);
-            const email = (p.email ?? "").toLowerCase();
-            const phone = (p.phoneNumber ?? p.phone ?? "").toString().toLowerCase();
-            const address = (p.address ?? "").toLowerCase();
-            return name.includes(q) || email.includes(q) || phone.includes(q) || address.includes(q);
+            const haystack = [
+                getName(p),
+                (p.email ?? "").toLowerCase(),
+                (p.phoneNumber ?? p.phone ?? "").toString().toLowerCase(),
+                (p.address ?? "").toLowerCase(),
+                (p.admin_note ?? "").toLowerCase(),
+                (p.companyName ?? "").toLowerCase(),
+                providerTypeKey(p),
+            ].join(" ");
+            return tokens.every((token) => haystack.includes(token));
         });
     }, [sortedProviders, query]);
 
@@ -306,6 +346,8 @@ const ProvidersPage = () => {
             'Service tier max': p.service_tier_max ?? 0,
             'Services': p.id ? (serviceCounts[p.id] ?? 0) : 0,
             'Signup source': p.signupSource ?? '',
+            'Provider type': providerTypeKey(p) === 'company' ? 'Company' : 'Individual',
+            'Admin note': p.admin_note ?? '',
             'Archived': providerIsArchived(p) ? 'Yes' : 'No',
         }));
         const ws = XLSX.utils.json_to_sheet(rows);
@@ -526,7 +568,7 @@ const ProvidersPage = () => {
                                     <input
                                         value={query}
                                         onChange={(e) => setQuery(e.target.value)}
-                                        placeholder="Search name, email, phone, address…"
+                                        placeholder="Search name, email, phone, address, note…"
                                         className={cn(
                                             "h-10 w-full rounded-md border border-border bg-card py-2 pl-11 text-sm text-foreground shadow-[0_1px_3px_rgba(0,0,0,0.06)] placeholder:text-muted-foreground transition-colors",
                                             "focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/30",
@@ -673,7 +715,7 @@ const ProvidersPage = () => {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                                         <SegmentGroup
                                             label="Archive"
                                             value={archiveVisibility}
@@ -682,6 +724,16 @@ const ProvidersPage = () => {
                                                 { value: "active_only", label: "Active" },
                                                 { value: "all", label: "All" },
                                                 { value: "archived_only", label: "Archived" },
+                                            ]}
+                                        />
+                                        <SegmentGroup
+                                            label="Provider type"
+                                            value={providerTypeFilter}
+                                            onChange={setProviderTypeFilter}
+                                            options={[
+                                                { value: "all", label: "All" },
+                                                { value: "company", label: "Company" },
+                                                { value: "individual", label: "Individual" },
                                             ]}
                                         />
                                         <SegmentGroup
